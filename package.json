@@ -20,10 +20,11 @@
     "url": "https://github.com/tu-usuario/chatwoot-n8n-whatsapp.git"
   },
   "dependencies": {
+    "lucide-react": "^0.263.1",
     "react": "^18.2.0",
     "react-dom": "^18.2.0",
     "react-scripts": "5.0.1",
-    "lucide-react": "^0.263.1",
+    "socket.io-client": "^4.8.1",
     "web-vitals": "^3.3.2"
   },
   "devDependencies": {
@@ -70,7 +71,6 @@
       "react-hooks/exhaustive-deps": "warn"
     }
   },
-  "proxy": "http://localhost:3001",
   "railwayConfig": {
     "build": {
       "command": "npm run build"
