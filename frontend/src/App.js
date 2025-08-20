@@ -31,7 +31,6 @@ const App = () => {
   useEffect(() => {
     const checkMobile = () => {
       const mobile = window.innerWidth < 768;
-      console.log('📱 Verificando móvil:', { mobile, width: window.innerWidth });
       setIsMobile(mobile);
       if (mobile && selectedConversation) {
         setShowSidebar(false);
@@ -55,37 +54,13 @@ const App = () => {
       if (!response.ok) throw new Error('Error al cargar conversaciones');
       
       const data = await response.json();
+      setConversations(data);
       
-      // Fix para timestamps en conversaciones
-      const fixedData = data.map(conv => {
-        let timestampValue = conv.timestamp || conv.last_message_timestamp || conv.updated_at || new Date().toISOString();
-        let formattedTime = 'Ahora';
-        
-        try {
-          const date = new Date(timestampValue);
-          if (!isNaN(date.getTime())) {
-            formattedTime = date.toLocaleTimeString('es-CO', { 
-              hour: '2-digit', 
-              minute: '2-digit' 
-            });
-          }
-        } catch (e) {
-          console.warn('Error parseando fecha de conversación:', timestampValue);
-        }
-
-        return {
-          ...conv,
-          timestamp: formattedTime
-        };
-      });
-      
-      setConversations(fixedData);
-      
-      console.log(`✅ Conversaciones cargadas: ${fixedData.length}`);
+      console.log(`✅ Conversaciones cargadas: ${data.length}`);
       
       // En móvil, no seleccionar automáticamente una conversación
-      if (fixedData.length > 0 && !isMobile) {
-        await selectConversation(fixedData[0]);
+      if (data.length > 0 && !isMobile) {
+        await selectConversation(data[0]);
       }
     } catch (error) {
       console.error("❌ Error al cargar conversaciones:", error);
@@ -104,31 +79,16 @@ const App = () => {
       
       const data = await response.json();
       
-      const formattedMessages = data.map(msg => {
-        // Fix para el timestamp - usar diferentes campos posibles
-        let timestampValue = msg.timestamp || msg.created_at || new Date().toISOString();
-        let formattedTime = 'Ahora';
-        
-        try {
-          const date = new Date(timestampValue);
-          if (!isNaN(date.getTime())) {
-            formattedTime = date.toLocaleTimeString('es-CO', { 
-              hour: '2-digit', 
-              minute: '2-digit' 
-            });
-          }
-        } catch (e) {
-          console.warn('Error parseando fecha:', timestampValue);
-        }
-
-        return {
-          id: msg.id || msg.whatsapp_id || Date.now(),
-          text: msg.text || msg.text_content || msg.message_text || 'Sin contenido',
-          sender: msg.sender || msg.sender_type || 'customer',
-          timestamp: formattedTime,
-          status: msg.status || 'delivered'
-        };
-      });
+      const formattedMessages = data.map(msg => ({
+        id: msg.id,
+        text: msg.message_text,
+        sender: msg.sender_type,
+        timestamp: new Date(msg.timestamp).toLocaleTimeString('es-CO', { 
+          hour: '2-digit', 
+          minute: '2-digit' 
+        }),
+        status: msg.status || 'delivered'
+      }));
       
       setMessagesByConversation(prev => ({
         ...prev,
@@ -162,8 +122,7 @@ const App = () => {
 
   const markConversationAsRead = async (phone) => {
     try {
-      // Usar el endpoint correcto del backend
-      await fetch(`${API_URL}/api/conversations/${phone}/mark-read`, { method: 'POST' });
+      await fetch(`${API_URL}/api/conversations/${phone}/read`, { method: 'POST' });
       
       setConversations(prev => prev.map(conv => 
         conv.contact.phone === phone ? { ...conv, unread: 0 } : conv
@@ -201,7 +160,6 @@ const App = () => {
     setNewMessage('');
 
     try {
-      // Usar el endpoint correcto para enviar mensajes
       const response = await fetch(`${API_URL}/api/conversations/${targetPhone}/send`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -210,32 +168,17 @@ const App = () => {
 
       if (!response.ok) throw new Error('Error al enviar mensaje');
       
-      // Simular confirmación de envío
-      setMessagesByConversation(prev => {
-        const newState = { ...prev };
-        if (newState[targetPhone]) {
-          newState[targetPhone] = newState[targetPhone].map(msg => 
-            msg.id === tempId 
-              ? { ...msg, status: 'delivered' }
-              : msg
-          );
-        }
-        return newState;
+      socket.emit('message-sent', {
+        temp_id: tempId,
+        message_id: Date.now() + 1,
+        status: 'delivered'
       });
       
     } catch (error) {
       console.error('❌ Error al enviar mensaje:', error);
-      // Marcar como fallido
-      setMessagesByConversation(prev => {
-        const newState = { ...prev };
-        if (newState[targetPhone]) {
-          newState[targetPhone] = newState[targetPhone].map(msg => 
-            msg.id === tempId 
-              ? { ...msg, status: 'failed', text: `${msg.text} ❌` }
-              : msg
-          );
-        }
-        return newState;
+      socket.emit('message-error', {
+        temp_id: tempId,
+        error: error.message
       });
     }
   };
@@ -246,9 +189,8 @@ const App = () => {
 
   // --- FUNCIÓN PARA REGRESAR EN MÓVIL ---
   const handleBackToConversations = () => {
-    console.log('🔙 Regresando a lista de conversaciones');
-    setSelectedConversation(null);
     if (isMobile) {
+      setSelectedConversation(null);
       setShowSidebar(true);
     }
   };
@@ -272,29 +214,14 @@ const App = () => {
     const handleRealTimeMessage = (messageData) => {
       console.log('📨 Nuevo mensaje recibido:', messageData);
       
-      const { phone, message_text, sender_type, contact_name, message, timestamp } = messageData;
+      const { phone, message_text, sender_type, contact_name } = messageData;
       const isCurrentConversation = selectedConversation?.contact.phone === phone;
-      
-      // Fix para el timestamp
-      let formattedTime = 'Ahora';
-      try {
-        if (timestamp) {
-          const date = new Date(timestamp);
-          if (!isNaN(date.getTime())) {
-            formattedTime = date.toLocaleTimeString('es-CO', { hour: '2-digit', minute: '2-digit' });
-          }
-        } else {
-          formattedTime = new Date().toLocaleTimeString('es-CO', { hour: '2-digit', minute: '2-digit' });
-        }
-      } catch (e) {
-        formattedTime = new Date().toLocaleTimeString('es-CO', { hour: '2-digit', minute: '2-digit' });
-      }
       
       const newMsg = {
         id: Date.now(),
-        text: message || message_text || 'Sin contenido',
-        sender: sender_type || 'customer',
-        timestamp: formattedTime,
+        text: message_text,
+        sender: sender_type,
+        timestamp: new Date().toLocaleTimeString('es-CO', { hour: '2-digit', minute: '2-digit' }),
         status: 'delivered'
       };
 
@@ -535,12 +462,11 @@ const App = () => {
             {/* Encabezado del Chat */}
             <div className="bg-white border-b border-gray-200 p-4 flex items-center justify-between">
               <div className="flex items-center space-x-3">
-                {/* Botón de regreso para móvil - MEJORADO */}
+                {/* Botón de regreso para móvil */}
                 {isMobile && (
                   <button
                     onClick={handleBackToConversations}
-                    className="p-2 text-gray-500 hover:bg-gray-100 rounded-lg mr-2 touch-button"
-                    aria-label="Volver a conversaciones"
+                    className="p-2 text-gray-500 hover:bg-gray-100 rounded-lg mr-2"
                   >
                     <ArrowLeft className="w-5 h-5" />
                   </button>
@@ -554,7 +480,7 @@ const App = () => {
                 </div>
               </div>
               <div className="flex items-center space-x-2">
-                <button className="p-2 text-gray-500 hover:bg-gray-100 rounded-lg mobile-hidden">
+                <button className="p-2 text-gray-500 hover:bg-gray-100 rounded-lg">
                   <Phone className="w-5 h-5" />
                 </button>
                 <button className="p-2 text-gray-500 hover:bg-gray-100 rounded-lg">

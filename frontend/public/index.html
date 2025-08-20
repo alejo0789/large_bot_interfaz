@@ -104,12 +104,23 @@
         overflow: hidden;
       }
       
-      /* Prevenir bounce en iOS */
-      html, body {
-        position: fixed;
+      /* Prevenir bounce en iOS pero permitir scroll */
+      html {
         height: 100%;
         width: 100%;
         overflow: hidden;
+      }
+      
+      body {
+        margin: 0;
+        padding: 0;
+        height: 100vh;
+        width: 100vw;
+        background-color: #f3f4f6;
+        -webkit-font-smoothing: antialiased;
+        -moz-osx-font-smoothing: grayscale;
+        font-family: 'Inter', system-ui, -apple-system, sans-serif;
+        /* REMOVIDO: position: fixed que bloqueaba el scroll */
       }
       
       /* Loading animation mejorada */
@@ -353,21 +364,19 @@
         lastTouchEnd = now;
       }, false);
       
-      // Prevenir scroll bounce en iOS
-      document.body.addEventListener('touchstart', function(e) {
-        if (e.target === document.body) {
-          e.preventDefault();
-        }
-      }, { passive: false });
+      // Prevenir scroll bounce en iOS MEJORADO
+      let isScrolling = false;
       
-      document.body.addEventListener('touchend', function(e) {
-        if (e.target === document.body) {
+      document.body.addEventListener('touchstart', function(e) {
+        const target = e.target.closest('.overflow-y-auto, .touch-scroll');
+        if (!target && e.target === document.body) {
           e.preventDefault();
         }
       }, { passive: false });
       
       document.body.addEventListener('touchmove', function(e) {
-        if (e.target === document.body) {
+        const target = e.target.closest('.overflow-y-auto, .touch-scroll');
+        if (!target && e.target === document.body) {
           e.preventDefault();
         }
       }, { passive: false });
