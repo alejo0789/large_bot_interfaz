@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef, useMemo } from 'react';
-import { Send, Phone, MoreVertical, Search, Paperclip, Smile, User, CheckCheck, Clock } from 'lucide-react';
+import { Send, Phone, MoreVertical, Search, Paperclip, Smile, User, CheckCheck, Clock, ArrowLeft, Menu } from 'lucide-react';
 import { io } from 'socket.io-client';
 
 // --- CONFIGURACIÓN DE CONEXIÓN ---
@@ -17,17 +17,34 @@ const App = () => {
   const [messagesByConversation, setMessagesByConversation] = useState({});
   const [isLoading, setIsLoading] = useState(true);
   const [isLoadingMessages, setIsLoadingMessages] = useState(false);
-  
   const [newMessage, setNewMessage] = useState('');
   const [isConnected, setIsConnected] = useState(socket.connected);
   const [searchQuery, setSearchQuery] = useState('');
+  
+  // --- NUEVOS ESTADOS PARA RESPONSIVE ---
+  const [isMobile, setIsMobile] = useState(false);
+  const [showSidebar, setShowSidebar] = useState(true);
+  
   const messagesEndRef = useRef(null);
 
-  // --- FUNCIONES DE API ---
+  // --- DETECTAR SI ES MÓVIL ---
+  useEffect(() => {
+    const checkMobile = () => {
+      const mobile = window.innerWidth < 768;
+      setIsMobile(mobile);
+      if (mobile && selectedConversation) {
+        setShowSidebar(false);
+      } else if (!mobile) {
+        setShowSidebar(true);
+      }
+    };
 
-  /**
-   * Carga todas las conversaciones desde el backend
-   */
+    checkMobile();
+    window.addEventListener('resize', checkMobile);
+    return () => window.removeEventListener('resize', checkMobile);
+  }, [selectedConversation]);
+
+  // --- FUNCIONES DE API ---
   const fetchConversations = async () => {
     try {
       setIsLoading(true);
@@ -41,8 +58,8 @@ const App = () => {
       
       console.log(`✅ Conversaciones cargadas: ${data.length}`);
       
-      // Si hay conversaciones, seleccionar la primera automáticamente
-      if (data.length > 0) {
+      // En móvil, no seleccionar automáticamente una conversación
+      if (data.length > 0 && !isMobile) {
         await selectConversation(data[0]);
       }
     } catch (error) {
@@ -52,149 +69,69 @@ const App = () => {
     }
   };
 
-  /**
-   * Carga los mensajes de una conversación específica
-   */
   const fetchMessages = async (phone) => {
     try {
       setIsLoadingMessages(true);
-      console.log(`🔄 Cargando mensajes para: ${phone}`);
+      console.log(`🔄 Cargando mensajes para ${phone}...`);
       
       const response = await fetch(`${API_URL}/api/conversations/${phone}/messages`);
       if (!response.ok) throw new Error('Error al cargar mensajes');
       
-      const messages = await response.json();
+      const data = await response.json();
+      
+      const formattedMessages = data.map(msg => ({
+        id: msg.id,
+        text: msg.message_text,
+        sender: msg.sender_type,
+        timestamp: new Date(msg.timestamp).toLocaleTimeString('es-CO', { 
+          hour: '2-digit', 
+          minute: '2-digit' 
+        }),
+        status: msg.status || 'delivered'
+      }));
       
       setMessagesByConversation(prev => ({
         ...prev,
-        [phone]: messages
+        [phone]: formattedMessages
       }));
       
-      console.log(`✅ Mensajes cargados para ${phone}: ${messages.length}`);
-      return messages;
+      console.log(`✅ Mensajes cargados: ${formattedMessages.length}`);
     } catch (error) {
       console.error(`❌ Error al cargar mensajes para ${phone}:`, error);
-      return [];
     } finally {
       setIsLoadingMessages(false);
     }
   };
 
-  /**
-   * Marca una conversación como leída
-   */
-  const markConversationAsRead = async (phone) => {
-    try {
-      await fetch(`${API_URL}/api/conversations/${phone}/mark-read`, {
-        method: 'POST'
-      });
-      
-      console.log(`✅ Conversación ${phone} marcada como leída`);
-      
-      // Actualizar el estado local
-      setConversations(prev => prev.map(conv => 
-        conv.contact.phone === phone ? { ...conv, unread: 0 } : conv
-      ));
-    } catch (error) {
-      console.error(`❌ Error al marcar como leída la conversación ${phone}:`, error);
-    }
-  };
-
-  // --- LÓGICA PRINCIPAL ---
-
-  /**
-   * Maneja los mensajes nuevos que llegan en tiempo real vía WebSocket.
-   */
-  const handleRealTimeMessage = (messageData) => {
-    console.log('📨 Mensaje en tiempo real recibido:', messageData);
-    const phone = (messageData.phone || messageData.from || '').replace(/\s+/g, '');
-    if (!phone) return;
-
-    // Mapeo correcto de sender_type
-    const sender = messageData.sender_type === 'bot' ? 'agent' : 
-                  messageData.sender_type === 'agent' ? 'agent' : 'customer';
-
-    const newMsg = {
-      id: messageData.whatsapp_id || Date.now(),
-      text: messageData.message || 'Sin contenido',
-      sender: sender,
-      timestamp: new Date().toLocaleTimeString('es-CO', { hour: '2-digit', minute: '2-digit' }),
-      status: 'received'
-    };
-
-    // CAMBIO PRINCIPAL: Agregar el mensaje SIEMPRE, incluso si la conversación no está cargada
-    setMessagesByConversation(prev => {
-      return {
-        ...prev,
-        [phone]: [...(prev[phone] || []), newMsg]
-      };
-    });
-
-    // Actualizar la conversación en la lista
-    setConversations(prev => {
-      const convIndex = prev.findIndex(c => c.contact.phone === phone);
-      if (convIndex > -1) {
-        const isCurrentConversation = selectedConversation?.contact.phone === phone;
-        const updatedConv = {
-          ...prev[convIndex],
-          lastMessage: newMsg.text,
-          timestamp: newMsg.timestamp,
-          unread: isCurrentConversation ? 0 : prev[convIndex].unread + 1
-        };
-        
-        // Si es la conversación actual, marcar como leída automáticamente
-        if (isCurrentConversation) {
-          markConversationAsRead(phone);
-        }
-        
-        // Mover la conversación al principio
-        const newConversations = [...prev];
-        newConversations.splice(convIndex, 1);
-        return [updatedConv, ...newConversations];
-      } else {
-        // Crear nueva conversación si no existe
-        const contactName = messageData.contact_name || `Usuario ${phone.slice(-4)}`;
-        const newConv = {
-          id: phone,
-          contact: { name: contactName, phone: phone },
-          lastMessage: newMsg.text,
-          timestamp: newMsg.timestamp,
-          unread: selectedConversation?.contact.phone === phone ? 0 : 1,
-          status: 'active'
-        };
-        return [newConv, ...prev];
-      }
-    });
-
-    // AGREGAR: Refrescar conversaciones para asegurar sincronización
-    if (sender === 'agent' || messageData.sender_type === 'bot') {
-      setTimeout(() => {
-        console.log('🔄 Refrescando conversaciones después de mensaje del bot...');
-        fetchConversations();
-      }, 1000);
-    }
-  };
-
-  /**
-   * Selecciona una conversación y carga sus mensajes
-   */
   const selectConversation = async (conversation) => {
     console.log('🎯 Seleccionando conversación:', conversation.contact.phone);
     
     setSelectedConversation(conversation);
     
-    // Marcar como leída si tiene mensajes no leídos
+    // En móvil, ocultar la barra lateral cuando se selecciona una conversación
+    if (isMobile) {
+      setShowSidebar(false);
+    }
+    
     if (conversation.unread > 0) {
       await markConversationAsRead(conversation.contact.phone);
     }
     
-    // CAMBIO: Siempre recargar mensajes para asegurar que tenemos los más recientes
     await fetchMessages(conversation.contact.phone);
   };
 
-  /**
-   * Envía un mensaje
-   */
+  const markConversationAsRead = async (phone) => {
+    try {
+      await fetch(`${API_URL}/api/conversations/${phone}/read`, { method: 'POST' });
+      
+      setConversations(prev => prev.map(conv => 
+        conv.contact.phone === phone ? { ...conv, unread: 0 } : conv
+      ));
+    } catch (error) {
+      console.error('❌ Error al marcar como leída:', error);
+    }
+  };
+
   const sendMessage = async () => {
     if (!newMessage.trim() || !selectedConversation) return;
 
@@ -209,66 +146,126 @@ const App = () => {
       status: 'sending'
     };
     
-    // Agregar mensaje temporalmente a la UI
     setMessagesByConversation(prev => ({
       ...prev,
       [targetPhone]: [...(prev[targetPhone] || []), message]
     }));
     
-    // Actualizar la conversación en la lista
     setConversations(prev => prev.map(conv => 
       conv.contact.phone === targetPhone 
         ? { ...conv, lastMessage: newMessage, timestamp: message.timestamp }
         : conv
     ));
-    
-    // Enviar a través del socket
-    socket.emit('send-whatsapp-message', { 
-      to: targetPhone, 
-      text: newMessage,
-      temp_id: tempId
-    });
 
     setNewMessage('');
-  };
 
-  /**
-   * Refresca las conversaciones manualmente
-   */
-  const refreshConversations = async () => {
-    console.log('🔄 Refrescando conversaciones...');
-    await fetchConversations();
-    
-    // También refrescar mensajes de la conversación actual
-    if (selectedConversation) {
-      await fetchMessages(selectedConversation.contact.phone);
+    try {
+      const response = await fetch(`${API_URL}/api/conversations/${targetPhone}/send`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ message: newMessage })
+      });
+
+      if (!response.ok) throw new Error('Error al enviar mensaje');
+      
+      socket.emit('message-sent', {
+        temp_id: tempId,
+        message_id: Date.now() + 1,
+        status: 'delivered'
+      });
+      
+    } catch (error) {
+      console.error('❌ Error al enviar mensaje:', error);
+      socket.emit('message-error', {
+        temp_id: tempId,
+        error: error.message
+      });
     }
   };
 
-  // --- HOOKS DE EFECTO ---
+  const refreshConversations = () => {
+    fetchConversations();
+  };
 
-  // Cargar conversaciones al montar el componente
+  // --- FUNCIÓN PARA REGRESAR EN MÓVIL ---
+  const handleBackToConversations = () => {
+    if (isMobile) {
+      setSelectedConversation(null);
+      setShowSidebar(true);
+    }
+  };
+
+  // --- EFECTOS ---
   useEffect(() => {
     fetchConversations();
   }, []);
 
-  // Configurar eventos de Socket.IO
   useEffect(() => {
     const onConnect = () => {
+      console.log('✅ Conectado al servidor');
       setIsConnected(true);
-      console.log('🟢 Conectado al servidor');
     };
-    
+
     const onDisconnect = () => {
+      console.log('❌ Desconectado del servidor');
       setIsConnected(false);
-      console.log('🔴 Desconectado del servidor');
+    };
+
+    const handleRealTimeMessage = (messageData) => {
+      console.log('📨 Nuevo mensaje recibido:', messageData);
+      
+      const { phone, message_text, sender_type, contact_name } = messageData;
+      const isCurrentConversation = selectedConversation?.contact.phone === phone;
+      
+      const newMsg = {
+        id: Date.now(),
+        text: message_text,
+        sender: sender_type,
+        timestamp: new Date().toLocaleTimeString('es-CO', { hour: '2-digit', minute: '2-digit' }),
+        status: 'delivered'
+      };
+
+      setMessagesByConversation(prev => ({
+        ...prev,
+        [phone]: [...(prev[phone] || []), newMsg]
+      }));
+
+      setConversations(prev => {
+        const convIndex = prev.findIndex(c => c.contact.phone === phone);
+        
+        if (convIndex !== -1) {
+          const updatedConv = {
+            ...prev[convIndex],
+            lastMessage: newMsg.text,
+            timestamp: newMsg.timestamp,
+            unread: isCurrentConversation ? prev[convIndex].unread : prev[convIndex].unread + 1
+          };
+          
+          if (isCurrentConversation) {
+            markConversationAsRead(phone);
+          }
+          
+          const newConversations = [...prev];
+          newConversations.splice(convIndex, 1);
+          return [updatedConv, ...newConversations];
+        } else {
+          const contactName = contact_name || `Usuario ${phone.slice(-4)}`;
+          const newConv = {
+            id: phone,
+            contact: { name: contactName, phone: phone },
+            lastMessage: newMsg.text,
+            timestamp: newMsg.timestamp,
+            unread: selectedConversation?.contact.phone === phone ? 0 : 1,
+            status: 'active'
+          };
+          return [newConv, ...prev];
+        }
+      });
     };
 
     const onMessageSent = (data) => {
-      console.log('✅ Mensaje confirmado como enviado:', data);
       const { temp_id, message_id, status } = data;
       
-      // Actualizar el estado del mensaje temporal
       setMessagesByConversation(prev => {
         const newState = { ...prev };
         Object.keys(newState).forEach(phone => {
@@ -286,7 +283,6 @@ const App = () => {
       console.error('❌ Error enviando mensaje:', data);
       const { temp_id, error } = data;
       
-      // Marcar el mensaje como fallido
       setMessagesByConversation(prev => {
         const newState = { ...prev };
         Object.keys(newState).forEach(phone => {
@@ -315,7 +311,6 @@ const App = () => {
     };
   }, [selectedConversation]);
 
-  // Auto-scroll cuando cambian los mensajes
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messagesByConversation, selectedConversation]);
@@ -351,6 +346,11 @@ const App = () => {
     </button>
   );
 
+  // Obtener mensajes actuales
+  const currentMessages = selectedConversation 
+    ? messagesByConversation[selectedConversation.contact.phone] || []
+    : [];
+
   // --- RENDERIZADO ---
   if (isLoading) {
     return (
@@ -364,73 +364,86 @@ const App = () => {
   }
 
   const getStatusColor = () => isConnected ? 'bg-green-500' : 'bg-red-500';
-  const getStatusText = () => isConnected ? 'Conectado' : 'Desconectado';
-  const currentMessages = selectedConversation ? messagesByConversation[selectedConversation.contact.phone] || [] : [];
 
   return (
-    <div className="flex h-screen bg-gray-100 font-inter text-sm">
-      {/* Panel Lateral */}
-      <div className="w-80 bg-white border-r border-gray-200 flex flex-col">
-        <div className="p-4 border-b border-gray-200">
-          <div className="flex items-center justify-between mb-4">
-            <div>
-              <h1 className="text-lg font-bold text-gray-800">Chat WhatsApp</h1>
-              <p className="text-xs text-gray-500">Gestión de Conversaciones</p>
+    <div className="flex h-screen bg-gray-100 overflow-hidden">
+      {/* BARRA LATERAL DE CONVERSACIONES */}
+      <div className={`${
+        isMobile ? (showSidebar ? 'w-full' : 'hidden') : 'w-1/3'
+      } bg-white border-r border-gray-200 flex flex-col transition-all duration-300`}>
+        
+        {/* Header con indicador de conexión */}
+        <div className="bg-gradient-to-r from-blue-600 to-blue-700 text-white p-4">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center space-x-3">
+              <div className="w-10 h-10 bg-white bg-opacity-20 rounded-full flex items-center justify-center">
+                <User className="w-5 h-5" />
+              </div>
+              <div>
+                <h1 className="text-lg font-semibold">Chat Large + IA</h1>
+                <div className="flex items-center space-x-2 text-sm opacity-90">
+                  <div className={`w-2 h-2 rounded-full ${getStatusColor()}`}></div>
+                  <span>{isConnected ? 'Conectado' : 'Desconectado'}</span>
+                </div>
+              </div>
             </div>
-            <div className="flex items-center space-x-2">
-              <RefreshButton />
-              <div className={`w-2.5 h-2.5 rounded-full transition-colors ${getStatusColor()}`}></div>
-              <span className="text-xs text-gray-600">{getStatusText()}</span>
-            </div>
+            <RefreshButton />
           </div>
+        </div>
+
+        {/* Barra de búsqueda */}
+        <div className="p-4 border-b border-gray-200">
           <div className="relative">
             <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-4 h-4" />
             <input
               type="text"
               placeholder="Buscar conversaciones..."
-              className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
+              className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm"
             />
           </div>
         </div>
-        
+
+        {/* Lista de conversaciones */}
         <div className="flex-1 overflow-y-auto">
           {filteredConversations.length === 0 ? (
-            <div className="p-4 text-center text-gray-500">
-              {searchQuery ? 'No se encontraron conversaciones' : 'No hay conversaciones activas'}
+            <div className="p-6 text-center">
+              <div className="w-16 h-16 bg-gray-200 rounded-full flex items-center justify-center mx-auto mb-4">
+                <User className="w-8 h-8 text-gray-400" />
+              </div>
+              <p className="text-gray-500">No hay conversaciones</p>
+              <p className="text-gray-400 text-sm mt-1">Las conversaciones aparecerán aquí cuando lleguen mensajes</p>
             </div>
           ) : (
             filteredConversations.map((conversation) => (
               <div
                 key={conversation.id}
                 onClick={() => selectConversation(conversation)}
-                className={`p-3 flex items-center space-x-3 cursor-pointer border-l-4 transition-all hover:bg-gray-50 ${
-                  selectedConversation?.id === conversation.id 
-                    ? 'bg-blue-50 border-blue-500' 
-                    : 'border-transparent'
+                className={`p-4 border-b border-gray-100 cursor-pointer hover:bg-gray-50 transition-colors ${
+                  selectedConversation?.id === conversation.id ? 'bg-blue-50 border-l-4 border-l-blue-500' : ''
                 }`}
               >
-                <div className="relative">
-                  <div className="w-12 h-12 bg-gradient-to-br from-green-400 to-green-600 rounded-full flex items-center justify-center text-white font-semibold">
+                <div className="flex items-center space-x-3">
+                  <div className="w-12 h-12 bg-gradient-to-br from-green-400 to-green-600 rounded-full flex items-center justify-center text-white flex-shrink-0">
                     <User className="w-6 h-6" />
                   </div>
-                  {conversation.unread > 0 && (
-                    <div className="absolute -top-1 -right-1 w-5 h-5 bg-red-500 rounded-full flex items-center justify-center">
-                      <span className="text-white text-xs font-bold">{conversation.unread}</span>
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center justify-between">
+                      <h3 className="text-sm font-semibold text-gray-900 truncate">
+                        {conversation.contact.name}
+                      </h3>
+                      <div className="flex items-center space-x-2 flex-shrink-0">
+                        <span className="text-xs text-gray-500">{conversation.timestamp}</span>
+                        {conversation.unread > 0 && (
+                          <span className="bg-blue-500 text-white text-xs rounded-full px-2 py-1 min-w-[20px] text-center">
+                            {conversation.unread}
+                          </span>
+                        )}
+                      </div>
                     </div>
-                  )}
-                </div>
-                <div className="flex-1 min-w-0">
-                  <div className="flex items-center justify-between">
-                    <h3 className="font-medium text-gray-900 truncate">{conversation.contact.name}</h3>
-                    <span className="text-xs text-gray-500">{conversation.timestamp}</span>
-                  </div>
-                  <div className="flex items-center justify-between mt-1">
-                    <p className="text-xs text-gray-600 truncate">{conversation.lastMessage}</p>
-                  </div>
-                  <div className="text-xs text-gray-400 mt-1">
-                    {conversation.contact.phone}
+                    <p className="text-sm text-gray-600 truncate mt-1">{conversation.lastMessage}</p>
+                    <p className="text-xs text-gray-400 mt-1">{conversation.contact.phone}</p>
                   </div>
                 </div>
               </div>
@@ -439,13 +452,25 @@ const App = () => {
         </div>
       </div>
 
-      {/* Panel Principal */}
-      <div className="flex-1 flex flex-col">
+      {/* ÁREA DE CHAT PRINCIPAL */}
+      <div className={`${
+        isMobile ? (showSidebar ? 'hidden' : 'w-full') : 'flex-1'
+      } flex flex-col bg-white transition-all duration-300`}>
+        
         {selectedConversation ? (
           <>
             {/* Encabezado del Chat */}
             <div className="bg-white border-b border-gray-200 p-4 flex items-center justify-between">
               <div className="flex items-center space-x-3">
+                {/* Botón de regreso para móvil */}
+                {isMobile && (
+                  <button
+                    onClick={handleBackToConversations}
+                    className="p-2 text-gray-500 hover:bg-gray-100 rounded-lg mr-2"
+                  >
+                    <ArrowLeft className="w-5 h-5" />
+                  </button>
+                )}
                 <div className="w-10 h-10 bg-gradient-to-br from-green-400 to-green-600 rounded-full flex items-center justify-center text-white">
                   <User className="w-5 h-5" />
                 </div>
@@ -465,7 +490,7 @@ const App = () => {
             </div>
 
             {/* Área de Mensajes */}
-            <div className="flex-1 overflow-y-auto p-6 space-y-4 bg-gray-50">
+            <div className="flex-1 overflow-y-auto p-4 space-y-4 bg-gray-50">
               {isLoadingMessages ? (
                 <div className="flex items-center justify-center h-full">
                   <div className="flex flex-col items-center">
@@ -488,13 +513,15 @@ const App = () => {
                   <div 
                     key={message.id} 
                     className={`flex items-end gap-2 ${
-                      message.sender === 'bot' ? 'justify-end' : 
+                      message.sender === 'agent' ? 'justify-end' : 
                       message.sender === 'system' ? 'justify-center' : 
                       'justify-start'
                     }`}
                   >
-                    <div className={`max-w-lg px-4 py-2 rounded-lg shadow-sm ${
-                      message.sender === 'bot' ? 'bg-blue-500 text-white rounded-br-none' :
+                    <div className={`${
+                      isMobile ? 'max-w-[85%]' : 'max-w-lg'
+                    } px-4 py-2 rounded-lg shadow-sm ${
+                      message.sender === 'agent' ? 'bg-blue-500 text-white rounded-br-none' :
                       message.sender === 'system' ? 'bg-gray-200 text-gray-600 text-xs text-center w-full' :
                       'bg-white text-gray-800 rounded-bl-none border'
                     }`}>
@@ -513,7 +540,7 @@ const App = () => {
             {/* Campo de Entrada */}
             <div className="bg-white border-t border-gray-200 p-4">
               <div className="flex items-center space-x-3">
-                <button className="p-2 text-gray-500 hover:bg-gray-100 rounded-lg">
+                <button className="p-2 text-gray-500 hover:bg-gray-100 rounded-lg hidden sm:block">
                   <Paperclip className="w-5 h-5" />
                 </button>
                 <div className="flex-1 relative">
@@ -523,10 +550,12 @@ const App = () => {
                     onChange={(e) => setNewMessage(e.target.value)}
                     onKeyPress={(e) => e.key === 'Enter' && sendMessage()}
                     placeholder="Escribe un mensaje..."
-                    className="w-full px-4 py-2 border border-gray-300 rounded-full focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                    className={`w-full px-4 py-2 border border-gray-300 rounded-full focus:ring-2 focus:ring-blue-500 focus:border-transparent ${
+                      isMobile ? 'text-base' : 'text-sm'
+                    }`}
                     disabled={isLoadingMessages}
                   />
-                  <button className="absolute right-3 top-1/2 transform -translate-y-1/2 p-1 text-gray-500 hover:text-gray-700">
+                  <button className="absolute right-3 top-1/2 transform -translate-y-1/2 p-1 text-gray-500 hover:text-gray-700 hidden sm:block">
                     <Smile className="w-5 h-5" />
                   </button>
                 </div>
@@ -552,6 +581,15 @@ const App = () => {
               <p className="text-gray-400 text-sm mt-2">
                 Los mensajes aparecerán cuando lleguen nuevas conversaciones
               </p>
+              {/* Botón para mostrar conversaciones en móvil */}
+              {isMobile && conversations.length > 0 && (
+                <button
+                  onClick={() => setShowSidebar(true)}
+                  className="mt-4 px-4 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 transition-colors"
+                >
+                  Ver conversaciones
+                </button>
+              )}
             </div>
           </div>
         )}
