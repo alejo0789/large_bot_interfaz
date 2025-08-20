@@ -1,428 +1,188 @@
-/* Estilos adicionales para mejorar la experiencia móvil */
+/* Estilos móviles SIMPLIFICADOS - Solo lo esencial */
 
-/* CRITICAL: Fixes para scroll en móvil */
-.touch-scroll {
-  -webkit-overflow-scrolling: touch !important;
-  overflow-scrolling: touch !important;
-  overscroll-behavior: contain;
-  transform: translateZ(0);
+/* PASO 1: Resetear y permitir scroll nativo */
+* {
+  box-sizing: border-box;
 }
 
-/* Elementos táctiles mejorados */
-.touch-item {
-  touch-action: manipulation !important;
-  -webkit-touch-callout: none;
-  -webkit-user-select: none;
-  user-select: none;
-  cursor: pointer;
-}
-
-.conversation-list {
-  touch-action: pan-y !important;
-  overscroll-behavior-y: contain;
-  -webkit-overflow-scrolling: touch;
-}
-
-.message-container {
-  touch-action: pan-y !important;
-  overscroll-behavior-y: contain;
-  -webkit-overflow-scrolling: touch !important;
-  transform: translateZ(0);
-}
-
-.messages-list {
-  touch-action: manipulation;
-  display: flex;
-  flex-direction: column;
-  gap: 1rem;
-}
-
-.message-item {
-  touch-action: none;
-}
-
-/* Asegurar que los botones funcionen en móvil */
-.touch-button {
-  touch-action: manipulation !important;
-  -webkit-tap-highlight-color: rgba(0,0,0,0.1);
-  min-width: 44px !important;
-  min-height: 44px !important;
-  display: flex !important;
-  align-items: center !important;
-  justify-content: center !important;
-}
-
-/* Sticky header que no desaparece */
-.sticky {
-  position: -webkit-sticky !important;
-  position: sticky !important;
-  z-index: 50 !important;
-}
-
-/* Prevenir zoom en inputs en iOS */
-@media screen and (max-width: 768px) {
-  input[type="text"], 
-  input[type="search"], 
-  textarea {
-    font-size: 16px !important;
-    transform: translateZ(0);
-  }
-  
-  /* Forzar re-render después de orientación */
-  body {
-    -webkit-text-size-adjust: 100% !important;
-  }
-  
-  /* Contenedores con scroll habilitado */
-  .overflow-y-auto {
-    -webkit-overflow-scrolling: touch !important;
-    overflow-scrolling: touch !important;
-    overscroll-behavior: contain;
-    transform: translateZ(0);
-  }
-  
-  /* Forzar altura completa en móvil */
-  .mobile-full-height {
-    height: 100vh !important;
-    min-height: 100vh !important;
-  }
-  
-  /* Botón de regreso siempre visible en móvil */
-  .mobile-back-button {
-    display: flex !important;
-    position: relative !important;
-    z-index: 100 !important;
-  }
-}
-
-/* Fixes específicos para orientación */
-@media screen and (orientation: landscape) and (max-width: 1024px) {
-  .mobile-landscape {
-    height: 100vh !important;
-  }
-  
-  .touch-scroll {
-    max-height: calc(100vh - 120px) !important;
-  }
-}
-
-@media screen and (orientation: portrait) and (max-width: 768px) {
-  .mobile-portrait {
-    height: 100vh !important;
-  }
-  
-  .touch-scroll {
-    max-height: calc(100vh - 160px) !important;
-  }
-}
-
-/* Prevenir zoom en inputs en iOS */
-@media screen and (max-width: 768px) {
-  input[type="text"], 
-  input[type="search"], 
-  textarea {
-    font-size: 16px !important;
-    transform: translateZ(0);
-  }
-  
-  /* Permitir scroll vertical en móvil */
-  body {
-    overflow: hidden;
-    position: fixed;
-    width: 100%;
-    height: 100%;
-  }
-  
-  #root {
-    overflow: hidden;
-    height: 100vh;
-    width: 100vw;
-  }
-  
-  /* Contenedores con scroll habilitado */
-  .overflow-y-auto {
-    -webkit-overflow-scrolling: touch !important;
-    overflow-scrolling: touch !important;
-    overscroll-behavior: contain;
-  }
-}
-
-/* Scrollbar personalizado */
-::-webkit-scrollbar {
-  width: 6px;
-}
-
-::-webkit-scrollbar-track {
-  background: #f1f1f1;
-  border-radius: 3px;
-}
-
-::-webkit-scrollbar-thumb {
-  background: #c1c1c1;
-  border-radius: 3px;
-}
-
-::-webkit-scrollbar-thumb:hover {
-  background: #a8a8a8;
-}
-
-/* Animaciones de transición suaves */
-.conversation-item {
-  transition: all 0.2s ease-in-out;
-}
-
-.conversation-item:hover {
-  transform: translateX(2px);
-}
-
-/* Estados de carga */
-.loading-spinner {
-  border: 3px solid #f3f4f6;
-  border-top: 3px solid #3b82f6;
-  border-radius: 50%;
-  width: 24px;
-  height: 24px;
-  animation: spin 1s linear infinite;
-}
-
-@keyframes spin {
-  0% { transform: rotate(0deg); }
-  100% { transform: rotate(360deg); }
-}
-
-/* Mejoras para el área de mensajes en móvil */
-@media screen and (max-width: 768px) {
-  .message-bubble {
-    max-width: 85% !important;
-    word-wrap: break-word;
-    overflow-wrap: break-word;
-  }
-  
-  /* Padding más pequeño para mensajes en móvil */
-  .message-area {
-    padding: 1rem 0.75rem;
-  }
-  
-  /* Input más grande en móvil para mejor usabilidad */
-  .message-input {
-    min-height: 44px;
-    font-size: 16px;
-  }
-  
-  /* Botones más grandes para touch */
-  .touch-button {
-    min-width: 44px;
-    min-height: 44px;
-  }
-}
-
-/* Efectos hover mejorados */
-.hover-scale:hover {
-  transform: scale(1.02);
-}
-
-/* Optimizaciones para pantallas pequeñas */
-@media screen and (max-width: 640px) {
-  /* Reducir espaciado en pantallas muy pequeñas */
-  .conversation-header {
-    padding: 0.75rem 1rem;
-  }
-  
-  .conversation-item {
-    padding: 0.75rem 1rem;
-  }
-  
-  /* Ocultar elementos menos importantes en móvil */
-  .mobile-hidden {
-    display: none !important;
-  }
-  
-  /* Ajustar tamaño de texto */
-  .conversation-name {
-    font-size: 0.9rem;
-  }
-  
-  .conversation-message {
-    font-size: 0.85rem;
-  }
-}
-
-/* Estados de conexión */
-.status-indicator {
-  animation: pulse 2s infinite;
-}
-
-@keyframes pulse {
-  0%, 100% {
-    opacity: 1;
-  }
-  50% {
-    opacity: 0.5;
-  }
-}
-
-/* Mejoras de accesibilidad */
-.focus-visible:focus {
-  outline: 2px solid #3b82f6;
-  outline-offset: 2px;
-}
-
-/* Prevenir selección de texto en elementos interactivos */
-.no-select {
-  -webkit-user-select: none;
-  -moz-user-select: none;
-  -ms-user-select: none;
-  user-select: none;
-}
-
-/* Estilos para modo oscuro (opcional) */
-@media (prefers-color-scheme: dark) {
-  .dark-mode {
-    background-color: #1f2937;
-    color: #f9fafb;
-  }
-  
-  .dark-mode .conversation-item {
-    border-color: #374151;
-    background-color: #374151;
-  }
-  
-  .dark-mode .conversation-item:hover {
-    background-color: #4b5563;
-  }
-}
-
-/* Animaciones de entrada */
-.fade-in {
-  animation: fadeIn 0.3s ease-in-out;
-}
-
-@keyframes fadeIn {
-  from {
-    opacity: 0;
-    transform: translateY(10px);
-  }
-  to {
-    opacity: 1;
-    transform: translateY(0);
-  }
-}
-
-.slide-in-right {
-  animation: slideInRight 0.3s ease-out;
-}
-
-@keyframes slideInRight {
-  from {
-    transform: translateX(100%);
-  }
-  to {
-    transform: translateX(0);
-  }
-}
-
-.slide-in-left {
-  animation: slideInLeft 0.3s ease-out;
-}
-
-@keyframes slideInLeft {
-  from {
-    transform: translateX(-100%);
-  }
-  to {
-    transform: translateX(0);
-  }
-}
-
-/* Mejoras para el scroll */
-.smooth-scroll {
-  scroll-behavior: smooth;
-}
-
-/* Optimización para rendimiento */
-.gpu-accelerated {
-  transform: translateZ(0);
-  will-change: transform;
-}
-
-/* Estilos para notificaciones de estado */
-.status-badge {
-  display: inline-flex;
-  align-items: center;
-  padding: 0.25rem 0.5rem;
-  border-radius: 9999px;
-  font-size: 0.75rem;
-  font-weight: 500;
-}
-
-.status-badge.online {
-  background-color: #dcfce7;
-  color: #166534;
-}
-
-.status-badge.offline {
-  background-color: #fef2f2;
-  color: #991b1b;
-}
-
-/* Mejoras específicas para WhatsApp look */
-.whatsapp-green {
-  background-color: #25d366;
-}
-
-.whatsapp-green-light {
-  background-color: #dcf8c6;
-}
-
-.whatsapp-bubble-sent {
-  background-color: #dcf8c6;
-  color: #000;
-}
-
-.whatsapp-bubble-received {
-  background-color: #ffffff;
-  color: #000;
-  border: 1px solid #e5e7eb;
-}
-
-/* Indicadores de tiempo y estado de mensaje */
-.message-time {
-  font-size: 0.7rem;
-  opacity: 0.7;
-  margin-top: 0.25rem;
-}
-
-.message-status {
-  display: inline-flex;
-  align-items: center;
-  margin-left: 0.25rem;
-}
-
-/* Responsive para tablets */
-@media screen and (min-width: 768px) and (max-width: 1024px) {
-  .tablet-layout {
-    max-width: none;
-  }
-  
-  .sidebar-tablet {
-    width: 40%;
-    min-width: 320px;
-  }
-  
-  .chat-area-tablet {
-    width: 60%;
-  }
-}
-
-/* Prevenir problemas de viewport en móviles */
 html, body {
-  overflow-x: hidden;
-  height: 100%;
+  margin: 0;
+  padding: 0;
   width: 100%;
+  height: 100%;
+  overflow: hidden;
 }
 
 #root {
-  height: 100vh;
   width: 100vw;
+  height: 100vh;
   overflow: hidden;
+}
+
+/* PASO 2: Scroll containers - SIMPLIFICADO */
+.scroll-container {
+  overflow-y: auto !important;
+  overflow-x: hidden !important;
+  -webkit-overflow-scrolling: touch !important;
+  overscroll-behavior: contain !important;
+  height: 100% !important;
+}
+
+/* PASO 3: Touch events - SOLO LO NECESARIO */
+.touchable {
+  touch-action: manipulation !important;
+  -webkit-tap-highlight-color: rgba(0,0,0,0.1) !important;
+  cursor: pointer !important;
+}
+
+/* PASO 4: Botones móviles */
+.mobile-button {
+  min-width: 48px !important;
+  min-height: 48px !important;
+  touch-action: manipulation !important;
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  position: relative !important;
+  z-index: 1000 !important;
+}
+
+/* PASO 5: Header sticky FORZADO */
+.mobile-header {
+  position: fixed !important;
+  top: 0 !important;
+  left: 0 !important;
+  right: 0 !important;
+  z-index: 9999 !important;
+  background: white !important;
+  border-bottom: 1px solid #e5e7eb !important;
+  height: 70px !important;
+}
+
+/* PASO 6: Contenido con margen para header */
+.mobile-content {
+  margin-top: 70px !important;
+  height: calc(100vh - 70px) !important;
+  overflow-y: auto !important;
+  -webkit-overflow-scrolling: touch !important;
+}
+
+/* PASO 7: Input area fixed */
+.mobile-input-area {
+  position: fixed !important;
+  bottom: 0 !important;
+  left: 0 !important;
+  right: 0 !important;
+  z-index: 9998 !important;
+  background: white !important;
+  border-top: 1px solid #e5e7eb !important;
+  padding: 1rem !important;
+}
+
+/* PASO 8: Ajustar contenido para input */
+.mobile-messages {
+  padding-bottom: 80px !important;
+  overflow-y: auto !important;
+  -webkit-overflow-scrolling: touch !important;
+  height: calc(100vh - 150px) !important;
+}
+
+/* PASO 9: Responsive queries SIMPLES */
+@media screen and (max-width: 768px) {
+  /* Prevenir zoom en inputs */
+  input, textarea, select {
+    font-size: 16px !important;
+  }
+  
+  /* Ocultar elementos no esenciales */
+  .desktop-only {
+    display: none !important;
+  }
+  
+  /* Forzar altura completa */
+  .mobile-full {
+    height: 100vh !important;
+    width: 100vw !important;
+  }
+  
+  /* Scroll natural */
+  .mobile-scroll {
+    overflow-y: auto !important;
+    -webkit-overflow-scrolling: touch !important;
+    overscroll-behavior-y: contain !important;
+  }
+}
+
+/* PASO 10: Debug styles - Quitar después */
+.debug-scroll {
+  border: 2px solid red !important;
+  background: rgba(255,0,0,0.1) !important;
+}
+
+.debug-touch {
+  border: 2px solid blue !important;
+  background: rgba(0,0,255,0.1) !important;
+}
+
+/* PASO 11: Conversaciones list */
+.conversations-container {
+  height: 100% !important;
+  overflow-y: auto !important;
+  -webkit-overflow-scrolling: touch !important;
+}
+
+.conversation-item {
+  touch-action: manipulation !important;
+  padding: 1rem !important;
+  border-bottom: 1px solid #f3f4f6 !important;
+  cursor: pointer !important;
+  background: white !important;
+}
+
+.conversation-item:active {
+  background: #f9fafb !important;
+}
+
+/* PASO 12: Messages area */
+.messages-container {
+  flex: 1 !important;
+  overflow-y: auto !important;
+  -webkit-overflow-scrolling: touch !important;
+  padding: 1rem !important;
+  background: #f9fafb !important;
+}
+
+.message-bubble {
+  margin-bottom: 1rem !important;
+  max-width: 80% !important;
+  word-wrap: break-word !important;
+}
+
+/* PASO 13: Orientación - SIMPLE */
+@media screen and (orientation: landscape) and (max-width: 1024px) {
+  .mobile-header {
+    height: 60px !important;
+  }
+  
+  .mobile-content {
+    margin-top: 60px !important;
+    height: calc(100vh - 60px) !important;
+  }
+}
+
+/* PASO 14: Safe areas para notch */
+@supports (padding: max(0px)) {
+  .mobile-header {
+    padding-top: max(env(safe-area-inset-top), 0px) !important;
+    height: calc(70px + max(env(safe-area-inset-top), 0px)) !important;
+  }
+  
+  .mobile-content {
+    margin-top: calc(70px + max(env(safe-area-inset-top), 0px)) !important;
+    height: calc(100vh - 70px - max(env(safe-area-inset-top), 0px)) !important;
+  }
+  
+  .mobile-input-area {
+    padding-bottom: max(env(safe-area-inset-bottom), 1rem) !important;
+  }
 }
