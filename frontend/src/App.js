@@ -365,7 +365,7 @@ const App = () => {
         <div className="p-4 border-b border-gray-200">
           <div className="flex items-center justify-between mb-4">
             <div>
-              <h1 className="text-lg font-bold text-gray-800">Chat WhatsApp</h1>
+              <h1 className="text-lg font-bold text-gray-800">Large Chat</h1>
               <p className="text-xs text-gray-500">Gestión de Conversaciones</p>
             </div>
             <div className="flex items-center space-x-2">
@@ -479,13 +479,13 @@ const App = () => {
                   <div 
                     key={message.id} 
                     className={`flex items-end gap-2 ${
-                      message.sender === 'agent' ? 'justify-end' : 
+                      message.sender === 'bot' ? 'justify-end' : 
                       message.sender === 'system' ? 'justify-center' : 
                       'justify-start'
                     }`}
                   >
                     <div className={`max-w-lg px-4 py-2 rounded-lg shadow-sm ${
-                      message.sender === 'agent' ? 'bg-blue-500 text-white rounded-br-none' :
+                      message.sender === 'bot' ? 'bg-blue-500 text-white rounded-br-none' :
                       message.sender === 'system' ? 'bg-gray-200 text-gray-600 text-xs text-center w-full' :
                       'bg-white text-gray-800 rounded-bl-none border'
                     }`}>
