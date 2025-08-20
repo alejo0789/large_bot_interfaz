@@ -110,6 +110,7 @@ const App = () => {
     const phone = (messageData.phone || messageData.from || '').replace(/\s+/g, '');
     if (!phone) return;
 
+    // Mapeo correcto de sender_type
     const sender = messageData.sender_type === 'bot' ? 'agent' : 
                   messageData.sender_type === 'agent' ? 'agent' : 'customer';
 
@@ -121,15 +122,12 @@ const App = () => {
       status: 'received'
     };
 
-    // Agregar el mensaje solo si la conversación está cargada
+    // CAMBIO PRINCIPAL: Agregar el mensaje SIEMPRE, incluso si la conversación no está cargada
     setMessagesByConversation(prev => {
-      if (prev[phone]) {
-        return {
-          ...prev,
-          [phone]: [...prev[phone], newMsg]
-        };
-      }
-      return prev;
+      return {
+        ...prev,
+        [phone]: [...(prev[phone] || []), newMsg]
+      };
     });
 
     // Actualizar la conversación en la lista
@@ -167,6 +165,14 @@ const App = () => {
         return [newConv, ...prev];
       }
     });
+
+    // AGREGAR: Refrescar conversaciones para asegurar sincronización
+    if (sender === 'agent' || messageData.sender_type === 'bot') {
+      setTimeout(() => {
+        console.log('🔄 Refrescando conversaciones después de mensaje del bot...');
+        fetchConversations();
+      }, 1000);
+    }
   };
 
   /**
@@ -182,10 +188,8 @@ const App = () => {
       await markConversationAsRead(conversation.contact.phone);
     }
     
-    // Cargar mensajes si no están en caché
-    if (!messagesByConversation[conversation.contact.phone]) {
-      await fetchMessages(conversation.contact.phone);
-    }
+    // CAMBIO: Siempre recargar mensajes para asegurar que tenemos los más recientes
+    await fetchMessages(conversation.contact.phone);
   };
 
   /**
@@ -234,6 +238,11 @@ const App = () => {
   const refreshConversations = async () => {
     console.log('🔄 Refrescando conversaciones...');
     await fetchConversations();
+    
+    // También refrescar mensajes de la conversación actual
+    if (selectedConversation) {
+      await fetchMessages(selectedConversation.contact.phone);
+    }
   };
 
   // --- HOOKS DE EFECTO ---
@@ -304,7 +313,7 @@ const App = () => {
       socket.off('message-sent', onMessageSent);
       socket.off('message-error', onMessageError);
     };
-  }, [selectedConversation, messagesByConversation]);
+  }, [selectedConversation]);
 
   // Auto-scroll cuando cambian los mensajes
   useEffect(() => {
@@ -365,7 +374,7 @@ const App = () => {
         <div className="p-4 border-b border-gray-200">
           <div className="flex items-center justify-between mb-4">
             <div>
-              <h1 className="text-lg font-bold text-gray-800">Large Chat</h1>
+              <h1 className="text-lg font-bold text-gray-800">Chat WhatsApp</h1>
               <p className="text-xs text-gray-500">Gestión de Conversaciones</p>
             </div>
             <div className="flex items-center space-x-2">
@@ -479,13 +488,13 @@ const App = () => {
                   <div 
                     key={message.id} 
                     className={`flex items-end gap-2 ${
-                      message.sender === 'bot' ? 'justify-end' : 
+                      message.sender === 'agent' ? 'justify-end' : 
                       message.sender === 'system' ? 'justify-center' : 
                       'justify-start'
                     }`}
                   >
                     <div className={`max-w-lg px-4 py-2 rounded-lg shadow-sm ${
-                      message.sender === 'bot' ? 'bg-blue-500 text-white rounded-br-none' :
+                      message.sender === 'agent' ? 'bg-blue-500 text-white rounded-br-none' :
                       message.sender === 'system' ? 'bg-gray-200 text-gray-600 text-xs text-center w-full' :
                       'bg-white text-gray-800 rounded-bl-none border'
                     }`}>
