@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { Send, Phone, MoreVertical, Search, Paperclip, Smile, User, CheckCheck, Clock, ArrowLeft, Menu } from 'lucide-react';
 import { io } from 'socket.io-client';
-
+import './mobile-styles.css';
 // --- CONFIGURACIÓN DE CONEXIÓN ---
 const SOCKET_URL = process.env.REACT_APP_SOCKET_URL || 'http://localhost:4000';
 const API_URL = process.env.REACT_APP_API_URL || 'http://localhost:4000';
@@ -31,18 +31,38 @@ const App = () => {
   useEffect(() => {
     const checkMobile = () => {
       const mobile = window.innerWidth < 768;
-      console.log('📱 Verificando móvil:', { mobile, width: window.innerWidth });
+      console.log('📱 Verificando móvil:', { 
+        mobile, 
+        width: window.innerWidth, 
+        height: window.innerHeight,
+        orientation: window.orientation 
+      });
       setIsMobile(mobile);
-      if (mobile && selectedConversation) {
-        setShowSidebar(false);
-      } else if (!mobile) {
+      
+      // En móvil, mostrar sidebar si no hay conversación seleccionada
+      if (mobile) {
+        if (!selectedConversation) {
+          setShowSidebar(true);
+        } else {
+          setShowSidebar(false);
+        }
+      } else {
+        // En desktop, siempre mostrar sidebar
         setShowSidebar(true);
       }
     };
 
     checkMobile();
     window.addEventListener('resize', checkMobile);
-    return () => window.removeEventListener('resize', checkMobile);
+    window.addEventListener('orientationchange', () => {
+      // Esperar un poco después del cambio de orientación
+      setTimeout(checkMobile, 100);
+    });
+    
+    return () => {
+      window.removeEventListener('resize', checkMobile);
+      window.removeEventListener('orientationchange', checkMobile);
+    };
   }, [selectedConversation]);
 
   // --- FUNCIONES DE API ---
@@ -555,18 +575,20 @@ const App = () => {
         {selectedConversation ? (
           <>
             {/* Encabezado del Chat */}
-            <div className="bg-white border-b border-gray-200 p-4 flex items-center justify-between">
+            {/* Encabezado del Chat - SIEMPRE VISIBLE */}
+            <div className="bg-white border-b border-gray-200 p-4 flex items-center justify-between sticky top-0 z-10">
               <div className="flex items-center space-x-3">
-                {/* Botón de regreso para móvil - MEJORADO */}
-                {isMobile && (
-                  <button
-                    onClick={handleBackToConversations}
-                    className="p-2 text-gray-500 hover:bg-gray-100 rounded-lg mr-2 touch-button"
-                    aria-label="Volver a conversaciones"
-                  >
-                    <ArrowLeft className="w-5 h-5" />
-                  </button>
-                )}
+                {/* Botón de regreso para móvil - SIEMPRE VISIBLE EN MÓVIL */}
+                <button
+                  onClick={handleBackToConversations}
+                  className={`p-2 text-gray-500 hover:bg-gray-100 rounded-lg mr-2 touch-button ${
+                    isMobile ? 'block' : 'hidden'
+                  }`}
+                  aria-label="Volver a conversaciones"
+                  style={{ minWidth: '44px', minHeight: '44px' }}
+                >
+                  <ArrowLeft className="w-5 h-5" />
+                </button>
                 <div className="w-10 h-10 bg-gradient-to-br from-green-400 to-green-600 rounded-full flex items-center justify-center text-white">
                   <User className="w-5 h-5" />
                 </div>

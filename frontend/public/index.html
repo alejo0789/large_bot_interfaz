@@ -364,36 +364,66 @@
         lastTouchEnd = now;
       }, false);
       
-      // Prevenir scroll bounce en iOS MEJORADO
-      let isScrolling = false;
+      // Prevenir scroll bounce en iOS MEJORADO y touch fix
+      let touchStartY = 0;
       
       document.body.addEventListener('touchstart', function(e) {
-        const target = e.target.closest('.overflow-y-auto, .touch-scroll');
+        const target = e.target.closest('.overflow-y-auto, .touch-scroll, .touch-item, .touch-button');
         if (!target && e.target === document.body) {
           e.preventDefault();
         }
+        touchStartY = e.touches[0].clientY;
       }, { passive: false });
       
       document.body.addEventListener('touchmove', function(e) {
-        const target = e.target.closest('.overflow-y-auto, .touch-scroll');
+        const target = e.target.closest('.overflow-y-auto, .touch-scroll, .touch-item');
         if (!target && e.target === document.body) {
           e.preventDefault();
         }
       }, { passive: false });
       
-      // Detectar orientación y ajustar viewport
+      // Mejorar responsividad del touch
+      document.body.addEventListener('touchend', function(e) {
+        const target = e.target.closest('.touch-button, .touch-item');
+        if (target) {
+          // Forzar click si es un elemento táctil
+          if (!target.disabled) {
+            target.click();
+          }
+        }
+      }, { passive: true });
+      
+      // Detectar orientación y ajustar viewport MEJORADO
       function adjustViewport() {
         const viewport = document.querySelector("meta[name=viewport]");
-        if (window.orientation === 90 || window.orientation === -90) {
-          // Landscape
-          viewport.setAttribute('content', 'width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover');
-        } else {
-          // Portrait
-          viewport.setAttribute('content', 'width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover');
-        }
+        const isLandscape = window.orientation === 90 || window.orientation === -90;
+        
+        console.log('🔄 Ajustando viewport:', { 
+          orientation: window.orientation, 
+          isLandscape, 
+          width: window.innerWidth, 
+          height: window.innerHeight 
+        });
+        
+        // Viewport optimizado para ambas orientaciones
+        const content = 'width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover, minimal-ui';
+        viewport.setAttribute('content', content);
+        
+        // Forzar re-render
+        document.body.style.height = window.innerHeight + 'px';
+        
+        // Trigger resize event para React
+        setTimeout(() => {
+          window.dispatchEvent(new Event('resize'));
+        }, 100);
       }
       
-      window.addEventListener('orientationchange', adjustViewport);
+      window.addEventListener('orientationchange', () => {
+        setTimeout(adjustViewport, 100);
+        setTimeout(adjustViewport, 500); // Segundo intento después de animación
+      });
+      
+      window.addEventListener('resize', adjustViewport);
       adjustViewport();
       
       // Console info para desarrolladores
