@@ -31,6 +31,7 @@ const App = () => {
   useEffect(() => {
     const checkMobile = () => {
       const mobile = window.innerWidth < 768;
+      console.log('📱 Verificando móvil:', { mobile, width: window.innerWidth });
       setIsMobile(mobile);
       if (mobile && selectedConversation) {
         setShowSidebar(false);
@@ -54,13 +55,37 @@ const App = () => {
       if (!response.ok) throw new Error('Error al cargar conversaciones');
       
       const data = await response.json();
-      setConversations(data);
       
-      console.log(`✅ Conversaciones cargadas: ${data.length}`);
+      // Fix para timestamps en conversaciones
+      const fixedData = data.map(conv => {
+        let timestampValue = conv.timestamp || conv.last_message_timestamp || conv.updated_at || new Date().toISOString();
+        let formattedTime = 'Ahora';
+        
+        try {
+          const date = new Date(timestampValue);
+          if (!isNaN(date.getTime())) {
+            formattedTime = date.toLocaleTimeString('es-CO', { 
+              hour: '2-digit', 
+              minute: '2-digit' 
+            });
+          }
+        } catch (e) {
+          console.warn('Error parseando fecha de conversación:', timestampValue);
+        }
+
+        return {
+          ...conv,
+          timestamp: formattedTime
+        };
+      });
+      
+      setConversations(fixedData);
+      
+      console.log(`✅ Conversaciones cargadas: ${fixedData.length}`);
       
       // En móvil, no seleccionar automáticamente una conversación
-      if (data.length > 0 && !isMobile) {
-        await selectConversation(data[0]);
+      if (fixedData.length > 0 && !isMobile) {
+        await selectConversation(fixedData[0]);
       }
     } catch (error) {
       console.error("❌ Error al cargar conversaciones:", error);
@@ -78,24 +103,52 @@ const App = () => {
       if (!response.ok) throw new Error('Error al cargar mensajes');
       
       const data = await response.json();
+      console.log('📦 Datos recibidos del backend:', data);
       
-      const formattedMessages = data.map(msg => ({
-        id: msg.id,
-        text: msg.message_text,
-        sender: msg.sender_type,
-        timestamp: new Date(msg.timestamp).toLocaleTimeString('es-CO', { 
-          hour: '2-digit', 
-          minute: '2-digit' 
-        }),
-        status: msg.status || 'delivered'
-      }));
+      const formattedMessages = data.map(msg => {
+        console.log('🔍 Procesando mensaje:', msg);
+        
+        // Fix para el timestamp - usar diferentes campos posibles
+        let timestampValue = msg.timestamp || msg.created_at || new Date().toISOString();
+        let formattedTime = 'Ahora';
+        
+        try {
+          const date = new Date(timestampValue);
+          if (!isNaN(date.getTime())) {
+            formattedTime = date.toLocaleTimeString('es-CO', { 
+              hour: '2-digit', 
+              minute: '2-digit' 
+            });
+          }
+        } catch (e) {
+          console.warn('Error parseando fecha:', timestampValue);
+        }
+
+        // Fix para el texto - según el backend usa 'text_content'
+        const messageText = msg.text || msg.text_content || msg.message || msg.message_text || 'Sin contenido';
+        
+        console.log('✅ Mensaje procesado:', { 
+          id: msg.id, 
+          text: messageText, 
+          sender: msg.sender,
+          timestamp: formattedTime 
+        });
+
+        return {
+          id: msg.id || msg.whatsapp_id || Date.now(),
+          text: messageText,
+          sender: msg.sender || msg.sender_type || 'customer',
+          timestamp: formattedTime,
+          status: msg.status || 'delivered'
+        };
+      });
       
       setMessagesByConversation(prev => ({
         ...prev,
         [phone]: formattedMessages
       }));
       
-      console.log(`✅ Mensajes cargados: ${formattedMessages.length}`);
+      console.log(`✅ Mensajes cargados: ${formattedMessages.length}`, formattedMessages);
     } catch (error) {
       console.error(`❌ Error al cargar mensajes para ${phone}:`, error);
     } finally {
@@ -122,7 +175,8 @@ const App = () => {
 
   const markConversationAsRead = async (phone) => {
     try {
-      await fetch(`${API_URL}/api/conversations/${phone}/read`, { method: 'POST' });
+      // Usar el endpoint correcto del backend
+      await fetch(`${API_URL}/api/conversations/${phone}/mark-read`, { method: 'POST' });
       
       setConversations(prev => prev.map(conv => 
         conv.contact.phone === phone ? { ...conv, unread: 0 } : conv
@@ -160,6 +214,7 @@ const App = () => {
     setNewMessage('');
 
     try {
+      // Usar el endpoint correcto para enviar mensajes
       const response = await fetch(`${API_URL}/api/conversations/${targetPhone}/send`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -168,17 +223,32 @@ const App = () => {
 
       if (!response.ok) throw new Error('Error al enviar mensaje');
       
-      socket.emit('message-sent', {
-        temp_id: tempId,
-        message_id: Date.now() + 1,
-        status: 'delivered'
+      // Simular confirmación de envío
+      setMessagesByConversation(prev => {
+        const newState = { ...prev };
+        if (newState[targetPhone]) {
+          newState[targetPhone] = newState[targetPhone].map(msg => 
+            msg.id === tempId 
+              ? { ...msg, status: 'delivered' }
+              : msg
+          );
+        }
+        return newState;
       });
       
     } catch (error) {
       console.error('❌ Error al enviar mensaje:', error);
-      socket.emit('message-error', {
-        temp_id: tempId,
-        error: error.message
+      // Marcar como fallido
+      setMessagesByConversation(prev => {
+        const newState = { ...prev };
+        if (newState[targetPhone]) {
+          newState[targetPhone] = newState[targetPhone].map(msg => 
+            msg.id === tempId 
+              ? { ...msg, status: 'failed', text: `${msg.text} ❌` }
+              : msg
+          );
+        }
+        return newState;
       });
     }
   };
@@ -189,8 +259,9 @@ const App = () => {
 
   // --- FUNCIÓN PARA REGRESAR EN MÓVIL ---
   const handleBackToConversations = () => {
+    console.log('🔙 Regresando a lista de conversaciones');
+    setSelectedConversation(null);
     if (isMobile) {
-      setSelectedConversation(null);
       setShowSidebar(true);
     }
   };
@@ -214,16 +285,37 @@ const App = () => {
     const handleRealTimeMessage = (messageData) => {
       console.log('📨 Nuevo mensaje recibido:', messageData);
       
-      const { phone, message_text, sender_type, contact_name } = messageData;
+      const { phone, message_text, sender_type, contact_name, message, timestamp, text_content } = messageData;
       const isCurrentConversation = selectedConversation?.contact.phone === phone;
+      
+      // Fix para el timestamp
+      let formattedTime = 'Ahora';
+      try {
+        if (timestamp) {
+          const date = new Date(timestamp);
+          if (!isNaN(date.getTime())) {
+            formattedTime = date.toLocaleTimeString('es-CO', { hour: '2-digit', minute: '2-digit' });
+          }
+        } else {
+          formattedTime = new Date().toLocaleTimeString('es-CO', { hour: '2-digit', minute: '2-digit' });
+        }
+      } catch (e) {
+        formattedTime = new Date().toLocaleTimeString('es-CO', { hour: '2-digit', minute: '2-digit' });
+      }
+      
+      // Fix para el texto del mensaje - intentar varios campos
+      const messageText = message || message_text || text_content || 'Sin contenido';
+      console.log('📝 Texto del mensaje extraído:', messageText);
       
       const newMsg = {
         id: Date.now(),
-        text: message_text,
-        sender: sender_type,
-        timestamp: new Date().toLocaleTimeString('es-CO', { hour: '2-digit', minute: '2-digit' }),
+        text: messageText,
+        sender: sender_type || 'customer',
+        timestamp: formattedTime,
         status: 'delivered'
       };
+
+      console.log('✅ Mensaje formateado:', newMsg);
 
       setMessagesByConversation(prev => ({
         ...prev,
@@ -406,7 +498,7 @@ const App = () => {
         </div>
 
         {/* Lista de conversaciones */}
-        <div className="flex-1 overflow-y-auto">
+        <div className="flex-1 overflow-y-auto touch-scroll">
           {filteredConversations.length === 0 ? (
             <div className="p-6 text-center">
               <div className="w-16 h-16 bg-gray-200 rounded-full flex items-center justify-center mx-auto mb-4">
@@ -416,38 +508,41 @@ const App = () => {
               <p className="text-gray-400 text-sm mt-1">Las conversaciones aparecerán aquí cuando lleguen mensajes</p>
             </div>
           ) : (
-            filteredConversations.map((conversation) => (
-              <div
-                key={conversation.id}
-                onClick={() => selectConversation(conversation)}
-                className={`p-4 border-b border-gray-100 cursor-pointer hover:bg-gray-50 transition-colors ${
-                  selectedConversation?.id === conversation.id ? 'bg-blue-50 border-l-4 border-l-blue-500' : ''
-                }`}
-              >
-                <div className="flex items-center space-x-3">
-                  <div className="w-12 h-12 bg-gradient-to-br from-green-400 to-green-600 rounded-full flex items-center justify-center text-white flex-shrink-0">
-                    <User className="w-6 h-6" />
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <div className="flex items-center justify-between">
-                      <h3 className="text-sm font-semibold text-gray-900 truncate">
-                        {conversation.contact.name}
-                      </h3>
-                      <div className="flex items-center space-x-2 flex-shrink-0">
-                        <span className="text-xs text-gray-500">{conversation.timestamp}</span>
-                        {conversation.unread > 0 && (
-                          <span className="bg-blue-500 text-white text-xs rounded-full px-2 py-1 min-w-[20px] text-center">
-                            {conversation.unread}
-                          </span>
-                        )}
-                      </div>
+            <div className="conversation-list">
+              {filteredConversations.map((conversation) => (
+                <div
+                  key={conversation.id}
+                  onClick={() => selectConversation(conversation)}
+                  className={`conversation-item p-4 border-b border-gray-100 cursor-pointer hover:bg-gray-50 transition-colors touch-item ${
+                    selectedConversation?.id === conversation.id ? 'bg-blue-50 border-l-4 border-l-blue-500' : ''
+                  }`}
+                  style={{ touchAction: 'manipulation' }}
+                >
+                  <div className="flex items-center space-x-3">
+                    <div className="w-12 h-12 bg-gradient-to-br from-green-400 to-green-600 rounded-full flex items-center justify-center text-white flex-shrink-0">
+                      <User className="w-6 h-6" />
                     </div>
-                    <p className="text-sm text-gray-600 truncate mt-1">{conversation.lastMessage}</p>
-                    <p className="text-xs text-gray-400 mt-1">{conversation.contact.phone}</p>
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center justify-between">
+                        <h3 className="text-sm font-semibold text-gray-900 truncate">
+                          {conversation.contact.name}
+                        </h3>
+                        <div className="flex items-center space-x-2 flex-shrink-0">
+                          <span className="text-xs text-gray-500">{conversation.timestamp}</span>
+                          {conversation.unread > 0 && (
+                            <span className="bg-blue-500 text-white text-xs rounded-full px-2 py-1 min-w-[20px] text-center">
+                              {conversation.unread}
+                            </span>
+                          )}
+                        </div>
+                      </div>
+                      <p className="text-sm text-gray-600 truncate mt-1">{conversation.lastMessage}</p>
+                      <p className="text-xs text-gray-400 mt-1">{conversation.contact.phone}</p>
+                    </div>
                   </div>
                 </div>
-              </div>
-            ))
+              ))}
+            </div>
           )}
         </div>
       </div>
@@ -462,11 +557,12 @@ const App = () => {
             {/* Encabezado del Chat */}
             <div className="bg-white border-b border-gray-200 p-4 flex items-center justify-between">
               <div className="flex items-center space-x-3">
-                {/* Botón de regreso para móvil */}
+                {/* Botón de regreso para móvil - MEJORADO */}
                 {isMobile && (
                   <button
                     onClick={handleBackToConversations}
-                    className="p-2 text-gray-500 hover:bg-gray-100 rounded-lg mr-2"
+                    className="p-2 text-gray-500 hover:bg-gray-100 rounded-lg mr-2 touch-button"
+                    aria-label="Volver a conversaciones"
                   >
                     <ArrowLeft className="w-5 h-5" />
                   </button>
@@ -480,7 +576,7 @@ const App = () => {
                 </div>
               </div>
               <div className="flex items-center space-x-2">
-                <button className="p-2 text-gray-500 hover:bg-gray-100 rounded-lg">
+                <button className="p-2 text-gray-500 hover:bg-gray-100 rounded-lg mobile-hidden">
                   <Phone className="w-5 h-5" />
                 </button>
                 <button className="p-2 text-gray-500 hover:bg-gray-100 rounded-lg">
@@ -490,7 +586,7 @@ const App = () => {
             </div>
 
             {/* Área de Mensajes */}
-            <div className="flex-1 overflow-y-auto p-4 space-y-4 bg-gray-50">
+            <div className="flex-1 overflow-y-auto p-4 space-y-4 bg-gray-50 touch-scroll message-container">
               {isLoadingMessages ? (
                 <div className="flex items-center justify-center h-full">
                   <div className="flex flex-col items-center">
@@ -509,32 +605,34 @@ const App = () => {
                   </div>
                 </div>
               ) : (
-                currentMessages.map((message) => (
-                  <div 
-                    key={message.id} 
-                    className={`flex items-end gap-2 ${
-                      message.sender === 'agent' ? 'justify-end' : 
-                      message.sender === 'system' ? 'justify-center' : 
-                      'justify-start'
-                    }`}
-                  >
-                    <div className={`${
-                      isMobile ? 'max-w-[85%]' : 'max-w-lg'
-                    } px-4 py-2 rounded-lg shadow-sm ${
-                      message.sender === 'agent' ? 'bg-blue-500 text-white rounded-br-none' :
-                      message.sender === 'system' ? 'bg-gray-200 text-gray-600 text-xs text-center w-full' :
-                      'bg-white text-gray-800 rounded-bl-none border'
-                    }`}>
-                      <p className="text-sm break-words">{message.text}</p>
-                      <div className="flex items-center justify-end gap-1 text-xs mt-1 opacity-75">
-                        <span>{message.timestamp}</span>
-                        {message.sender === 'agent' && <MessageStatus status={message.status} />}
+                <div className="messages-list">
+                  {currentMessages.map((message) => (
+                    <div 
+                      key={message.id} 
+                      className={`flex items-end gap-2 message-item ${
+                        message.sender === 'agent' ? 'justify-end' : 
+                        message.sender === 'system' ? 'justify-center' : 
+                        'justify-start'
+                      }`}
+                    >
+                      <div className={`${
+                        isMobile ? 'max-w-[85%]' : 'max-w-lg'
+                      } px-4 py-2 rounded-lg shadow-sm message-bubble ${
+                        message.sender === 'agent' ? 'bg-blue-500 text-white rounded-br-none' :
+                        message.sender === 'system' ? 'bg-gray-200 text-gray-600 text-xs text-center w-full' :
+                        'bg-white text-gray-800 rounded-bl-none border'
+                      }`}>
+                        <p className="text-sm break-words">{message.text}</p>
+                        <div className="flex items-center justify-end gap-1 text-xs mt-1 opacity-75">
+                          <span>{message.timestamp}</span>
+                          {message.sender === 'agent' && <MessageStatus status={message.status} />}
+                        </div>
                       </div>
                     </div>
-                  </div>
-                ))
+                  ))}
+                  <div ref={messagesEndRef} />
+                </div>
               )}
-              <div ref={messagesEndRef} />
             </div>
 
             {/* Campo de Entrada */}
