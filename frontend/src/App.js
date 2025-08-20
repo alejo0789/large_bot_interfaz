@@ -479,20 +479,20 @@ const App = () => {
                   <div 
                     key={message.id} 
                     className={`flex items-end gap-2 ${
-                      message.sender === 'bot' ? 'justify-end' : 
-                      message.sender === 'customer' ? 'justify-start' : 
+                      message.sender === 'agent' ? 'justify-end' : 
+                      message.sender === 'system' ? 'justify-center' : 
                       'justify-start'
                     }`}
                   >
                     <div className={`max-w-lg px-4 py-2 rounded-lg shadow-sm ${
-                      message.sender === 'bot' ? 'bg-blue-500 text-white rounded-br-none' :
-                      message.sender === 'agent' ? 'bg-gray-200 text-gray-600 text-xs text-center w-full' :
+                      message.sender === 'agent' ? 'bg-blue-500 text-white rounded-br-none' :
+                      message.sender === 'system' ? 'bg-gray-200 text-gray-600 text-xs text-center w-full' :
                       'bg-white text-gray-800 rounded-bl-none border'
                     }`}>
                       <p className="text-sm break-words">{message.text}</p>
                       <div className="flex items-center justify-end gap-1 text-xs mt-1 opacity-75">
                         <span>{message.timestamp}</span>
-                        {message.sender === 'bot' && <MessageStatus status={message.status} />}
+                        {message.sender === 'agent' && <MessageStatus status={message.status} />}
                       </div>
                     </div>
                   </div>
