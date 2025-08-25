@@ -289,13 +289,13 @@ app.post('/api/conversations/:phone/activate-ai', async (req, res) => {
 // Este endpoint envía el mensaje a n8n y espera confirmación
 app.post('/api/send-message', async (req, res) => {
   try {
-    const { to, text, temp_id } = req.body;
+    const { phone, message, temp_id } = req.body;
     
-    if (!to || !text) {
+    if (!phone || !message) {
       return res.status(400).json({ error: 'Faltan datos requeridos (to, text)' });
     }
 
-    console.log(`📤 Enviando mensaje a n8n: ${to} -> ${text}`);
+    console.log(`📤 Enviando mensaje a n8n: ${phone} -> ${message}`);
 
     // Aquí harías la petición HTTP a tu webhook de n8n para enviar el mensaje
     // Ejemplo:
