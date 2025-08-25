@@ -158,6 +158,7 @@ const App = () => {
 
     const tempId = Date.now();
     const targetPhone = selectedConversation.contact.phone;
+    const contactName = selectedConversation.contact.name;
 
     const message = {
       id: tempId,
@@ -191,6 +192,7 @@ const App = () => {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           phone: targetPhone,
+          name: contactName,
           message: messageToSend,
           temp_id: tempId,
           agent_id: 'agent'

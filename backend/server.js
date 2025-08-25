@@ -289,7 +289,7 @@ app.post('/api/conversations/:phone/activate-ai', async (req, res) => {
 // Este endpoint envía el mensaje a n8n y espera confirmación
 app.post('/api/send-message', async (req, res) => {
   try {
-    const { phone, message, temp_id } = req.body;
+    const { phone, name, message, temp_id } = req.body;
     
     if (!phone || !message) {
       return res.status(400).json({ error: 'Faltan datos requeridos (to, text)' });
@@ -311,8 +311,10 @@ app.post('/api/send-message', async (req, res) => {
         },
         body: JSON.stringify({
           phone: phone,
+          name:name,
           message: message,
           temp_id: temp_id,
+          conversation_state:'agent_active',
           sender: 'agent'
         })
       });
