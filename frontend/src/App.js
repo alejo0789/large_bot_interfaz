@@ -1,18 +1,18 @@
 import React, { useState, useEffect, useRef, useMemo } from 'react';
-import { Send, Phone, MoreVertical, Search, Paperclip, Smile, User, CheckCheck, Clock, ArrowLeft, Menu } from 'lucide-react';
+import { Send, Phone, MoreVertical, Search, Paperclip, Smile, User, CheckCheck, Clock, ArrowLeft, Menu, Bot, UserCheck } from 'lucide-react';
 import { io } from 'socket.io-client';
 import './mobile-styles.css';
 
-// --- CONFIGURACIÓN ---
-const SOCKET_URL = "https://backendtest-production-50b5.up.railway.app"|| 'http://localhost:4000';
-const API_URL = "https://backendtest-production-50b5.up.railway.app" || 'http://localhost:4000';
+// --- CONFIGURACIÓN DE CONEXIÓN ---
+const SOCKET_URL = process.env.REACT_APP_SOCKET_URL || 'http://localhost:4000';
+const API_URL = process.env.REACT_APP_API_URL || 'http://localhost:4000';
 const socket = io(SOCKET_URL, {
   transports: ['websocket'],
   reconnectionAttempts: 5
 });
 
 const App = () => {
-  // --- ESTADOS PRINCIPALES ---
+  // --- ESTADOS DE LA APLICACIÓN ---
   const [conversations, setConversations] = useState([]);
   const [selectedConversation, setSelectedConversation] = useState(null);
   const [messagesByConversation, setMessagesByConversation] = useState({});
@@ -21,30 +21,71 @@ const App = () => {
   const [newMessage, setNewMessage] = useState('');
   const [isConnected, setIsConnected] = useState(socket.connected);
   const [searchQuery, setSearchQuery] = useState('');
+  
+  // --- ESTADOS PARA RESPONSIVE ---
   const [isMobile, setIsMobile] = useState(false);
   const [showSidebar, setShowSidebar] = useState(true);
-  
-  // ✅ ESTADO PARA CONTROLES IA/AGENTE
-  const [conversationStates, setConversationStates] = useState({});
+
+  // ✅ ESTADO DE IA POR CONVERSACIÓN (no global)
+  const [aiStatesByPhone, setAiStatesByPhone] = useState({});
   
   const messagesEndRef = useRef(null);
 
-  // --- DETECCIÓN MÓVIL ---
+  // --- FUNCIÓN PARA FORMATEAR TIMESTAMPS CORRECTAMENTE ---
+  const formatTimestamp = (timestamp) => {
+    if (!timestamp) return new Date().toLocaleTimeString('es-CO', { hour: '2-digit', minute: '2-digit' });
+    
+    try {
+      // Si ya viene formateado como "HH:MM", devolverlo tal como está
+      if (typeof timestamp === 'string' && timestamp.match(/^\d{2}:\d{2}$/)) {
+        return timestamp;
+      }
+      
+      // Intentar convertir timestamp a fecha
+      const date = new Date(timestamp);
+      if (!isNaN(date.getTime())) {
+        return date.toLocaleTimeString('es-CO', { hour: '2-digit', minute: '2-digit' });
+      }
+      
+      // Si falla, usar hora actual
+      return new Date().toLocaleTimeString('es-CO', { hour: '2-digit', minute: '2-digit' });
+    } catch (error) {
+      console.warn('Error formateando timestamp:', timestamp, error);
+      return new Date().toLocaleTimeString('es-CO', { hour: '2-digit', minute: '2-digit' });
+    }
+  };
+
+  // --- DETECTAR SI ES MÓVIL ---
   useEffect(() => {
     const checkMobile = () => {
       const mobile = window.innerWidth < 768;
+      console.log('📱 Verificando móvil:', { 
+        mobile, 
+        width: window.innerWidth, 
+        height: window.innerHeight,
+        orientation: window.orientation 
+      });
       setIsMobile(mobile);
       
+      // En móvil, mostrar sidebar si no hay conversación seleccionada
       if (mobile) {
-        setShowSidebar(!selectedConversation);
+        if (!selectedConversation) {
+          setShowSidebar(true);
+        } else {
+          setShowSidebar(false);
+        }
       } else {
+        // En desktop, siempre mostrar sidebar
         setShowSidebar(true);
       }
     };
 
     checkMobile();
     window.addEventListener('resize', checkMobile);
-    window.addEventListener('orientationchange', () => setTimeout(checkMobile, 100));
+    window.addEventListener('orientationchange', () => {
+      // Esperar un poco después del cambio de orientación
+      setTimeout(checkMobile, 100);
+    });
     
     return () => {
       window.removeEventListener('resize', checkMobile);
@@ -56,30 +97,34 @@ const App = () => {
   const fetchConversations = async () => {
     try {
       setIsLoading(true);
+      console.log('🔄 Cargando conversaciones...');
+      
       const response = await fetch(`${API_URL}/api/conversations`);
       if (!response.ok) throw new Error('Error al cargar conversaciones');
       
       const data = await response.json();
       
+      // ✅ FIX PARA TIMESTAMPS - usar función correcta
       const fixedData = data.map(conv => {
-        let timestampValue = conv.timestamp || conv.last_message_timestamp || conv.updated_at || new Date().toISOString();
-        let formattedTime = 'Ahora';
-        
-        try {
-          const date = new Date(timestampValue);
-          if (!isNaN(date.getTime())) {
-            formattedTime = date.toLocaleTimeString('es-CO', { hour: '2-digit', minute: '2-digit' });
-          }
-        } catch (e) {
-          console.warn('Error parseando fecha:', timestampValue);
-        }
+        const timestampValue = conv.last_message_timestamp || conv.timestamp || conv.updated_at;
+        const formattedTime = formatTimestamp(timestampValue);
 
-        return { ...conv, timestamp: formattedTime };
+        return {
+          ...conv,
+          timestamp: formattedTime
+        };
       });
       
       setConversations(fixedData);
+      
+      console.log(`✅ Conversaciones cargadas: ${fixedData.length}`);
+      
+      // En móvil, no seleccionar automáticamente una conversación
+      if (fixedData.length > 0 && !isMobile) {
+        await selectConversation(fixedData[0]);
+      }
     } catch (error) {
-      console.error('❌ Error al cargar conversaciones:', error);
+      console.error("❌ Error al cargar conversaciones:", error);
     } finally {
       setIsLoading(false);
     }
@@ -88,28 +133,29 @@ const App = () => {
   const fetchMessages = async (phone) => {
     try {
       setIsLoadingMessages(true);
-      const response = await fetch(`${API_URL}/api/conversations/${phone}/messages`);
-      const data = await response.json();
+      console.log(`🔄 Cargando mensajes para ${phone}...`);
       
-      const formattedMessages = data.map((msg, index) => {
-        let formattedTime = 'Sin hora';
+      const response = await fetch(`${API_URL}/api/conversations/${phone}/messages`);
+      if (!response.ok) throw new Error('Error al cargar mensajes');
+      
+      const data = await response.json();
+      console.log('📦 Datos recibidos del backend:', data);
+      
+      const formattedMessages = data.map(msg => {
+        console.log('🔍 Procesando mensaje:', msg);
         
-        try {
-          if (msg.timestamp) {
-            if (typeof msg.timestamp === 'string' && msg.timestamp.includes(':')) {
-              formattedTime = msg.timestamp;
-            } else {
-              const date = new Date(msg.timestamp);
-              if (!isNaN(date.getTime())) {
-                formattedTime = date.toLocaleTimeString('es-CO', { hour: '2-digit', minute: '2-digit' });
-              }
-            }
-          }
-        } catch (e) {
-          console.warn(`Error procesando timestamp para mensaje ${index}:`, e);
-        }
-        
+        // ✅ FIX PARA TIMESTAMPS - usar función correcta
+        const formattedTime = formatTimestamp(msg.timestamp);
+
+        // Fix para el texto - según el backend usa 'text_content'
         const messageText = msg.text || msg.text_content || msg.message || msg.message_text || 'Sin contenido';
+        
+        console.log('✅ Mensaje procesado:', { 
+          id: msg.id, 
+          text: messageText, 
+          sender: msg.sender,
+          timestamp: formattedTime 
+        });
 
         return {
           id: msg.id || msg.whatsapp_id || Date.now(),
@@ -120,7 +166,12 @@ const App = () => {
         };
       });
       
-      setMessagesByConversation(prev => ({ ...prev, [phone]: formattedMessages }));
+      setMessagesByConversation(prev => ({
+        ...prev,
+        [phone]: formattedMessages
+      }));
+      
+      console.log(`✅ Mensajes cargados: ${formattedMessages.length}`, formattedMessages);
     } catch (error) {
       console.error(`❌ Error al cargar mensajes para ${phone}:`, error);
     } finally {
@@ -129,8 +180,11 @@ const App = () => {
   };
 
   const selectConversation = async (conversation) => {
+    console.log('🎯 Seleccionando conversación:', conversation.contact.phone);
+    
     setSelectedConversation(conversation);
     
+    // En móvil, ocultar la barra lateral cuando se selecciona una conversación
     if (isMobile) {
       setShowSidebar(false);
     }
@@ -144,7 +198,9 @@ const App = () => {
 
   const markConversationAsRead = async (phone) => {
     try {
+      // Usar el endpoint correcto del backend
       await fetch(`${API_URL}/api/conversations/${phone}/mark-read`, { method: 'POST' });
+      
       setConversations(prev => prev.map(conv => 
         conv.contact.phone === phone ? { ...conv, unread: 0 } : conv
       ));
@@ -153,78 +209,89 @@ const App = () => {
     }
   };
 
+  // --- FUNCIÓN DE ENVÍO ACTUALIZADA ---
   const sendMessage = async () => {
     if (!newMessage.trim() || !selectedConversation) return;
 
     const tempId = Date.now();
     const targetPhone = selectedConversation.contact.phone;
     const contactName = selectedConversation.contact.name;
+    
+    // ✅ OBTENER ESTADO DE IA PARA ESTA CONVERSACIÓN ESPECÍFICA
+    const currentAIState = aiStatesByPhone[targetPhone] ?? true; // default: IA activa
 
     const message = {
       id: tempId,
       text: newMessage,
       sender: 'agent',
-      timestamp: new Date().toLocaleTimeString('es-CO', { hour: '2-digit', minute: '2-digit' }),
+      timestamp: formatTimestamp(new Date()),
       status: 'sending'
     };
     
+    // Añadir mensaje al UI inmediatamente
     setMessagesByConversation(prev => ({
       ...prev,
       [targetPhone]: [...(prev[targetPhone] || []), message]
     }));
     
+    // Actualizar última conversación
     setConversations(prev => prev.map(conv => 
       conv.contact.phone === targetPhone 
         ? { ...conv, lastMessage: newMessage, timestamp: message.timestamp }
         : conv
-    ).sort((a, b) => {
-      const timeA = new Date(`1970-01-01 ${a.timestamp || '00:00'}`);
-      const timeB = new Date(`1970-01-01 ${b.timestamp || '00:00'}`);
-      return timeB - timeA;
-    }));
+    ));
 
     const messageToSend = newMessage;
     setNewMessage('');
-  
+
     try {
+      // ✅ USAR EL ENDPOINT CORRECTO: /api/send-message
+      console.log(`📤 Enviando mensaje a ${contactName} (${targetPhone}): ${messageToSend} - IA: ${currentAIState ? 'ACTIVA' : 'DESACTIVADA'}`);
+      
       const response = await fetch(`${API_URL}/api/send-message`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          phone: targetPhone,
-          name: contactName,
-          message: messageToSend,
+          phone: targetPhone,              // Campo requerido por el backend
+          message: messageToSend,          // Campo requerido por el backend
+          name: contactName,    // Nombre del contacto
           temp_id: tempId,
-          agent_id: 'agent'
+          sender: 'agent',
+          ai_enabled: currentAIState    // ✅ Estado de IA para esta conversación específica
         })
       });
 
-      if (response.ok) {
-        const result = await response.json();
-        
-        if (result.conversation_state) {
-          setConversationStates(prev => ({ ...prev, [targetPhone]: result.conversation_state }));
-        }
-        
-        setMessagesByConversation(prev => {
-          const newState = { ...prev };
-          if (newState[targetPhone]) {
-            newState[targetPhone] = newState[targetPhone].map(msg => 
-              msg.id === tempId ? { ...msg, status: 'delivered' } : msg
-            );
-          }
-          return newState;
-        });
-      } else {
-        throw new Error('Error en la respuesta del servidor');
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || 'Error al enviar mensaje');
       }
-    } catch (error) {
-      console.error('❌ Error al enviar mensaje:', error);
+      
+      const result = await response.json();
+      console.log('✅ Respuesta del servidor:', result);
+      
+      // Confirmar entrega en el UI
       setMessagesByConversation(prev => {
         const newState = { ...prev };
         if (newState[targetPhone]) {
           newState[targetPhone] = newState[targetPhone].map(msg => 
-            msg.id === tempId ? { ...msg, status: 'failed', text: `${msg.text} ❌` } : msg
+            msg.id === tempId 
+              ? { ...msg, status: 'delivered' }
+              : msg
+          );
+        }
+        return newState;
+      });
+      
+    } catch (error) {
+      console.error('❌ Error al enviar mensaje:', error);
+      // Marcar como fallido
+      setMessagesByConversation(prev => {
+        const newState = { ...prev };
+        if (newState[targetPhone]) {
+          newState[targetPhone] = newState[targetPhone].map(msg => 
+            msg.id === tempId 
+              ? { ...msg, status: 'failed', text: `${msg.text} ❌` }
+              : msg
           );
         }
         return newState;
@@ -232,42 +299,42 @@ const App = () => {
     }
   };
 
-  // ✅ FUNCIONES PARA CONTROLES IA/AGENTE
-  const takeConversationAsAgent = async (phone) => {
-    try {
-      const response = await fetch(`${API_URL}/api/conversations/${phone}/take-by-agent`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ agent_id: 'frontend_agent_001' })
-      });
-
-      if (response.ok) {
-        setConversationStates(prev => ({ ...prev, [phone]: 'agent_active' }));
-      }
-    } catch (error) {
-      console.error('❌ Error:', error);
-    }
+  const refreshConversations = () => {
+    fetchConversations();
   };
 
-  const reactivateAI = async (phone) => {
-    try {
-      const response = await fetch(`${API_URL}/api/conversations/${phone}/activate-ai`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' }
-      });
-
-      if (response.ok) {
-        setConversationStates(prev => ({ ...prev, [phone]: 'ai_active' }));
-      }
-    } catch (error) {
-      console.error('❌ Error:', error);
-    }
-  };
-
+  // --- FUNCIÓN PARA REGRESAR EN MÓVIL ---
   const handleBackToConversations = () => {
+    console.log('🔙 Regresando a lista de conversaciones');
     setSelectedConversation(null);
     if (isMobile) {
       setShowSidebar(true);
+    }
+  };
+
+  // ✅ FUNCIONES DE CONTROL DE IA POR CONVERSACIÓN
+  const toggleAIForConversation = async (phone) => {
+    if (!phone) return;
+    
+    const currentState = aiStatesByPhone[phone] ?? true; // default: IA activa
+    const newState = !currentState;
+    
+    // Actualizar estado local para esta conversación específica
+    setAiStatesByPhone(prev => ({
+      ...prev,
+      [phone]: newState
+    }));
+    
+    // Opcional: Notificar al backend del cambio de estado para esta conversación
+    try {
+      await fetch(`${API_URL}/api/conversations/${phone}/toggle-ai`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ ai_enabled: newState })
+      });
+      console.log(`🤖 IA ${newState ? 'activada' : 'desactivada'} para conversación: ${phone}`);
+    } catch (error) {
+      console.warn('⚠️ No se pudo sincronizar el estado de IA con el backend:', error);
     }
   };
 
@@ -277,28 +344,28 @@ const App = () => {
   }, []);
 
   useEffect(() => {
-    const onConnect = () => setIsConnected(true);
-    const onDisconnect = () => setIsConnected(false);
+    const onConnect = () => {
+      setIsConnected(true);
+      console.log('✅ Conectado al servidor');
+    };
+
+    const onDisconnect = () => {
+      setIsConnected(false);
+      console.log('❌ Desconectado del servidor');
+    };
 
     const handleRealTimeMessage = (messageData) => {
+      console.log('📨 Nuevo mensaje recibido:', messageData);
+      
       const { phone, message_text, sender_type, contact_name, message, timestamp, text_content } = messageData;
       const isCurrentConversation = selectedConversation?.contact.phone === phone;
       
-      let formattedTime = 'Ahora';
-      try {
-        if (timestamp) {
-          const date = new Date(timestamp);
-          if (!isNaN(date.getTime())) {
-            formattedTime = date.toLocaleTimeString('es-CO', { hour: '2-digit', minute: '2-digit' });
-          }
-        } else {
-          formattedTime = new Date().toLocaleTimeString('es-CO', { hour: '2-digit', minute: '2-digit' });
-        }
-      } catch (e) {
-        formattedTime = new Date().toLocaleTimeString('es-CO', { hour: '2-digit', minute: '2-digit' });
-      }
+      // ✅ FIX PARA TIMESTAMP - usar función correcta
+      const formattedTime = formatTimestamp(timestamp);
       
+      // Fix para el texto del mensaje - intentar varios campos
       const messageText = message || message_text || text_content || 'Sin contenido';
+      console.log('📝 Texto del mensaje extraído:', messageText);
       
       const newMsg = {
         id: Date.now(),
@@ -307,6 +374,8 @@ const App = () => {
         timestamp: formattedTime,
         status: 'delivered'
       };
+
+      console.log('✅ Mensaje formateado:', newMsg);
 
       setMessagesByConversation(prev => ({
         ...prev,
@@ -321,106 +390,114 @@ const App = () => {
             ...prev[convIndex],
             lastMessage: newMsg.text,
             timestamp: newMsg.timestamp,
-            unread: isCurrentConversation ? 0 : (prev[convIndex].unread || 0) + 1
+            unread: isCurrentConversation ? prev[convIndex].unread : prev[convIndex].unread + 1
           };
+          
+          if (isCurrentConversation) {
+            markConversationAsRead(phone);
+          }
           
           const newConversations = [...prev];
           newConversations.splice(convIndex, 1);
           return [updatedConv, ...newConversations];
         } else {
+          const contactName = contact_name || `Usuario ${phone.slice(-4)}`;
           const newConv = {
             id: phone,
-            contact: {
-              name: contact_name || `Usuario ${phone.slice(-4)}`,
-              phone: phone
-            },
+            contact: { name: contactName, phone: phone },
             lastMessage: newMsg.text,
             timestamp: newMsg.timestamp,
-            unread: isCurrentConversation ? 0 : 1
+            unread: selectedConversation?.contact.phone === phone ? 0 : 1,
+            status: 'active'
           };
-          
           return [newConv, ...prev];
         }
       });
     };
 
-    const handleStateChange = (data) => {
-      setConversationStates(prev => ({ ...prev, [data.phone]: data.state }));
-    };
-
     socket.on('connect', onConnect);
     socket.on('disconnect', onDisconnect);
     socket.on('new-message', handleRealTimeMessage);
-    socket.on('conversation-state-changed', handleStateChange);
 
     return () => {
       socket.off('connect', onConnect);
       socket.off('disconnect', onDisconnect);
       socket.off('new-message', handleRealTimeMessage);
-      socket.off('conversation-state-changed', handleStateChange);
     };
   }, [selectedConversation]);
 
   useEffect(() => {
-    if (messagesEndRef.current) {
-      messagesEndRef.current.scrollIntoView({ behavior: 'smooth' });
-    }
+    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messagesByConversation, selectedConversation]);
 
-  // --- DATOS FILTRADOS ---
+  // --- LÓGICA DE BÚSQUEDA ---
   const filteredConversations = useMemo(() => {
-    return conversations.filter(conversation =>
-      conversation.contact.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      conversation.contact.phone.includes(searchQuery) ||
-      conversation.lastMessage.toLowerCase().includes(searchQuery.toLowerCase())
+    const query = searchQuery.toLowerCase();
+    if (!query) return conversations;
+    return conversations.filter(c =>
+      c.contact.name.toLowerCase().includes(query) ||
+      c.contact.phone.includes(query) ||
+      c.lastMessage.toLowerCase().includes(query)
     );
   }, [conversations, searchQuery]);
 
-  const currentMessages = selectedConversation 
-    ? messagesByConversation[selectedConversation.contact.phone] || []
-    : [];
-
-  // --- COMPONENTES ---
+  // --- COMPONENTES AUXILIARES ---
   const MessageStatus = ({ status }) => {
-    switch (status) {
-      case 'sending': return <Clock className="w-3 h-3" />;
-      case 'delivered': return <CheckCheck className="w-3 h-3" />;
-      case 'failed': return <span className="text-red-500">❌</span>;
-      default: return null;
-    }
+    if (status === 'sending') return <Clock className="w-3 h-3 text-gray-400 animate-pulse" />;
+    if (status === 'delivered') return <CheckCheck className="w-4 h-4 text-blue-300" />;
+    if (status === 'failed') return <span className="text-red-400 text-xs">❌</span>;
+    return null;
   };
 
-  const ConversationControls = ({ conversation }) => {
-    const currentState = conversationStates[conversation.contact.phone] || 'ai_active';
-    const isAgentActive = currentState === 'agent_active';
+  const RefreshButton = () => (
+    <button
+      onClick={refreshConversations}
+      className="p-2 text-white hover:bg-white hover:bg-opacity-10 rounded-lg transition-colors"
+      title="Refrescar conversaciones"
+    >
+      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+      </svg>
+    </button>
+  );
+
+  // ✅ COMPONENTE SELECTOR DE IA POR CONVERSACIÓN
+  const AIToggle = () => {
+    if (!selectedConversation) return null;
+    
+    const phone = selectedConversation.contact.phone;
+    const isAIEnabled = aiStatesByPhone[phone] ?? true; // default: IA activa
     
     return (
-      <div className="flex items-center gap-1">
-        <div className={`px-2 py-1 rounded-full text-xs flex items-center gap-1 ${
-          isAgentActive ? 'bg-blue-100 text-blue-800' : 'bg-green-100 text-green-800'
+      <div className="flex items-center space-x-2">
+        <div className={`flex items-center space-x-2 px-3 py-1 rounded-full ${
+          isAIEnabled ? 'bg-green-100 text-green-800' : 'bg-gray-100 text-gray-600'
         }`}>
-          <span>{isAgentActive ? '👤' : '🤖'}</span>
-          <span className="hidden sm:inline">{isAgentActive ? 'Agente' : 'IA'}</span>
+          {isAIEnabled ? <Bot className="w-4 h-4" /> : <UserCheck className="w-4 h-4" />}
+          <span className="text-sm font-medium">
+            {isAIEnabled ? 'IA Activa' : 'Solo Manual'}
+          </span>
         </div>
-        
-        {!isAgentActive ? (
-          <button
-            onClick={() => takeConversationAsAgent(conversation.contact.phone)}
-            className="px-2 py-1 bg-blue-500 text-white rounded text-xs hover:bg-blue-600 transition-colors"
-          >
-            Tomar
-          </button>
-        ) : (
-          <button
-            onClick={() => reactivateAI(conversation.contact.phone)}
-            className="px-2 py-1 bg-green-500 text-white rounded text-xs hover:bg-green-600 transition-colors"
-          >
-            IA
-          </button>
-        )}
+        <button
+          onClick={() => toggleAIForConversation(phone)}
+          className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors duration-200 ${
+            isAIEnabled ? 'bg-green-600' : 'bg-gray-400'
+          }`}
+        >
+          <span
+            className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform duration-200 ${
+              isAIEnabled ? 'translate-x-6' : 'translate-x-1'
+            }`}
+          />
+        </button>
       </div>
     );
   };
+
+  // Obtener mensajes actuales
+  const currentMessages = selectedConversation 
+    ? messagesByConversation[selectedConversation.contact.phone] || []
+    : [];
 
   // --- RENDERIZADO ---
   if (isLoading) {
@@ -434,14 +511,16 @@ const App = () => {
     );
   }
 
+  const getStatusColor = () => isConnected ? 'bg-green-500' : 'bg-red-500';
+
   return (
     <div className="flex h-screen bg-gray-100 overflow-hidden">
-      {/* SIDEBAR */}
+      {/* BARRA LATERAL DE CONVERSACIONES */}
       <div className={`${
         isMobile ? (showSidebar ? 'w-full' : 'hidden') : 'w-1/3'
       } bg-white border-r border-gray-200 flex flex-col transition-all duration-300`}>
         
-        {/* Header */}
+        {/* Header con indicador de conexión */}
         <div className="bg-gradient-to-r from-blue-600 to-blue-700 text-white p-4">
           <div className="flex items-center justify-between">
             <div className="flex items-center space-x-3">
@@ -451,21 +530,16 @@ const App = () => {
               <div>
                 <h1 className="text-lg font-semibold">Chat Large + IA</h1>
                 <div className="flex items-center space-x-2 text-sm opacity-90">
-                  <div className={`w-2 h-2 rounded-full ${isConnected ? 'bg-green-500' : 'bg-red-500'}`}></div>
+                  <div className={`w-2 h-2 rounded-full ${getStatusColor()}`}></div>
                   <span>{isConnected ? 'Conectado' : 'Desconectado'}</span>
                 </div>
               </div>
             </div>
-            <button
-              onClick={fetchConversations}
-              className="p-2 text-white hover:bg-white hover:bg-opacity-10 rounded-lg transition-colors"
-            >
-              <Menu className={`w-5 h-5 ${isLoading ? 'animate-spin' : ''}`} />
-            </button>
+            <RefreshButton />
           </div>
         </div>
 
-        {/* Búsqueda */}
+        {/* Barra de búsqueda */}
         <div className="p-4 border-b border-gray-200">
           <div className="relative">
             <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-4 h-4" />
@@ -490,60 +564,74 @@ const App = () => {
               <p className="text-gray-400 text-sm mt-1">Las conversaciones aparecerán aquí cuando lleguen mensajes</p>
             </div>
           ) : (
-            filteredConversations.map((conversation) => (
-              <div
-                key={conversation.id}
-                onClick={() => selectConversation(conversation)}
-                className={`conversation-item touchable ${
-                  selectedConversation?.id === conversation.id ? 'bg-blue-50 border-l-4 border-l-blue-500' : ''
-                }`}
-              >
-                <div className="flex items-center space-x-3">
-                  <div className="w-12 h-12 bg-gradient-to-br from-green-400 to-green-600 rounded-full flex items-center justify-center text-white flex-shrink-0">
-                    <User className="w-6 h-6" />
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <div className="flex items-center justify-between">
-                      <h3 className="text-sm font-semibold text-gray-900 truncate">
-                        {conversation.contact.name}
-                      </h3>
-                      <div className="flex items-center space-x-2 flex-shrink-0">
-                        <span className="text-xs text-gray-500">{conversation.timestamp}</span>
-                        {conversation.unread > 0 && (
-                          <span className="bg-blue-500 text-white text-xs rounded-full px-2 py-1 min-w-[20px] text-center">
-                            {conversation.unread}
-                          </span>
-                        )}
-                      </div>
+            filteredConversations.map((conversation) => {
+              const phone = conversation.contact.phone;
+              const isAIActive = aiStatesByPhone[phone] ?? true;
+              
+              return (
+                <div
+                  key={conversation.id}
+                  onClick={() => selectConversation(conversation)}
+                  className={`conversation-item touchable ${
+                    selectedConversation?.id === conversation.id ? 'bg-blue-50 border-l-4 border-l-blue-500' : ''
+                  }`}
+                >
+                  <div className="flex items-center space-x-3">
+                    <div className="w-12 h-12 bg-gradient-to-br from-green-400 to-green-600 rounded-full flex items-center justify-center text-white flex-shrink-0">
+                      <User className="w-6 h-6" />
                     </div>
-                    <p className="text-sm text-gray-600 truncate mt-1">{conversation.lastMessage}</p>
-                    <div className="flex items-center justify-between mt-1">
-                      <p className="text-xs text-gray-400">{conversation.contact.phone}</p>
-                      <ConversationControls conversation={conversation} />
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center justify-between">
+                        <h3 className="text-sm font-semibold text-gray-900 truncate">
+                          {conversation.contact.name}
+                        </h3>
+                        <div className="flex items-center space-x-2 flex-shrink-0">
+                          <span className="text-xs text-gray-500">{conversation.timestamp}</span>
+                          {conversation.unread > 0 && (
+                            <span className="bg-blue-500 text-white text-xs rounded-full px-2 py-1 min-w-[20px] text-center">
+                              {conversation.unread}
+                            </span>
+                          )}
+                        </div>
+                      </div>
+                      <p className="text-sm text-gray-600 truncate mt-1">{conversation.lastMessage}</p>
+                      <div className="flex items-center justify-between mt-1">
+                        <p className="text-xs text-gray-400">{conversation.contact.phone}</p>
+                        {/* ✅ INDICADOR DE ESTADO IA EN CADA CONVERSACIÓN */}
+                        <div className={`px-2 py-0.5 rounded-full text-xs ${
+                          isAIActive ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-600'
+                        }`}>
+                          {isAIActive ? '🤖 IA' : '👤 Manual'}
+                        </div>
+                      </div>
                     </div>
                   </div>
                 </div>
-              </div>
-            ))
+              );
+            })
           )}
         </div>
       </div>
 
-      {/* ÁREA PRINCIPAL */}
+      {/* ÁREA DE CHAT PRINCIPAL */}
       <div className={`${
         isMobile ? (showSidebar ? 'hidden' : 'w-full') : 'flex-1'
       } flex flex-col bg-white transition-all duration-300 ${isMobile ? 'mobile-full' : ''}`}>
         
         {selectedConversation ? (
           <>
-            {/* Header del chat */}
+            {/* Encabezado del Chat con Selector de IA */}
             <div className={`${
               isMobile ? 'mobile-header' : 'bg-white border-b border-gray-200 p-4'
             } flex items-center justify-between`}>
               <div className="flex items-center space-x-3 p-4">
+                {/* Botón de regreso SIEMPRE visible en móvil */}
                 <button
                   onClick={handleBackToConversations}
-                  className={`mobile-button touchable ${isMobile ? 'block' : 'hidden'} bg-gray-100 rounded-lg`}
+                  className={`mobile-button touchable ${
+                    isMobile ? 'block' : 'hidden'
+                  } bg-gray-100 rounded-lg`}
+                  aria-label="Volver a conversaciones"
                 >
                   <ArrowLeft className="w-5 h-5 text-gray-700" />
                 </button>
@@ -555,8 +643,10 @@ const App = () => {
                   <p className="text-xs text-gray-600">{selectedConversation.contact.phone}</p>
                 </div>
               </div>
+              
+              {/* ✅ SELECTOR DE IA POR CONVERSACIÓN EN EL HEADER */}
               <div className="flex items-center space-x-2 p-4">
-                <ConversationControls conversation={selectedConversation} />
+                <AIToggle />
                 <button className="p-2 text-gray-500 hover:bg-gray-100 rounded-lg desktop-only">
                   <Phone className="w-5 h-5" />
                 </button>
@@ -566,7 +656,7 @@ const App = () => {
               </div>
             </div>
 
-            {/* Mensajes */}
+            {/* Área de Mensajes */}
             <div className={`${
               isMobile ? 'mobile-content messages-container' : 'flex-1 overflow-y-auto p-4 space-y-4 bg-gray-50'
             }`}>
@@ -588,33 +678,39 @@ const App = () => {
                   </div>
                 </div>
               ) : (
-                currentMessages.map((message) => (
-                  <div 
-                    key={message.id} 
-                    className={`flex items-end gap-2 mb-4 ${
-                      message.sender === 'bot' ? 'justify-end' : 
-                      message.sender === 'system' ? 'justify-center' : 
-                      'justify-start'
-                    }`}
-                  >
-                    <div className={`message-bubble px-4 py-2 rounded-lg shadow-sm ${
-                      message.sender === 'bot' ? 'bg-blue-500 text-white rounded-br-none' :
-                      message.sender === 'system' ? 'bg-gray-200 text-gray-600 text-xs text-center w-full' :
-                      'bg-white text-gray-800 rounded-bl-none border'
-                    }`}>
-                      <p className="text-sm break-words">{message.text || '[Sin contenido]'}</p>
-                      <div className="flex items-center justify-end gap-1 text-xs mt-1 opacity-75">
-                        <span>{message.timestamp || 'Sin hora'}</span>
-                        {message.sender === 'agent' && <MessageStatus status={message.status} />}
+                currentMessages.map((message) => {
+                  return (
+                    <div 
+                      key={message.id} 
+                      className={`flex items-end gap-2 mb-4 ${
+                        message.sender === 'agent' ? 'justify-end' : 
+                        message.sender === 'bot' ? 'justify-end' : 
+                        message.sender === 'system' ? 'justify-center' : 
+                        'justify-start'
+                      }`}
+                    >
+                      <div className={`message-bubble px-4 py-2 rounded-lg shadow-sm ${
+                        message.sender === 'agent' ? 'bg-green-500 text-white rounded-br-none' :
+                        message.sender === 'bot' ? 'bg-blue-500 text-white rounded-br-none' :
+                        message.sender === 'system' ? 'bg-gray-200 text-gray-600 text-xs text-center w-full' :
+                        'bg-white text-gray-800 rounded-bl-none border'
+                      }`}>
+                        <p className="text-sm break-words">
+                          {message.text || '[Sin contenido]'}
+                        </p>
+                        <div className="flex items-center justify-end gap-1 text-xs mt-1 opacity-75">
+                          <span>{message.timestamp || 'Sin hora'}</span>
+                          {(message.sender === 'agent' || message.sender === 'bot') && <MessageStatus status={message.status} />}
+                        </div>
                       </div>
                     </div>
-                  </div>
-                ))
+                  );
+                })
               )}
               <div ref={messagesEndRef} />
             </div>
 
-            {/* Input */}
+            {/* Campo de Entrada */}
             <div className={`${
               isMobile ? 'mobile-input-area' : 'bg-white border-t border-gray-200 p-4'
             }`}>
@@ -658,6 +754,7 @@ const App = () => {
               <p className="text-gray-400 text-sm mt-2">
                 Los mensajes aparecerán cuando lleguen nuevas conversaciones
               </p>
+              {/* Botón para mostrar conversaciones en móvil */}
               {isMobile && conversations.length > 0 && (
                 <button
                   onClick={() => setShowSidebar(true)}
