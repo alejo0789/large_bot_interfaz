@@ -184,7 +184,7 @@ const App = () => {
 
     const messageToSend = newMessage;
     setNewMessage('');
-
+  
     try {
       const response = await fetch(`${API_URL}/api/send-message`, {
         method: 'POST',
