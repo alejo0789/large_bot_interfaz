@@ -310,8 +310,8 @@ app.post('/api/send-message', async (req, res) => {
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
-          to: to,
-          text: text,
+          phone: phone,
+          message: message,
           temp_id: temp_id,
           sender: 'agent'
         })

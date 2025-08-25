@@ -190,10 +190,10 @@ const App = () => {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          to: targetPhone,
-          text: messageToSend,
+          phone: targetPhone,
+          message: messageToSend,
           temp_id: tempId,
-          agent_id: 'frontend_agent_001'
+          agent_id: 'agent'
         })
       });
 
