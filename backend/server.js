@@ -158,27 +158,132 @@ app.post('/receive-message', async (req, res) => {
 
     const cleanPhone = phone.replace(/\s+/g, '');
 
-    // n8n ya se encargó de actualizar la base de datos
-    // Solo emitir la notificación en tiempo real para el frontend
+    // ✅ LÓGICA CLAVE: Verificar el estado de la conversación
+    const conversationState = await pool.query(`
+      SELECT conversation_state, agent_id, taken_by_agent_at 
+      FROM conversations 
+      WHERE phone = $1
+    `, [cleanPhone]);
+
+    let shouldActivateAI = true;
+    let currentState = 'ai_active';
+
+    if (conversationState.rows.length > 0) {
+      currentState = conversationState.rows[0].conversation_state;
+      
+      // Si la conversación está siendo manejada por un agente, NO activar la IA
+      if (currentState === 'agent_active') {
+        shouldActivateAI = false;
+        console.log(`🚫 IA desactivada - Conversación en modo agente para ${cleanPhone}`);
+      }
+    }
+
+    // Emitir mensaje al frontend en tiempo real
     const messageData = {
       phone: cleanPhone,
       contact_name: contact_name || `Usuario ${cleanPhone.slice(-4)}`,
       message: message,
       whatsapp_id: whatsapp_id,
       sender_type: sender_type,
-      timestamp: timestamp || new Date().toISOString()
+      timestamp: timestamp || new Date().toISOString(),
+      conversation_state: currentState
     };
 
-    console.log('📤 Emitiendo mensaje en tiempo real al frontend:', messageData);
+    console.log('📤 Emitiendo mensaje al frontend:', messageData);
     io.emit('new-message', messageData);
 
-    res.json({ success: true, message: 'Mensaje procesado y enviado al frontend' });
+    // ✅ RESPUESTA AL WEBHOOK
+    res.json({ 
+      success: true, 
+      message: 'Mensaje procesado', 
+      ai_should_respond: shouldActivateAI,
+      conversation_state: currentState
+    });
 
   } catch (error) {
     console.error('❌ Error procesando mensaje:', error);
     res.status(500).json({ error: 'Error interno del servidor' });
   }
 });
+
+// ✅ NUEVO ENDPOINT: Activar modo agente
+app.post('/api/conversations/:phone/take-by-agent', async (req, res) => {
+  try {
+    const { phone } = req.params;
+    const { agent_id } = req.body; // ID del agente que toma la conversación
+    
+    await pool.query(`
+      UPDATE conversations 
+      SET 
+        conversation_state = 'agent_active',
+        agent_id = $1,
+        taken_by_agent_at = NOW(),
+        updated_at = NOW()
+      WHERE phone = $2
+    `, [agent_id || 'manual_agent', phone]);
+
+    console.log(`✅ Conversación ${phone} tomada por agente: ${agent_id}`);
+    
+    // Notificar a n8n que la IA debe desactivarse para esta conversación
+    await notifyN8nStateChange(phone, 'agent_active');
+    
+    // Emitir cambio de estado al frontend
+    io.emit('conversation-state-changed', {
+      phone: phone,
+      state: 'agent_active',
+      agent_id: agent_id
+    });
+
+    res.json({ 
+      success: true, 
+      message: 'Conversación tomada por agente',
+      state: 'agent_active' 
+    });
+
+  } catch (error) {
+    console.error('❌ Error al tomar conversación:', error);
+    res.status(500).json({ error: 'Error al tomar conversación' });
+  }
+});
+
+// ✅ NUEVO ENDPOINT: Reactivar IA
+app.post('/api/conversations/:phone/activate-ai', async (req, res) => {
+  try {
+    const { phone } = req.params;
+    
+    await pool.query(`
+      UPDATE conversations 
+      SET 
+        conversation_state = 'ai_active',
+        agent_id = NULL,
+        taken_by_agent_at = NULL,
+        updated_at = NOW()
+      WHERE phone = $2
+    `, [phone]);
+
+    console.log(`✅ IA reactivada para conversación: ${phone}`);
+    
+    // Notificar a n8n que la IA debe reactivarse
+    await notifyN8nStateChange(phone, 'ai_active');
+    
+    // Emitir cambio de estado al frontend
+    io.emit('conversation-state-changed', {
+      phone: phone,
+      state: 'ai_active'
+    });
+
+    res.json({ 
+      success: true, 
+      message: 'IA reactivada para la conversación',
+      state: 'ai_active' 
+    });
+
+  } catch (error) {
+    console.error('❌ Error al reactivar IA:', error);
+    res.status(500).json({ error: 'Error al reactivar IA' });
+  }
+});
+
 
 // 5. ENDPOINT PARA ENVIAR MENSAJES A N8N
 // Este endpoint envía el mensaje a n8n y espera confirmación
