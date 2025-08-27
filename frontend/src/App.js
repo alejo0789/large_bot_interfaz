@@ -276,7 +276,8 @@ const App = () => {
           phone: targetPhone,        // ✅ Campo correcto según backend
           message: messageToSend,    // ✅ Campo correcto según backend  
           name: contactName,         // ✅ Campo correcto según backend
-          temp_id: tempId
+          temp_id: tempId,
+          ai_enabled: currentAIState
         })
       });
 
