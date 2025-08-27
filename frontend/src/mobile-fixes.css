@@ -99,49 +99,57 @@ body {
   }
 }
 
-/* 4. HEADER FIJO PARA MÓVILES */
-.chat-header {
-  background: #fff;
-  border-bottom: 1px solid #e5e7eb;
-  padding: 1rem;
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  min-height: 70px;
-  z-index: 50;
-}
+/* ===== CORRECCIONES DIRECTAS PARA LOS PROBLEMAS ===== */
 
+/* 4. HEADER FIJO PARA MÓVILES - FORZAR POSICIÓN */
 @media (max-width: 768px) {
+  /* CUALQUIER HEADER EN LA PARTE SUPERIOR */
+  .chat-area > div:first-child,
   .chat-header {
-    position: sticky;
-    top: 0;
-    z-index: 1000;
-    /* Asegurar que no se oculte */
-    transform: translateZ(0);
-    backface-visibility: hidden;
+    position: fixed !important;
+    top: 0 !important;
+    left: 0 !important;
+    right: 0 !important;
+    z-index: 1000 !important;
+    background: #fff !important;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.1) !important;
+    min-height: 70px !important;
+    padding: 1rem !important;
   }
   
-  .chat-header .contact-info {
-    flex: 1;
-    margin: 0 1rem;
-    min-width: 0; /* Permite truncamiento */
+  /* AJUSTAR CONTENIDO PARA HEADER FIJO */
+  .chat-area > div:nth-child(2) {
+    margin-top: 70px !important;
+    flex: 1 !important;
+    overflow-y: auto !important;
+    -webkit-overflow-scrolling: touch !important;
+    padding: 1rem !important;
+    padding-bottom: 100px !important; /* Espacio para input */
   }
   
-  .chat-header .contact-name {
-    font-size: 1rem;
-    font-weight: 600;
-    color: #1f2937;
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
+  /* INPUT ÁREA FIJA EN LA PARTE INFERIOR */
+  .chat-area > div:last-child,
+  .input-area {
+    position: fixed !important;
+    bottom: 0 !important;
+    left: 0 !important;
+    right: 0 !important;
+    z-index: 999 !important;
+    background: #fff !important;
+    box-shadow: 0 -2px 4px rgba(0,0,0,0.1) !important;
+    padding: 1rem !important;
+    min-height: 80px !important;
   }
   
-  .chat-header .contact-status {
-    font-size: 0.875rem;
-    color: #6b7280;
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
+  /* AJUSTAR ALTURA DE ÁREA DE MENSAJES */
+  .messages-container,
+  .chat-area > div:nth-child(2) {
+    height: calc(100vh - 70px - 80px) !important;
+    margin-top: 70px !important;
+    margin-bottom: 80px !important;
+    overflow-y: auto !important;
+    -webkit-overflow-scrolling: touch !important;
+    padding: 1rem !important;
   }
 }
 
@@ -155,11 +163,6 @@ body {
 }
 
 @media (max-width: 768px) {
-  .messages-container {
-    height: calc(100vh - 70px - 80px); /* Header + Input area */
-    padding: 0.75rem;
-  }
-  
   .message-bubble {
     max-width: 85%;
     font-size: 0.9rem;
@@ -177,50 +180,7 @@ body {
   }
 }
 
-/* 6. ÁREA DE INPUT FIJA */
-.input-area {
-  background: #fff;
-  border-top: 1px solid #e5e7eb;
-  padding: 1rem;
-  display: flex;
-  align-items: center;
-  gap: 0.75rem;
-}
-
-@media (max-width: 768px) {
-  .input-area {
-    position: sticky;
-    bottom: 0;
-    z-index: 1000;
-    padding: 0.75rem;
-    min-height: 80px;
-    /* Evitar que se mueva con el teclado virtual */
-    transform: translateZ(0);
-    backface-visibility: hidden;
-  }
-  
-  .input-area input {
-    flex: 1;
-    padding: 0.75rem;
-    border: 1px solid #d1d5db;
-    border-radius: 0.5rem;
-    font-size: 16px; /* Previene zoom en iOS */
-    outline: none;
-    background: #fff;
-  }
-  
-  .input-area button {
-    min-width: 44px;
-    min-height: 44px;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    border-radius: 0.5rem;
-    touch-action: manipulation;
-  }
-}
-
-/* 7. BOTONES MÓVILES */
+/* 6. BOTONES MÓVILES */
 @media (max-width: 768px) {
   .mobile-button {
     min-width: 44px !important;
@@ -240,7 +200,7 @@ body {
   }
 }
 
-/* 8. LISTA DE CONVERSACIONES */
+/* 7. LISTA DE CONVERSACIONES */
 @media (max-width: 768px) {
   .conversations-list {
     height: 100vh;
@@ -300,7 +260,7 @@ body {
   }
 }
 
-/* 9. STATES Y TOGGLES */
+/* 8. STATES Y TOGGLES */
 .ai-toggle {
   display: flex;
   align-items: center;
@@ -315,7 +275,7 @@ body {
   }
 }
 
-/* 10. ORIENTACIÓN LANDSCAPE */
+/* 9. ORIENTACIÓN LANDSCAPE */
 @media screen and (orientation: landscape) and (max-width: 1024px) {
   .chat-header {
     min-height: 60px;
@@ -324,6 +284,7 @@ body {
   
   .messages-container {
     height: calc(100vh - 60px - 70px);
+    margin-top: 60px;
   }
   
   .input-area {
@@ -332,15 +293,23 @@ body {
   }
 }
 
-/* 11. SOPORTE PARA SAFE AREAS (iPhone X+) */
+/* 10. SOPORTE PARA SAFE AREAS (iPhone X+) */
 @supports (padding: max(0px)) {
   @media (max-width: 768px) {
     .chat-header {
-      padding-top: max(env(safe-area-inset-top), 1rem);
+      padding-top: max(env(safe-area-inset-top), 1rem) !important;
+      height: calc(70px + env(safe-area-inset-top)) !important;
     }
     
     .input-area {
-      padding-bottom: max(env(safe-area-inset-bottom), 0.75rem);
+      padding-bottom: max(env(safe-area-inset-bottom), 1rem) !important;
+      height: calc(80px + env(safe-area-inset-bottom)) !important;
+    }
+    
+    .messages-container {
+      margin-top: calc(70px + env(safe-area-inset-top)) !important;
+      margin-bottom: calc(80px + env(safe-area-inset-bottom)) !important;
+      height: calc(100vh - 70px - 80px - env(safe-area-inset-top) - env(safe-area-inset-bottom)) !important;
     }
     
     .sidebar {
@@ -349,7 +318,7 @@ body {
   }
 }
 
-/* 12. PREVENIR ZOOM EN INPUTS (iOS) */
+/* 11. PREVENIR ZOOM EN INPUTS (iOS) */
 @media screen and (max-width: 768px) {
   input[type="text"],
   input[type="search"],
@@ -360,7 +329,7 @@ body {
   }
 }
 
-/* 13. OPTIMIZACIONES DE RENDIMIENTO */
+/* 12. OPTIMIZACIONES DE RENDIMIENTO */
 .gpu-accelerated {
   transform: translateZ(0);
   will-change: transform;
@@ -372,7 +341,7 @@ body {
   overscroll-behavior: contain;
 }
 
-/* 14. ESTADOS DE CONEXIÓN */
+/* 13. ESTADOS DE CONEXIÓN */
 .connection-indicator {
   width: 8px;
   height: 8px;
@@ -394,41 +363,106 @@ body {
   51%, 100% { opacity: 0.3; }
 }
 
-/* 15. CORRECCIÓN ESPECÍFICA PARA EL PROBLEMA MENCIONADO */
+/* ===== SOLUCIÓN ESPECÍFICA PARA TUS PROBLEMAS ===== */
+
+/* 14. FORZAR LAYOUT CORRECTO EN CUALQUIER ESTRUCTURA */
 @media (max-width: 768px) {
-  /* Asegurar que el header siempre esté visible */
-  .chat-header {
+  /* Selector más específico para el layout de Tailwind */
+  .flex.h-screen.bg-gray-100 > div:last-child {
+    width: 100% !important;
+    height: 100vh !important;
+    display: flex !important;
+    flex-direction: column !important;
+  }
+  
+  /* Header del chat (primer div del área de chat) */
+  .flex.h-screen.bg-gray-100 > div:last-child > div:first-child {
     position: fixed !important;
     top: 0 !important;
     left: 0 !important;
     right: 0 !important;
     z-index: 1000 !important;
-    background: #fff !important;
+    background: white !important;
     box-shadow: 0 2px 4px rgba(0,0,0,0.1) !important;
   }
   
-  /* Ajustar el contenido para el header fijo */
-  .chat-content {
+  /* Área de mensajes (segundo div del área de chat) */
+  .flex.h-screen.bg-gray-100 > div:last-child > div:nth-child(2) {
     margin-top: 70px !important;
-    height: calc(100vh - 70px) !important;
-    display: flex !important;
-    flex-direction: column !important;
+    flex: 1 !important;
+    overflow-y: auto !important;
+    -webkit-overflow-scrolling: touch !important;
+    padding-bottom: 100px !important;
   }
   
-  /* Asegurar que el área de input no se salga */
-  .input-area {
+  /* Input área (último div del área de chat) */
+  .flex.h-screen.bg-gray-100 > div:last-child > div:last-child {
     position: fixed !important;
     bottom: 0 !important;
     left: 0 !important;
     right: 0 !important;
     z-index: 999 !important;
+    background: white !important;
     box-shadow: 0 -2px 4px rgba(0,0,0,0.1) !important;
   }
+}
+
+/* 15. BACKUP - Selectores por posición si los nombres de clase no coinciden */
+@media (max-width: 768px) {
+  /* Cualquier div que contenga un input de texto debe ser fijo abajo */
+  div:has(input[placeholder*="mensaje"]),
+  div:has(input[placeholder*="Escribe"]) {
+    position: fixed !important;
+    bottom: 0 !important;
+    left: 0 !important;
+    right: 0 !important;
+    z-index: 999 !important;
+    background: white !important;
+    padding: 1rem !important;
+  }
   
-  /* Ajustar mensajes para ambas áreas fijas */
-  .messages-container {
-    flex: 1 !important;
+  /* Cualquier div que contenga botones de teléfono/opciones debe ser fijo arriba */
+  div:has(button svg[class*="Phone"]),
+  div:has(button svg[class*="MoreVertical"]) {
+    position: fixed !important;
+    top: 0 !important;
+    left: 0 !important;
+    right: 0 !important;
+    z-index: 1000 !important;
+    background: white !important;
+    padding: 1rem !important;
+  }
+}
+
+/* 16. ÚLTIMA LÍNEA DE DEFENSA - Forzar estructura */
+@media (max-width: 768px) {
+  /* Si nada más funciona, forzar el layout con !important */
+  .flex-1.flex.flex-col {
+    position: relative !important;
+    height: 100vh !important;
+  }
+  
+  .flex-1.flex.flex-col > div:first-child {
+    position: fixed !important;
+    top: 0 !important;
+    left: 0 !important;
+    right: 0 !important;
+    z-index: 1000 !important;
+    background: white !important;
+  }
+  
+  .flex-1.flex.flex-col > div:last-child {
+    position: fixed !important;
+    bottom: 0 !important;
+    left: 0 !important;
+    right: 0 !important;
+    z-index: 999 !important;
+    background: white !important;
+  }
+  
+  .flex-1.overflow-y-auto {
+    margin-top: 70px !important;
     margin-bottom: 80px !important;
-    padding-bottom: 1rem !important;
+    height: calc(100vh - 150px) !important;
   }
 }
