@@ -315,29 +315,44 @@ const App = () => {
 
   // --- FUNCIÓN DE TOGGLE SIMPLE USANDO TU ENDPOINT EXISTENTE ---
   const toggleAIForConversation = async (phone) => {
-  if (!phone) return;
-  
-  const currentState = aiStatesByPhone[phone] ?? true; // default: IA activa
-  const newState = !currentState;
-  
-  // Actualizar estado local para esta conversación específica
-  setAiStatesByPhone(prev => ({
-    ...prev,
-    [phone]: newState
-  }));
-  
-  // ✅ FIX: Cambiar ai_enabled por aiEnabled para que coincida con el backend
-  try {
-    await fetch(`${API_URL}/api/conversations/${phone}/toggle-ai`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ aiEnabled: newState }) // ✅ CAMBIO AQUÍ: aiEnabled en lugar de ai_enabled
-    });
-    console.log(`🤖 IA ${newState ? 'activada' : 'desactivada'} para conversación: ${phone}`);
-  } catch (error) {
-    console.warn('⚠️ No se pudo sincronizar el estado de IA con el backend:', error);
-  }
-};
+    if (!phone) return;
+    
+    const currentState = aiStatesByPhone[phone] ?? true; // default: IA activa
+    const newState = !currentState;
+    
+    try {
+      // ✅ USAR TU ENDPOINT EXISTENTE /toggle-ai
+      const response = await fetch(`${API_URL}/api/conversations/${phone}/toggle-ai`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ 
+          ai_enabled: newState 
+        })
+      });
+
+      if (response.ok) {
+        const result = await response.json();
+        
+        // Actualizar estado local inmediatamente
+        setAiStatesByPhone(prev => ({
+          ...prev,
+          [phone]: newState
+        }));
+        
+        console.log(`✅ ${newState ? 'IA activada' : 'Modo manual activado'} para ${phone}:`, result);
+      } else {
+        const errorData = await response.json();
+        console.error('❌ Error en respuesta del servidor:', errorData);
+      }
+    } catch (error) {
+      console.error('❌ Error cambiando estado de IA:', error);
+      // Revertir el cambio en caso de error
+      setAiStatesByPhone(prev => ({
+        ...prev,
+        [phone]: currentState
+      }));
+    }
+  };
 
   // --- CONVERSACIONES FILTRADAS ---
   const filteredConversations = useMemo(() => {
@@ -471,12 +486,12 @@ const App = () => {
         </div>
       </div>
 
-      {/* Área principal de chat */}
-      <div className={`flex-1 flex flex-col ${isMobile && showSidebar ? 'hidden' : ''}`}>
+      {/* Área principal de chat - CAMBIO 4: Añadida clase chat-area */}
+      <div className={`chat-area flex-1 flex flex-col ${isMobile && showSidebar ? 'hidden' : ''}`}>
         {selectedConversation ? (
           <>
-            {/* Header del chat */}
-            <div className="bg-white border-b border-gray-200 p-4">
+            {/* Header del chat - CAMBIO 1: Añadida clase chat-header */}
+            <div className="chat-header bg-white border-b border-gray-200 p-4">
               <div className="flex items-center justify-between">
                 <div className="flex items-center space-x-3">
                   {isMobile && (
@@ -552,8 +567,8 @@ const App = () => {
               </div>
             </div>
 
-            {/* Área de mensajes */}
-            <div className="flex-1 overflow-y-auto p-4 space-y-4">
+            {/* Área de mensajes - CAMBIO 2: Añadida clase messages-container */}
+            <div className="messages-container flex-1 overflow-y-auto p-4 space-y-4">
               {isLoadingMessages ? (
                 <div className="flex justify-center items-center h-32">
                   <div className="text-gray-500">Cargando mensajes...</div>
@@ -593,8 +608,8 @@ const App = () => {
               <div ref={messagesEndRef} />
             </div>
 
-            {/* Área de entrada de mensaje */}
-            <div className="bg-white border-t border-gray-200 p-4">
+            {/* Área de entrada de mensaje - CAMBIO 3: Añadida clase input-area */}
+            <div className="input-area bg-white border-t border-gray-200 p-4">
               <div className="flex items-center space-x-2">
                 <button className="p-2 hover:bg-gray-100 rounded-lg">
                   <Paperclip className="w-5 h-5 text-gray-600" />
