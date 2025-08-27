@@ -491,7 +491,7 @@ const App = () => {
         isMobile 
           ? `flex-1 flex flex-col bg-gray-50 ${showSidebar ? 'hidden' : ''}`
           : 'flex-1 flex flex-col'
-      }`}>
+      }`} style={isMobile ? { height: '100vh', position: 'relative' } : {}}>
         {selectedConversation ? (
           <>
             {/* Header del chat - MOBILE OPTIMIZADO */}
@@ -587,16 +587,24 @@ const App = () => {
               </div>
             </div>
 
-            {/* Área de mensajes - MOBILE OPTIMIZADO */}
-            <div className={`flex-1 overflow-y-auto space-y-4 ${
-              isMobile 
-                ? 'px-4 py-4 mt-16 mb-20 bg-gray-50'
-                : 'p-4'
-            }`} style={isMobile ? { 
-              WebkitOverflowScrolling: 'touch',
-              height: 'calc(100vh - 140px)', 
-              overflowY: 'auto' 
-            } : {}}>
+            {/* Área de mensajes - SCROLL ARREGLADO */}
+            <div 
+              className={`space-y-4 ${
+                isMobile 
+                  ? 'px-4 py-4 bg-gray-50'
+                  : 'flex-1 overflow-y-auto p-4'
+              }`}
+              style={isMobile ? {
+                position: 'fixed',
+                top: '64px',
+                bottom: '80px',
+                left: '0',
+                right: '0',
+                overflowY: 'auto',
+                WebkitOverflowScrolling: 'touch',
+                zIndex: '1'
+              } : {}}
+            >
               {isLoadingMessages ? (
                 <div className="flex justify-center items-center h-32">
                   <div className="text-gray-500">Cargando mensajes...</div>
@@ -641,7 +649,7 @@ const App = () => {
               isMobile 
                 ? 'fixed bottom-0 left-0 right-0 p-3 z-10'
                 : 'p-4'
-            }`}>
+            }`} style={isMobile ? { height: '80px' } : {}}>
               <div className="flex items-center space-x-2">
                 {!isMobile && (
                   <button className="p-2 hover:bg-gray-100 rounded-lg">
