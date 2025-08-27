@@ -75,6 +75,35 @@ app.get('/api/conversations', async (req, res) => {
   }
 });
 
+
+//  Cmabiar a manual o IA
+app.post('/api/conversations/:phone/toggle-ai', async (req, res) => {
+  try {
+    const { phone } = req.params;
+    const { aiEnabled } = req.body;
+    
+    console.log(`🤖 Cambiando IA para ${phone}: ${aiEnabled}`);
+    
+    const { rows } = await pool.query(`
+      UPDATE conversations 
+      SET ai_enabled = $1, updated_at = NOW()
+      WHERE phone = $2
+      RETURNING ai_enabled
+    `, [aiEnabled, phone]);
+    
+    if (rows.length === 0) {
+      return res.status(404).json({ error: 'Conversación no encontrada' });
+    }
+    
+    console.log(`✅ IA ${aiEnabled ? 'activada' : 'desactivada'} para ${phone}`);
+    res.json({ aiEnabled: rows[0].ai_enabled });
+    
+  } catch (error) {
+    console.error('❌ Error al cambiar estado de IA:', error);
+    res.status(500).json({ error: 'No se pudo cambiar el estado de la IA' });
+  }
+});
+
 // 2. ENDPOINT PARA CARGAR MENSAJES DE UNA CONVERSACIÓN ESPECÍFICA
 app.get('/api/conversations/:phone/messages', async (req, res) => {
   try {

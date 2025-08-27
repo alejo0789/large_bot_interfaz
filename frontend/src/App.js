@@ -37,63 +37,113 @@ const App = () => {
     
     try {
       // Si ya viene formateado como "HH:MM", devolverlo tal como está
-      if (typeof timestamp === 'string' && timestamp.match(/^\d{2}:\d{2}$/)) {
+      if (typeof timestamp === 'string' && timestamp.match(/^\d{1,2}:\d{2}$/)) {
         return timestamp;
       }
       
-      // Intentar convertir timestamp a fecha
+      // Si es un string de fecha ISO o número timestamp
       const date = new Date(timestamp);
       if (!isNaN(date.getTime())) {
-        return date.toLocaleTimeString('es-CO', { hour: '2-digit', minute: '2-digit' });
+        return date.toLocaleTimeString('es-CO', { 
+          hour: '2-digit', 
+          minute: '2-digit' 
+        });
       }
       
-      // Si falla, usar hora actual
       return new Date().toLocaleTimeString('es-CO', { hour: '2-digit', minute: '2-digit' });
     } catch (error) {
-      console.warn('Error formateando timestamp:', timestamp, error);
+      console.error('Error formateando timestamp:', error);
       return new Date().toLocaleTimeString('es-CO', { hour: '2-digit', minute: '2-digit' });
     }
   };
 
-  // --- DETECTAR SI ES MÓVIL ---
+  // --- DETECCIÓN DE PANTALLA MÓVIL ---
   useEffect(() => {
     const checkMobile = () => {
-      const mobile = window.innerWidth < 768;
-      console.log('📱 Verificando móvil:', { 
-        mobile, 
-        width: window.innerWidth, 
-        height: window.innerHeight,
-        orientation: window.orientation 
-      });
+      const mobile = window.innerWidth <= 768;
       setIsMobile(mobile);
-      
-      // En móvil, mostrar sidebar si no hay conversación seleccionada
-      if (mobile) {
-        if (!selectedConversation) {
-          setShowSidebar(true);
-        } else {
-          setShowSidebar(false);
-        }
-      } else {
-        // En desktop, siempre mostrar sidebar
-        setShowSidebar(true);
-      }
+      setShowSidebar(!mobile); // En móvil, inicialmente ocultar sidebar
     };
-
+    
     checkMobile();
     window.addEventListener('resize', checkMobile);
-    window.addEventListener('orientationchange', () => {
-      // Esperar un poco después del cambio de orientación
-      setTimeout(checkMobile, 100);
-    });
-    
+    return () => window.removeEventListener('resize', checkMobile);
+  }, []);
+
+  // --- CONEXIÓN WEBSOCKET ---
+  useEffect(() => {
+    const handleConnect = () => {
+      console.log('🟢 Conectado a Socket.IO');
+      setIsConnected(true);
+    };
+
+    const handleDisconnect = () => {
+      console.log('🔴 Desconectado de Socket.IO');
+      setIsConnected(false);
+    };
+
+    const handleNewMessage = (messageData) => {
+      console.log('📨 Nuevo mensaje recibido:', messageData);
+      
+      const formattedMessage = {
+        id: messageData.whatsapp_id || Date.now(),
+        text: messageData.message || messageData.text,
+        sender: messageData.sender_type || messageData.sender || 'customer',
+        timestamp: formatTimestamp(messageData.timestamp),
+        status: 'delivered'
+      };
+
+      // Actualizar mensajes
+      setMessagesByConversation(prev => ({
+        ...prev,
+        [messageData.phone]: [...(prev[messageData.phone] || []), formattedMessage]
+      }));
+
+      // Actualizar conversaciones con el nuevo mensaje
+      setConversations(prev => prev.map(conv => 
+        conv.contact.phone === messageData.phone 
+          ? {
+              ...conv, 
+              lastMessage: formattedMessage.text,
+              timestamp: formattedMessage.timestamp,
+              unread: conv.contact.phone === selectedConversation?.contact.phone ? 0 : (conv.unread || 0) + 1
+            }
+          : conv
+      ));
+    };
+
+    const handleConversationStateChanged = (data) => {
+      console.log('🔄 Estado de conversación cambiado:', data);
+      setAiStatesByPhone(prev => ({
+        ...prev,
+        [data.phone]: data.state === 'ai_active'
+      }));
+    };
+
+    socket.on('connect', handleConnect);
+    socket.on('disconnect', handleDisconnect);
+    socket.on('new-message', handleNewMessage);
+    socket.on('conversation-state-changed', handleConversationStateChanged);
+
     return () => {
-      window.removeEventListener('resize', checkMobile);
-      window.removeEventListener('orientationchange', checkMobile);
+      socket.off('connect', handleConnect);
+      socket.off('disconnect', handleDisconnect);
+      socket.off('new-message', handleNewMessage);
+      socket.off('conversation-state-changed', handleConversationStateChanged);
     };
   }, [selectedConversation]);
 
-  // --- FUNCIONES DE API ---
+  // --- SCROLL AUTOMÁTICO ---
+  useEffect(() => {
+    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+  }, [messagesByConversation, selectedConversation]);
+
+  // --- CARGAR DATOS INICIALES ---
+  useEffect(() => {
+    fetchConversations();
+  }, []);
+
+  // --- FUNCIÓN PARA CARGAR CONVERSACIONES (✅ ALINEADA CON BACKEND) ---
   const fetchConversations = async () => {
     try {
       setIsLoading(true);
@@ -104,24 +154,14 @@ const App = () => {
       
       const data = await response.json();
       
-      // ✅ FIX PARA TIMESTAMPS - usar función correcta
-      const fixedData = data.map(conv => {
-        const timestampValue = conv.last_message_timestamp || conv.timestamp || conv.updated_at;
-        const formattedTime = formatTimestamp(timestampValue);
-
-        return {
-          ...conv,
-          timestamp: formattedTime
-        };
-      });
+      // ✅ Usar la estructura exacta que devuelve el backend
+      setConversations(data);
       
-      setConversations(fixedData);
-      
-      console.log(`✅ Conversaciones cargadas: ${fixedData.length}`);
+      console.log(`✅ Conversaciones cargadas: ${data.length}`);
       
       // En móvil, no seleccionar automáticamente una conversación
-      if (fixedData.length > 0 && !isMobile) {
-        await selectConversation(fixedData[0]);
+      if (data.length > 0 && !isMobile) {
+        await selectConversation(data[0]);
       }
     } catch (error) {
       console.error("❌ Error al cargar conversaciones:", error);
@@ -130,6 +170,7 @@ const App = () => {
     }
   };
 
+  // --- FUNCIÓN PARA CARGAR MENSAJES (✅ ALINEADA CON BACKEND) ---
   const fetchMessages = async (phone) => {
     try {
       setIsLoadingMessages(true);
@@ -139,39 +180,14 @@ const App = () => {
       if (!response.ok) throw new Error('Error al cargar mensajes');
       
       const data = await response.json();
-      console.log('📦 Datos recibidos del backend:', data);
       
-      const formattedMessages = data.map(msg => {
-        console.log('🔍 Procesando mensaje:', msg);
-        
-        // ✅ FIX PARA TIMESTAMPS - usar función correcta
-        const formattedTime = formatTimestamp(msg.timestamp);
-
-        // Fix para el texto - según el backend usa 'text_content'
-        const messageText = msg.text || msg.text_content || msg.message || msg.message_text || 'Sin contenido';
-        
-        console.log('✅ Mensaje procesado:', { 
-          id: msg.id, 
-          text: messageText, 
-          sender: msg.sender,
-          timestamp: formattedTime 
-        });
-
-        return {
-          id: msg.id || msg.whatsapp_id || Date.now(),
-          text: messageText,
-          sender: msg.sender || msg.sender_type || 'customer',
-          timestamp: formattedTime,
-          status: msg.status || 'delivered'
-        };
-      });
-      
+      // ✅ Usar la estructura exacta que devuelve el backend
       setMessagesByConversation(prev => ({
         ...prev,
-        [phone]: formattedMessages
+        [phone]: data
       }));
       
-      console.log(`✅ Mensajes cargados: ${formattedMessages.length}`, formattedMessages);
+      console.log(`✅ Mensajes cargados: ${data.length}`, data);
     } catch (error) {
       console.error(`❌ Error al cargar mensajes para ${phone}:`, error);
     } finally {
@@ -196,9 +212,9 @@ const App = () => {
     await fetchMessages(conversation.contact.phone);
   };
 
+  // --- FUNCIÓN PARA MARCAR COMO LEÍDO (✅ USANDO ENDPOINT CORRECTO) ---
   const markConversationAsRead = async (phone) => {
     try {
-      // Usar el endpoint correcto del backend
       await fetch(`${API_URL}/api/conversations/${phone}/mark-read`, { method: 'POST' });
       
       setConversations(prev => prev.map(conv => 
@@ -209,7 +225,7 @@ const App = () => {
     }
   };
 
-  // --- FUNCIÓN DE ENVÍO ACTUALIZADA ---
+  // --- FUNCIÓN DE ENVÍO (✅ USANDO ENDPOINT CORRECTO DEL BACKEND) ---
   const sendMessage = async () => {
     if (!newMessage.trim() || !selectedConversation) return;
 
@@ -245,19 +261,17 @@ const App = () => {
     setNewMessage('');
 
     try {
-      // ✅ USAR EL ENDPOINT CORRECTO: /api/send-message
-      console.log(`📤 Enviando mensaje a ${contactName} (${targetPhone}): ${messageToSend} - IA: ${currentAIState ? 'ACTIVA' : 'DESACTIVADA'}`);
+      // ✅ USAR EL ENDPOINT CORRECTO SEGÚN EL BACKEND
+      console.log(`📤 Enviando mensaje a ${contactName} (${targetPhone}): ${messageToSend}`);
       
       const response = await fetch(`${API_URL}/api/send-message`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          phone: targetPhone,              // Campo requerido por el backend
-          message: messageToSend,          // Campo requerido por el backend
-          name: contactName,    // Nombre del contacto
-          temp_id: tempId,
-          sender: 'agent',
-          ai_enabled: currentAIState    // ✅ Estado de IA para esta conversación específica
+          phone: targetPhone,        // ✅ Campo correcto según backend
+          message: messageToSend,    // ✅ Campo correcto según backend  
+          name: contactName,         // ✅ Campo correcto según backend
+          temp_id: tempId
         })
       });
 
@@ -290,7 +304,7 @@ const App = () => {
         if (newState[targetPhone]) {
           newState[targetPhone] = newState[targetPhone].map(msg => 
             msg.id === tempId 
-              ? { ...msg, status: 'failed', text: `${msg.text} ❌` }
+              ? { ...msg, status: 'failed' }
               : msg
           );
         }
@@ -299,248 +313,79 @@ const App = () => {
     }
   };
 
-  const refreshConversations = () => {
-    fetchConversations();
-  };
-
-  // --- FUNCIÓN PARA REGRESAR EN MÓVIL ---
-  const handleBackToConversations = () => {
-    console.log('🔙 Regresando a lista de conversaciones');
-    setSelectedConversation(null);
-    if (isMobile) {
-      setShowSidebar(true);
-    }
-  };
-
-  // ✅ FUNCIONES DE CONTROL DE IA POR CONVERSACIÓN
+  // --- FUNCIÓN DE TOGGLE SIMPLE USANDO TU ENDPOINT EXISTENTE ---
   const toggleAIForConversation = async (phone) => {
-    if (!phone) return;
-    
-    const currentState = aiStatesByPhone[phone] ?? true; // default: IA activa
-    const newState = !currentState;
-    
-    // Actualizar estado local para esta conversación específica
-    setAiStatesByPhone(prev => ({
-      ...prev,
-      [phone]: newState
-    }));
-    
-    // Opcional: Notificar al backend del cambio de estado para esta conversación
-    try {
-      await fetch(`${API_URL}/api/conversations/${phone}/toggle-ai`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ ai_enabled: newState })
-      });
-      console.log(`🤖 IA ${newState ? 'activada' : 'desactivada'} para conversación: ${phone}`);
-    } catch (error) {
-      console.warn('⚠️ No se pudo sincronizar el estado de IA con el backend:', error);
-    }
-  };
+  if (!phone) return;
+  
+  const currentState = aiStatesByPhone[phone] ?? true; // default: IA activa
+  const newState = !currentState;
+  
+  // Actualizar estado local para esta conversación específica
+  setAiStatesByPhone(prev => ({
+    ...prev,
+    [phone]: newState
+  }));
+  
+  // ✅ FIX: Cambiar ai_enabled por aiEnabled para que coincida con el backend
+  try {
+    await fetch(`${API_URL}/api/conversations/${phone}/toggle-ai`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ aiEnabled: newState }) // ✅ CAMBIO AQUÍ: aiEnabled en lugar de ai_enabled
+    });
+    console.log(`🤖 IA ${newState ? 'activada' : 'desactivada'} para conversación: ${phone}`);
+  } catch (error) {
+    console.warn('⚠️ No se pudo sincronizar el estado de IA con el backend:', error);
+  }
+};
 
-  // --- EFECTOS ---
-  useEffect(() => {
-    fetchConversations();
-  }, []);
-
-  useEffect(() => {
-    const onConnect = () => {
-      setIsConnected(true);
-      console.log('✅ Conectado al servidor');
-    };
-
-    const onDisconnect = () => {
-      setIsConnected(false);
-      console.log('❌ Desconectado del servidor');
-    };
-
-    const handleRealTimeMessage = (messageData) => {
-      console.log('📨 Nuevo mensaje recibido:', messageData);
-      
-      const { phone, message_text, sender_type, contact_name, message, timestamp, text_content } = messageData;
-      const isCurrentConversation = selectedConversation?.contact.phone === phone;
-      
-      // ✅ FIX PARA TIMESTAMP - usar función correcta
-      const formattedTime = formatTimestamp(timestamp);
-      
-      // Fix para el texto del mensaje - intentar varios campos
-      const messageText = message || message_text || text_content || 'Sin contenido';
-      console.log('📝 Texto del mensaje extraído:', messageText);
-      
-      const newMsg = {
-        id: Date.now(),
-        text: messageText,
-        sender: sender_type || 'customer',
-        timestamp: formattedTime,
-        status: 'delivered'
-      };
-
-      console.log('✅ Mensaje formateado:', newMsg);
-
-      setMessagesByConversation(prev => ({
-        ...prev,
-        [phone]: [...(prev[phone] || []), newMsg]
-      }));
-
-      setConversations(prev => {
-        const convIndex = prev.findIndex(c => c.contact.phone === phone);
-        
-        if (convIndex !== -1) {
-          const updatedConv = {
-            ...prev[convIndex],
-            lastMessage: newMsg.text,
-            timestamp: newMsg.timestamp,
-            unread: isCurrentConversation ? prev[convIndex].unread : prev[convIndex].unread + 1
-          };
-          
-          if (isCurrentConversation) {
-            markConversationAsRead(phone);
-          }
-          
-          const newConversations = [...prev];
-          newConversations.splice(convIndex, 1);
-          return [updatedConv, ...newConversations];
-        } else {
-          const contactName = contact_name || `Usuario ${phone.slice(-4)}`;
-          const newConv = {
-            id: phone,
-            contact: { name: contactName, phone: phone },
-            lastMessage: newMsg.text,
-            timestamp: newMsg.timestamp,
-            unread: selectedConversation?.contact.phone === phone ? 0 : 1,
-            status: 'active'
-          };
-          return [newConv, ...prev];
-        }
-      });
-    };
-
-    socket.on('connect', onConnect);
-    socket.on('disconnect', onDisconnect);
-    socket.on('new-message', handleRealTimeMessage);
-
-    return () => {
-      socket.off('connect', onConnect);
-      socket.off('disconnect', onDisconnect);
-      socket.off('new-message', handleRealTimeMessage);
-    };
-  }, [selectedConversation]);
-
-  useEffect(() => {
-    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
-  }, [messagesByConversation, selectedConversation]);
-
-  // --- LÓGICA DE BÚSQUEDA ---
+  // --- CONVERSACIONES FILTRADAS ---
   const filteredConversations = useMemo(() => {
-    const query = searchQuery.toLowerCase();
-    if (!query) return conversations;
-    return conversations.filter(c =>
-      c.contact.name.toLowerCase().includes(query) ||
-      c.contact.phone.includes(query) ||
-      c.lastMessage.toLowerCase().includes(query)
+    if (!searchQuery) return conversations;
+    
+    return conversations.filter(conv =>
+      conv.contact.name?.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      conv.contact.phone?.includes(searchQuery) ||
+      conv.lastMessage?.toLowerCase().includes(searchQuery.toLowerCase())
     );
   }, [conversations, searchQuery]);
 
-  // --- COMPONENTES AUXILIARES ---
-  const MessageStatus = ({ status }) => {
-    if (status === 'sending') return <Clock className="w-3 h-3 text-gray-400 animate-pulse" />;
-    if (status === 'delivered') return <CheckCheck className="w-4 h-4 text-blue-300" />;
-    if (status === 'failed') return <span className="text-red-400 text-xs">❌</span>;
-    return null;
+  // --- MANEJO DE ENVÍO CON ENTER ---
+  const handleKeyPress = (e) => {
+    if (e.key === 'Enter' && !e.shiftKey) {
+      e.preventDefault();
+      sendMessage();
+    }
   };
 
-  const RefreshButton = () => (
-    <button
-      onClick={refreshConversations}
-      className="p-2 text-white hover:bg-white hover:bg-opacity-10 rounded-lg transition-colors"
-      title="Refrescar conversaciones"
-    >
-      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
-      </svg>
-    </button>
-  );
-
-  // ✅ COMPONENTE SELECTOR DE IA POR CONVERSACIÓN
-  const AIToggle = () => {
-    if (!selectedConversation) return null;
-    
-    const phone = selectedConversation.contact.phone;
-    const isAIEnabled = aiStatesByPhone[phone] ?? true; // default: IA activa
-    
-    return (
-      <div className="flex items-center space-x-2">
-        <div className={`flex items-center space-x-2 px-3 py-1 rounded-full ${
-          isAIEnabled ? 'bg-green-100 text-green-800' : 'bg-gray-100 text-gray-600'
-        }`}>
-          {isAIEnabled ? <Bot className="w-4 h-4" /> : <UserCheck className="w-4 h-4" />}
-          <span className="text-sm font-medium">
-            {isAIEnabled ? 'IA Activa' : 'Solo Manual'}
-          </span>
-        </div>
-        <button
-          onClick={() => toggleAIForConversation(phone)}
-          className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors duration-200 ${
-            isAIEnabled ? 'bg-green-600' : 'bg-gray-400'
-          }`}
-        >
-          <span
-            className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform duration-200 ${
-              isAIEnabled ? 'translate-x-6' : 'translate-x-1'
-            }`}
-          />
-        </button>
-      </div>
-    );
-  };
-
-  // Obtener mensajes actuales
-  const currentMessages = selectedConversation 
-    ? messagesByConversation[selectedConversation.contact.phone] || []
-    : [];
-
-  // --- RENDERIZADO ---
-  if (isLoading) {
-    return (
-      <div className="flex h-screen w-screen items-center justify-center bg-gray-100">
-        <div className="flex flex-col items-center">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-500"></div>
-          <p className="mt-4 text-gray-600">Cargando conversaciones...</p>
-        </div>
-      </div>
-    );
-  }
-
-  const getStatusColor = () => isConnected ? 'bg-green-500' : 'bg-red-500';
-
+  // --- RENDER ---
   return (
-    <div className="flex h-screen bg-gray-100 overflow-hidden">
-      {/* BARRA LATERAL DE CONVERSACIONES */}
+    <div className="flex h-screen bg-gray-100">
+      {/* Sidebar de conversaciones */}
       <div className={`${
-        isMobile ? (showSidebar ? 'w-full' : 'hidden') : 'w-1/3'
-      } bg-white border-r border-gray-200 flex flex-col transition-all duration-300`}>
+        isMobile 
+          ? `fixed inset-y-0 left-0 z-50 w-full bg-white transform transition-transform duration-300 ${
+              showSidebar ? 'translate-x-0' : '-translate-x-full'
+            }`
+          : 'w-80'
+      } bg-white border-r border-gray-200 flex flex-col`}>
         
-        {/* Header con indicador de conexión */}
-        <div className="bg-gradient-to-r from-blue-600 to-blue-700 text-white p-4">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center space-x-3">
-              <div className="w-10 h-10 bg-white bg-opacity-20 rounded-full flex items-center justify-center">
-                <User className="w-5 h-5" />
-              </div>
-              <div>
-                <h1 className="text-lg font-semibold">Chat Large + IA</h1>
-                <div className="flex items-center space-x-2 text-sm opacity-90">
-                  <div className={`w-2 h-2 rounded-full ${getStatusColor()}`}></div>
-                  <span>{isConnected ? 'Conectado' : 'Desconectado'}</span>
-                </div>
-              </div>
-            </div>
-            <RefreshButton />
-          </div>
-        </div>
-
-        {/* Barra de búsqueda */}
+        {/* Header del Sidebar */}
         <div className="p-4 border-b border-gray-200">
+          <div className="flex items-center justify-between mb-4">
+            <h1 className="text-xl font-semibold text-gray-800">
+              Conversaciones
+            </h1>
+            <div className="flex items-center space-x-2">
+              {/* Indicador de conexión */}
+              <div className={`w-2 h-2 rounded-full ${isConnected ? 'bg-green-500' : 'bg-red-500'}`} />
+              <span className="text-xs text-gray-500">
+                {isConnected ? 'Conectado' : 'Desconectado'}
+              </span>
+            </div>
+          </div>
+          
+          {/* Buscador */}
           <div className="relative">
             <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-4 h-4" />
             <input
@@ -548,61 +393,74 @@ const App = () => {
               placeholder="Buscar conversaciones..."
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm"
+              className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
             />
           </div>
         </div>
 
         {/* Lista de conversaciones */}
-        <div className="flex-1 conversations-container">
-          {filteredConversations.length === 0 ? (
-            <div className="p-6 text-center">
-              <div className="w-16 h-16 bg-gray-200 rounded-full flex items-center justify-center mx-auto mb-4">
-                <User className="w-8 h-8 text-gray-400" />
-              </div>
-              <p className="text-gray-500">No hay conversaciones</p>
-              <p className="text-gray-400 text-sm mt-1">Las conversaciones aparecerán aquí cuando lleguen mensajes</p>
+        <div className="flex-1 overflow-y-auto">
+          {isLoading ? (
+            <div className="p-4 text-center text-gray-500">
+              Cargando conversaciones...
+            </div>
+          ) : filteredConversations.length === 0 ? (
+            <div className="p-4 text-center text-gray-500">
+              {searchQuery ? 'No se encontraron conversaciones' : 'No hay conversaciones'}
             </div>
           ) : (
             filteredConversations.map((conversation) => {
-              const phone = conversation.contact.phone;
-              const isAIActive = aiStatesByPhone[phone] ?? true;
+              const isSelected = selectedConversation?.id === conversation.id;
+              const currentAIState = aiStatesByPhone[conversation.contact.phone] ?? true;
               
               return (
                 <div
                   key={conversation.id}
                   onClick={() => selectConversation(conversation)}
-                  className={`conversation-item touchable ${
-                    selectedConversation?.id === conversation.id ? 'bg-blue-50 border-l-4 border-l-blue-500' : ''
+                  className={`p-4 border-b border-gray-100 cursor-pointer hover:bg-gray-50 ${
+                    isSelected ? 'bg-blue-50 border-l-4 border-l-blue-500' : ''
                   }`}
                 >
-                  <div className="flex items-center space-x-3">
-                    <div className="w-12 h-12 bg-gradient-to-br from-green-400 to-green-600 rounded-full flex items-center justify-center text-white flex-shrink-0">
-                      <User className="w-6 h-6" />
+                  <div className="flex items-start space-x-3">
+                    <div className="flex-shrink-0">
+                      <div className="w-12 h-12 bg-gradient-to-br from-blue-400 to-purple-500 rounded-full flex items-center justify-center text-white font-medium">
+                        <User className="w-6 h-6" />
+                      </div>
                     </div>
+                    
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center justify-between">
-                        <h3 className="text-sm font-semibold text-gray-900 truncate">
+                        <h3 className="text-sm font-medium text-gray-900 truncate">
                           {conversation.contact.name}
                         </h3>
-                        <div className="flex items-center space-x-2 flex-shrink-0">
-                          <span className="text-xs text-gray-500">{conversation.timestamp}</span>
-                          {conversation.unread > 0 && (
-                            <span className="bg-blue-500 text-white text-xs rounded-full px-2 py-1 min-w-[20px] text-center">
-                              {conversation.unread}
-                            </span>
-                          )}
+                        <div className="flex items-center space-x-2">
+                          {/* Indicador de estado más claro */}
+                          <div className={`px-2 py-1 rounded-full text-xs font-medium ${
+                            currentAIState 
+                              ? 'bg-green-100 text-green-700 border border-green-200' 
+                              : 'bg-blue-100 text-blue-700 border border-blue-200'
+                          }`}>
+                            {currentAIState ? '🤖 IA' : '👤 Manual'}
+                          </div>
+                          <span className="text-xs text-gray-500">
+                            {conversation.timestamp}
+                          </span>
                         </div>
                       </div>
-                      <p className="text-sm text-gray-600 truncate mt-1">{conversation.lastMessage}</p>
-                      <div className="flex items-center justify-between mt-1">
-                        <p className="text-xs text-gray-400">{conversation.contact.phone}</p>
-                        {/* ✅ INDICADOR DE ESTADO IA EN CADA CONVERSACIÓN */}
-                        <div className={`px-2 py-0.5 rounded-full text-xs ${
-                          isAIActive ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-600'
-                        }`}>
-                          {isAIActive ? '🤖 IA' : '👤 Manual'}
-                        </div>
+                      
+                      <p className="text-sm text-gray-600 truncate mt-1">
+                        {conversation.lastMessage}
+                      </p>
+                      
+                      <div className="flex items-center justify-between mt-2">
+                        <span className="text-xs text-gray-400">
+                          {conversation.contact.phone}
+                        </span>
+                        {conversation.unread > 0 && (
+                          <span className="bg-red-500 text-white text-xs rounded-full px-2 py-0.5 min-w-[1rem] text-center">
+                            {conversation.unread}
+                          </span>
+                        )}
                       </div>
                     </div>
                   </div>
@@ -613,129 +471,154 @@ const App = () => {
         </div>
       </div>
 
-      {/* ÁREA DE CHAT PRINCIPAL */}
-      <div className={`${
-        isMobile ? (showSidebar ? 'hidden' : 'w-full') : 'flex-1'
-      } flex flex-col bg-white transition-all duration-300 ${isMobile ? 'mobile-full' : ''}`}>
-        
+      {/* Área principal de chat */}
+      <div className={`flex-1 flex flex-col ${isMobile && showSidebar ? 'hidden' : ''}`}>
         {selectedConversation ? (
           <>
-            {/* Encabezado del Chat con Selector de IA */}
-            <div className={`${
-              isMobile ? 'mobile-header' : 'bg-white border-b border-gray-200 p-4'
-            } flex items-center justify-between`}>
-              <div className="flex items-center space-x-3 p-4">
-                {/* Botón de regreso SIEMPRE visible en móvil */}
-                <button
-                  onClick={handleBackToConversations}
-                  className={`mobile-button touchable ${
-                    isMobile ? 'block' : 'hidden'
-                  } bg-gray-100 rounded-lg`}
-                  aria-label="Volver a conversaciones"
-                >
-                  <ArrowLeft className="w-5 h-5 text-gray-700" />
-                </button>
-                <div className="w-10 h-10 bg-gradient-to-br from-green-400 to-green-600 rounded-full flex items-center justify-center text-white">
-                  <User className="w-5 h-5" />
+            {/* Header del chat */}
+            <div className="bg-white border-b border-gray-200 p-4">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center space-x-3">
+                  {isMobile && (
+                    <button
+                      onClick={() => setShowSidebar(true)}
+                      className="p-2 hover:bg-gray-100 rounded-lg"
+                    >
+                      <ArrowLeft className="w-5 h-5" />
+                    </button>
+                  )}
+                  
+                  <div className="flex-shrink-0">
+                    <div className="w-10 h-10 bg-gradient-to-br from-blue-400 to-purple-500 rounded-full flex items-center justify-center text-white font-medium">
+                      <User className="w-5 h-5" />
+                    </div>
+                  </div>
+                  
+                  <div>
+                    <h2 className="text-lg font-semibold text-gray-900">
+                      {selectedConversation.contact.name}
+                    </h2>
+                    <p className="text-sm text-gray-500">
+                      {selectedConversation.contact.phone}
+                    </p>
+                  </div>
                 </div>
-                <div>
-                  <h2 className="font-semibold text-gray-900">{selectedConversation.contact.name}</h2>
-                  <p className="text-xs text-gray-600">{selectedConversation.contact.phone}</p>
+
+                <div className="flex items-center space-x-2">
+                  {/* Toggle Switch de IA/Manual */}
+                  <div className="flex items-center space-x-3">
+                    <span className={`text-sm font-medium transition-colors ${
+                      aiStatesByPhone[selectedConversation.contact.phone] ?? true 
+                        ? 'text-gray-400' 
+                        : 'text-blue-600'
+                    }`}>
+                      Manual
+                    </span>
+                    
+                    <button
+                      onClick={() => toggleAIForConversation(selectedConversation.contact.phone)}
+                      className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 ${
+                        aiStatesByPhone[selectedConversation.contact.phone] ?? true
+                          ? 'bg-green-500'
+                          : 'bg-gray-300'
+                      }`}
+                      aria-pressed={aiStatesByPhone[selectedConversation.contact.phone] ?? true}
+                    >
+                      <span
+                        className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
+                          aiStatesByPhone[selectedConversation.contact.phone] ?? true
+                            ? 'translate-x-6'
+                            : 'translate-x-1'
+                        }`}
+                      />
+                    </button>
+                    
+                    <span className={`text-sm font-medium transition-colors ${
+                      aiStatesByPhone[selectedConversation.contact.phone] ?? true 
+                        ? 'text-green-600' 
+                        : 'text-gray-400'
+                    }`}>
+                      IA
+                    </span>
+                  </div>
+
+                  <button className="p-2 hover:bg-gray-100 rounded-lg">
+                    <Phone className="w-5 h-5 text-gray-600" />
+                  </button>
+                  <button className="p-2 hover:bg-gray-100 rounded-lg">
+                    <MoreVertical className="w-5 h-5 text-gray-600" />
+                  </button>
                 </div>
-              </div>
-              
-              {/* ✅ SELECTOR DE IA POR CONVERSACIÓN EN EL HEADER */}
-              <div className="flex items-center space-x-2 p-4">
-                <AIToggle />
-                <button className="p-2 text-gray-500 hover:bg-gray-100 rounded-lg desktop-only">
-                  <Phone className="w-5 h-5" />
-                </button>
-                <button className="p-2 text-gray-500 hover:bg-gray-100 rounded-lg">
-                  <MoreVertical className="w-5 h-5" />
-                </button>
               </div>
             </div>
 
-            {/* Área de Mensajes */}
-            <div className={`${
-              isMobile ? 'mobile-content messages-container' : 'flex-1 overflow-y-auto p-4 space-y-4 bg-gray-50'
-            }`}>
+            {/* Área de mensajes */}
+            <div className="flex-1 overflow-y-auto p-4 space-y-4">
               {isLoadingMessages ? (
-                <div className="flex items-center justify-center h-full">
-                  <div className="flex flex-col items-center">
-                    <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-500"></div>
-                    <p className="mt-2 text-gray-600 text-sm">Cargando mensajes...</p>
-                  </div>
-                </div>
-              ) : currentMessages.length === 0 ? (
-                <div className="flex items-center justify-center h-full">
-                  <div className="text-center">
-                    <div className="w-16 h-16 bg-gray-200 rounded-full flex items-center justify-center mx-auto mb-4">
-                      <User className="w-8 h-8 text-gray-400" />
-                    </div>
-                    <p className="text-gray-500">No hay mensajes en esta conversación</p>
-                    <p className="text-gray-400 text-sm mt-1">Los mensajes aparecerán aquí</p>
-                  </div>
+                <div className="flex justify-center items-center h-32">
+                  <div className="text-gray-500">Cargando mensajes...</div>
                 </div>
               ) : (
-                currentMessages.map((message) => {
-                  return (
-                    <div 
-                      key={message.id} 
-                      className={`flex items-end gap-2 mb-4 ${
-                        message.sender === 'agent' ? 'justify-end' : 
-                        message.sender === 'bot' ? 'justify-end' : 
-                        message.sender === 'system' ? 'justify-center' : 
-                        'justify-start'
+                messagesByConversation[selectedConversation.contact.phone]?.map((message) => (
+                  <div
+                    key={message.id}
+                    className={`flex ${message.sender === 'agent' ? 'justify-end' : 'justify-start'}`}
+                  >
+                    <div
+                      className={`max-w-xs lg:max-w-md px-4 py-2 rounded-lg ${
+                        message.sender === 'agent'
+                          ? 'bg-blue-500 text-white'
+                          : 'bg-gray-200 text-gray-900'
                       }`}
                     >
-                      <div className={`message-bubble px-4 py-2 rounded-lg shadow-sm ${
-                        message.sender === 'agent' ? 'bg-green-500 text-white rounded-br-none' :
-                        message.sender === 'bot' ? 'bg-blue-500 text-white rounded-br-none' :
-                        message.sender === 'system' ? 'bg-gray-200 text-gray-600 text-xs text-center w-full' :
-                        'bg-white text-gray-800 rounded-bl-none border'
-                      }`}>
-                        <p className="text-sm break-words">
-                          {message.text || '[Sin contenido]'}
-                        </p>
-                        <div className="flex items-center justify-end gap-1 text-xs mt-1 opacity-75">
-                          <span>{message.timestamp || 'Sin hora'}</span>
-                          {(message.sender === 'agent' || message.sender === 'bot') && <MessageStatus status={message.status} />}
-                        </div>
+                      <p className="text-sm">{message.text}</p>
+                      <div className="flex items-center justify-end space-x-1 mt-1">
+                        <span className={`text-xs ${
+                          message.sender === 'agent' ? 'text-blue-100' : 'text-gray-500'
+                        }`}>
+                          {message.timestamp}
+                        </span>
+                        {message.sender === 'agent' && (
+                          <div className="flex">
+                            {message.status === 'sending' && <Clock className="w-3 h-3 text-blue-200" />}
+                            {message.status === 'delivered' && <CheckCheck className="w-3 h-3 text-blue-200" />}
+                            {message.status === 'failed' && <span className="text-red-300">❌</span>}
+                          </div>
+                        )}
                       </div>
                     </div>
-                  );
-                })
+                  </div>
+                ))
               )}
               <div ref={messagesEndRef} />
             </div>
 
-            {/* Campo de Entrada */}
-            <div className={`${
-              isMobile ? 'mobile-input-area' : 'bg-white border-t border-gray-200 p-4'
-            }`}>
-              <div className="flex items-center space-x-3">
-                <button className="p-2 text-gray-500 hover:bg-gray-100 rounded-lg desktop-only">
-                  <Paperclip className="w-5 h-5" />
+            {/* Área de entrada de mensaje */}
+            <div className="bg-white border-t border-gray-200 p-4">
+              <div className="flex items-center space-x-2">
+                <button className="p-2 hover:bg-gray-100 rounded-lg">
+                  <Paperclip className="w-5 h-5 text-gray-600" />
                 </button>
-                <div className="flex-1 relative">
+                
+                <div className="flex-1">
                   <input
                     type="text"
                     value={newMessage}
                     onChange={(e) => setNewMessage(e.target.value)}
-                    onKeyPress={(e) => e.key === 'Enter' && sendMessage()}
+                    onKeyPress={handleKeyPress}
                     placeholder="Escribe un mensaje..."
-                    className="w-full px-4 py-2 border border-gray-300 rounded-full focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                    disabled={isLoadingMessages}
+                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                   />
-                  <button className="absolute right-3 top-1/2 transform -translate-y-1/2 p-1 text-gray-500 hover:text-gray-700 desktop-only">
-                    <Smile className="w-5 h-5" />
-                  </button>
                 </div>
+                
+                <button className="p-2 hover:bg-gray-100 rounded-lg">
+                  <Smile className="w-5 h-5 text-gray-600" />
+                </button>
+                
                 <button
                   onClick={sendMessage}
-                  disabled={!newMessage.trim() || isLoadingMessages}
-                  className="mobile-button bg-blue-500 text-white rounded-full hover:bg-blue-600 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                  disabled={!newMessage.trim()}
+                  className="p-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 disabled:bg-gray-300 disabled:cursor-not-allowed"
                 >
                   <Send className="w-5 h-5" />
                 </button>
@@ -743,22 +626,21 @@ const App = () => {
             </div>
           </>
         ) : (
-          <div className="flex flex-1 items-center justify-center">
+          <div className="flex-1 flex items-center justify-center bg-gray-50">
             <div className="text-center">
-              <div className="w-20 h-20 bg-gray-200 rounded-full flex items-center justify-center mx-auto mb-4">
-                <User className="w-10 h-10 text-gray-400" />
+              <div className="w-24 h-24 bg-gray-200 rounded-full flex items-center justify-center mx-auto mb-4">
+                <User className="w-12 h-12 text-gray-400" />
               </div>
-              <p className="text-gray-500 text-lg font-medium">
-                {conversations.length > 0 ? "Selecciona una conversación para comenzar" : "No hay conversaciones activas"}
+              <h3 className="text-lg font-medium text-gray-900 mb-2">
+                Selecciona una conversación
+              </h3>
+              <p className="text-gray-500">
+                Elige una conversación para comenzar a chatear
               </p>
-              <p className="text-gray-400 text-sm mt-2">
-                Los mensajes aparecerán cuando lleguen nuevas conversaciones
-              </p>
-              {/* Botón para mostrar conversaciones en móvil */}
-              {isMobile && conversations.length > 0 && (
+              {isMobile && (
                 <button
                   onClick={() => setShowSidebar(true)}
-                  className="mt-4 mobile-button bg-blue-500 text-white rounded-lg hover:bg-blue-600 transition-colors px-4 py-2"
+                  className="mt-4 px-4 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600"
                 >
                   Ver conversaciones
                 </button>
