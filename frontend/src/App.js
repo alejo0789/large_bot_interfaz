@@ -25,6 +25,11 @@ const App = () => {
   // --- ESTADOS PARA RESPONSIVE ---
   const [isMobile, setIsMobile] = useState(false);
   const [showSidebar, setShowSidebar] = useState(true);
+  
+  // --- ESTADO PARA EL PANEL DESLIZABLE ---
+  const [sidebarWidth, setSidebarWidth] = useState(320); // Ancho inicial
+  const [isResizing, setIsResizing] = useState(false);
+  const [dragStart, setDragStart] = useState(null);
 
   // ✅ ESTADO DE IA POR CONVERSACIÓN (no global)
   const [aiStatesByPhone, setAiStatesByPhone] = useState({});
@@ -116,7 +121,7 @@ const App = () => {
       console.log('🔄 Estado de conversación cambiado:', data);
       setAiStatesByPhone(prev => ({
         ...prev,
-        [data.phone]: data.state === 'ai_active'
+        [data.phone]: Boolean(data.state === 'ai_active') // Forzar boolean aquí también
       }));
     };
 
@@ -234,7 +239,7 @@ const App = () => {
     const contactName = selectedConversation.contact.name;
     
     // ✅ OBTENER ESTADO DE IA PARA ESTA CONVERSACIÓN ESPECÍFICA
-    const currentAIState = aiStatesByPhone[targetPhone] ?? true; // default: IA activa
+    const currentAIState = Boolean(aiStatesByPhone[targetPhone] ?? true); // Forzar boolean
 
     const message = {
       id: tempId,
@@ -317,39 +322,55 @@ const App = () => {
   const toggleAIForConversation = async (phone) => {
     if (!phone) return;
     
-    const currentState = aiStatesByPhone[phone] ?? true; // default: IA activa
-    const newState = !currentState;
+    // Asegurar que siempre trabajemos con booleans
+    const currentState = Boolean(aiStatesByPhone[phone] ?? true); // Convertir a boolean explícitamente
+    const newState = !currentState; // Esto siempre será boolean
+    
+    // 🚀 ACTUALIZAR INMEDIATAMENTE PARA UI FLUIDA
+    setAiStatesByPhone(prev => ({
+      ...prev,
+      [phone]: Boolean(newState)
+    }));
     
     try {
-      // ✅ USAR TU ENDPOINT EXISTENTE /toggle-ai
+      console.log(`🔄 Cambiando IA para ${phone}: currentState=${currentState} -> newState=${newState}`);
+      console.log('🔍 Tipos:', typeof currentState, typeof newState);
+      
+      // ✅ USAR TU ENDPOINT EXISTENTE /toggle-ai - NOMBRE CORRECTO
+      const payload = { 
+        aiEnabled: Boolean(newState) // Cambiar a camelCase
+      };
+      
+      console.log('📤 Enviando payload:', payload);
+      
       const response = await fetch(`${API_URL}/api/conversations/${phone}/toggle-ai`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ 
-          ai_enabled: newState 
-        })
+        body: JSON.stringify(payload)
       });
 
       if (response.ok) {
         const result = await response.json();
-        
-        // Actualizar estado local inmediatamente
-        setAiStatesByPhone(prev => ({
-          ...prev,
-          [phone]: newState
-        }));
-        
         console.log(`✅ ${newState ? 'IA activada' : 'Modo manual activado'} para ${phone}:`, result);
+        
+        // El estado ya está actualizado, solo confirmamos que el servidor respondió bien
       } else {
         const errorData = await response.json();
         console.error('❌ Error en respuesta del servidor:', errorData);
+        
+        // 🔄 REVERTIR SOLO SI HAY ERROR
+        setAiStatesByPhone(prev => ({
+          ...prev,
+          [phone]: Boolean(currentState)
+        }));
       }
     } catch (error) {
       console.error('❌ Error cambiando estado de IA:', error);
-      // Revertir el cambio en caso de error
+      
+      // 🔄 REVERTIR SOLO SI HAY ERROR
       setAiStatesByPhone(prev => ({
         ...prev,
-        [phone]: currentState
+        [phone]: Boolean(currentState)
       }));
     }
   };
@@ -373,117 +394,177 @@ const App = () => {
     }
   };
 
+  // --- FUNCIONES PARA REDIMENSIONAR PANEL ---
+  const handleMouseDown = (e) => {
+    if (isMobile) return; // No funciona en móvil
+    setIsResizing(true);
+    setDragStart({ x: e.clientX, width: sidebarWidth });
+  };
+
+  const handleMouseMove = (e) => {
+    if (!isResizing || !dragStart || isMobile) return;
+    
+    const deltaX = e.clientX - dragStart.x;
+    const newWidth = Math.max(280, Math.min(600, dragStart.width + deltaX)); // Min 280px, Max 600px
+    setSidebarWidth(newWidth);
+  };
+
+  const handleMouseUp = () => {
+    setIsResizing(false);
+    setDragStart(null);
+  };
+
+  // --- LISTENERS GLOBALES PARA REDIMENSIONAR ---
+  useEffect(() => {
+    if (isResizing) {
+      document.addEventListener('mousemove', handleMouseMove);
+      document.addEventListener('mouseup', handleMouseUp);
+      document.body.style.cursor = 'ew-resize';
+      document.body.style.userSelect = 'none';
+    } else {
+      document.removeEventListener('mousemove', handleMouseMove);
+      document.removeEventListener('mouseup', handleMouseUp);
+      document.body.style.cursor = '';
+      document.body.style.userSelect = '';
+    }
+
+    return () => {
+      document.removeEventListener('mousemove', handleMouseMove);
+      document.removeEventListener('mouseup', handleMouseUp);
+      document.body.style.cursor = '';
+      document.body.style.userSelect = '';
+    };
+  }, [isResizing, handleMouseMove]);
+
   // --- RENDER ---
   return (
     <div className={`${isMobile ? 'h-screen flex flex-col' : 'flex h-screen bg-gray-100'}`}>
       {/* Sidebar de conversaciones */}
-      <div className={`${
-        isMobile 
-          ? `fixed inset-y-0 left-0 z-50 w-full bg-white transform transition-transform duration-300 ${
-              showSidebar ? 'translate-x-0' : '-translate-x-full'
-            }`
-          : 'w-80'
-      } bg-white border-r border-gray-200 flex flex-col`}>
-        
-        {/* Header del Sidebar */}
-        <div className="p-4 border-b border-gray-200">
-          <div className="flex items-center justify-between mb-4">
-            <h1 className="text-xl font-semibold text-gray-800">
-              Conversaciones
-            </h1>
-            <div className="flex items-center space-x-2">
-              {/* Indicador de conexión */}
-              <div className={`w-2 h-2 rounded-full ${isConnected ? 'bg-green-500' : 'bg-red-500'}`} />
-              <span className="text-xs text-gray-500">
-                {isConnected ? 'Conectado' : 'Desconectado'}
-              </span>
+      <div 
+        className={`${
+          isMobile 
+            ? `fixed inset-y-0 left-0 z-50 w-full bg-white transform transition-transform duration-300 ${
+                showSidebar ? 'translate-x-0' : '-translate-x-full'
+              }`
+            : 'relative bg-white border-r border-gray-200'
+        } flex flex-col overflow-hidden`}
+        style={!isMobile ? { width: `${sidebarWidth}px` } : {}}
+      >
+        {/* Contenido del sidebar */}
+        <div className="flex-1 flex flex-col overflow-hidden">
+          {/* Header del Sidebar */}
+          <div className="p-4 border-b border-gray-200">
+            <div className="flex items-center justify-between mb-4">
+              <h1 className="text-xl font-semibold text-gray-800">
+                Conversaciones
+              </h1>
+              <div className="flex items-center space-x-2">
+                {/* Indicador de conexión */}
+                <div className={`w-2 h-2 rounded-full ${isConnected ? 'bg-green-500' : 'bg-red-500'}`} />
+                <span className="text-xs text-gray-500">
+                  {isConnected ? 'Conectado' : 'Desconectado'}
+                </span>
+              </div>
+            </div>
+            
+            {/* Buscador */}
+            <div className="relative">
+              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-4 h-4" />
+              <input
+                type="text"
+                placeholder="Buscar conversaciones..."
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+              />
             </div>
           </div>
-          
-          {/* Buscador */}
-          <div className="relative">
-            <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-4 h-4" />
-            <input
-              type="text"
-              placeholder="Buscar conversaciones..."
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-            />
-          </div>
-        </div>
 
-        {/* Lista de conversaciones */}
-        <div className="flex-1 overflow-y-auto">
-          {isLoading ? (
-            <div className="p-4 text-center text-gray-500">
-              Cargando conversaciones...
-            </div>
-          ) : filteredConversations.length === 0 ? (
-            <div className="p-4 text-center text-gray-500">
-              {searchQuery ? 'No se encontraron conversaciones' : 'No hay conversaciones'}
-            </div>
-          ) : (
-            filteredConversations.map((conversation) => {
-              const isSelected = selectedConversation?.id === conversation.id;
-              const currentAIState = aiStatesByPhone[conversation.contact.phone] ?? true;
-              
-              return (
-                <div
-                  key={conversation.id}
-                  onClick={() => selectConversation(conversation)}
-                  className={`p-4 border-b border-gray-100 cursor-pointer hover:bg-gray-50 ${
-                    isSelected ? 'bg-blue-50 border-l-4 border-l-blue-500' : ''
-                  }`}
-                >
-                  <div className="flex items-start space-x-3">
-                    <div className="flex-shrink-0">
-                      <div className="w-12 h-12 bg-gradient-to-br from-blue-400 to-purple-500 rounded-full flex items-center justify-center text-white font-medium">
-                        <User className="w-6 h-6" />
-                      </div>
-                    </div>
-                    
-                    <div className="flex-1 min-w-0">
-                      <div className="flex items-center justify-between">
-                        <h3 className="text-sm font-medium text-gray-900 truncate">
-                          {conversation.contact.name}
-                        </h3>
-                        <div className="flex items-center space-x-2">
-                          {/* Indicador de estado más claro */}
-                          <div className={`px-2 py-1 rounded-full text-xs font-medium ${
-                            currentAIState 
-                              ? 'bg-green-100 text-green-700 border border-green-200' 
-                              : 'bg-blue-100 text-blue-700 border border-blue-200'
-                          }`}>
-                            {currentAIState ? '🤖 IA' : '👤 Manual'}
-                          </div>
-                          <span className="text-xs text-gray-500">
-                            {conversation.timestamp}
-                          </span>
+          {/* Lista de conversaciones */}
+          <div className="flex-1 overflow-y-auto" 
+               style={{ 
+                 scrollbarWidth: 'thin',
+                 scrollbarColor: '#d1d5db #f9fafb'
+               }}>
+            {isLoading ? (
+              <div className="p-4 text-center text-gray-500">
+                Cargando conversaciones...
+              </div>
+            ) : filteredConversations.length === 0 ? (
+              <div className="p-4 text-center text-gray-500">
+                {searchQuery ? 'No se encontraron conversaciones' : 'No hay conversaciones'}
+              </div>
+            ) : (
+              filteredConversations.map((conversation) => {
+                const isSelected = selectedConversation?.id === conversation.id;
+                const currentAIState = aiStatesByPhone[conversation.contact.phone] ?? true;
+                
+                return (
+                  <div
+                    key={conversation.id}
+                    onClick={() => selectConversation(conversation)}
+                    className={`p-4 border-b border-gray-100 cursor-pointer hover:bg-gray-50 ${
+                      isSelected ? 'bg-blue-50 border-l-4 border-l-blue-500' : ''
+                    }`}
+                  >
+                    <div className="flex items-start space-x-3">
+                      <div className="flex-shrink-0">
+                        <div className="w-12 h-12 bg-gradient-to-br from-blue-400 to-purple-500 rounded-full flex items-center justify-center text-white font-medium">
+                          <User className="w-6 h-6" />
                         </div>
                       </div>
                       
-                      <p className="text-sm text-gray-600 truncate mt-1">
-                        {conversation.lastMessage}
-                      </p>
-                      
-                      <div className="flex items-center justify-between mt-2">
-                        <span className="text-xs text-gray-400">
-                          {conversation.contact.phone}
-                        </span>
-                        {conversation.unread > 0 && (
-                          <span className="bg-red-500 text-white text-xs rounded-full px-2 py-0.5 min-w-[1rem] text-center">
-                            {conversation.unread}
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center justify-between">
+                          <h3 className="text-sm font-medium text-gray-900 truncate flex-1 mr-2">
+                            {conversation.contact.name}
+                          </h3>
+                          <div className="flex items-center space-x-2 flex-shrink-0">
+                            {/* Indicador de estado más claro */}
+                            <div className={`px-2 py-1 rounded-full text-xs font-medium whitespace-nowrap ${
+                              currentAIState 
+                                ? 'bg-green-100 text-green-700 border border-green-200' 
+                                : 'bg-blue-100 text-blue-700 border border-blue-200'
+                            }`}>
+                              {currentAIState ? '🤖 IA' : '👤 Manual'}
+                            </div>
+                            <span className="text-xs text-gray-500 whitespace-nowrap">
+                              {conversation.timestamp}
+                            </span>
+                          </div>
+                        </div>
+                        
+                        <p className="text-sm text-gray-600 mt-1 truncate">
+                          {conversation.lastMessage}
+                        </p>
+                        
+                        <div className="flex items-center justify-between mt-2">
+                          <span className="text-xs text-gray-400 truncate flex-1">
+                            {conversation.contact.phone}
                           </span>
-                        )}
+                          {conversation.unread > 0 && (
+                            <span className="bg-red-500 text-white text-xs rounded-full px-2 py-0.5 min-w-[1rem] text-center whitespace-nowrap ml-2">
+                              {conversation.unread}
+                            </span>
+                          )}
+                        </div>
                       </div>
                     </div>
                   </div>
-                </div>
-              );
-            })
-          )}
+                );
+              })
+            )}
+          </div>
         </div>
+
+        {/* Barra de redimensionamiento - SOLO DESKTOP */}
+        {!isMobile && (
+          <div
+            className="absolute top-0 right-0 w-1 h-full bg-gray-200 hover:bg-blue-400 cursor-ew-resize transition-colors duration-200 z-10"
+            onMouseDown={handleMouseDown}
+            title="Arrastra para redimensionar el panel"
+          />
+        )}
       </div>
 
       {/* Área principal de chat */}
@@ -532,7 +613,7 @@ const App = () => {
                 </div>
 
                 <div className="flex items-center space-x-2">
-                  {/* Toggle Switch de IA/Manual - COMPACTO EN MÓVIL */}
+                  {/* Toggle Switch de IA/Manual - MEJORADO */}
                   <div className="flex items-center space-x-2">
                     {!isMobile && (
                       <span className={`text-sm font-medium transition-colors ${
@@ -544,23 +625,35 @@ const App = () => {
                       </span>
                     )}
                     
-                    <button
-                      onClick={() => toggleAIForConversation(selectedConversation.contact.phone)}
-                      className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 ${
-                        aiStatesByPhone[selectedConversation.contact.phone] ?? true
-                          ? 'bg-green-500'
-                          : 'bg-gray-300'
-                      }`}
-                      aria-pressed={aiStatesByPhone[selectedConversation.contact.phone] ?? true}
-                    >
-                      <span
-                        className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
+                    <div className="relative">
+                      <button
+                        onClick={() => toggleAIForConversation(selectedConversation.contact.phone)}
+                        className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 ${
                           aiStatesByPhone[selectedConversation.contact.phone] ?? true
-                            ? 'translate-x-6'
-                            : 'translate-x-1'
+                            ? 'bg-green-500'
+                            : 'bg-gray-300'
                         }`}
-                      />
-                    </button>
+                        aria-pressed={aiStatesByPhone[selectedConversation.contact.phone] ?? true}
+                        title={`${aiStatesByPhone[selectedConversation.contact.phone] ?? true ? 'IA Activa - Click para desactivar' : 'IA Desactivada - Click para activar'}`}
+                      >
+                        <span
+                          className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
+                            aiStatesByPhone[selectedConversation.contact.phone] ?? true
+                              ? 'translate-x-6'
+                              : 'translate-x-1'
+                          }`}
+                        />
+                      </button>
+                      
+                      {/* Etiqueta IA siempre visible */}
+                      <div className={`absolute -top-5 left-1/2 transform -translate-x-1/2 text-xs font-medium ${
+                        aiStatesByPhone[selectedConversation.contact.phone] ?? true
+                          ? 'text-green-600'
+                          : 'text-gray-500'
+                      }`}>
+                        IA
+                      </div>
+                    </div>
                     
                     {!isMobile && (
                       <span className={`text-sm font-medium transition-colors ${
@@ -613,26 +706,44 @@ const App = () => {
                 messagesByConversation[selectedConversation.contact.phone]?.map((message) => (
                   <div
                     key={message.id}
-                    className={`flex ${message.sender === 'agent' ? 'justify-end' : 'justify-start'}`}
+                    className={`flex ${
+                      message.sender === 'agent' || message.sender === 'bot' 
+                        ? 'justify-end' 
+                        : 'justify-start'
+                    }`}
                   >
                     <div
                       className={`${isMobile ? 'max-w-[280px]' : 'max-w-xs lg:max-w-md'} px-4 py-2 rounded-lg ${
                         message.sender === 'agent'
-                          ? 'bg-blue-500 text-white'
-                          : 'bg-white text-gray-900 border border-gray-200'
+                          ? 'bg-green-500 text-white'  // Agent = Verde
+                          : message.sender === 'bot'
+                          ? 'bg-blue-500 text-white'   // Bot = Azul  
+                          : 'bg-white text-gray-900 border border-gray-200'  // Customer = Blanco
                       }`}
                     >
                       <p className={`${isMobile ? 'text-sm' : 'text-sm'}`}>{message.text}</p>
                       <div className="flex items-center justify-end space-x-1 mt-1">
                         <span className={`text-xs ${
-                          message.sender === 'agent' ? 'text-blue-100' : 'text-gray-500'
+                          message.sender === 'agent' || message.sender === 'bot'
+                            ? message.sender === 'agent'
+                              ? 'text-green-100'   // Agent timestamp = Verde claro
+                              : 'text-blue-100'    // Bot timestamp = Azul claro
+                            : 'text-gray-500'      // Customer timestamp = Gris
                         }`}>
                           {message.timestamp}
                         </span>
-                        {message.sender === 'agent' && (
+                        {(message.sender === 'agent' || message.sender === 'bot') && (
                           <div className="flex">
-                            {message.status === 'sending' && <Clock className="w-3 h-3 text-blue-200" />}
-                            {message.status === 'delivered' && <CheckCheck className="w-3 h-3 text-blue-200" />}
+                            {message.status === 'sending' && (
+                              <Clock className={`w-3 h-3 ${
+                                message.sender === 'agent' ? 'text-green-200' : 'text-blue-200'
+                              }`} />
+                            )}
+                            {message.status === 'delivered' && (
+                              <CheckCheck className={`w-3 h-3 ${
+                                message.sender === 'agent' ? 'text-green-200' : 'text-blue-200'
+                              }`} />
+                            )}
                             {message.status === 'failed' && <span className="text-red-300">❌</span>}
                           </div>
                         )}
