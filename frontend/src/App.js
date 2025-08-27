@@ -455,9 +455,14 @@ const App = () => {
           {/* Header del Sidebar */}
           <div className="p-4 border-b border-gray-200">
             <div className="flex items-center justify-between mb-4">
-              <h1 className="text-xl font-semibold text-gray-800">
-                Conversaciones
-              </h1>
+                 <div className="flex items-center">
+                  <img 
+                    src="/logo.png" 
+                    alt="Chat Large Logo" 
+                     className="h-8 w-8 object-contain"
+        style={{ minWidth: '80px', minHeight: '80px', maxWidth: '32px', maxHeight: '32px' }}
+                  />
+                </div>
               <div className="flex items-center space-x-2">
                 {/* Indicador de conexión */}
                 <div className={`w-2 h-2 rounded-full ${isConnected ? 'bg-green-500' : 'bg-red-500'}`} />
