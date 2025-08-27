@@ -375,7 +375,7 @@ const App = () => {
 
   // --- RENDER ---
   return (
-    <div className="flex h-screen bg-gray-100">
+    <div className={`${isMobile ? 'h-screen flex flex-col' : 'flex h-screen bg-gray-100'}`}>
       {/* Sidebar de conversaciones */}
       <div className={`${
         isMobile 
@@ -486,18 +486,26 @@ const App = () => {
         </div>
       </div>
 
-      {/* Área principal de chat - CAMBIO 4: Añadida clase chat-area */}
-      <div className={`chat-area flex-1 flex flex-col ${isMobile && showSidebar ? 'hidden' : ''}`}>
+      {/* Área principal de chat */}
+      <div className={`${
+        isMobile 
+          ? `flex-1 flex flex-col bg-gray-50 ${showSidebar ? 'hidden' : ''}`
+          : 'flex-1 flex flex-col'
+      }`}>
         {selectedConversation ? (
           <>
-            {/* Header del chat - CAMBIO 1: Añadida clase chat-header */}
-            <div className="chat-header bg-white border-b border-gray-200 p-4">
+            {/* Header del chat - MOBILE OPTIMIZADO */}
+            <div className={`bg-white border-b border-gray-200 ${
+              isMobile 
+                ? 'fixed top-0 left-0 right-0 z-10 px-4 py-3 h-16'
+                : 'p-4'
+            }`}>
               <div className="flex items-center justify-between">
                 <div className="flex items-center space-x-3">
                   {isMobile && (
                     <button
                       onClick={() => setShowSidebar(true)}
-                      className="p-2 hover:bg-gray-100 rounded-lg"
+                      className="p-2 hover:bg-gray-100 rounded-lg -ml-2"
                     >
                       <ArrowLeft className="w-5 h-5" />
                     </button>
@@ -509,26 +517,32 @@ const App = () => {
                     </div>
                   </div>
                   
-                  <div>
-                    <h2 className="text-lg font-semibold text-gray-900">
+                  <div className="min-w-0 flex-1">
+                    <h2 className={`font-semibold text-gray-900 truncate ${
+                      isMobile ? 'text-base' : 'text-lg'
+                    }`}>
                       {selectedConversation.contact.name}
                     </h2>
-                    <p className="text-sm text-gray-500">
+                    <p className={`text-gray-500 truncate ${
+                      isMobile ? 'text-xs' : 'text-sm'
+                    }`}>
                       {selectedConversation.contact.phone}
                     </p>
                   </div>
                 </div>
 
                 <div className="flex items-center space-x-2">
-                  {/* Toggle Switch de IA/Manual */}
-                  <div className="flex items-center space-x-3">
-                    <span className={`text-sm font-medium transition-colors ${
-                      aiStatesByPhone[selectedConversation.contact.phone] ?? true 
-                        ? 'text-gray-400' 
-                        : 'text-blue-600'
-                    }`}>
-                      Manual
-                    </span>
+                  {/* Toggle Switch de IA/Manual - COMPACTO EN MÓVIL */}
+                  <div className="flex items-center space-x-2">
+                    {!isMobile && (
+                      <span className={`text-sm font-medium transition-colors ${
+                        aiStatesByPhone[selectedConversation.contact.phone] ?? true 
+                          ? 'text-gray-400' 
+                          : 'text-blue-600'
+                      }`}>
+                        Manual
+                      </span>
+                    )}
                     
                     <button
                       onClick={() => toggleAIForConversation(selectedConversation.contact.phone)}
@@ -548,27 +562,37 @@ const App = () => {
                       />
                     </button>
                     
-                    <span className={`text-sm font-medium transition-colors ${
-                      aiStatesByPhone[selectedConversation.contact.phone] ?? true 
-                        ? 'text-green-600' 
-                        : 'text-gray-400'
-                    }`}>
-                      IA
-                    </span>
+                    {!isMobile && (
+                      <span className={`text-sm font-medium transition-colors ${
+                        aiStatesByPhone[selectedConversation.contact.phone] ?? true 
+                          ? 'text-green-600' 
+                          : 'text-gray-400'
+                      }`}>
+                        IA
+                      </span>
+                    )}
                   </div>
 
-                  <button className="p-2 hover:bg-gray-100 rounded-lg">
-                    <Phone className="w-5 h-5 text-gray-600" />
-                  </button>
-                  <button className="p-2 hover:bg-gray-100 rounded-lg">
-                    <MoreVertical className="w-5 h-5 text-gray-600" />
-                  </button>
+                  {!isMobile && (
+                    <>
+                      <button className="p-2 hover:bg-gray-100 rounded-lg">
+                        <Phone className="w-5 h-5 text-gray-600" />
+                      </button>
+                      <button className="p-2 hover:bg-gray-100 rounded-lg">
+                        <MoreVertical className="w-5 h-5 text-gray-600" />
+                      </button>
+                    </>
+                  )}
                 </div>
               </div>
             </div>
 
-            {/* Área de mensajes - CAMBIO 2: Añadida clase messages-container */}
-            <div className="messages-container flex-1 overflow-y-auto p-4 space-y-4">
+            {/* Área de mensajes - MOBILE OPTIMIZADO */}
+            <div className={`flex-1 overflow-y-auto space-y-4 ${
+              isMobile 
+                ? 'px-4 py-4 mt-16 mb-20 bg-gray-50'
+                : 'p-4'
+            }`}>
               {isLoadingMessages ? (
                 <div className="flex justify-center items-center h-32">
                   <div className="text-gray-500">Cargando mensajes...</div>
@@ -580,13 +604,13 @@ const App = () => {
                     className={`flex ${message.sender === 'agent' ? 'justify-end' : 'justify-start'}`}
                   >
                     <div
-                      className={`max-w-xs lg:max-w-md px-4 py-2 rounded-lg ${
+                      className={`${isMobile ? 'max-w-[280px]' : 'max-w-xs lg:max-w-md'} px-4 py-2 rounded-lg ${
                         message.sender === 'agent'
                           ? 'bg-blue-500 text-white'
-                          : 'bg-gray-200 text-gray-900'
+                          : 'bg-white text-gray-900 border border-gray-200'
                       }`}
                     >
-                      <p className="text-sm">{message.text}</p>
+                      <p className={`${isMobile ? 'text-sm' : 'text-sm'}`}>{message.text}</p>
                       <div className="flex items-center justify-end space-x-1 mt-1">
                         <span className={`text-xs ${
                           message.sender === 'agent' ? 'text-blue-100' : 'text-gray-500'
@@ -608,12 +632,18 @@ const App = () => {
               <div ref={messagesEndRef} />
             </div>
 
-            {/* Área de entrada de mensaje - CAMBIO 3: Añadida clase input-area */}
-            <div className="input-area bg-white border-t border-gray-200 p-4">
+            {/* Área de entrada de mensaje - MOBILE OPTIMIZADO */}
+            <div className={`bg-white border-t border-gray-200 ${
+              isMobile 
+                ? 'fixed bottom-0 left-0 right-0 p-3 z-10'
+                : 'p-4'
+            }`}>
               <div className="flex items-center space-x-2">
-                <button className="p-2 hover:bg-gray-100 rounded-lg">
-                  <Paperclip className="w-5 h-5 text-gray-600" />
-                </button>
+                {!isMobile && (
+                  <button className="p-2 hover:bg-gray-100 rounded-lg">
+                    <Paperclip className="w-5 h-5 text-gray-600" />
+                  </button>
+                )}
                 
                 <div className="flex-1">
                   <input
@@ -622,13 +652,18 @@ const App = () => {
                     onChange={(e) => setNewMessage(e.target.value)}
                     onKeyPress={handleKeyPress}
                     placeholder="Escribe un mensaje..."
-                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                    className={`w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent ${
+                      isMobile ? 'text-base' : 'text-sm'
+                    }`}
+                    style={{ fontSize: isMobile ? '16px' : '14px' }} // Previene zoom en iOS
                   />
                 </div>
                 
-                <button className="p-2 hover:bg-gray-100 rounded-lg">
-                  <Smile className="w-5 h-5 text-gray-600" />
-                </button>
+                {!isMobile && (
+                  <button className="p-2 hover:bg-gray-100 rounded-lg">
+                    <Smile className="w-5 h-5 text-gray-600" />
+                  </button>
+                )}
                 
                 <button
                   onClick={sendMessage}
