@@ -592,7 +592,11 @@ const App = () => {
               isMobile 
                 ? 'px-4 py-4 mt-16 mb-20 bg-gray-50'
                 : 'p-4'
-            }`}>
+            }`} style={isMobile ? { 
+              WebkitOverflowScrolling: 'touch',
+              height: 'calc(100vh - 140px)', 
+              overflowY: 'auto' 
+            } : {}}>
               {isLoadingMessages ? (
                 <div className="flex justify-center items-center h-32">
                   <div className="text-gray-500">Cargando mensajes...</div>
