@@ -187,9 +187,9 @@ app.post('/receive-message', async (req, res) => {
 
     const cleanPhone = phone.replace(/\s+/g, '');
 
-    // ✅ LÓGICA CLAVE: Verificar el estado de la conversación
+    // ✅ LÓGICA CORREGIDA: Verificar el estado usando ai_enabled
     const conversationState = await pool.query(`
-      SELECT conversation_state, agent_id, taken_by_agent_at 
+      SELECT ai_enabled, agent_id, taken_by_agent_at 
       FROM conversations 
       WHERE phone = $1
     `, [cleanPhone]);
@@ -198,13 +198,30 @@ app.post('/receive-message', async (req, res) => {
     let currentState = 'ai_active';
 
     if (conversationState.rows.length > 0) {
-      currentState = conversationState.rows[0].conversation_state;
+      const aiEnabled = conversationState.rows[0].ai_enabled;
       
-      // Si la conversación está siendo manejada por un agente, NO activar la IA
-      if (currentState === 'agent_active') {
+      // Si ai_enabled es false, NO activar la IA
+      if (aiEnabled === false) {
         shouldActivateAI = false;
+        currentState = 'agent_active';
         console.log(`🚫 IA desactivada - Conversación en modo agente para ${cleanPhone}`);
+      } else {
+        currentState = 'ai_active';
+        console.log(`🤖 IA activada para ${cleanPhone}`);
       }
+    } else {
+      // Si no existe la conversación, crear una nueva con IA habilitada por defecto
+      console.log(`➕ Creando nueva conversación para ${cleanPhone}`);
+      await pool.query(`
+        INSERT INTO conversations (
+          phone, 
+          contact_name, 
+          ai_enabled, 
+          created_at, 
+          updated_at
+        ) VALUES ($1, $2, $3, NOW(), NOW())
+        ON CONFLICT (phone) DO NOTHING
+      `, [cleanPhone, contact_name || `Usuario ${cleanPhone.slice(-4)}`, true]);
     }
 
     // Emitir mensaje al frontend en tiempo real
@@ -215,7 +232,8 @@ app.post('/receive-message', async (req, res) => {
       whatsapp_id: whatsapp_id,
       sender_type: sender_type,
       timestamp: timestamp || new Date().toISOString(),
-      conversation_state: currentState
+      conversation_state: currentState,
+      ai_enabled: shouldActivateAI
     };
 
     console.log('📤 Emitiendo mensaje al frontend:', messageData);
@@ -226,7 +244,8 @@ app.post('/receive-message', async (req, res) => {
       success: true, 
       message: 'Mensaje procesado', 
       ai_should_respond: shouldActivateAI,
-      conversation_state: currentState
+      conversation_state: currentState,
+      ai_enabled: shouldActivateAI
     });
 
   } catch (error) {
@@ -234,7 +253,6 @@ app.post('/receive-message', async (req, res) => {
     res.status(500).json({ error: 'Error interno del servidor' });
   }
 });
-
 // ✅ NUEVO ENDPOINT: Activar modo agente
 app.post('/api/conversations/:phone/take-by-agent', async (req, res) => {
   try {
