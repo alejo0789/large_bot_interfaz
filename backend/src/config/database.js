@@ -1,39 +1,45 @@
 /**
  * Database Configuration
  * Handles PostgreSQL connection pool with UTF-8 support
+ * Supports Neon, Railway, and local PostgreSQL
  */
 const { Pool } = require('pg');
 
-// Parse DATABASE_URL to get components
-const parseDbUrl = (url) => {
-    if (!url) return null;
-    const regex = /postgres:\/\/([^:]+):([^@]+)@([^:]+):(\d+)\/(.+)/;
-    const match = url.match(regex);
-    if (match) {
-        return {
-            user: match[1],
-            password: match[2],
-            host: match[3],
-            port: parseInt(match[4]),
-            database: match[5]
-        };
-    }
-    return null;
-};
+// Check if we have a DATABASE_URL (Neon, Railway, etc.)
+const DATABASE_URL = process.env.DATABASE_URL;
 
-const dbConfig = parseDbUrl(process.env.DATABASE_URL);
+// Configure pool based on environment
+let poolConfig;
 
-const pool = new Pool({
-    user: dbConfig?.user || process.env.DB_USER || 'postgres',
-    password: dbConfig?.password || process.env.DB_PASSWORD || 'root',
-    host: dbConfig?.host || process.env.DB_HOST || 'localhost',
-    port: dbConfig?.port || process.env.DB_PORT || 5432,
-    database: dbConfig?.database || process.env.DB_NAME || 'chatbot_db',
-    ssl: process.env.NODE_ENV === 'production' ? { rejectUnauthorized: false } : false,
-    max: 20, // Maximum number of clients in the pool
-    idleTimeoutMillis: 30000,
-    connectionTimeoutMillis: 2000,
-});
+if (DATABASE_URL) {
+    // Use connection string directly (works with Neon, Railway, etc.)
+    poolConfig = {
+        connectionString: DATABASE_URL,
+        ssl: {
+            rejectUnauthorized: false // Required for Neon
+        },
+        max: 20,
+        idleTimeoutMillis: 30000,
+        connectionTimeoutMillis: 5000,
+    };
+    console.log('📡 Using DATABASE_URL for connection');
+} else {
+    // Use individual environment variables (local development)
+    poolConfig = {
+        user: process.env.DB_USER || 'postgres',
+        password: process.env.DB_PASSWORD || 'root',
+        host: process.env.DB_HOST || 'localhost',
+        port: process.env.DB_PORT || 5432,
+        database: process.env.DB_NAME || 'chatbot_db',
+        ssl: false,
+        max: 20,
+        idleTimeoutMillis: 30000,
+        connectionTimeoutMillis: 2000,
+    };
+    console.log('🏠 Using local database configuration');
+}
+
+const pool = new Pool(poolConfig);
 
 // Set UTF-8 encoding on each connection
 pool.on('connect', async (client) => {
