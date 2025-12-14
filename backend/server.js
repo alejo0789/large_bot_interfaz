@@ -15,15 +15,101 @@ const io = socketIo(server, {
   }
 });
 
-// --- CONFIGURACIÓN DE POSTGRESQL ---
+// --- CONFIGURACIÓN DE POSTGRESQL con UTF-8 ---
+const { types } = require('pg');
+
+// Parsear DATABASE_URL para obtener los componentes
+const parseDbUrl = (url) => {
+  if (!url) return null;
+  const regex = /postgres:\/\/([^:]+):([^@]+)@([^:]+):(\d+)\/(.+)/;
+  const match = url.match(regex);
+  if (match) {
+    return {
+      user: match[1],
+      password: match[2],
+      host: match[3],
+      port: parseInt(match[4]),
+      database: match[5]
+    };
+  }
+  return null;
+};
+
+const dbConfig = parseDbUrl(process.env.DATABASE_URL);
+
 const pool = new Pool({
-  connectionString: process.env.DATABASE_URL,
-  ssl: process.env.NODE_ENV === 'production' ? { rejectUnauthorized: false } : false
+  user: dbConfig?.user || 'postgres',
+  password: dbConfig?.password || 'root',
+  host: dbConfig?.host || 'localhost',
+  port: dbConfig?.port || 5432,
+  database: dbConfig?.database || 'chatbot_db',
+  ssl: process.env.NODE_ENV === 'production' ? { rejectUnauthorized: false } : false,
+  // Forzar encoding UTF-8
+  client_encoding: 'UTF8'
+});
+
+// Establecer encoding en cada conexión
+pool.on('connect', async (client) => {
+  try {
+    await client.query("SET client_encoding = 'UTF8'");
+  } catch (err) {
+    console.error('Error setting encoding:', err);
+  }
 });
 
 // Middleware
 app.use(cors());
-app.use(express.json());
+app.use(express.json({ limit: '10mb' }));
+
+// Configuración para subida de archivos
+const multer = require('multer');
+const path = require('path');
+const fs = require('fs');
+
+// Crear directorio de uploads si no existe
+const uploadDir = path.join(__dirname, 'uploads');
+if (!fs.existsSync(uploadDir)) {
+  fs.mkdirSync(uploadDir, { recursive: true });
+}
+
+// Configurar almacenamiento
+const storage = multer.diskStorage({
+  destination: (req, file, cb) => {
+    cb(null, uploadDir);
+  },
+  filename: (req, file, cb) => {
+    const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1E9);
+    const ext = path.extname(file.originalname);
+    cb(null, uniqueSuffix + ext);
+  }
+});
+
+const upload = multer({
+  storage,
+  limits: { fileSize: 16 * 1024 * 1024 }, // 16MB max
+  fileFilter: (req, file, cb) => {
+    // Tipos permitidos
+    const allowedTypes = [
+      'image/jpeg', 'image/png', 'image/gif', 'image/webp',
+      'video/mp4', 'video/quicktime', 'video/webm',
+      'audio/mpeg', 'audio/wav', 'audio/ogg', 'audio/webm',
+      'application/pdf',
+      'application/msword',
+      'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+      'application/vnd.ms-excel',
+      'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+    ];
+
+    if (allowedTypes.includes(file.mimetype)) {
+      cb(null, true);
+    } else {
+      cb(new Error('Tipo de archivo no permitido'), false);
+    }
+  }
+});
+
+// Servir archivos estáticos de uploads
+app.use('/uploads', express.static(uploadDir));
 
 // --- ENDPOINTS DE LA API (SOLO LECTURA) ---
 
@@ -31,7 +117,7 @@ app.use(express.json());
 app.get('/api/conversations', async (req, res) => {
   try {
     console.log('🔄 Cargando conversaciones...');
-    
+
     const { rows } = await pool.query(`
       SELECT 
         phone,
@@ -53,15 +139,15 @@ app.get('/api/conversations', async (req, res) => {
         phone: conv.phone
       },
       lastMessage: conv.last_message_text || 'No hay mensajes',
-      timestamp: conv.last_message_timestamp 
-        ? new Date(conv.last_message_timestamp).toLocaleTimeString('es-CO', { 
-            hour: '2-digit', 
-            minute: '2-digit' 
-          })
-        : new Date(conv.created_at).toLocaleTimeString('es-CO', { 
-            hour: '2-digit', 
-            minute: '2-digit' 
-          }),
+      timestamp: conv.last_message_timestamp
+        ? new Date(conv.last_message_timestamp).toLocaleTimeString('es-CO', {
+          hour: '2-digit',
+          minute: '2-digit'
+        })
+        : new Date(conv.created_at).toLocaleTimeString('es-CO', {
+          hour: '2-digit',
+          minute: '2-digit'
+        }),
       unread: conv.unread_count || 0,
       status: conv.status || 'active'
     }));
@@ -81,23 +167,23 @@ app.post('/api/conversations/:phone/toggle-ai', async (req, res) => {
   try {
     const { phone } = req.params;
     const { aiEnabled } = req.body;
-    
+
     console.log(`🤖 Cambiando IA para ${phone}: ${aiEnabled}`);
-    
+
     const { rows } = await pool.query(`
       UPDATE conversations 
       SET ai_enabled = $1, updated_at = NOW()
       WHERE phone = $2
       RETURNING ai_enabled
     `, [aiEnabled, phone]);
-    
+
     if (rows.length === 0) {
       return res.status(404).json({ error: 'Conversación no encontrada' });
     }
-    
+
     console.log(`✅ IA ${aiEnabled ? 'activada' : 'desactivada'} para ${phone}`);
     res.json({ aiEnabled: rows[0].ai_enabled });
-    
+
   } catch (error) {
     console.error('❌ Error al cambiar estado de IA:', error);
     res.status(500).json({ error: 'No se pudo cambiar el estado de la IA' });
@@ -117,6 +203,8 @@ app.get('/api/conversations/:phone/messages', async (req, res) => {
         conversation_phone,
         sender,
         text_content,
+        media_type,
+        media_url,
         status,
         timestamp
       FROM messages 
@@ -128,11 +216,13 @@ app.get('/api/conversations/:phone/messages', async (req, res) => {
       id: msg.whatsapp_id || msg.id,
       text: msg.text_content,
       sender: msg.sender,
-      timestamp: new Date(msg.timestamp).toLocaleTimeString('es-CO', { 
-        hour: '2-digit', 
-        minute: '2-digit' 
+      timestamp: new Date(msg.timestamp).toLocaleTimeString('es-CO', {
+        hour: '2-digit',
+        minute: '2-digit'
       }),
-      status: msg.status || 'delivered'
+      status: msg.status || 'delivered',
+      media_type: msg.media_type || null,
+      media_url: msg.media_url || null
     }));
 
     console.log(`✅ Mensajes cargados para ${phone}: ${messages.length}`);
@@ -148,7 +238,7 @@ app.get('/api/conversations/:phone/messages', async (req, res) => {
 app.post('/api/conversations/:phone/mark-read', async (req, res) => {
   try {
     const { phone } = req.params;
-    
+
     await pool.query(`
       UPDATE conversations 
       SET unread_count = 0, updated_at = NOW() 
@@ -170,14 +260,14 @@ app.post('/api/conversations/:phone/mark-read', async (req, res) => {
 app.post('/receive-message', async (req, res) => {
   try {
     console.log('📨 Mensaje recibido de n8n:', JSON.stringify(req.body, null, 2));
-    
-    const { 
-      phone, 
-      contact_name, 
-      message, 
-      whatsapp_id, 
+
+    const {
+      phone,
+      contact_name,
+      message,
+      whatsapp_id,
       sender_type,
-      timestamp 
+      timestamp
     } = req.body;
 
     if (!phone || !message) {
@@ -199,7 +289,7 @@ app.post('/receive-message', async (req, res) => {
 
     if (conversationState.rows.length > 0) {
       const aiEnabled = conversationState.rows[0].ai_enabled;
-      
+
       // Si ai_enabled es false, NO activar la IA
       if (aiEnabled === false) {
         shouldActivateAI = false;
@@ -240,9 +330,9 @@ app.post('/receive-message', async (req, res) => {
     io.emit('new-message', messageData);
 
     // ✅ RESPUESTA AL WEBHOOK
-    res.json({ 
-      success: true, 
-      message: 'Mensaje procesado', 
+    res.json({
+      success: true,
+      message: 'Mensaje procesado',
       ai_should_respond: shouldActivateAI,
       conversation_state: currentState,
       ai_enabled: shouldActivateAI
@@ -258,7 +348,7 @@ app.post('/api/conversations/:phone/take-by-agent', async (req, res) => {
   try {
     const { phone } = req.params;
     const { agent_id } = req.body; // ID del agente que toma la conversación
-    
+
     await pool.query(`
       UPDATE conversations 
       SET 
@@ -270,10 +360,10 @@ app.post('/api/conversations/:phone/take-by-agent', async (req, res) => {
     `, [agent_id || 'manual_agent', phone]);
 
     console.log(`✅ Conversación ${phone} tomada por agente: ${agent_id}`);
-    
+
     // Notificar a n8n que la IA debe desactivarse para esta conversación
     await notifyN8nStateChange(phone, 'agent_active');
-    
+
     // Emitir cambio de estado al frontend
     io.emit('conversation-state-changed', {
       phone: phone,
@@ -281,10 +371,10 @@ app.post('/api/conversations/:phone/take-by-agent', async (req, res) => {
       agent_id: agent_id
     });
 
-    res.json({ 
-      success: true, 
+    res.json({
+      success: true,
       message: 'Conversación tomada por agente',
-      state: 'agent_active' 
+      state: 'agent_active'
     });
 
   } catch (error) {
@@ -297,7 +387,7 @@ app.post('/api/conversations/:phone/take-by-agent', async (req, res) => {
 app.post('/api/conversations/:phone/activate-ai', async (req, res) => {
   try {
     const { phone } = req.params;
-    
+
     await pool.query(`
       UPDATE conversations 
       SET 
@@ -309,20 +399,20 @@ app.post('/api/conversations/:phone/activate-ai', async (req, res) => {
     `, [phone]);
 
     console.log(`✅ IA reactivada para conversación: ${phone}`);
-    
+
     // Notificar a n8n que la IA debe reactivarse
     await notifyN8nStateChange(phone, 'ai_active');
-    
+
     // Emitir cambio de estado al frontend
     io.emit('conversation-state-changed', {
       phone: phone,
       state: 'ai_active'
     });
 
-    res.json({ 
-      success: true, 
+    res.json({
+      success: true,
       message: 'IA reactivada para la conversación',
-      state: 'ai_active' 
+      state: 'ai_active'
     });
 
   } catch (error) {
@@ -337,7 +427,7 @@ app.post('/api/conversations/:phone/activate-ai', async (req, res) => {
 app.post('/api/send-message', async (req, res) => {
   try {
     const { phone, name, message, temp_id } = req.body;
-    
+
     if (!phone || !message) {
       return res.status(400).json({ error: 'Faltan datos requeridos (to, text)' });
     }
@@ -347,10 +437,10 @@ app.post('/api/send-message', async (req, res) => {
     // Aquí harías la petición HTTP a tu webhook de n8n para enviar el mensaje
     // Ejemplo:
     const n8nWebhookUrl = process.env.N8N_SEND_WEBHOOK_URL;
-    
+
     if (n8nWebhookUrl) {
       const fetch = (await import('node-fetch')).default;
-      
+
       const response = await fetch(n8nWebhookUrl, {
         method: 'POST',
         headers: {
@@ -358,10 +448,10 @@ app.post('/api/send-message', async (req, res) => {
         },
         body: JSON.stringify({
           phone: phone,
-          name:name,
+          name: name,
           message: message,
           temp_id: temp_id,
-          conversation_state:'agent_active',
+          conversation_state: 'agent_active',
           sender: 'agent'
         })
       });
@@ -384,11 +474,211 @@ app.post('/api/send-message', async (req, res) => {
   }
 });
 
-// 6. ENDPOINT LEGACY PARA HISTORIAL COMPLETO (mantener compatibilidad)
+
+// 6. ENDPOINT DE CIERRE DE CONVERSACION
+app.post('/api/conversations/:phone/close', async (req, res) => {
+  try {
+    const { phone } = req.params;
+    await pool.query(`
+      UPDATE conversations 
+      SET status = 'archived', updated_at = NOW() 
+      WHERE phone = $1
+    `, [phone]);
+    res.json({ success: true, message: 'Conversación archivada' });
+  } catch (error) {
+    console.error('❌ Error cerrando conversación:', error);
+    res.status(500).json({ error: 'Error al cerrar conversación' });
+  }
+});
+
+// 6.5 ENDPOINT PARA ENVIAR ARCHIVOS
+app.post('/api/send-file', upload.single('file'), async (req, res) => {
+  try {
+    const { phone, name, caption } = req.body;
+    const file = req.file;
+
+    if (!file) {
+      return res.status(400).json({ error: 'No se recibió ningún archivo' });
+    }
+
+    if (!phone) {
+      return res.status(400).json({ error: 'Falta el número de teléfono' });
+    }
+
+    console.log(`📎 Archivo recibido: ${file.originalname} para ${phone}`);
+
+    // URL del archivo subido
+    const fileUrl = `${req.protocol}://${req.get('host')}/uploads/${file.filename}`;
+
+    // Determinar tipo de media
+    let mediaType = 'document';
+    if (file.mimetype.startsWith('image/')) mediaType = 'image';
+    else if (file.mimetype.startsWith('video/')) mediaType = 'video';
+    else if (file.mimetype.startsWith('audio/')) mediaType = 'audio';
+
+    // Guardar mensaje en la base de datos
+    const messageResult = await pool.query(`
+      INSERT INTO messages (
+        conversation_phone, 
+        sender, 
+        text_content, 
+        media_type,
+        media_url,
+        status, 
+        timestamp
+      ) VALUES ($1, $2, $3, $4, $5, $6, NOW())
+      RETURNING id
+    `, [phone, 'agent', caption || file.originalname, mediaType, fileUrl, 'sending']);
+
+    // Actualizar la conversación
+    await pool.query(`
+      UPDATE conversations 
+      SET 
+        last_message_text = $1,
+        last_message_timestamp = NOW(),
+        updated_at = NOW()
+      WHERE phone = $2
+    `, [caption || `📎 ${file.originalname}`, phone]);
+
+    // Enviar a n8n si está configurado
+    const n8nWebhookUrl = process.env.N8N_SEND_WEBHOOK_URL;
+    if (n8nWebhookUrl) {
+      try {
+        const fetch = (await import('node-fetch')).default;
+        await fetch(n8nWebhookUrl, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            phone: phone,
+            name: name,
+            message: caption || '',
+            media_type: mediaType,
+            media_url: fileUrl,
+            file_name: file.originalname,
+            conversation_state: 'agent_active'
+          })
+        });
+        console.log('✅ Archivo enviado a n8n');
+      } catch (n8nError) {
+        console.error('⚠️ Error enviando a n8n:', n8nError.message);
+      }
+    }
+
+    // Emitir al frontend
+    const messageData = {
+      phone: phone,
+      message: caption || file.originalname,
+      media_type: mediaType,
+      media_url: fileUrl,
+      sender_type: 'agent',
+      timestamp: new Date().toISOString()
+    };
+    io.emit('new-message', messageData);
+
+    res.json({
+      success: true,
+      message: 'Archivo enviado',
+      file: {
+        name: file.originalname,
+        url: fileUrl,
+        type: mediaType,
+        size: file.size
+      }
+    });
+
+  } catch (error) {
+    console.error('❌ Error enviando archivo:', error);
+    res.status(500).json({ error: 'Error al enviar archivo' });
+  }
+});
+
+
+// 7. --- ENDPOINTS DE ETIQUETAS (TAGS) ---
+
+// Obtener todas las etiquetas disponibles
+app.get('/api/tags', async (req, res) => {
+  try {
+    const { rows } = await pool.query('SELECT * FROM tags ORDER BY name ASC');
+    res.json(rows);
+  } catch (error) {
+    console.error('❌ Error cargando etiquetas:', error);
+    res.status(500).json({ error: 'Error al cargar etiquetas' });
+  }
+});
+
+// Crear nueva etiqueta
+app.post('/api/tags', async (req, res) => {
+  try {
+    const { name, color } = req.body;
+    const { rows } = await pool.query(`
+      INSERT INTO tags (name, color) VALUES ($1, $2) 
+      ON CONFLICT (name) DO UPDATE SET color = EXCLUDED.color
+      RETURNING *
+    `, [name, color || '#808080']);
+    res.json(rows[0]);
+  } catch (error) {
+    console.error('❌ Error creando etiqueta:', error);
+    res.status(500).json({ error: 'Error al crear etiqueta' });
+  }
+});
+
+// Asignar etiqueta a conversación
+app.post('/api/conversations/:phone/tags', async (req, res) => {
+  try {
+    const { phone } = req.params;
+    const { tagId } = req.body;
+
+    await pool.query(`
+      INSERT INTO conversation_tags (conversation_phone, tag_id)
+      VALUES ($1, $2)
+      ON CONFLICT DO NOTHING
+    `, [phone, tagId]);
+
+    res.json({ success: true, message: 'Etiqueta asignada' });
+  } catch (error) {
+    console.error('❌ Error asignando etiqueta:', error);
+    res.status(500).json({ error: 'Error al asignar etiqueta' });
+  }
+});
+
+// Remover etiqueta de conversación
+app.delete('/api/conversations/:phone/tags/:tagId', async (req, res) => {
+  try {
+    const { phone, tagId } = req.params;
+    await pool.query(`
+      DELETE FROM conversation_tags 
+      WHERE conversation_phone = $1 AND tag_id = $2
+    `, [phone, tagId]);
+    res.json({ success: true, message: 'Etiqueta removida' });
+  } catch (error) {
+    console.error('❌ Error removiendo etiqueta:', error);
+    res.status(500).json({ error: 'Error al remover etiqueta' });
+  }
+});
+
+// Obtener etiquetas de una conversación
+app.get('/api/conversations/:phone/tags', async (req, res) => {
+  try {
+    const { phone } = req.params;
+    const { rows } = await pool.query(`
+      SELECT t.* 
+      FROM tags t
+      JOIN conversation_tags ct ON t.id = ct.tag_id
+      WHERE ct.conversation_phone = $1
+    `, [phone]);
+    res.json(rows);
+  } catch (error) {
+    console.error('❌ Error obteniendo etiquetas de conversación:', error);
+    res.status(500).json({ error: 'Error al obtener etiquetas' });
+  }
+});
+
+
+// 8. ENDPOINT LEGACY PARA HISTORIAL COMPLETO (mantener compatibilidad)
 app.get('/api/history', async (req, res) => {
   try {
     console.log('🔄 Petición de historial completo (legacy)...');
-    
+
     // Cargar conversaciones
     const conversationsResult = await pool.query(`
       SELECT * FROM conversations 
@@ -409,9 +699,9 @@ app.get('/api/history', async (req, res) => {
         id: msg.whatsapp_id || msg.id,
         text: msg.text_content,
         sender: msg.sender,
-        timestamp: new Date(msg.timestamp).toLocaleTimeString('es-CO', { 
-          hour: '2-digit', 
-          minute: '2-digit' 
+        timestamp: new Date(msg.timestamp).toLocaleTimeString('es-CO', {
+          hour: '2-digit',
+          minute: '2-digit'
         }),
         status: msg.status || 'delivered'
       });
@@ -424,15 +714,15 @@ app.get('/api/history', async (req, res) => {
         phone: conv.phone
       },
       lastMessage: conv.last_message_text || 'No hay mensajes',
-      timestamp: conv.last_message_timestamp 
-        ? new Date(conv.last_message_timestamp).toLocaleTimeString('es-CO', { 
-            hour: '2-digit', 
-            minute: '2-digit' 
-          })
-        : new Date(conv.created_at).toLocaleTimeString('es-CO', { 
-            hour: '2-digit', 
-            minute: '2-digit' 
-          }),
+      timestamp: conv.last_message_timestamp
+        ? new Date(conv.last_message_timestamp).toLocaleTimeString('es-CO', {
+          hour: '2-digit',
+          minute: '2-digit'
+        })
+        : new Date(conv.created_at).toLocaleTimeString('es-CO', {
+          hour: '2-digit',
+          minute: '2-digit'
+        }),
       unread: conv.unread_count || 0,
       status: conv.status || 'active'
     }));
@@ -449,7 +739,7 @@ app.get('/api/history', async (req, res) => {
 // --- LÓGICA DE SOCKET.IO ---
 io.on('connection', (socket) => {
   console.log(`🟢 Usuario conectado: ${socket.id}`);
-  
+
   socket.on('disconnect', () => {
     console.log(`🔴 Usuario desconectado: ${socket.id}`);
   });
@@ -482,9 +772,9 @@ io.on('connection', (socket) => {
 
     } catch (error) {
       console.error('❌ Error enviando mensaje vía socket:', error);
-      socket.emit('message-error', { 
-        temp_id: data.temp_id, 
-        error: 'Error al enviar mensaje' 
+      socket.emit('message-error', {
+        temp_id: data.temp_id,
+        error: 'Error al enviar mensaje'
       });
     }
   });
@@ -492,8 +782,8 @@ io.on('connection', (socket) => {
 
 // Endpoint de salud
 app.get('/health', (req, res) => {
-  res.json({ 
-    status: 'OK', 
+  res.json({
+    status: 'OK',
     timestamp: new Date().toISOString(),
     uptime: process.uptime()
   });

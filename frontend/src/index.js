@@ -1,6 +1,9 @@
 import React from 'react';
 import ReactDOM from 'react-dom/client';
-import App from './App';
+import App from './App.jsx';
+
+// Estilos globales
+import './styles/index.css';
 
 // Configuración para Railway y desarrollo
 console.log('🚀 Iniciando aplicación Chatwoot + n8n + WhatsApp');
@@ -24,7 +27,7 @@ if (process.env.NODE_ENV === 'production') {
     console.log('📊 Web Vitals:', metric);
     // Aquí puedes enviar métricas a servicios como Google Analytics
   };
-  
+
   // Medir Core Web Vitals
   if ('web-vitals' in window) {
     import('web-vitals').then(({ getCLS, getFID, getFCP, getLCP, getTTFB }) => {
