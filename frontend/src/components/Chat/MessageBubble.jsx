@@ -157,8 +157,25 @@ const MessageBubble = ({ message }) => {
             <div className={getMessageClass()}>
                 <div className="message-bubble" style={{
                     padding: media_url ? 'var(--space-1)' : undefined,
-                    overflow: 'hidden'
+                    overflow: 'hidden',
+                    position: 'relative', // Ensure absolute positioning works if needed, standard flow otherwise
+                    minWidth: '120px' // Ensure minimum width for name
                 }}>
+                    {/* Agent Name Display - Top Right */}
+                    {isAgent && message.agent_name && (
+                        <div style={{
+                            fontSize: '9px',
+                            fontWeight: '600',
+                            color: 'rgba(255, 255, 255, 0.7)',
+                            textAlign: 'right',
+                            marginBottom: '2px',
+                            paddingRight: media_url ? '4px' : '0', // Adjust if media
+                            paddingTop: media_url ? '4px' : '0'    // Adjust if media
+                        }}>
+                            {message.agent_name}
+                        </div>
+                    )}
+
                     {renderMedia()}
                     {text && !media_type && (
                         <p className="message-text" style={{
@@ -175,6 +192,7 @@ const MessageBubble = ({ message }) => {
                             {text}
                         </p>
                     )}
+
                     <div className="message-meta" style={{
                         padding: media_url ? '0 var(--space-2) var(--space-1)' : undefined
                     }}>

@@ -18,11 +18,17 @@ if (DATABASE_URL) {
         ssl: {
             rejectUnauthorized: false // Required for Neon
         },
-        max: 20,
-        idleTimeoutMillis: 30000,
-        connectionTimeoutMillis: 5000,
+        // =============================================
+        // OPTIMIZED FOR 2000+ CONVERSATIONS
+        // =============================================
+        min: 5,                        // Minimum connections to keep ready
+        max: 50,                       // Maximum connections (increased from 20)
+        idleTimeoutMillis: 60000,      // Close idle connections after 1 minute
+        connectionTimeoutMillis: 10000, // Wait up to 10s for a connection
+        acquireTimeoutMillis: 30000,   // Wait up to 30s to acquire from pool
+        statement_timeout: 30000,      // Kill queries running longer than 30s
     };
-    console.log('📡 Using DATABASE_URL for connection');
+    console.log('📡 Using DATABASE_URL for connection (pool: 5-50)');
 } else {
     // Use individual environment variables (local development)
     poolConfig = {
@@ -32,11 +38,16 @@ if (DATABASE_URL) {
         port: process.env.DB_PORT || 5432,
         database: process.env.DB_NAME || 'chatbot_db',
         ssl: false,
-        max: 20,
-        idleTimeoutMillis: 30000,
-        connectionTimeoutMillis: 2000,
+        // =============================================
+        // OPTIMIZED FOR 2000+ CONVERSATIONS
+        // =============================================
+        min: 2,                        // Minimum connections for local dev
+        max: 50,                       // Maximum connections (increased from 20)
+        idleTimeoutMillis: 60000,      // Close idle connections after 1 minute
+        connectionTimeoutMillis: 5000, // Wait up to 5s for a connection
+        acquireTimeoutMillis: 15000,   // Wait up to 15s to acquire from pool
     };
-    console.log('🏠 Using local database configuration');
+    console.log('🏠 Using local database configuration (pool: 2-50)');
 }
 
 const pool = new Pool(poolConfig);

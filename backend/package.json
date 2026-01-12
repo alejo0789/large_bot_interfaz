@@ -9,13 +9,19 @@
     "start:legacy": "node server.js",
     "test": "echo \"No tests configured\" && exit 0"
   },
-  "keywords": ["chatbot", "whatsapp", "n8n"],
+  "keywords": [
+    "chatbot",
+    "whatsapp",
+    "n8n"
+  ],
   "author": "",
   "license": "ISC",
   "dependencies": {
+    "bcrypt": "^6.0.0",
     "cors": "^2.8.5",
     "dotenv": "^17.2.1",
     "express": "^5.1.0",
+    "jsonwebtoken": "^9.0.3",
     "multer": "^2.0.2",
     "node-fetch": "^3.3.2",
     "pg": "^8.16.3",
@@ -28,4 +34,3 @@
     "node": ">=18.0.0"
   }
 }
-

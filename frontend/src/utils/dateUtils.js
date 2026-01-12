@@ -101,8 +101,14 @@ export const groupMessagesByDate = (messages) => {
     const groups = {};
 
     messages.forEach(message => {
-        // Use the original timestamp for grouping
-        const rawTimestamp = message.rawTimestamp || message.timestamp;
+        // Try multiple timestamp fields
+        let rawTimestamp = message.rawTimestamp || message.timestamp;
+
+        // If timestamp is just a time string (HH:MM), we can't group by date
+        if (typeof rawTimestamp === 'string' && /^\d{1,2}:\d{2}$/.test(rawTimestamp)) {
+            rawTimestamp = null;
+        }
+
         const dateKey = getDateKey(rawTimestamp);
 
         if (!groups[dateKey]) {

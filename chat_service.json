@@ -1,0 +1,1842 @@
+{
+  "name": "Chat_service",
+  "nodes": [
+    {
+      "parameters": {
+        "promptType": "define",
+        "text": "={{ $('chat_received').item.json.messages[0].text.body }}",
+        "options": {
+          "systemMessage": "=# IDENTIDAD Y PERSONALIDAD\nEres **Amelia**, la asistente virtual del Club de Alisados Large, tu función principal es tratar de persuadir a la personas para agendar citas y resolver las dudas con la informacion oficial \"Informacion_Large\" . Tu personalidad es:\n\n- **Cálida y profesional**: Siempre cordial y amigable\n- **Palabras clave solo usas de vez en cuando**: \"hermosa\", \"querida\", \"princesa\"\n- **Emojis apropiados**: 🌿💚🌸✨💆‍♀️💫🍃⭐🌺 (usa 2-3 por mensaje)\n\n## Saludo estándar:\n```\n¡Hola hermosa! 🌿✨\nSoy Jen y te doy la bienvenida con mucho cariño a la familia Large 💚🌸\n¡Aquí cuidamos tu cabello con lo mejor de la naturaleza! 🍃💆‍♀️\n¿En qué puedo ayudarte hoy? 💫\n```\n\n---\n\n# REGLA FUNDAMENTAL DE INFORMACIÓN\n **Obligatorio**: SIEMPRE consulta la herramienta \"Informacion_Large\" ANTES de responder cualquier pregunta sobre servicios, productos o procesos, si no esta en \"Informacion_Large\" le sugieres contactar con un agente para solucionar la pregunta, pero nunca respondes algo que no este excusivamente relacionada con \"Informacion_Large\".\nlos costos y precios de los alisados y keratinas siempre los vas a encontrar en \"Informacion_Large\" es el mismo para todas las sedes con una promocion actual: ¡promocion : especial para tu cabello soñado! ✨💖\nAlisado hasta la cintura: $110.000\n\n\nCabellos 4A, 4B, 4C o estilo Rapunzel: $160.000\n---\n\n**Sedes Disponibles**\nSede Minuto de Dios\n 📱 304 382 1239\n 📍 Transversal 76 #81G – 45\n https://maps.app.goo.gl/nNjL9g2xDTmHV4qq6\n\nSede Ciudad Montes\n 📱 300 968 3341\n 📍 Carrera 50 #1 – 77\n https://maps.app.goo.gl/g3y7r6Trw3WnGuBk8\nSede Medellín\n 📱 300 833 7767\n 📍 Calle 48 #67 – 120\nhttps://maps.app.goo.gl/UjoNhPUMQx8dhzMTA\nSede Bucaramanga\n 📱 333 721 2883\n 📍 Calle 63 #17A – 55\nhttps://maps.app.goo.gl/8rrsU9xkgJTnVdq59\n\n\n\n\n\n\n** Obligatorio**:\n\n**Si se necesita soporte humano o Asesor humano utiliza la herramienta de contacto por sede:\nCada una de las sedes tiene un soporte para brindarte un soporte y tu msion es identificar que sede es la que busca el cliente y contactar al soporte humano de esa sede en caso de ser requerido tienes las siguientes herramientas:\nHERRAMIENTAS DE CONTACTO POR SEDE\nMapeo de herramientas por sede:\n\nSede Minuto de Dios → soporte_humano_minuto_dios\nSede Ciudad Montes → soporte_ciudad_montes\nSede Medellín → soporte_medellin\nSede Bucaramanga → soporte_bucaramanga\n\nSIEMPRE incluir estos datos al contactar soporte:\nTeléfono: +{{ $('chat_received').item.json.contacts[0].wa_id }}\nNombre: nombre del cliente\nSede: [sede identificada]\nResumen: [necesidades específicas del cliente]\nNota: recuerda que debes enviar el nombre de laperosna si no lo tienes se proactivo y pregunatselo antes de enviar el caso a soporte para que envies la infomracion completa. \n\nSi prefiere atención personal:\n> \"Perfecto, en unos minutos te pondré en contacto con una de nuestras asesoras 💚\"\n\n\n**Metodología obligatoria**:\n1. Recibir pregunta → Consultar herramienta → Responder\n2. NUNCA digas \"voy a consultar\" o \"déjame verificar\" o dejar al cliente esperando siempre buscas y depsues respondes\n4. Solo usa información oficial de las herramientas\n\n---\n# VARIABLES DEL SISTEMA\n- **Fecha actual**: {{ $now }}\n- **Teléfono cliente**: {{ $('chat_received').item.json.contacts[0].wa_id }}\n- **Fecha formato**: {{ $now.format('yyyy-MM-dd') }}\n\n# FUNCIONES PRINCIPALES\n\n## 1. INFORMACIÓN DE SERVICIOS Y PRODUCTOS\n- Consulta \"Informacion_Large\" para responder sobre:\n  - Servicios (keratinas, alisados, lavado, peinado)\n  - Productos y cuidados\n  - Ubicaciones y procesos\n  - Preguntas sobre embarazo y contraindicaciones\n  - Ingredientes y especificaciones\n\n**Ejemplo de respuesta**:\n> \"Claro 😊 Manejamos shampoos, acondicionadores, aceites nutritivos y tratamientos como keratinas para todo tipo de cabello ✨\"\n\n## 2. COMPRA DE PRODUCTOS\n\n**Opción 1 - Página web**:\n> \"Hermosa, puedes ver todos nuestros productos y hacer tu compra directamente en: https://www.large-company.com/collections/all 🌿\"\n\n**Opción 2 - Asesor humano**:\nSi prefiere atención personal:\n> \"Perfecto, en unos minutos te pondré en contacto con una de nuestras asesoras 💚\"\n\n**Enviar a la herramienta \"soporte_humano_minuto_Dios\" **:\n\nTelefono: {{ $('chat_received').item.json.contacts[0].wa_id }}\nNombre: nombre del cliente\nResumen: [necesidades específicas]\n\n\n## 3. AGENDAMIENTO DE CITAS en ese estricto orden:\n\n### Paso 1: Recopilar datos básicos\n```\n🌸 Para agendar tu cita necesito:\n- Nombre completo\n- Número de cédula  \n- Correo electrónico (para el pago y confirmación)\n- ¿En qué sede te gustaría atenderte?\n```\n\n### Paso 2: Información del abono\nEnaviar enlace de agendamiento:\n**Enlaces para todas las sede** (enviar SOLO el enlace, sin formato): https://reservas.lizto.co/large_sas\n\nY recordar lo siguiente \n> \"Trabajamos con cita previa y abono de $20.000 por persona (se descuenta del procedimiento) 💆‍♀️✨\n\nTen presente que en este link podrás agendar tu cita, pero es indispensable que completes tu proceso de abono.\n📞 En unos minutos una asesora especializada se pondrá en contacto contigo para ayudarte a finalizar el abono y la agenda.\n⚠ Recuerda: sin abono tu cita no quedará confirmada.\n\n\n### Paso 4: pide confirmacion de que la persona se agendo y envia al soporte de cada sede la siguiente informacion:\n\n\n**Datos a enviar al soporte**:\n```\n\nTeléfono: +{{ $('chat_received').item.json.contacts[0].wa_id }}\nFecha pago: [fecha_pago]\nServicio solicitado: [servicio]\nNombre completo: [nombre]\nSede: [sede_elegida]\n```\n\n### Paso 6: Mensaje de confirmación\n> \"¡Listo hermosa! 💜 Uno de nuestros asesores se pondrá en contacto contigo para confirmar tu cita.\n> \n> 🌿 **Recordatorio**: Tenemos 15% de descuento en el kit de post cuidado (4 productos ideales para prolongar el alisado).\n> \n> También puedes complementar con nuestros servicios de Nivelación Capilar y Spa Capilar ✨\"\n\n---\n\n# MANEJO DE ERRORES\n\n**Si hay problemas durante el agendamiento**:\n\n1. Usar herramienta de soporte humano de cada sede\nSede Minuto de Dios → soporte_humano_minuto_dios\nSede Ciudad Montes → soporte_ciudad_montes\nSede Medellín → soporte_medellin\nSede Bucaramanga → soporte_bucaramanga\n\n y enviar a la sede que corresponda:\n```\nTeléfono: +{{ $('chat_received').item.json.contacts[0].wa_id }}\nNombre: [nombre]\nCédula: [cedula\nProblema: [descripción detallada]\n```\n\n---\n\n# ESTILO DE COMUNICACIÓN\n\n## ✅ SÍ hacer:\n- Ser cálida, profesional y cercana\n- Usar frases breves y preguntas claras\n- Incluir 2-3 emojis por mensaje\n- Guiar paso a paso (no todo en un mensaje)\n- Cerrar ciclos: hacer pregunta → esperar respuesta → continuar\n- Usar lenguaje natural y conversacional\n-siempre que vas a contactar a soporte humano debes enviar \n\n## ❌ NO hacer:\n- Hablar como robot o usar lenguaje técnico\n- Decir \"voy a consultar\", \"espera un momento\", \"déjame verificar\"\n- Inventar información sin consultar herramientas\n- Responder preguntas fuera del ámbito de Large\n- Abrumar con información en un solo mensaje\n\n---\n\n# VARIABLES DEL SISTEMA\n- **Fecha actual**: {{ $now }}\n- **Teléfono cliente**: {{ $('chat_received').item.json.contacts[0].wa_id }}\n- **Fecha formato**: {{ $now.format('yyyy-MM-dd') }}\n\n---\n\n# FLUJO DE TRABAJO\n1. **Recibir consulta** → Identificar tipo (información/compra/cita)\n2. **Consultar herramientas** → Obtener información oficial  \n3. **Procesar** → Estructurar respuesta apropiada\n4. **Responder** → Mensaje cálido con información precisa\n5. **Seguimiento** → Guiar al siguiente paso según sea necesario"
+        }
+      },
+      "type": "@n8n/n8n-nodes-langchain.agent",
+      "typeVersion": 2.1,
+      "position": [
+        624,
+        -240
+      ],
+      "id": "f7a82303-57a1-4c2c-9ee9-227837e81798",
+      "name": "AI Agent"
+    },
+    {
+      "parameters": {
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.lmChatGoogleGemini",
+      "typeVersion": 1,
+      "position": [
+        176,
+        272
+      ],
+      "id": "c21f50bc-913e-4e6f-9885-25c78c3d48b7",
+      "name": "Google Gemini Chat Model",
+      "credentials": {
+        "googlePalmApi": {
+          "id": "wJ25uYQVFq46taDN",
+          "name": "Gemini_api_connection"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "modelName": "models/gemini-embedding-exp-03-07"
+      },
+      "type": "@n8n/n8n-nodes-langchain.embeddingsGoogleGemini",
+      "typeVersion": 1,
+      "position": [
+        960,
+        704
+      ],
+      "id": "ec929e6b-d3ba-4e50-b4d0-2665b28b5027",
+      "name": "Embeddings Google Gemini",
+      "credentials": {
+        "googlePalmApi": {
+          "id": "wJ25uYQVFq46taDN",
+          "name": "Gemini_api_connection"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "send",
+        "phoneNumberId": "=762544410269084",
+        "recipientPhoneNumber": "={{ $('chat_received').item.json.contacts[0].wa_id }}",
+        "textBody": "={{ $json.output }}",
+        "additionalFields": {
+          "previewUrl": false
+        }
+      },
+      "type": "n8n-nodes-base.whatsApp",
+      "typeVersion": 1,
+      "position": [
+        2128,
+        0
+      ],
+      "id": "366b88f4-e662-4aa8-ab40-4bbd217c8158",
+      "name": "Send message1",
+      "webhookId": "700b207a-2800-426e-b70f-3d8e6a7e706a",
+      "credentials": {
+        "whatsAppApi": {
+          "id": "Nt5JQyFq9C77fZsS",
+          "name": "WhatsApp account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "updates": [
+          "messages"
+        ],
+        "options": {}
+      },
+      "type": "n8n-nodes-base.whatsAppTrigger",
+      "typeVersion": 1,
+      "position": [
+        -2608,
+        16
+      ],
+      "id": "93667431-4d6e-4f70-a2bf-976d1ab35f88",
+      "name": "chat_received",
+      "webhookId": "866e3b02-b6b0-4acd-bccc-0225cdc70881",
+      "credentials": {
+        "whatsAppTriggerApi": {
+          "id": "9QpdBWehitnZYj7V",
+          "name": "WhatsApp OAuth account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "mode": "retrieve-as-tool",
+        "toolDescription": "usa esta herramienta para responder cualquier pregunta sobre, keratinas, shampoos, alisados, precios, procedimientos, cuidados",
+        "tableName": {
+          "__rl": true,
+          "value": "documents",
+          "mode": "list",
+          "cachedResultName": "documents"
+        },
+        "topK": 5,
+        "includeDocumentMetadata": false,
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.vectorStoreSupabase",
+      "typeVersion": 1.3,
+      "position": [
+        960,
+        528
+      ],
+      "id": "4621b6b2-1222-4ea2-9fae-6b01779f61dc",
+      "name": "Informacion_Large",
+      "credentials": {
+        "supabaseApi": {
+          "id": "aXZcKrFRfRHSGtx4",
+          "name": "Supabase account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "send",
+        "phoneNumberId": "=762544410269084",
+        "recipientPhoneNumber": "573043821239",
+        "textBody": "={{ /*n8n-auto-generated-fromAI-override*/ $fromAI('Text_Body', ``, 'string') }}",
+        "additionalFields": {}
+      },
+      "type": "n8n-nodes-base.whatsAppTool",
+      "typeVersion": 1,
+      "position": [
+        96,
+        800
+      ],
+      "id": "53865b32-86b3-4625-bbfd-538e84929fa4",
+      "name": "soporte_humano_minuto_Dios",
+      "webhookId": "c6b5a252-0a67-46f7-804c-a291d6b8add6",
+      "credentials": {
+        "whatsAppApi": {
+          "id": "Nt5JQyFq9C77fZsS",
+          "name": "WhatsApp account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "authentication": "serviceAccount",
+        "documentId": {
+          "__rl": true,
+          "value": "https://docs.google.com/spreadsheets/d/1VJAsTZff6WJoX9kqAq6J5BLTryFzg3dKkqYr332MK7Y/edit?gid=0#gid=0",
+          "mode": "url"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": "={{ String($now.month) }}",
+          "mode": "name"
+        },
+        "filtersUI": {
+          "values": [
+            {
+              "lookupColumn": "correo",
+              "lookupValue": "={{ /*n8n-auto-generated-fromAI-override*/ $fromAI('values0_Value', ``, 'string') }}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.googleSheetsTool",
+      "typeVersion": 4.6,
+      "position": [
+        1472,
+        608
+      ],
+      "id": "1bb3233f-37e4-4642-b626-6f2fbe79199e",
+      "name": "verify_transaction1",
+      "credentials": {
+        "googleApi": {
+          "id": "7qXFtOxwICEfkz0A",
+          "name": "Google Service Account account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "append",
+        "documentId": {
+          "__rl": true,
+          "value": "1VJAsTZff6WJoX9kqAq6J5BLTryFzg3dKkqYr332MK7Y",
+          "mode": "list",
+          "cachedResultName": "transacciones_minuto_dios",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/1VJAsTZff6WJoX9kqAq6J5BLTryFzg3dKkqYr332MK7Y/edit?usp=drivesdk"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": "=11",
+          "mode": "name"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "transaccion_id": "=1234",
+            "nombre": "={{ /*n8n-auto-generated-fromAI-override*/ $fromAI('nombre', ``, 'string') }}",
+            "correo": "={{ $fromAI('correo', ``, 'string') }}",
+            "fecha_solicitada": "={{ /*n8n-auto-generated-fromAI-override*/ $fromAI('fecha_solicitada', ``, 'string') }}",
+            "Hora solicitada": "={{ /*n8n-auto-generated-fromAI-override*/ $fromAI('Hora_solicitada', ``, 'string') }}",
+            "telefono": "={{ /*n8n-auto-generated-fromAI-override*/ $fromAI('telefono', ``, 'string') }}",
+            "STATUS": "={{ /*n8n-auto-generated-fromAI-override*/ $fromAI('STATUS', ``, 'string') }}",
+            "observaciones": "={{ /*n8n-auto-generated-fromAI-override*/ $fromAI('observaciones', ``, 'string') }}",
+            "cedula": "={{ /*n8n-auto-generated-fromAI-override*/ $fromAI('cedula', ``, 'string') }}",
+            "valor": "122"
+          },
+          "matchingColumns": [
+            "transaccion_id"
+          ],
+          "schema": [
+            {
+              "id": "transaccion_id",
+              "displayName": "transaccion_id",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "valor",
+              "displayName": "valor",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "nombre",
+              "displayName": "nombre",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "cedula",
+              "displayName": "cedula",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "telefono",
+              "displayName": "telefono",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "correo",
+              "displayName": "correo",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "fecha",
+              "displayName": "fecha",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "dia_pago",
+              "displayName": "dia_pago",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "fecha_solicitada",
+              "displayName": "fecha_solicitada",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "Hora solicitada",
+              "displayName": "Hora solicitada",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "STATUS",
+              "displayName": "STATUS",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "observaciones",
+              "displayName": "observaciones",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            }
+          ],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.googleSheetsTool",
+      "typeVersion": 4.6,
+      "position": [
+        1744,
+        560
+      ],
+      "id": "abe6dd18-363e-4d88-b374-899c8b8ecd41",
+      "name": "Update_Status",
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "dcdbbwlnLoN90RQz",
+          "name": "Google Sheets account 2"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "// Loop over input items and add a new field called 'myNewField' to the const output = $('AI Agent').first().json.output;\nconst output = $('AI Agent').first().json.output;\n// Verificar si es un arreglo y tomar el valor correcto\nlet result;\nif (Array.isArray(output)) {\n  result = output[0];\n} else {\n  result = output;\n}\n\n// Devolverlo como nuevo valor en el JSON\nreturn [\n  {\n    json: {\n      output: result,\n    }\n  }\n];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1808,
+        0
+      ],
+      "id": "20d3ad46-03d0-4fc0-aa0e-3bf8f6416106",
+      "name": "Code"
+    },
+    {
+      "parameters": {
+        "operation": "send",
+        "phoneNumberId": "=762544410269084",
+        "recipientPhoneNumber": "573002967412",
+        "textBody": "={{ /*n8n-auto-generated-fromAI-override*/ $fromAI('Text_Body', ``, 'string') }}",
+        "additionalFields": {}
+      },
+      "type": "n8n-nodes-base.whatsAppTool",
+      "typeVersion": 1,
+      "position": [
+        -48,
+        816
+      ],
+      "id": "a3d71eda-0501-4a72-8aeb-434ae1976dd0",
+      "name": "soporte_humano_pereira",
+      "webhookId": "c6b5a252-0a67-46f7-804c-a291d6b8add6",
+      "credentials": {
+        "whatsAppApi": {
+          "id": "Nt5JQyFq9C77fZsS",
+          "name": "WhatsApp account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "description": "Use the tool to think about something, to be sure to search the infomration in the tool Informacion_Large specially to avoid give answers without information, you always give the answer and never allow to put waiting to the users. It will not obtain new information or change the database, but just append the thought to the log. Use it when complex reasoning or some cache memory is needed."
+      },
+      "type": "@n8n/n8n-nodes-langchain.toolThink",
+      "typeVersion": 1.1,
+      "position": [
+        752,
+        144
+      ],
+      "id": "419c5c2b-7d55-4cfe-a3ab-614271948251",
+      "name": "Think"
+    },
+    {
+      "parameters": {
+        "sessionIdType": "customKey",
+        "sessionKey": "={{ $('chat_received').item.json.contacts[0].wa_id }}"
+      },
+      "type": "@n8n/n8n-nodes-langchain.memoryPostgresChat",
+      "typeVersion": 1.3,
+      "position": [
+        416,
+        240
+      ],
+      "id": "ea12d540-5304-417b-8b5d-a4efcf22002b",
+      "name": "Postgres Chat Memory",
+      "credentials": {
+        "postgres": {
+          "id": "fnL3cmZ5XxKG6zws",
+          "name": "Postgres account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "push",
+        "list": "={{ $('chat_received').item.json.contacts[0].wa_id.toString() }}",
+        "messageData": "={{ $('chat_received').item.json.messages[0].text.body }}",
+        "tail": true
+      },
+      "type": "n8n-nodes-base.redis",
+      "typeVersion": 1,
+      "position": [
+        -2144,
+        16
+      ],
+      "id": "744284fc-725c-4293-9b30-018481691320",
+      "name": "Push Redis",
+      "credentials": {
+        "redis": {
+          "id": "cjZaSGiQWwcGDCM0",
+          "name": "Redis account"
+        }
+      },
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "operation": "get",
+        "propertyName": "message",
+        "key": "={{ $('chat_received').item.json.contacts[0].wa_id.toString()}}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.redis",
+      "typeVersion": 1,
+      "position": [
+        -784,
+        -16
+      ],
+      "id": "c3e8433c-eaea-4572-96eb-794175593bb2",
+      "name": "Obtiene todos los Mensajes",
+      "credentials": {
+        "redis": {
+          "id": "cjZaSGiQWwcGDCM0",
+          "name": "Redis account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "delete",
+        "key": "={{ $('chat_received').item.json.contacts[0].wa_id }}"
+      },
+      "type": "n8n-nodes-base.redis",
+      "typeVersion": 1,
+      "position": [
+        -320,
+        -48
+      ],
+      "id": "45b21e46-8ff7-4aa7-8b98-78037944fda5",
+      "name": "Borra mensajes de Redis",
+      "credentials": {
+        "redis": {
+          "id": "cjZaSGiQWwcGDCM0",
+          "name": "Redis account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "8a313a41-eadc-4ada-bc2a-feff79845de9",
+              "leftValue": "={{ $json.message.last() }}",
+              "rightValue": "={{ $('chat_received').item.json.messages[0].text.body }}",
+              "operator": {
+                "type": "string",
+                "operation": "equals",
+                "name": "filter.operator.equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        -624,
+        -16
+      ],
+      "id": "bbbc3d77-f44d-4770-a2bd-f33c8fe3470a",
+      "name": "If1"
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "5853fd4f-0a66-421c-a1f4-082c35ecf9a4",
+              "name": "Mensaje_final",
+              "value": "={{ $('Obtiene todos los Mensajes').item.json.message.reverse().join(\"\\n\") }}",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        -112,
+        -80
+      ],
+      "id": "4fe5c510-aef0-4f61-8774-446918ac3c2a",
+      "name": "Edit Fields"
+    },
+    {
+      "parameters": {
+        "amount": 4
+      },
+      "type": "n8n-nodes-base.wait",
+      "typeVersion": 1.1,
+      "position": [
+        -976,
+        -16
+      ],
+      "id": "5827aafb-382d-4911-9d30-92c7320d58df",
+      "name": "Espera 5 segundos",
+      "webhookId": "f7ddcc3c-cdd5-4553-836d-c6179500fc10"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://largebotinterfaz-production-5b38.up.railway.app/receive-message",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"from\": \"{{ $('chat_received').item.json.contacts[0].wa_id }}\",\n  \"phone\":\"{{ $('chat_received').item.json.contacts[0].wa_id }}\",\n  \"contact_name\": \"{{ $('chat_received').item.json.contacts[0].profile.name }}\",\n  \"message\":{{JSON.stringify($('Code').item.json.output)}},\n  \"sender_type\": \"bot\"\n}  ",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        3120,
+        16
+      ],
+      "id": "3f4b7ead-5a72-4143-b6a2-ee831a8cf793",
+      "name": "HTTP Request1"
+    },
+    {
+      "parameters": {
+        "schema": {
+          "__rl": true,
+          "mode": "list",
+          "value": "public"
+        },
+        "table": {
+          "__rl": true,
+          "value": "messages",
+          "mode": "list",
+          "cachedResultName": "messages"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "sender": "customer",
+            "text_content": "={{ $('chat_received').item.json.messages[0].text.body }}",
+            "status": "Delivered",
+            "timestamp": "={{$now}}",
+            "whatsapp_id": "={{ $('chat_received').item.json.messages[0].id }}",
+            "conversation_phone": "={{ $('chat_received').item.json.contacts[0].wa_id }}"
+          },
+          "matchingColumns": [
+            "id"
+          ],
+          "schema": [
+            {
+              "id": "id",
+              "displayName": "id",
+              "required": false,
+              "defaultMatch": true,
+              "display": true,
+              "type": "number",
+              "canBeUsedToMatch": true,
+              "removed": true
+            },
+            {
+              "id": "whatsapp_id",
+              "displayName": "whatsapp_id",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "conversation_phone",
+              "displayName": "conversation_phone",
+              "required": true,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "sender",
+              "displayName": "sender",
+              "required": true,
+              "defaultMatch": false,
+              "display": true,
+              "type": "options",
+              "canBeUsedToMatch": true,
+              "options": [
+                {
+                  "name": "system",
+                  "value": "system"
+                },
+                {
+                  "name": "bot",
+                  "value": "bot"
+                },
+                {
+                  "name": "agent",
+                  "value": "agent"
+                },
+                {
+                  "name": "customer",
+                  "value": "customer"
+                }
+              ]
+            },
+            {
+              "id": "text_content",
+              "displayName": "text_content",
+              "required": true,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "status",
+              "displayName": "status",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "timestamp",
+              "displayName": "timestamp",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "dateTime",
+              "canBeUsedToMatch": true
+            }
+          ],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.6,
+      "position": [
+        -1824,
+        16
+      ],
+      "id": "b217db33-9047-45e0-b2c3-a952afaadc3f",
+      "name": "Insert rows in a table",
+      "credentials": {
+        "postgres": {
+          "id": "fnL3cmZ5XxKG6zws",
+          "name": "Postgres account"
+        }
+      },
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://largebotinterfaz-production-5b38.up.railway.app/receive-message",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"from\": \"{{ $('chat_received').item.json.contacts[0].wa_id }}\",\n  \"phone\":\"{{ $('chat_received').item.json.contacts[0].wa_id }}\",\n  \"contact_name\": \"{{ $('chat_received').item.json.contacts[0].profile.name }}\",\n  \"message\":{{ JSON.stringify($('chat_received').item.json.messages[0].text.body) }},\n  \"sender_type\": \"customer\"\n}  ",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        -1632,
+        16
+      ],
+      "id": "b7ba7532-1324-4c82-b3bc-29100264fcd5",
+      "name": "HTTP Request"
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "INSERT INTO conversations (phone, contact_name, last_message_text, last_message_timestamp, unread_count)\nVALUES ({{ $('chat_received').item.json.messages[0].from }},'{{ $('chat_received').item.json.contacts[0].profile.name }}', '{{ $('chat_received').item.json.messages[0].text.body }}',now(), 0)\nON CONFLICT (phone) DO UPDATE \nSET \n  contact_name = EXCLUDED.contact_name, -- Actualiza el nombre por si cambia\n  last_message_text = EXCLUDED.last_message_text,\n  last_message_timestamp = NOW(),\n  unread_count = conversations.unread_count + 1, -- Incrementa el contador existente\n  updated_at = NOW();",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.6,
+      "position": [
+        -1984,
+        16
+      ],
+      "id": "e50d2784-c746-4e21-aef0-0927e067b883",
+      "name": "Execute a SQL query1",
+      "credentials": {
+        "postgres": {
+          "id": "fnL3cmZ5XxKG6zws",
+          "name": "Postgres account"
+        }
+      },
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "operation": "select",
+        "schema": {
+          "__rl": true,
+          "mode": "list",
+          "value": "public"
+        },
+        "table": {
+          "__rl": true,
+          "value": "conversations",
+          "mode": "list",
+          "cachedResultName": "conversations"
+        },
+        "limit": 300,
+        "where": {
+          "values": [
+            {
+              "column": "phone",
+              "value": "573043821239"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.6,
+      "position": [
+        -2640,
+        992
+      ],
+      "id": "33e7e5da-791d-4ac0-b831-039380a9ee7a",
+      "name": "Select rows from a table",
+      "credentials": {
+        "postgres": {
+          "id": "fnL3cmZ5XxKG6zws",
+          "name": "Postgres account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "schema": {
+          "__rl": true,
+          "mode": "list",
+          "value": "public"
+        },
+        "table": {
+          "__rl": true,
+          "value": "messages",
+          "mode": "list",
+          "cachedResultName": "messages"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "sender": "bot",
+            "text_content": "={{JSON.stringify($('Code').item.json.output)}}",
+            "status": "Delivered",
+            "timestamp": "={{$now}}",
+            "whatsapp_id": "={{ $('chat_received').item.json.messages[0].id }}+\"bot\"+{{Date.now()}} {{ Math.floor(Math.random() * 1000) }}",
+            "conversation_phone": "={{ $('chat_received').item.json.contacts[0].wa_id }}"
+          },
+          "matchingColumns": [
+            "id"
+          ],
+          "schema": [
+            {
+              "id": "id",
+              "displayName": "id",
+              "required": false,
+              "defaultMatch": true,
+              "display": true,
+              "type": "number",
+              "canBeUsedToMatch": true,
+              "removed": true
+            },
+            {
+              "id": "whatsapp_id",
+              "displayName": "whatsapp_id",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "conversation_phone",
+              "displayName": "conversation_phone",
+              "required": true,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "sender",
+              "displayName": "sender",
+              "required": true,
+              "defaultMatch": false,
+              "display": true,
+              "type": "options",
+              "canBeUsedToMatch": true,
+              "options": [
+                {
+                  "name": "system",
+                  "value": "system"
+                },
+                {
+                  "name": "bot",
+                  "value": "bot"
+                },
+                {
+                  "name": "agent",
+                  "value": "agent"
+                },
+                {
+                  "name": "customer",
+                  "value": "customer"
+                }
+              ]
+            },
+            {
+              "id": "text_content",
+              "displayName": "text_content",
+              "required": true,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "status",
+              "displayName": "status",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "timestamp",
+              "displayName": "timestamp",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "dateTime",
+              "canBeUsedToMatch": true
+            }
+          ],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.6,
+      "position": [
+        2592,
+        0
+      ],
+      "id": "81703a33-141c-4982-b0b9-b0123f5a55d5",
+      "name": "Insert rows in a table1",
+      "credentials": {
+        "postgres": {
+          "id": "fnL3cmZ5XxKG6zws",
+          "name": "Postgres account"
+        }
+      },
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "INSERT INTO conversations (phone, contact_name, last_message_text, last_message_timestamp, unread_count)\nVALUES ({{ $('chat_received').item.json.messages[0].from }},'{{ $('chat_received').item.json.contacts[0].profile.name }}', '{{JSON.stringify($('Code').item.json.output)}}',now(), 0)\nON CONFLICT (phone) DO UPDATE \nSET \n  contact_name = EXCLUDED.contact_name, -- Actualiza el nombre por si cambia\n  last_message_text = EXCLUDED.last_message_text,\n  last_message_timestamp = NOW(),\n  unread_count = conversations.unread_count + 1, -- Incrementa el contador existente\n  updated_at = NOW();",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.6,
+      "position": [
+        2400,
+        0
+      ],
+      "id": "7111a4c9-1fa8-4d28-83c5-04bdef5963f2",
+      "name": "Execute a SQL query",
+      "credentials": {
+        "postgres": {
+          "id": "fnL3cmZ5XxKG6zws",
+          "name": "Postgres account"
+        }
+      },
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "operation": "send",
+        "phoneNumberId": "=762544410269084",
+        "recipientPhoneNumber": "573043821239",
+        "textBody": "={{ /*n8n-auto-generated-fromAI-override*/ $fromAI('Text_Body', `Telefono:\nNombre:\nResumen:`, 'string') }}",
+        "additionalFields": {
+          "previewUrl": false
+        }
+      },
+      "type": "n8n-nodes-base.whatsAppTool",
+      "typeVersion": 1,
+      "position": [
+        416,
+        1008
+      ],
+      "id": "65a2be45-d60c-44ed-8508-4aa1d681670b",
+      "name": "soporte_general",
+      "webhookId": "c6b5a252-0a67-46f7-804c-a291d6b8add6",
+      "credentials": {
+        "whatsAppApi": {
+          "id": "Nt5JQyFq9C77fZsS",
+          "name": "WhatsApp account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "72526bdd-b396-414d-8f2d-d98feac440aa",
+        "options": {
+          "rawBody": true
+        }
+      },
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2.1,
+      "position": [
+        -2624,
+        544
+      ],
+      "id": "ec007cd0-55a4-484f-a39a-79279bba767a",
+      "name": "Webhook",
+      "webhookId": "72526bdd-b396-414d-8f2d-d98feac440aa"
+    },
+    {
+      "parameters": {
+        "operation": "send",
+        "phoneNumberId": "762544410269084",
+        "recipientPhoneNumber": "={{ $('Webhook').item.json.body.phone }}",
+        "textBody": "={{ $('Webhook').item.json.body.message }}",
+        "additionalFields": {}
+      },
+      "type": "n8n-nodes-base.whatsApp",
+      "typeVersion": 1,
+      "position": [
+        -1712,
+        544
+      ],
+      "id": "0c2cb442-5b02-462c-bbdb-84d786223818",
+      "name": "Send message",
+      "webhookId": "b1848555-33c5-4022-8421-585a5edb9bfa",
+      "credentials": {
+        "whatsAppApi": {
+          "id": "Nt5JQyFq9C77fZsS",
+          "name": "WhatsApp account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "INSERT INTO conversations (phone, contact_name, last_message_text, ai_enabled, last_message_timestamp, unread_count)\nVALUES ({{ $json.body.phone }},'{{ $json.body.name }}', '{{ $json.body.message }}', '{{ $json.body.ai_enabled }}',now(), 0)\nON CONFLICT (phone) DO UPDATE \nSET \n  contact_name = EXCLUDED.contact_name, -- Actualiza el nombre por si cambia\n  last_message_text = EXCLUDED.last_message_text,\n  last_message_timestamp = NOW(),\n  unread_count = conversations.unread_count + 1, -- Incrementa el contador existente\n  updated_at = NOW();",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.6,
+      "position": [
+        -2384,
+        544
+      ],
+      "id": "139f3213-efaf-4939-99d9-4a3e37f2dd75",
+      "name": "Execute a SQL query2",
+      "credentials": {
+        "postgres": {
+          "id": "fnL3cmZ5XxKG6zws",
+          "name": "Postgres account"
+        }
+      },
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "schema": {
+          "__rl": true,
+          "mode": "list",
+          "value": "public"
+        },
+        "table": {
+          "__rl": true,
+          "value": "messages",
+          "mode": "list",
+          "cachedResultName": "messages"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "sender": "agent",
+            "text_content": "={{ $('Webhook').item.json.body.message }}",
+            "status": "Delivered",
+            "timestamp": "={{$now}}",
+            "whatsapp_id": "=\"agent\"+{{Date.now()}} {{ Math.floor(Math.random() * 1000) }}",
+            "conversation_phone": "={{ $('Webhook').item.json.body.phone }}"
+          },
+          "matchingColumns": [
+            "id"
+          ],
+          "schema": [
+            {
+              "id": "id",
+              "displayName": "id",
+              "required": false,
+              "defaultMatch": true,
+              "display": true,
+              "type": "number",
+              "canBeUsedToMatch": true,
+              "removed": true
+            },
+            {
+              "id": "whatsapp_id",
+              "displayName": "whatsapp_id",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "conversation_phone",
+              "displayName": "conversation_phone",
+              "required": true,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "sender",
+              "displayName": "sender",
+              "required": true,
+              "defaultMatch": false,
+              "display": true,
+              "type": "options",
+              "canBeUsedToMatch": true,
+              "options": [
+                {
+                  "name": "system",
+                  "value": "system"
+                },
+                {
+                  "name": "bot",
+                  "value": "bot"
+                },
+                {
+                  "name": "agent",
+                  "value": "agent"
+                },
+                {
+                  "name": "customer",
+                  "value": "customer"
+                }
+              ]
+            },
+            {
+              "id": "text_content",
+              "displayName": "text_content",
+              "required": true,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "status",
+              "displayName": "status",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "timestamp",
+              "displayName": "timestamp",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "dateTime",
+              "canBeUsedToMatch": true
+            }
+          ],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.6,
+      "position": [
+        -2080,
+        544
+      ],
+      "id": "f83a15b3-7424-4ddb-901b-7565f11d7704",
+      "name": "Insert rows in a table2",
+      "credentials": {
+        "postgres": {
+          "id": "fnL3cmZ5XxKG6zws",
+          "name": "Postgres account"
+        }
+      },
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "ALTER TABLE conversations \nADD COLUMN ai_enabled BOOLEAN DEFAULT true;\n\n-- 2. Migrar datos existentes\n-- Convertir 'ai_active' a true, todo lo demás a false\nUPDATE conversations \nSET ai_enabled = CASE \n    WHEN conversation_state = 'ai_active' THEN true \n    ELSE false \nEND;\n\n-- 3. Verificar la migración (opcional)\nSELECT \n    conversation_state,\n    ai_enabled,\n    COUNT(*) as cantidad\nFROM conversations \nGROUP BY conversation_state, ai_enabled\nORDER BY conversation_state;\n\n-- 4. Una vez verificado, eliminar la columna antigua\nALTER TABLE conversations \nDROP COLUMN conversation_state;\n\n-- 5. Agregar índice para mejor rendimiento (opcional pero recomendado)\nCREATE INDEX idx_conversations_ai_enabled ON conversations(ai_enabled);",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.6,
+      "position": [
+        -2368,
+        992
+      ],
+      "id": "9be96706-57c2-4001-afa4-6d13dff7b39e",
+      "name": "Execute a SQL query3",
+      "credentials": {
+        "postgres": {
+          "id": "fnL3cmZ5XxKG6zws",
+          "name": "Postgres account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "SELECT \n  ai_enabled, \n  phone,\n  contact_name\nFROM conversations \nWHERE phone = {{ $('chat_received').item.json.contacts[0].wa_id }}::TEXT",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.6,
+      "position": [
+        -1424,
+        16
+      ],
+      "id": "3a8259c2-5876-4c5b-addf-ce713b84519f",
+      "name": "Execute a SQL query4",
+      "credentials": {
+        "postgres": {
+          "id": "fnL3cmZ5XxKG6zws",
+          "name": "Postgres account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "c82205d9-12c5-4811-b133-b7f222f84bd0",
+              "leftValue": "={{ $json.ai_enabled }}",
+              "rightValue": "true",
+              "operator": {
+                "type": "string",
+                "operation": "equals",
+                "name": "filter.operator.equals"
+              }
+            },
+            {
+              "id": "9a0702d0-1f4f-46a4-8376-e0f89f9da1ac",
+              "leftValue": "={{ $json.ai_enabled }}",
+              "rightValue": "null",
+              "operator": {
+                "type": "string",
+                "operation": "equals",
+                "name": "filter.operator.equals"
+              }
+            }
+          ],
+          "combinator": "or"
+        },
+        "looseTypeValidation": true,
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        -1216,
+        16
+      ],
+      "id": "9f1bfa80-ff2f-45fe-b6b8-394cd49abbd3",
+      "name": "If"
+    },
+    {
+      "parameters": {
+        "operation": "send",
+        "phoneNumberId": "=762544410269084",
+        "recipientPhoneNumber": "573009683341",
+        "textBody": "={{ /*n8n-auto-generated-fromAI-override*/ $fromAI('Text_Body', ``, 'string') }}",
+        "additionalFields": {}
+      },
+      "type": "n8n-nodes-base.whatsAppTool",
+      "typeVersion": 1,
+      "position": [
+        224,
+        800
+      ],
+      "id": "fcdc682e-2c9f-4129-a182-9747e00709ab",
+      "name": "soporte_ciudad_montes",
+      "webhookId": "c6b5a252-0a67-46f7-804c-a291d6b8add6",
+      "credentials": {
+        "whatsAppApi": {
+          "id": "Nt5JQyFq9C77fZsS",
+          "name": "WhatsApp account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "send",
+        "phoneNumberId": "=762544410269084",
+        "recipientPhoneNumber": "573008337767",
+        "textBody": "={{ /*n8n-auto-generated-fromAI-override*/ $fromAI('Text_Body', ``, 'string') }}",
+        "additionalFields": {}
+      },
+      "type": "n8n-nodes-base.whatsAppTool",
+      "typeVersion": 1,
+      "position": [
+        144,
+        944
+      ],
+      "id": "5a63d9a2-2fcc-4eeb-b3c3-e9ba0022f98b",
+      "name": "soporte_medellin",
+      "webhookId": "c6b5a252-0a67-46f7-804c-a291d6b8add6",
+      "credentials": {
+        "whatsAppApi": {
+          "id": "Nt5JQyFq9C77fZsS",
+          "name": "WhatsApp account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "DELETE FROM conversations\nWHERE created_at < NOW() - INTERVAL '10 days';",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.6,
+      "position": [
+        -1840,
+        1008
+      ],
+      "id": "1cda82d3-6b4c-4219-895d-949e39278430",
+      "name": "delete chat memory",
+      "credentials": {
+        "postgres": {
+          "id": "fnL3cmZ5XxKG6zws",
+          "name": "Postgres account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "send",
+        "phoneNumberId": "=762544410269084",
+        "recipientPhoneNumber": "573337212883",
+        "textBody": "={{ /*n8n-auto-generated-fromAI-override*/ $fromAI('Text_Body', `Telefono:\nNombre:\nResumen:`, 'string') }}",
+        "additionalFields": {
+          "previewUrl": false
+        }
+      },
+      "type": "n8n-nodes-base.whatsAppTool",
+      "typeVersion": 1,
+      "position": [
+        624,
+        848
+      ],
+      "id": "acd70345-ae84-4f46-b274-53369b4255df",
+      "name": "soporte_bucaramanga",
+      "webhookId": "c6b5a252-0a67-46f7-804c-a291d6b8add6",
+      "credentials": {
+        "whatsAppApi": {
+          "id": "Nt5JQyFq9C77fZsS",
+          "name": "WhatsApp account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "promptType": "define",
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.agent",
+      "typeVersion": 2.2,
+      "position": [
+        -1744,
+        -544
+      ],
+      "id": "9ef69d3e-99bd-438b-bcd0-64c62e471374",
+      "name": "AI Agent1"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "1016ad98-ad8a-4366-8ab3-50742c46705b",
+              "leftValue": "={{ $('chat_received').item.json.messages[0].from }}",
+              "rightValue": "573153404327",
+              "operator": {
+                "type": "string",
+                "operation": "equals",
+                "name": "filter.operator.equals"
+              }
+            },
+            {
+              "id": "e40c5181-3487-4728-928b-151c145ec19f",
+              "leftValue": "={{ $('chat_received').item.json.messages[0].from }}",
+              "rightValue": "3153047970",
+              "operator": {
+                "type": "string",
+                "operation": "equals",
+                "name": "filter.operator.equals"
+              }
+            }
+          ],
+          "combinator": "or"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        -2400,
+        16
+      ],
+      "id": "23a68198-fe09-4604-baa7-e970082273a5",
+      "name": "If2"
+    },
+    {
+      "parameters": {
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.lmChatGoogleGemini",
+      "typeVersion": 1,
+      "position": [
+        -1776,
+        -384
+      ],
+      "id": "ddb84583-cb01-4e16-971f-d7d057a6d2c1",
+      "name": "Google Gemini Chat Model1",
+      "credentials": {
+        "googlePalmApi": {
+          "id": "wJ25uYQVFq46taDN",
+          "name": "Gemini_api_connection"
+        }
+      }
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "Google Gemini Chat Model": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "AI Agent",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Embeddings Google Gemini": {
+      "ai_embedding": [
+        [
+          {
+            "node": "Informacion_Large",
+            "type": "ai_embedding",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "AI Agent": {
+      "main": [
+        [
+          {
+            "node": "Code",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "chat_received": {
+      "main": [
+        [
+          {
+            "node": "If2",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Informacion_Large": {
+      "ai_tool": [
+        [
+          {
+            "node": "AI Agent",
+            "type": "ai_tool",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "soporte_humano_minuto_Dios": {
+      "ai_tool": [
+        [
+          {
+            "node": "AI Agent",
+            "type": "ai_tool",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "verify_transaction1": {
+      "ai_tool": [
+        [
+          {
+            "node": "AI Agent",
+            "type": "ai_tool",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Update_Status": {
+      "ai_tool": [
+        [
+          {
+            "node": "AI Agent",
+            "type": "ai_tool",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Code": {
+      "main": [
+        [
+          {
+            "node": "Send message1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "soporte_humano_pereira": {
+      "ai_tool": [
+        [
+          {
+            "node": "AI Agent",
+            "type": "ai_tool",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Think": {
+      "ai_tool": [
+        []
+      ]
+    },
+    "Postgres Chat Memory": {
+      "ai_memory": [
+        [
+          {
+            "node": "AI Agent",
+            "type": "ai_memory",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Push Redis": {
+      "main": [
+        [
+          {
+            "node": "Execute a SQL query1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Obtiene todos los Mensajes": {
+      "main": [
+        [
+          {
+            "node": "If1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Borra mensajes de Redis": {
+      "main": [
+        [
+          {
+            "node": "Edit Fields",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "If1": {
+      "main": [
+        [
+          {
+            "node": "Borra mensajes de Redis",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Edit Fields": {
+      "main": [
+        [
+          {
+            "node": "AI Agent",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Espera 5 segundos": {
+      "main": [
+        [
+          {
+            "node": "Obtiene todos los Mensajes",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Send message1": {
+      "main": [
+        [
+          {
+            "node": "Execute a SQL query",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Insert rows in a table": {
+      "main": [
+        [
+          {
+            "node": "HTTP Request",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "HTTP Request": {
+      "main": [
+        [
+          {
+            "node": "Execute a SQL query4",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Execute a SQL query1": {
+      "main": [
+        [
+          {
+            "node": "Insert rows in a table",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Execute a SQL query": {
+      "main": [
+        [
+          {
+            "node": "Insert rows in a table1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Insert rows in a table1": {
+      "main": [
+        [
+          {
+            "node": "HTTP Request1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "soporte_general": {
+      "ai_tool": [
+        [
+          {
+            "node": "AI Agent",
+            "type": "ai_tool",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Webhook": {
+      "main": [
+        [
+          {
+            "node": "Execute a SQL query2",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Execute a SQL query2": {
+      "main": [
+        [
+          {
+            "node": "Insert rows in a table2",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Insert rows in a table2": {
+      "main": [
+        [
+          {
+            "node": "Send message",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Execute a SQL query4": {
+      "main": [
+        [
+          {
+            "node": "If",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "If": {
+      "main": [
+        [
+          {
+            "node": "Espera 5 segundos",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "soporte_ciudad_montes": {
+      "ai_tool": [
+        [
+          {
+            "node": "AI Agent",
+            "type": "ai_tool",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "soporte_medellin": {
+      "ai_tool": [
+        [
+          {
+            "node": "AI Agent",
+            "type": "ai_tool",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "soporte_bucaramanga": {
+      "ai_tool": [
+        [
+          {
+            "node": "AI Agent",
+            "type": "ai_tool",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "If2": {
+      "main": [
+        [
+          {
+            "node": "AI Agent1",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Push Redis",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Google Gemini Chat Model1": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "AI Agent1",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": true,
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "versionId": "5490ff97-8bbe-4c99-9f0a-e19f8743343a",
+  "meta": {
+    "templateCredsSetupCompleted": true,
+    "instanceId": "c72d3d92b8b37daaaa1439a01634a26d8a3f6fbfa77730d75cf66caa66ca80e1"
+  },
+  "id": "f1nSq4RH6pkiTsFM",
+  "tags": []
+}

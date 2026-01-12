@@ -1,15 +1,62 @@
 /**
  * Conversation Service
  * Business logic for conversations
+ * OPTIMIZED FOR 2000+ CONVERSATIONS with pagination
  */
 const { pool } = require('../config/database');
 
+// Default pagination settings
+const DEFAULT_PAGE_SIZE = 50;
+const MAX_PAGE_SIZE = 100;
+
 class ConversationService {
     /**
-     * Get all conversations
+     * Get conversations with pagination
+     * @param {Object} options - Pagination options
+     * @param {number} options.page - Page number (1-indexed)
+     * @param {number} options.limit - Items per page
+     * @param {string} options.status - Filter by status (active/archived)
+     * @param {string} options.search - Search by contact name or phone
      */
-    async getAll() {
-        const { rows } = await pool.query(`
+    async getAll(options = {}) {
+        const {
+            page = 1,
+            limit = DEFAULT_PAGE_SIZE,
+            status = null,
+            search = null
+        } = options;
+
+        // Sanitize pagination
+        const safeLimit = Math.min(Math.max(1, limit), MAX_PAGE_SIZE);
+        const offset = (Math.max(1, page) - 1) * safeLimit;
+
+        // Build dynamic WHERE clause
+        const conditions = [];
+        const params = [];
+        let paramIndex = 1;
+
+        if (status) {
+            conditions.push(`status = $${paramIndex++}`);
+            params.push(status);
+        }
+
+        if (search) {
+            conditions.push(`(contact_name ILIKE $${paramIndex} OR phone ILIKE $${paramIndex})`);
+            params.push(`%${search}%`);
+            paramIndex++;
+        }
+
+        const whereClause = conditions.length > 0
+            ? `WHERE ${conditions.join(' AND ')}`
+            : '';
+
+        // Count total (for pagination metadata)
+        const countQuery = `SELECT COUNT(*) FROM conversations ${whereClause}`;
+        const countResult = await pool.query(countQuery, params);
+        const total = parseInt(countResult.rows[0].count);
+
+        // Get paginated data
+        const dataQuery = `
             SELECT 
                 phone,
                 contact_name,
@@ -22,10 +69,15 @@ class ConversationService {
                 created_at,
                 updated_at
             FROM conversations 
+            ${whereClause}
             ORDER BY last_message_timestamp DESC NULLS LAST, created_at DESC
-        `);
+            LIMIT $${paramIndex} OFFSET $${paramIndex + 1}
+        `;
+        params.push(safeLimit, offset);
 
-        return rows.map(conv => ({
+        const { rows } = await pool.query(dataQuery, params);
+
+        const conversations = rows.map(conv => ({
             id: conv.phone,
             contact: {
                 name: conv.contact_name,
@@ -41,11 +93,33 @@ class ConversationService {
                     hour: '2-digit',
                     minute: '2-digit'
                 }),
+            rawTimestamp: conv.last_message_timestamp || conv.created_at,
             unread: conv.unread_count || 0,
             status: conv.status || 'active',
             aiEnabled: conv.ai_enabled !== false,
             state: conv.conversation_state || 'ai_active'
         }));
+
+        return {
+            data: conversations,
+            pagination: {
+                page,
+                limit: safeLimit,
+                total,
+                totalPages: Math.ceil(total / safeLimit),
+                hasNext: offset + rows.length < total,
+                hasPrev: page > 1
+            }
+        };
+    }
+
+    /**
+     * Get all conversations (legacy support - paginated internally)
+     * @deprecated Use getAll with pagination options instead
+     */
+    async getAllLegacy() {
+        const result = await this.getAll({ limit: 200 });
+        return result.data;
     }
 
     /**
@@ -168,6 +242,23 @@ class ConversationService {
             WHERE phone = $1
         `, [phone]);
     }
+
+    /**
+     * Get statistics for dashboard
+     */
+    async getStats() {
+        const { rows } = await pool.query(`
+            SELECT 
+                COUNT(*) FILTER (WHERE status = 'active') as active_count,
+                COUNT(*) FILTER (WHERE status = 'archived') as archived_count,
+                COUNT(*) FILTER (WHERE ai_enabled = true) as ai_enabled_count,
+                COUNT(*) FILTER (WHERE ai_enabled = false) as manual_count,
+                SUM(unread_count) as total_unread
+            FROM conversations
+        `);
+        return rows[0];
+    }
 }
 
 module.exports = new ConversationService();
+

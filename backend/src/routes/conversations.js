@@ -1,5 +1,6 @@
 /**
  * Conversation Routes
+ * OPTIMIZED FOR 2000+ CONVERSATIONS with pagination
  */
 const express = require('express');
 const router = express.Router();
@@ -8,19 +9,86 @@ const conversationService = require('../services/conversationService');
 const messageService = require('../services/messageService');
 const n8nService = require('../services/n8nService');
 
-// Get all conversations
+/**
+ * Get all conversations with pagination
+ * Query params:
+ *   - page: Page number (default: 1)
+ *   - limit: Items per page (default: 50, max: 100)
+ *   - status: Filter by status (active/archived)
+ *   - search: Search by contact name or phone
+ *   - legacy: If true, returns flat array (backward compatibility)
+ */
 router.get('/', asyncHandler(async (req, res) => {
-    const conversations = await conversationService.getAll();
-    console.log(`✅ Loaded ${conversations.length} conversations`);
-    res.json(conversations);
+    const { page, limit, status, search, legacy } = req.query;
+
+    const result = await conversationService.getAll({
+        page: parseInt(page) || 1,
+        limit: parseInt(limit) || 50,
+        status: status || null,
+        search: search || null
+    });
+
+    // Support legacy format for backward compatibility
+    if (legacy === 'true') {
+        console.log(`✅ Loaded ${result.data.length} conversations (legacy format)`);
+        return res.json(result.data);
+    }
+
+    console.log(`✅ Loaded ${result.data.length}/${result.pagination.total} conversations (page ${result.pagination.page})`);
+    res.json(result);
 }));
 
-// Get messages for a conversation
+/**
+ * Get conversation statistics
+ */
+router.get('/stats', asyncHandler(async (req, res) => {
+    const stats = await conversationService.getStats();
+    res.json(stats);
+}));
+
+/**
+ * Get messages for a conversation with pagination
+ * Query params:
+ *   - limit: Messages to load (default: 50, max: 200)
+ *   - before: Load messages before this timestamp (cursor for infinite scroll)
+ *   - after: Load messages after this timestamp (for new messages)
+ *   - legacy: If true, returns flat array (backward compatibility)
+ */
 router.get('/:phone/messages', asyncHandler(async (req, res) => {
     const { phone } = req.params;
-    const messages = await messageService.getByConversation(phone);
-    console.log(`✅ Loaded ${messages.length} messages for ${phone}`);
-    res.json(messages);
+    const { limit, before, after, legacy } = req.query;
+
+    const result = await messageService.getInitialMessages(phone, parseInt(limit) || 50);
+
+    // If cursor is provided, use pagination
+    if (before || after) {
+        const cursorResult = await messageService.getByConversation(phone, {
+            limit: parseInt(limit) || 30,
+            before: before || null,
+            after: after || null
+        });
+
+        console.log(`✅ Loaded ${cursorResult.data.length} messages for ${phone} (paginated)`);
+        return res.json(cursorResult);
+    }
+
+    // Support legacy format for backward compatibility
+    if (legacy === 'true') {
+        console.log(`✅ Loaded ${result.data.length} messages for ${phone} (legacy format)`);
+        return res.json(result.data);
+    }
+
+    console.log(`✅ Loaded ${result.data.length} messages for ${phone}`);
+    res.json(result);
+}));
+
+/**
+ * Get message count for a conversation
+ */
+router.get('/:phone/messages/count', asyncHandler(async (req, res) => {
+    const { phone } = req.params;
+    const count = await messageService.getMessageCount(phone);
+    res.json({ count });
 }));
 
 // Mark conversation as read
@@ -100,3 +168,4 @@ router.delete('/:phone/tags/:tagId', asyncHandler(async (req, res) => {
 }));
 
 module.exports = router;
+

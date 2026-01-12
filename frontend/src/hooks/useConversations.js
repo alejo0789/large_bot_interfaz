@@ -25,8 +25,10 @@ export const useConversations = (socket) => {
             if (!response.ok) throw new Error('Error fetching conversations');
 
             const data = await response.json();
-            setConversations(data);
-            console.log(`✅ Loaded ${data.length} conversations`);
+            // Handle both paginated and legacy response formats
+            const conversations = Array.isArray(data) ? data : (data.data || []);
+            setConversations(conversations);
+            console.log(`✅ Loaded ${conversations.length} conversations`);
 
             return data;
         } catch (error) {
@@ -47,19 +49,21 @@ export const useConversations = (socket) => {
             if (!response.ok) throw new Error('Error fetching messages');
 
             const data = await response.json();
+            // Handle both paginated and legacy response formats
+            const messages = Array.isArray(data) ? data : (data.data || []);
 
-            // Store raw timestamp for date grouping
-            const messagesWithRawTimestamp = data.map(msg => ({
-                ...msg,
-                rawTimestamp: msg.timestamp
-            }));
+            // Log first message for debugging
+            if (messages.length > 0) {
+                console.log('📅 First message rawTimestamp:', messages[0].rawTimestamp);
+            }
 
+            // Messages already have rawTimestamp from backend, just use them directly
             setMessagesByConversation(prev => ({
                 ...prev,
-                [phone]: messagesWithRawTimestamp
+                [phone]: messages
             }));
 
-            console.log(`✅ Loaded ${data.length} messages for ${phone}`);
+            console.log(`✅ Loaded ${messages.length} messages for ${phone}`);
             return data;
         } catch (error) {
             console.error(`❌ Error fetching messages for ${phone}:`, error);
@@ -95,14 +99,16 @@ export const useConversations = (socket) => {
     }, []);
 
     // Send a message
-    const sendMessage = useCallback(async (phone, message, name) => {
+    const sendMessage = useCallback(async (phone, message, name, options = {}) => {
         const tempId = Date.now();
         const currentAIState = Boolean(aiStatesByPhone[phone] ?? true);
+        const { agentId, agentName } = options;
 
         const newMessage = {
             id: tempId,
             text: message,
-            sender: 'agent',
+            sender: 'agent', // Always 'agent' so it appears on the right
+            agent_name: agentName, // Display name
             timestamp: new Date().toLocaleTimeString('es-CO', {
                 hour: '2-digit',
                 minute: '2-digit'
@@ -119,7 +125,12 @@ export const useConversations = (socket) => {
 
         setConversations(prev => prev.map(conv =>
             conv.contact.phone === phone
-                ? { ...conv, lastMessage: message, timestamp: newMessage.timestamp }
+                ? {
+                    ...conv,
+                    lastMessage: message,
+                    timestamp: newMessage.timestamp,
+                    rawTimestamp: newMessage.rawTimestamp
+                }
                 : conv
         ));
 
@@ -132,7 +143,9 @@ export const useConversations = (socket) => {
                     message,
                     name,
                     temp_id: tempId,
-                    ai_enabled: currentAIState
+                    ai_enabled: currentAIState,
+                    agent_id: agentId,
+                    agent_name: agentName
                 })
             });
 
@@ -199,10 +212,18 @@ export const useConversations = (socket) => {
         const handleNewMessage = (messageData) => {
             console.log('📨 New message received:', messageData);
 
+            const senderType = messageData.sender_type || messageData.sender || 'customer';
+
+            // Ignore messages sent by agent - they were already added optimistically
+            if (senderType === 'agent' || senderType === 'me') {
+                console.log('⏭️ Ignoring agent message (already added optimistically)');
+                return;
+            }
+
             const formattedMessage = {
                 id: messageData.whatsapp_id || Date.now(),
                 text: messageData.message || messageData.text,
-                sender: messageData.sender_type || messageData.sender || 'customer',
+                sender: senderType,
                 timestamp: new Date(messageData.timestamp).toLocaleTimeString('es-CO', {
                     hour: '2-digit',
                     minute: '2-digit'
@@ -214,10 +235,27 @@ export const useConversations = (socket) => {
                 media_url: messageData.media_url || null
             };
 
-            setMessagesByConversation(prev => ({
-                ...prev,
-                [messageData.phone]: [...(prev[messageData.phone] || []), formattedMessage]
-            }));
+            // Check for duplicates before adding
+            setMessagesByConversation(prev => {
+                const existingMessages = prev[messageData.phone] || [];
+
+                // Check if message with same ID already exists
+                const isDuplicate = existingMessages.some(msg =>
+                    msg.id === formattedMessage.id ||
+                    (msg.text === formattedMessage.text &&
+                        Math.abs(new Date(msg.rawTimestamp) - new Date(formattedMessage.rawTimestamp)) < 5000)
+                );
+
+                if (isDuplicate) {
+                    console.log('⏭️ Ignoring duplicate message');
+                    return prev;
+                }
+
+                return {
+                    ...prev,
+                    [messageData.phone]: [...existingMessages, formattedMessage]
+                };
+            });
 
             setConversations(prev => prev.map(conv =>
                 conv.contact.phone === messageData.phone
@@ -225,6 +263,7 @@ export const useConversations = (socket) => {
                         ...conv,
                         lastMessage: formattedMessage.text,
                         timestamp: formattedMessage.timestamp,
+                        rawTimestamp: formattedMessage.rawTimestamp,
                         unread: selectedConversation?.contact.phone === messageData.phone
                             ? 0
                             : (conv.unread || 0) + 1

@@ -206,7 +206,8 @@ app.get('/api/conversations/:phone/messages', async (req, res) => {
         media_type,
         media_url,
         status,
-        timestamp
+        timestamp,
+        agent_name
       FROM messages 
       WHERE conversation_phone = $1 
       ORDER BY timestamp ASC
@@ -222,7 +223,8 @@ app.get('/api/conversations/:phone/messages', async (req, res) => {
       }),
       status: msg.status || 'delivered',
       media_type: msg.media_type || null,
-      media_url: msg.media_url || null
+      media_url: msg.media_url || null,
+      agent_name: msg.agent_name
     }));
 
     console.log(`✅ Mensajes cargados para ${phone}: ${messages.length}`);
@@ -234,6 +236,111 @@ app.get('/api/conversations/:phone/messages', async (req, res) => {
   }
 });
 
+// ... (skip other endpoints) ...
+
+// 5. ENDPOINT PARA ENVIAR MENSAJES A N8N
+app.post('/api/send-message', async (req, res) => {
+  try {
+    const { phone, name, message, temp_id, agent_id, agent_name } = req.body;
+
+    console.log('📥 RAW BODY received:', JSON.stringify(req.body, null, 2));
+
+    if (!phone || !message) {
+      return res.status(400).json({ error: 'Faltan datos requeridos (to, text)' });
+    }
+
+    console.log(`📤 Enviando mensaje a n8n: ${phone} -> ${message} (Agent: ${agent_name || 'System'})`);
+
+    // 1. GUARDAR EN BD LOCALMENTE (Status: sending)
+    try {
+      await pool.query(`
+            INSERT INTO messages (
+                id,
+                whatsapp_id, 
+                conversation_phone, 
+                sender, 
+                text_content, 
+                status, 
+                timestamp,
+                agent_id,
+                agent_name,
+                sender_type
+            ) VALUES (
+                uuid_generate_v4(),
+                $1,
+                $2, 
+                'agent', 
+                $3, 
+                'sending', 
+                NOW(),
+                $4,
+                $5,
+                'text'
+            )
+        `, [
+        `temp_${temp_id || Date.now()}`,
+        phone,
+        message,
+        agent_id,
+        agent_name
+      ]);
+
+      // Update conversation last message
+      await pool.query(`
+            UPDATE conversations 
+            SET 
+                last_message_text = $1,
+                last_message_timestamp = NOW(),
+                updated_at = NOW()
+            WHERE phone = $2
+        `, [message, phone]);
+
+    } catch (dbError) {
+      console.error('⚠️ Error guardando mensaje en BD local (no crítico):', dbError);
+    }
+
+    // 2. ENVIAR A N8N
+    const n8nWebhookUrl = process.env.N8N_SEND_WEBHOOK_URL;
+
+    if (n8nWebhookUrl) {
+      const fetch = (await import('node-fetch')).default;
+
+      const response = await fetch(n8nWebhookUrl, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          phone: phone,
+          name: name,
+          message: message,
+          temp_id: temp_id,
+          conversation_state: 'agent_active',
+          sender: 'agent',
+          agent_id: agent_id,
+          agent_name: agent_name
+        })
+      });
+
+      if (response.ok) {
+        console.log('✅ Mensaje enviado a n8n correctamente');
+        res.json({ success: true, message: 'Mensaje enviado a n8n' });
+      } else {
+        const errorBody = await response.text();
+        console.error(`❌ Error enviando a N8N: ${response.status} ${response.statusText}`);
+        console.error(`   Respuesta: ${errorBody}`);
+        throw new Error(`N8N responded with ${response.status}`);
+      }
+    } else {
+      console.log('⚠️ No hay URL de n8n configurada, simulando envío...');
+      res.json({ success: true, message: 'Mensaje simulado (configurar N8N_SEND_WEBHOOK_URL)' });
+    }
+
+  } catch (error) {
+    console.error('❌ Error enviando mensaje a n8n:', error);
+    res.status(500).json({ error: 'Error al enviar mensaje' });
+  }
+});
 // 3. ENDPOINT PARA MARCAR MENSAJES COMO LEÍDOS
 app.post('/api/conversations/:phone/mark-read', async (req, res) => {
   try {
@@ -422,57 +529,7 @@ app.post('/api/conversations/:phone/activate-ai', async (req, res) => {
 });
 
 
-// 5. ENDPOINT PARA ENVIAR MENSAJES A N8N
-// Este endpoint envía el mensaje a n8n y espera confirmación
-app.post('/api/send-message', async (req, res) => {
-  try {
-    const { phone, name, message, temp_id } = req.body;
 
-    if (!phone || !message) {
-      return res.status(400).json({ error: 'Faltan datos requeridos (to, text)' });
-    }
-
-    console.log(`📤 Enviando mensaje a n8n: ${phone} -> ${message}`);
-
-    // Aquí harías la petición HTTP a tu webhook de n8n para enviar el mensaje
-    // Ejemplo:
-    const n8nWebhookUrl = process.env.N8N_SEND_WEBHOOK_URL;
-
-    if (n8nWebhookUrl) {
-      const fetch = (await import('node-fetch')).default;
-
-      const response = await fetch(n8nWebhookUrl, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          phone: phone,
-          name: name,
-          message: message,
-          temp_id: temp_id,
-          conversation_state: 'agent_active',
-          sender: 'agent'
-        })
-      });
-
-      if (response.ok) {
-        console.log('✅ Mensaje enviado a n8n correctamente');
-        res.json({ success: true, message: 'Mensaje enviado a n8n' });
-      } else {
-        throw new Error('Error en respuesta de n8n');
-      }
-    } else {
-      // Si no hay URL de n8n configurada, simular envío exitoso
-      console.log('⚠️ No hay URL de n8n configurada, simulando envío...');
-      res.json({ success: true, message: 'Mensaje simulado (configurar N8N_SEND_WEBHOOK_URL)' });
-    }
-
-  } catch (error) {
-    console.error('❌ Error enviando mensaje a n8n:', error);
-    res.status(500).json({ error: 'Error al enviar mensaje' });
-  }
-});
 
 
 // 6. ENDPOINT DE CIERRE DE CONVERSACION
@@ -797,6 +854,7 @@ server.listen(PORT, () => {
   console.log(`🔗 Endpoints disponibles:`);
   console.log(`   - GET  /api/conversations`);
   console.log(`   - GET  /api/conversations/:phone/messages`);
+  console.log(`   - N8N Webhook: ${process.env.N8N_SEND_WEBHOOK_URL || 'No configurado'}`);
   console.log(`   - POST /api/conversations/:phone/mark-read`);
   console.log(`   - POST /receive-message (tu endpoint de n8n)`);
   console.log(`   - POST /api/send-message (hacia n8n)`);

@@ -28,6 +28,7 @@ const { errorHandler } = require('./src/middleware/errorHandler');
 // Routes
 const conversationRoutes = require('./src/routes/conversations');
 const tagRoutes = require('./src/routes/tags');
+const authRoutes = require('./src/routes/auth');
 const { router: messageRoutes, setSocketIO: setMessageSocketIO } = require('./src/routes/messages');
 const { router: webhookRoutes, setSocketIO: setWebhookSocketIO } = require('./src/routes/webhooks');
 
@@ -75,6 +76,7 @@ app.use((req, res, next) => {
 // =============================================
 
 // API Routes
+app.use('/api/auth', authRoutes);
 app.use('/api/conversations', conversationRoutes);
 app.use('/api/tags', tagRoutes);
 app.use('/api', messageRoutes);
@@ -96,25 +98,57 @@ app.post('/api/receive-message', (req, res, next) => {
 });
 
 // =============================================
-// SOCKET.IO
+// SOCKET.IO - OPTIMIZED FOR 2000+ CONVERSATIONS
 // =============================================
 
+// Track connected clients for monitoring
+let connectedClients = 0;
+
 io.on('connection', (socket) => {
-    console.log('🔌 Client connected:', socket.id);
+    connectedClients++;
+    console.log(`🔌 Client connected: ${socket.id} (Total: ${connectedClients})`);
 
     socket.on('disconnect', () => {
-        console.log('🔌 Client disconnected:', socket.id);
+        connectedClients--;
+        console.log(`🔌 Client disconnected: ${socket.id} (Total: ${connectedClients})`);
     });
 
-    // Join conversation room
+    // Join conversation room (for viewing a specific chat)
     socket.on('join-conversation', (phone) => {
+        // Leave any previous conversation rooms first
+        const rooms = Array.from(socket.rooms);
+        rooms.forEach(room => {
+            if (room.startsWith('conversation:') && room !== `conversation:${phone}`) {
+                socket.leave(room);
+            }
+        });
+
         socket.join(`conversation:${phone}`);
-        console.log(`📱 Socket joined conversation: ${phone}`);
+        console.log(`📱 Socket ${socket.id} joined conversation: ${phone}`);
     });
 
     // Leave conversation room
     socket.on('leave-conversation', (phone) => {
         socket.leave(`conversation:${phone}`);
+        console.log(`📱 Socket ${socket.id} left conversation: ${phone}`);
+    });
+
+    // Join conversations list room (for receiving list updates)
+    socket.on('join-conversations-list', () => {
+        socket.join('conversations:list');
+        console.log(`📋 Socket ${socket.id} joined conversations list`);
+    });
+
+    // Leave conversations list room
+    socket.on('leave-conversations-list', () => {
+        socket.leave('conversations:list');
+    });
+
+    // Get current room info (for debugging)
+    socket.on('get-rooms', (callback) => {
+        if (typeof callback === 'function') {
+            callback(Array.from(socket.rooms));
+        }
     });
 });
 

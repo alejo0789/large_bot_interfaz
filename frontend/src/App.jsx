@@ -1,6 +1,10 @@
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { io } from 'socket.io-client';
-import { Users, Tag, MessageSquare } from 'lucide-react';
+import { Tag, MessageSquare, Send, Bot } from 'lucide-react';
+
+// Auth
+import { AuthProvider, useAuth } from './hooks/useAuth';
+import LoginPage from './components/Auth/LoginPage';
 
 // Components
 import SearchBar from './components/Sidebar/SearchBar';
@@ -11,6 +15,7 @@ import MessageList from './components/Chat/MessageList';
 import MessageInput from './components/Chat/MessageInput';
 import TagManager from './components/Tags/TagManager';
 import BulkMessageModal from './components/BulkMessaging/BulkMessageModal';
+import N8NTestChat from './components/Testing/N8NTestChat';
 
 // Hooks
 import { useConversations } from './hooks/useConversations';
@@ -23,7 +28,9 @@ import './styles/index.css';
 const SOCKET_URL = process.env.REACT_APP_SOCKET_URL || 'http://localhost:4000';
 const API_URL = process.env.REACT_APP_API_URL || 'http://localhost:4000';
 
-const App = () => {
+const AuthenticatedApp = () => {
+    const { user, logout } = useAuth();
+
     // Socket connection
     const [socket, setSocket] = useState(null);
     const [isConnected, setIsConnected] = useState(false);
@@ -38,10 +45,12 @@ const App = () => {
     // Filters
     const [selectedTagIds, setSelectedTagIds] = useState([]);
     const [showUnreadOnly, setShowUnreadOnly] = useState(false);
+    const [dateFilter, setDateFilter] = useState(null);
 
     // Modals
     const [showTagManager, setShowTagManager] = useState(false);
     const [showBulkMessage, setShowBulkMessage] = useState(false);
+    const [showN8NTest, setShowN8NTest] = useState(false);
 
     // Tags by conversation
     const [tagsByPhone, setTagsByPhone] = useState({});
@@ -154,8 +163,43 @@ const App = () => {
             });
         }
 
+        // Filter by date
+        if (dateFilter) {
+            let cutoffDate = new Date();
+
+            switch (dateFilter) {
+                case 'today':
+                    cutoffDate.setHours(0, 0, 0, 0);
+                    break;
+                case 'yesterday':
+                    cutoffDate.setDate(cutoffDate.getDate() - 1);
+                    cutoffDate.setHours(0, 0, 0, 0);
+                    break;
+                case 'last7':
+                    cutoffDate.setDate(cutoffDate.getDate() - 7);
+                    break;
+                case 'last30':
+                    cutoffDate.setDate(cutoffDate.getDate() - 30);
+                    break;
+                case 'last90':
+                    cutoffDate.setDate(cutoffDate.getDate() - 90);
+                    break;
+                default:
+                    cutoffDate = null;
+            }
+
+            if (cutoffDate) {
+                result = result.filter(conv => {
+                    // Use rawTimestamp which contains last_message_timestamp from backend
+                    const convDate = conv.rawTimestamp ? new Date(conv.rawTimestamp) : null;
+                    if (!convDate || isNaN(convDate.getTime())) return false;
+                    return convDate >= cutoffDate;
+                });
+            }
+        }
+
         return result;
-    }, [conversations, showUnreadOnly, selectedTagIds, tagsByPhone]);
+    }, [conversations, showUnreadOnly, selectedTagIds, tagsByPhone, dateFilter]);
 
     // Count unread conversations
     const unreadCount = useMemo(() => {
@@ -174,6 +218,7 @@ const App = () => {
     const handleClearFilters = useCallback(() => {
         setSelectedTagIds([]);
         setShowUnreadOnly(false);
+        setDateFilter(null);
     }, []);
 
     // Handle conversation selection
@@ -186,14 +231,19 @@ const App = () => {
 
     // Handle send message
     const handleSendMessage = useCallback((message) => {
+        console.log('👤 Sending message as user:', user);
         if (selectedConversation) {
             sendMessage(
                 selectedConversation.contact.phone,
                 message,
-                selectedConversation.contact.name
+                selectedConversation.contact.name,
+                {
+                    agentId: user?.id,
+                    agentName: user?.name
+                }
             );
         }
-    }, [selectedConversation, sendMessage]);
+    }, [selectedConversation, sendMessage, user]);
 
     // Handle send file
     const handleSendFile = useCallback(async (file, caption) => {
@@ -204,6 +254,12 @@ const App = () => {
         formData.append('phone', selectedConversation.contact.phone);
         formData.append('name', selectedConversation.contact.name);
         if (caption) formData.append('caption', caption);
+
+        // Add agent info
+        if (user) {
+            formData.append('agent_id', user.id);
+            formData.append('agent_name', user.name);
+        }
 
         try {
             const response = await fetch(`${API_URL}/api/send-file`, {
@@ -220,21 +276,82 @@ const App = () => {
             console.error('Error sending file:', error);
             throw error;
         }
-    }, [selectedConversation]);
+    }, [selectedConversation, user]);
 
-    // Handle bulk message
-    const handleBulkSend = useCallback(async (phones, message) => {
-        // Send to each phone (with rate limiting)
-        for (const phone of phones) {
+    // Handle bulk message - SCALABLE VERSION
+    // Uses backend processing with progress tracking via Socket.IO
+    const handleBulkSend = useCallback(async (phones, message, mediaFile = null) => {
+        // Build recipients array with phone and name
+        const recipients = phones.map(phone => {
             const conv = conversations.find(c => c.contact.phone === phone);
-            if (conv) {
-                await sendMessage(phone, message, conv.contact.name);
-                // Small delay to avoid rate limiting
-                await new Promise(resolve => setTimeout(resolve, 100));
+            return {
+                phone,
+                name: conv?.contact.name || 'Unknown'
+            };
+        });
+
+        // If there's a media file, we need to upload it first
+        let mediaUrl = null;
+        let mediaType = null;
+
+        if (mediaFile) {
+            // TODO: For media files, we'd need to upload first and get URL
+            // For now, media bulk send will use the old method
+            console.warn('⚠️ Bulk send with media uses sequential sending');
+
+            for (const { phone, name } of recipients) {
+                const formData = new FormData();
+                formData.append('file', mediaFile);
+                formData.append('phone', phone);
+                formData.append('name', name);
+                if (message) formData.append('caption', message);
+                // Add agent info
+                if (user) {
+                    formData.append('agent_id', user.id);
+                    formData.append('agent_name', user.name);
+                }
+
+                try {
+                    await fetch(`${API_URL}/api/send-file`, {
+                        method: 'POST',
+                        body: formData
+                    });
+                } catch (error) {
+                    console.error(`Error sending file to ${phone}:`, error);
+                }
+                // Delay between sends
+                await new Promise(resolve => setTimeout(resolve, 150));
             }
+            return { success: true, method: 'sequential' };
         }
-        return { success: true };
-    }, [conversations, sendMessage]);
+
+        // Use new bulk endpoint for text-only messages
+        console.log(`📤 Sending bulk message to ${recipients.length} recipients via /api/bulk-send`);
+
+        const response = await fetch(`${API_URL}/api/bulk-send`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                recipients,
+                message,
+                mediaUrl,
+                mediaType,
+                agentId: user?.id,
+                agentName: user?.name,
+                agent_id: user?.id,
+                agent_name: user?.name
+            })
+        });
+
+        if (!response.ok) {
+            throw new Error('Error al iniciar envío masivo');
+        }
+
+        const result = await response.json();
+        console.log('✅ Bulk send initiated:', result);
+
+        return result;
+    }, [conversations, user]);
 
     // Handle tag operations
     const handleCreateTag = useCallback(async (name, color) => {
@@ -334,13 +451,56 @@ const App = () => {
                             </span>
                         </div>
 
-                        {/* Bulk message button */}
+                        {/* Bulk message button - more prominent */}
                         <button
-                            className="btn btn-icon"
+                            className="btn"
                             onClick={() => setShowBulkMessage(true)}
                             title="Envío masivo"
+                            style={{
+                                display: 'flex',
+                                alignItems: 'center',
+                                gap: 'var(--space-1)',
+                                backgroundColor: 'var(--color-primary)',
+                                color: 'white',
+                                padding: '6px 12px',
+                                fontSize: 'var(--font-size-xs)',
+                                fontWeight: 500
+                            }}
                         >
-                            <Users className="w-5 h-5" />
+                            <Send className="w-4 h-4" />
+                            Masivo
+                        </button>
+
+                        {/* N8N Test button */}
+                        <button
+                            className="btn btn-icon"
+                            onClick={() => setShowN8NTest(true)}
+                            title="Probar n8n"
+                            style={{
+                                backgroundColor: '#6366f1',
+                                color: 'white',
+                                padding: '6px'
+                            }}
+                        >
+                            <Bot className="w-4 h-4" />
+                        </button>
+
+                        {/* Logout button */}
+                        <button
+                            className="btn btn-icon"
+                            onClick={logout}
+                            title="Cerrar sesión"
+                            style={{
+                                backgroundColor: '#ef4444',
+                                color: 'white',
+                                padding: '6px'
+                            }}
+                        >
+                            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                                <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"></path>
+                                <polyline points="16 17 21 12 16 7"></polyline>
+                                <line x1="21" y1="12" x2="9" y2="12"></line>
+                            </svg>
                         </button>
                     </div>
                 </div>
@@ -359,6 +519,8 @@ const App = () => {
                     onClearFilter={handleClearFilters}
                     showUnreadOnly={showUnreadOnly}
                     onToggleUnreadOnly={() => setShowUnreadOnly(!showUnreadOnly)}
+                    dateFilter={dateFilter}
+                    onDateFilterChange={setDateFilter}
                 />
 
                 {/* Conversation List */}
@@ -492,10 +654,49 @@ const App = () => {
                 onClose={() => setShowBulkMessage(false)}
                 conversations={conversations}
                 tags={tags}
+                tagsByPhone={tagsByPhone}
                 onSend={handleBulkSend}
+                socket={socket}
+            />
+
+            <N8NTestChat
+                isOpen={showN8NTest}
+                onClose={() => setShowN8NTest(false)}
             />
         </div>
     );
+};
+
+// Root Component with Auth Provider
+const App = () => {
+    return (
+        <AuthProvider>
+            <AppContent />
+        </AuthProvider>
+    );
+};
+
+// Auth Guard Content
+const AppContent = () => {
+    const { isAuthenticated, loading } = useAuth();
+
+    if (loading) {
+        return (
+            <div style={{
+                height: '100vh',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                background: '#f3f4f6',
+                color: '#4b5563',
+                fontSize: '1.25rem'
+            }}>
+                Cargando...
+            </div>
+        );
+    }
+
+    return isAuthenticated ? <AuthenticatedApp /> : <LoginPage />;
 };
 
 export default App;

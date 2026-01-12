@@ -1,6 +1,7 @@
 /**
  * Webhook Routes
  * Handles incoming messages from N8N/WhatsApp
+ * OPTIMIZED: Uses Socket.IO rooms for targeted message delivery
  */
 const express = require('express');
 const router = express.Router();
@@ -11,6 +12,28 @@ const conversationService = require('../services/conversationService');
 // Socket.IO instance
 let io = null;
 const setSocketIO = (socketIO) => { io = socketIO; };
+
+/**
+ * Emit message to specific conversation room only
+ * This reduces network traffic significantly for 2000+ conversations
+ */
+const emitToConversation = (phone, event, data) => {
+    if (!io) return;
+
+    // Emit to specific conversation room (clients viewing this chat)
+    io.to(`conversation:${phone}`).emit(event, data);
+
+    // Emit to global conversations room (for updating conversation list)
+    io.to('conversations:list').emit('conversation-updated', {
+        phone,
+        lastMessage: data.message,
+        timestamp: data.timestamp,
+        unread: 1
+    });
+
+    // Also emit globally for backward compatibility (will be deprecated)
+    io.emit('new-message', data);
+};
 
 // Receive message from N8N (WhatsApp incoming)
 router.post('/receive-message', asyncHandler(async (req, res) => {
@@ -67,21 +90,19 @@ router.post('/receive-message', asyncHandler(async (req, res) => {
     await conversationService.updateLastMessage(cleanPhone, message);
     await conversationService.incrementUnread(cleanPhone);
 
-    // Emit to frontend
-    if (io) {
-        io.emit('new-message', {
-            phone: cleanPhone,
-            contact_name: contact_name || `Usuario ${cleanPhone.slice(-4)}`,
-            message,
-            whatsapp_id,
-            sender_type,
-            media_type,
-            media_url,
-            timestamp: timestamp || new Date().toISOString(),
-            conversation_state: currentState,
-            ai_enabled: shouldActivateAI
-        });
-    }
+    // Emit to frontend (OPTIMIZED: uses rooms)
+    emitToConversation(cleanPhone, 'new-message', {
+        phone: cleanPhone,
+        contact_name: contact_name || `Usuario ${cleanPhone.slice(-4)}`,
+        message,
+        whatsapp_id,
+        sender_type,
+        media_type,
+        media_url,
+        timestamp: timestamp || new Date().toISOString(),
+        conversation_state: currentState,
+        ai_enabled: shouldActivateAI
+    });
 
     res.json({
         success: true,
@@ -97,3 +118,4 @@ router.get('/health', (req, res) => {
 });
 
 module.exports = { router, setSocketIO };
+
