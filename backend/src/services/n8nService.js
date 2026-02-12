@@ -75,6 +75,58 @@ class N8NService {
             console.error('❌ Error notifying N8N:', error.message);
         }
     }
+
+    /**
+     * Trigger AI Processing in N8N
+     * Call this when a new user message arrives and AI is enabled
+     */
+    async triggerAIProcessing({ phone, text, contactName, mediaType, mediaUrl }) {
+        if (!config.n8nWebhookUrl) return null;
+
+        try {
+            const fetch = (await import('node-fetch')).default;
+
+            const payload = {
+                type: 'incoming_message',
+                phone,
+                name: contactName,
+                message: text,
+                timestamp: new Date().toISOString(),
+                // Add media fields if present
+                media_type: mediaType || null,
+                media_url: mediaUrl || null
+            };
+
+            const response = await fetch(config.n8nWebhookUrl, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(payload)
+            });
+
+            if (!response.ok) {
+                console.warn(`⚠️ N8N AI Trigger failed: ${response.status}`);
+                return null;
+            }
+
+            const data = await response.json();
+
+            // Expected format: [{ "output": "Respuesta..." }]
+            if (Array.isArray(data) && data.length > 0 && data[0].output) {
+                return data[0].output;
+            }
+
+            // Fallback for object format: { "output": "Respuesta..." }
+            if (data && data.output) {
+                return data.output;
+            }
+
+            return null;
+
+        } catch (error) {
+            console.error('❌ Error in triggerAIProcessing:', error.message);
+            return null;
+        }
+    }
 }
 
 module.exports = new N8NService();

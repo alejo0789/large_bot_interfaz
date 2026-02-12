@@ -8,7 +8,10 @@ const { asyncHandler, AppError } = require('../middleware/errorHandler');
 const { upload, getMediaType } = require('../middleware/upload');
 const messageService = require('../services/messageService');
 const conversationService = require('../services/conversationService');
+
 const n8nService = require('../services/n8nService');
+const evolutionService = require('../services/evolutionService');
+const { config } = require('../config/app');
 
 // Socket.IO instance (will be set from app.js)
 let io = null;
@@ -45,15 +48,17 @@ router.post('/send-message', asyncHandler(async (req, res) => {
 
     console.log('📥 RAW BODY received:', JSON.stringify(req.body, null, 2));
 
-    if (!phone || !message) {
-        throw new AppError('Faltan datos requeridos (phone, message)', 400);
-    }
+    // Normalize phone: 
+    // If it has a domain (@), it's a JID or a special ID, KEEP IT AS IS.
+    // Otherwise, clean it as a standard number.
+    const isSpecialId = String(phone).includes('@') || String(phone).includes('-');
+    const normalizedPhone = isSpecialId ? String(phone) : String(phone).replace(/\D/g, '');
 
-    console.log(`📤 Sending message to ${phone} by ${finalAgentName || 'unknown'}: ${message.substring(0, 50)}...`);
+    console.log(`📤 Processed phone for sending: ${normalizedPhone} (was: ${phone})`);
 
-    // Save message to database
+    // Save message to database using normalized phone
     await messageService.create({
-        phone,
+        phone: normalizedPhone,
         sender: 'agent',
         text: message,
         status: 'sending',
@@ -62,21 +67,28 @@ router.post('/send-message', asyncHandler(async (req, res) => {
     });
 
     // Update conversation
-    await conversationService.updateLastMessage(phone, message);
+    await conversationService.updateLastMessage(normalizedPhone, message);
 
-    // Send to N8N
-    const n8nResult = await n8nService.sendMessage({
-        phone,
-        name,
-        message,
-        tempId: temp_id,
-        agentId: finalAgentId,
-        agentName: finalAgentName
-    });
+    // Send Message Logic (Evolution > N8N)
+    let sendResult;
+    if (config.evolutionApiUrl) {
+        const result = await evolutionService.sendText(normalizedPhone, message);
+        sendResult = { sent: result.success, platform: 'evolution', ...result };
+    } else {
+        const result = await n8nService.sendMessage({
+            phone: normalizedPhone,
+            name,
+            message,
+            tempId: temp_id,
+            agentId: finalAgentId,
+            agentName: finalAgentName
+        });
+        sendResult = { sent: result.sent, platform: 'n8n', ...result };
+    }
 
-    // Emit to frontend (OPTIMIZED: uses rooms)
-    emitToConversation(phone, 'agent-message', {
-        phone,
+    // Emit to frontend
+    emitToConversation(normalizedPhone, 'agent-message', {
+        phone: normalizedPhone,
         message,
         sender_type: 'agent',
         timestamp: new Date().toISOString(),
@@ -87,7 +99,8 @@ router.post('/send-message', asyncHandler(async (req, res) => {
     res.json({
         success: true,
         message: 'Mensaje enviado',
-        n8n: n8nResult
+        message: 'Mensaje enviado',
+        result: sendResult
     });
 }));
 
@@ -126,15 +139,19 @@ router.post('/send-file', upload.single('file'), asyncHandler(async (req, res) =
     // Update conversation
     await conversationService.updateLastMessage(phone, caption || `📎 ${file.originalname}`);
 
-    // Send to N8N
-    await n8nService.sendMessage({
-        phone,
-        name,
-        message: caption || '',
-        mediaType,
-        mediaUrl: fileUrl,
-        fileName: file.originalname
-    });
+    // Send Media Logic
+    if (config.evolutionApiUrl) {
+        await evolutionService.sendMedia(phone, fileUrl, mediaType, caption || '', file.originalname);
+    } else {
+        await n8nService.sendMessage({
+            phone,
+            name,
+            message: caption || '',
+            mediaType,
+            mediaUrl: fileUrl,
+            fileName: file.originalname
+        });
+    }
 
     // Emit to frontend (OPTIMIZED: uses rooms)
     emitToConversation(phone, 'agent-message', {

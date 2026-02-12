@@ -31,6 +31,8 @@ const tagRoutes = require('./src/routes/tags');
 const authRoutes = require('./src/routes/auth');
 const { router: messageRoutes, setSocketIO: setMessageSocketIO } = require('./src/routes/messages');
 const { router: webhookRoutes, setSocketIO: setWebhookSocketIO } = require('./src/routes/webhooks');
+const { router: evolutionRoutes, setSocketIO: setEvolutionSocketIO } = require('./src/routes/evolution');
+const settingsRoutes = require('./src/routes/settings');
 
 // Initialize Express
 const app = express();
@@ -47,6 +49,7 @@ const io = new Server(server, {
 // Pass Socket.IO to routes that need it
 setMessageSocketIO(io);
 setWebhookSocketIO(io);
+setEvolutionSocketIO(io);
 
 // =============================================
 // MIDDLEWARE
@@ -81,6 +84,8 @@ app.use('/api/conversations', conversationRoutes);
 app.use('/api/tags', tagRoutes);
 app.use('/api', messageRoutes);
 app.use('/webhook', webhookRoutes);
+app.use('/evolution', evolutionRoutes);
+app.use('/api/settings', settingsRoutes);
 
 // Health check
 app.get('/health', (req, res) => {

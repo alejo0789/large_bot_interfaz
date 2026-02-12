@@ -9,8 +9,8 @@ const MessageBubble = ({ message }) => {
     const [imageError, setImageError] = useState(false);
     const [showFullImage, setShowFullImage] = useState(false);
 
-    const isOutgoing = sender === 'agent' || sender === 'bot' || sender === 'me';
-    const isBot = sender === 'bot';
+    const isOutgoing = sender === 'agent' || sender === 'bot' || sender === 'me' || sender === 'ai';
+    const isBot = sender === 'bot' || sender === 'ai';
     const isAgent = sender === 'agent' || sender === 'me';
 
     const getMessageClass = () => {

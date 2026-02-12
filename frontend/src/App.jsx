@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { io } from 'socket.io-client';
-import { Tag, MessageSquare, Send, Bot } from 'lucide-react';
+import { Tag, MessageSquare, Send, Bot, Settings } from 'lucide-react';
 
 // Auth
 import { AuthProvider, useAuth } from './hooks/useAuth';
@@ -16,6 +16,7 @@ import MessageInput from './components/Chat/MessageInput';
 import TagManager from './components/Tags/TagManager';
 import BulkMessageModal from './components/BulkMessaging/BulkMessageModal';
 import N8NTestChat from './components/Testing/N8NTestChat';
+import SettingsModal from './components/Settings/SettingsModal';
 
 // Hooks
 import { useConversations } from './hooks/useConversations';
@@ -51,6 +52,7 @@ const AuthenticatedApp = () => {
     const [showTagManager, setShowTagManager] = useState(false);
     const [showBulkMessage, setShowBulkMessage] = useState(false);
     const [showN8NTest, setShowN8NTest] = useState(false);
+    const [showSettings, setShowSettings] = useState(false);
 
     // Tags by conversation
     const [tagsByPhone, setTagsByPhone] = useState({});
@@ -65,6 +67,8 @@ const AuthenticatedApp = () => {
         socketInstance.on('connect', () => {
             console.log('🟢 Connected to Socket.IO');
             setIsConnected(true);
+            // Join global conversations list room
+            socketInstance.emit('join-conversations-list');
         });
 
         socketInstance.on('disconnect', () => {
@@ -428,21 +432,10 @@ const AuthenticatedApp = () => {
                     <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-2)' }}>
                         <MessageSquare className="w-6 h-6" style={{ color: 'var(--color-primary)' }} />
                         <span style={{ fontWeight: 600, fontSize: 'var(--font-size-lg)' }}>Chat</span>
-                        {unreadCount > 0 && (
-                            <span style={{
-                                backgroundColor: 'var(--color-primary-light)',
-                                color: '#fff',
-                                padding: '2px 8px',
-                                borderRadius: 'var(--radius-full)',
-                                fontSize: 'var(--font-size-xs)',
-                                fontWeight: 600
-                            }}>
-                                {unreadCount} no leídos
-                            </span>
-                        )}
+
                     </div>
 
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-2)' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-2)', flexShrink: 0 }}>
                         {/* Connection status */}
                         <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-1)' }}>
                             <span className={`connection-dot ${isConnected ? 'connected' : 'disconnected'}`} />
@@ -471,18 +464,20 @@ const AuthenticatedApp = () => {
                             Masivo
                         </button>
 
-                        {/* N8N Test button */}
+
+
+                        {/* Settings button */}
                         <button
                             className="btn btn-icon"
-                            onClick={() => setShowN8NTest(true)}
-                            title="Probar n8n"
+                            onClick={() => setShowSettings(true)}
+                            title="Configuración"
                             style={{
-                                backgroundColor: '#6366f1',
+                                backgroundColor: 'var(--color-gray-600)',
                                 color: 'white',
                                 padding: '6px'
                             }}
                         >
-                            <Bot className="w-4 h-4" />
+                            <Settings className="w-4 h-4" />
                         </button>
 
                         {/* Logout button */}
@@ -521,6 +516,7 @@ const AuthenticatedApp = () => {
                     onToggleUnreadOnly={() => setShowUnreadOnly(!showUnreadOnly)}
                     dateFilter={dateFilter}
                     onDateFilterChange={setDateFilter}
+                    unreadCount={unreadCount}
                 />
 
                 {/* Conversation List */}
@@ -663,7 +659,12 @@ const AuthenticatedApp = () => {
                 isOpen={showN8NTest}
                 onClose={() => setShowN8NTest(false)}
             />
-        </div>
+
+            <SettingsModal
+                isOpen={showSettings}
+                onClose={() => setShowSettings(false)}
+            />
+        </div >
     );
 };
 

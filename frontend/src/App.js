@@ -80,6 +80,12 @@ const App = () => {
     const handleConnect = () => {
       console.log('🟢 Conectado a Socket.IO');
       setIsConnected(true);
+      // ✅ Unirse a la lista global para recibir actualizaciones de sidebar
+      socket.emit('join-conversations-list');
+      // Si hay una conversación seleccionada, volver a unirse a su sala
+      if (selectedConversation) {
+        socket.emit('join-conversation', selectedConversation.contact.phone);
+      }
     };
 
     const handleDisconnect = () => {
@@ -99,29 +105,56 @@ const App = () => {
       };
 
       // Actualizar mensajes
-      setMessagesByConversation(prev => ({
-        ...prev,
-        [messageData.phone]: [...(prev[messageData.phone] || []), formattedMessage]
-      }));
+      setMessagesByConversation(prev => {
+        const currentMessages = prev[messageData.phone] || [];
+        // Evitar duplicados (por whatsapp_id)
+        if (currentMessages.some(m => m.id === formattedMessage.id)) return prev;
+
+        return {
+          ...prev,
+          [messageData.phone]: [...currentMessages, formattedMessage]
+        };
+      });
 
       // Actualizar conversaciones con el nuevo mensaje
-      setConversations(prev => prev.map(conv =>
-        conv.contact.phone === messageData.phone
-          ? {
-            ...conv,
+      setConversations(prev => {
+        const currentConversations = Array.isArray(prev) ? prev : (prev.data || []);
+        const exists = currentConversations.some(conv => conv.contact.phone === messageData.phone);
+
+        if (!exists) {
+          // Si es una nueva conversación, añadirla manualmente
+          const newConv = {
+            id: messageData.phone,
+            contact: {
+              name: messageData.contact_name || `Usuario ${messageData.phone.slice(-4)}`,
+              phone: messageData.phone
+            },
             lastMessage: formattedMessage.text,
             timestamp: formattedMessage.timestamp,
-            unread: conv.contact.phone === selectedConversation?.contact.phone ? 0 : (conv.unread || 0) + 1
-          }
-          : conv
-      ));
+            unread: 1,
+            status: 'active'
+          };
+          return [newConv, ...currentConversations];
+        }
+
+        return currentConversations.map(conv =>
+          conv.contact.phone === messageData.phone
+            ? {
+              ...conv,
+              lastMessage: formattedMessage.text,
+              timestamp: formattedMessage.timestamp,
+              unread: conv.contact.phone === selectedConversation?.contact.phone ? 0 : (conv.unread || 0) + 1
+            }
+            : conv
+        );
+      });
     };
 
     const handleConversationStateChanged = (data) => {
       console.log('🔄 Estado de conversación cambiado:', data);
       setAiStatesByPhone(prev => ({
         ...prev,
-        [data.phone]: Boolean(data.state === 'ai_active') // Forzar boolean aquí también
+        [data.phone]: Boolean(data.state === 'ai_active')
       }));
     };
 
@@ -155,18 +188,17 @@ const App = () => {
       console.log('🔄 Cargando conversaciones...');
 
       const response = await fetch(`${API_URL}/api/conversations`);
-      if (!response.ok) throw new Error('Error al cargar conversaciones');
-
       const data = await response.json();
 
-      // ✅ Usar la estructura exacta que devuelve el backend
-      setConversations(data);
+      // ✅ Manejar estructura paginada o array plano
+      const conversationsData = Array.isArray(data) ? data : (data.data || []);
+      setConversations(conversationsData);
 
-      console.log(`✅ Conversaciones cargadas: ${data.length}`);
+      console.log(`✅ Conversaciones cargadas: ${conversationsData.length}`);
 
       // En móvil, no seleccionar automáticamente una conversación
-      if (data.length > 0 && !isMobile) {
-        await selectConversation(data[0]);
+      if (conversationsData.length > 0 && !isMobile) {
+        await selectConversation(conversationsData[0]);
       }
     } catch (error) {
       console.error("❌ Error al cargar conversaciones:", error);
@@ -204,6 +236,9 @@ const App = () => {
     console.log('🎯 Seleccionando conversación:', conversation.contact.phone);
 
     setSelectedConversation(conversation);
+
+    // ✅ Unirse al room de la conversación para updates específicos
+    socket.emit('join-conversation', conversation.contact.phone);
 
     // En móvil, ocultar la barra lateral cuando se selecciona una conversación
     if (isMobile) {

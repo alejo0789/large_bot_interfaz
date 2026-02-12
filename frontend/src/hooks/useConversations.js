@@ -28,6 +28,14 @@ export const useConversations = (socket) => {
             // Handle both paginated and legacy response formats
             const conversations = Array.isArray(data) ? data : (data.data || []);
             setConversations(conversations);
+
+            // Initialize AI states from loaded conversations
+            const initialAiStates = {};
+            conversations.forEach(conv => {
+                initialAiStates[conv.contact.phone] = conv.aiEnabled;
+            });
+            setAiStatesByPhone(initialAiStates);
+
             console.log(`✅ Loaded ${conversations.length} conversations`);
 
             return data;
@@ -75,15 +83,28 @@ export const useConversations = (socket) => {
 
     // Select a conversation
     const selectConversation = useCallback(async (conversation) => {
-        console.log('🎯 Selecting conversation:', conversation.contact.phone);
-        setSelectedConversation(conversation);
+        const phone = conversation.contact.phone;
+        console.log('🎯 Selecting conversation:', phone);
 
-        if (conversation.unread > 0) {
-            await markConversationAsRead(conversation.contact.phone);
+        // Leave previous room if any
+        if (selectedConversation && socket) {
+            socket.emit('leave-conversation', selectedConversation.contact.phone);
         }
 
-        await fetchMessages(conversation.contact.phone);
-    }, [fetchMessages]);
+        setSelectedConversation(conversation);
+
+        // Join new room for real-time updates
+        if (socket) {
+            console.log('📱 Joining socket room for:', phone);
+            socket.emit('join-conversation', phone);
+        }
+
+        if (conversation.unread > 0) {
+            await markConversationAsRead(phone);
+        }
+
+        await fetchMessages(phone);
+    }, [fetchMessages, selectedConversation, socket]);
 
     // Mark conversation as read
     const markConversationAsRead = useCallback(async (phone) => {
@@ -135,11 +156,12 @@ export const useConversations = (socket) => {
         ));
 
         try {
+            console.log(`📤 Sending message to ${phone}: ${message}`);
             const response = await fetch(`${API_URL}/api/send-message`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
-                    phone,
+                    phone: String(phone), // Ensure it's a string
                     message,
                     name,
                     temp_id: tempId,

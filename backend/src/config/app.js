@@ -30,6 +30,11 @@ const config = {
     n8nWebhookUrl: process.env.N8N_SEND_WEBHOOK_URL || null,
     n8nReceiveUrl: process.env.N8N_RECEIVE_WEBHOOK_URL || null,
 
+    // Evolution API Integration
+    evolutionApiUrl: process.env.EVOLUTION_API_URL || 'http://localhost:8080',
+    evolutionApiKey: process.env.EVOLUTION_API_KEY || '12345',
+    evolutionInstance: process.env.EVOLUTION_INSTANCE || 'chatbot',
+
     // Logging
     logLevel: process.env.LOG_LEVEL || 'info'
 };

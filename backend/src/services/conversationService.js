@@ -4,6 +4,7 @@
  * OPTIMIZED FOR 2000+ CONVERSATIONS with pagination
  */
 const { pool } = require('../config/database');
+const settingsService = require('./settingsService');
 
 // Default pagination settings
 const DEFAULT_PAGE_SIZE = 50;
@@ -136,16 +137,35 @@ class ConversationService {
     /**
      * Create or update conversation
      */
-    async upsert(phone, contactName, aiEnabled = true) {
-        const { rows } = await pool.query(`
-            INSERT INTO conversations (phone, contact_name, ai_enabled, created_at, updated_at)
-            VALUES ($1, $2, $3, NOW(), NOW())
-            ON CONFLICT (phone) DO UPDATE SET
-                contact_name = COALESCE(EXCLUDED.contact_name, conversations.contact_name),
-                updated_at = NOW()
-            RETURNING *
-        `, [phone, contactName, aiEnabled]);
-        return rows[0];
+    async upsert(phone, contactName) {
+        // Fetch default AI setting
+        const defaultAiEnabledStr = await settingsService.get('default_ai_enabled', 'true');
+        const defaultAiEnabled = String(defaultAiEnabledStr) === 'true';
+
+        // Check if exists to preserve existing setting if it does
+        const existing = await this.getByPhone(phone);
+
+        if (existing) {
+            // Only update contact name
+            const { rows } = await pool.query(`
+                UPDATE conversations 
+                SET 
+                    contact_name = COALESCE($1, contact_name),
+                    updated_at = NOW()
+                WHERE phone = $2
+                RETURNING *
+            `, [contactName, phone]);
+            return rows[0];
+        } else {
+            // Insert new with default setting
+            const { rows } = await pool.query(`
+                INSERT INTO conversations (phone, contact_name, ai_enabled, conversation_state, created_at, updated_at)
+                VALUES ($1, $2, $3, $4, NOW(), NOW())
+                ON CONFLICT (phone) DO UPDATE SET updated_at = NOW()
+                RETURNING *
+            `, [phone, contactName, defaultAiEnabled, defaultAiEnabled ? 'ai_active' : 'agent_active']);
+            return rows[0];
+        }
     }
 
     /**
@@ -198,6 +218,20 @@ class ConversationService {
             WHERE phone = $3
         `, [enabled, state, phone]);
         return { aiEnabled: enabled, state };
+    }
+
+    /**
+     * Set AI status for ALL conversations
+     */
+    async setAllAI(enabled) {
+        const state = enabled ? 'ai_active' : 'agent_active';
+        await pool.query(`
+            UPDATE conversations 
+            SET 
+                ai_enabled = $1,
+                conversation_state = $2,
+                updated_at = NOW()
+        `, [enabled, state]);
     }
 
     /**

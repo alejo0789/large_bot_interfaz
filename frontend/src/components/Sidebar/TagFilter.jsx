@@ -12,7 +12,8 @@ const TagFilter = ({
     showUnreadOnly,
     onToggleUnreadOnly,
     dateFilter,
-    onDateFilterChange
+    onDateFilterChange,
+    unreadCount = 0
 }) => {
     const [showTagDropdown, setShowTagDropdown] = useState(false);
     const [showDateDropdown, setShowDateDropdown] = useState(false);
@@ -103,34 +104,53 @@ const TagFilter = ({
                 {/* Unread filter */}
                 <button
                     onClick={onToggleUnreadOnly}
+                    title={showUnreadOnly ? "Mostrar todos" : "Mostrar solo no leídos"}
                     style={{
                         display: 'flex',
                         alignItems: 'center',
+                        justifyContent: 'center',
                         gap: '4px',
-                        padding: '5px 10px',
+                        padding: '5px 8px', // Compact padding
                         fontSize: '11px',
-                        fontWeight: 500,
+                        fontWeight: 600,
                         borderRadius: 'var(--radius-md)',
                         border: showUnreadOnly
                             ? '1px solid var(--color-primary)'
                             : '1px solid var(--color-gray-300)',
                         backgroundColor: showUnreadOnly
-                            ? 'rgba(18, 140, 126, 0.1)'
+                            ? 'var(--color-primary)' // Solid primary when active
                             : 'var(--color-white)',
                         color: showUnreadOnly
-                            ? 'var(--color-primary)'
+                            ? 'white'
                             : 'var(--color-gray-600)',
                         cursor: 'pointer',
                         transition: 'all var(--transition-fast)'
                     }}
                 >
-                    <span style={{
-                        width: '6px',
-                        height: '6px',
-                        borderRadius: '50%',
-                        backgroundColor: showUnreadOnly ? 'var(--color-primary)' : 'var(--color-gray-400)'
-                    }} />
-                    No leídos
+                    {/* Unread Indicator/Count */}
+                    {unreadCount > 0 ? (
+                        <span style={{
+                            backgroundColor: showUnreadOnly ? 'white' : 'var(--color-error)',
+                            color: showUnreadOnly ? 'var(--color-primary)' : 'white',
+                            borderRadius: '10px',
+                            padding: '1px 5px',
+                            fontSize: '9px',
+                            minWidth: '16px',
+                            textAlign: 'center',
+                            fontWeight: 700
+                        }}>
+                            {unreadCount}
+                        </span>
+                    ) : (
+                        <span style={{
+                            width: '8px',
+                            height: '8px',
+                            borderRadius: '50%',
+                            backgroundColor: showUnreadOnly ? 'white' : 'var(--color-gray-400)'
+                        }} />
+                    )}
+
+                    <span>No leídos</span>
                 </button>
 
                 {/* Tags dropdown */}
