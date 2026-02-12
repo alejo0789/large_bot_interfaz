@@ -73,7 +73,7 @@ async function setWebhook() {
             },
             body: JSON.stringify({
                 webhook: {
-                    url: 'http://host.docker.internal:4000/evolution',
+                    url: process.env.WEBHOOK_URL || 'http://host.docker.internal:4000/evolution',
                     enabled: true,
                     events: ['MESSAGES_UPSERT'],
                     groups: true
