@@ -1,7 +1,7 @@
 import React, { useState, useMemo, useRef, useEffect } from 'react';
 import {
     X, Send, Users, Tag, CheckCircle, AlertCircle,
-    Image, Video, Mic, Trash2, Loader
+    Image, Video, Mic, Trash2, Loader, Search
 } from 'lucide-react';
 
 /**
@@ -27,6 +27,7 @@ const BulkMessageModal = ({
     const [selectedPhones, setSelectedPhones] = useState([]);
     const [isSending, setIsSending] = useState(false);
     const [sendResult, setSendResult] = useState(null);
+    const [manualSearch, setManualSearch] = useState('');
 
     // Progress tracking
     const [progress, setProgress] = useState(null);
@@ -539,70 +540,106 @@ const BulkMessageModal = ({
                             </div>
 
                             <div style={{
+                                position: 'relative',
+                                marginBottom: 'var(--space-2)'
+                            }}>
+                                <Search className="w-4 h-4" style={{
+                                    position: 'absolute',
+                                    left: '12px',
+                                    top: '50%',
+                                    transform: 'translateY(-50%)',
+                                    color: 'var(--color-gray-400)'
+                                }} />
+                                <input
+                                    type="text"
+                                    placeholder="Buscar por nombre o teléfono..."
+                                    value={manualSearch}
+                                    onChange={(e) => setManualSearch(e.target.value)}
+                                    style={{
+                                        width: '100%',
+                                        padding: 'var(--space-2) var(--space-3) var(--space-2) 36px',
+                                        borderRadius: 'var(--radius-lg)',
+                                        border: '1px solid var(--color-gray-200)',
+                                        fontSize: 'var(--font-size-sm)',
+                                        outline: 'none focus:ring-2 focus:ring-primary'
+                                    }}
+                                />
+                            </div>
+
+                            <div style={{
                                 maxHeight: '180px',
                                 overflowY: 'auto',
                                 border: '1px solid var(--color-gray-200)',
                                 borderRadius: 'var(--radius-lg)',
                                 backgroundColor: 'white'
                             }}>
-                                {conversations.map(conv => {
-                                    const convTags = tagsByPhone[conv.contact.phone] || [];
-                                    return (
-                                        <label
-                                            key={conv.contact.phone}
-                                            style={{
-                                                display: 'flex',
-                                                alignItems: 'center',
-                                                gap: 'var(--space-2)',
-                                                padding: 'var(--space-2) var(--space-3)',
-                                                cursor: 'pointer',
-                                                borderBottom: '1px solid var(--color-gray-100)',
-                                                backgroundColor: selectedPhones.includes(conv.contact.phone)
-                                                    ? 'var(--color-primary-bg)'
-                                                    : 'transparent',
-                                                transition: 'background-color var(--transition-fast)'
-                                            }}
-                                        >
-                                            <input
-                                                type="checkbox"
-                                                checked={selectedPhones.includes(conv.contact.phone)}
-                                                onChange={() => togglePhone(conv.contact.phone)}
+                                {conversations
+                                    .filter(conv => {
+                                        if (!manualSearch) return true;
+                                        const query = manualSearch.toLowerCase();
+                                        return (
+                                            conv.contact.name?.toLowerCase().includes(query) ||
+                                            conv.contact.phone?.includes(query)
+                                        );
+                                    })
+                                    .map(conv => {
+                                        const convTags = tagsByPhone[conv.contact.phone] || [];
+                                        return (
+                                            <label
+                                                key={conv.contact.phone}
                                                 style={{
-                                                    accentColor: 'var(--color-primary)',
-                                                    width: '16px',
-                                                    height: '16px'
+                                                    display: 'flex',
+                                                    alignItems: 'center',
+                                                    gap: 'var(--space-2)',
+                                                    padding: 'var(--space-2) var(--space-3)',
+                                                    cursor: 'pointer',
+                                                    borderBottom: '1px solid var(--color-gray-100)',
+                                                    backgroundColor: selectedPhones.includes(conv.contact.phone)
+                                                        ? 'var(--color-primary-bg)'
+                                                        : 'transparent',
+                                                    transition: 'background-color var(--transition-fast)'
                                                 }}
-                                            />
-                                            <div style={{ flex: 1 }}>
-                                                <div style={{ fontSize: 'var(--font-size-sm)', fontWeight: 500 }}>
-                                                    {conv.contact.name}
+                                            >
+                                                <input
+                                                    type="checkbox"
+                                                    checked={selectedPhones.includes(conv.contact.phone)}
+                                                    onChange={() => togglePhone(conv.contact.phone)}
+                                                    style={{
+                                                        accentColor: 'var(--color-primary)',
+                                                        width: '16px',
+                                                        height: '16px'
+                                                    }}
+                                                />
+                                                <div style={{ flex: 1 }}>
+                                                    <div style={{ fontSize: 'var(--font-size-sm)', fontWeight: 500 }}>
+                                                        {conv.contact.name}
+                                                    </div>
+                                                    <div style={{ fontSize: 'var(--font-size-xs)', color: 'var(--color-gray-500)' }}>
+                                                        {conv.contact.phone}
+                                                    </div>
                                                 </div>
-                                                <div style={{ fontSize: 'var(--font-size-xs)', color: 'var(--color-gray-500)' }}>
-                                                    {conv.contact.phone}
-                                                </div>
-                                            </div>
-                                            {convTags.length > 0 && (
-                                                <div style={{ display: 'flex', gap: '4px' }}>
-                                                    {convTags.slice(0, 2).map(tag => (
-                                                        <span
-                                                            key={tag.id}
-                                                            style={{
-                                                                backgroundColor: tag.color,
-                                                                color: 'white',
-                                                                padding: '2px 6px',
-                                                                borderRadius: 'var(--radius-full)',
-                                                                fontSize: '10px',
-                                                                fontWeight: 500
-                                                            }}
-                                                        >
-                                                            {tag.name}
-                                                        </span>
-                                                    ))}
-                                                </div>
-                                            )}
-                                        </label>
-                                    );
-                                })}
+                                                {convTags.length > 0 && (
+                                                    <div style={{ display: 'flex', gap: '4px' }}>
+                                                        {convTags.slice(0, 2).map(tag => (
+                                                            <span
+                                                                key={tag.id}
+                                                                style={{
+                                                                    backgroundColor: tag.color,
+                                                                    color: 'white',
+                                                                    padding: '2px 6px',
+                                                                    borderRadius: 'var(--radius-full)',
+                                                                    fontSize: '10px',
+                                                                    fontWeight: 500
+                                                                }}
+                                                            >
+                                                                {tag.name}
+                                                            </span>
+                                                        ))}
+                                                    </div>
+                                                )}
+                                            </label>
+                                        );
+                                    })}
                             </div>
                         </div>
                     )}
