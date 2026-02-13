@@ -17,6 +17,7 @@ const cors = require('cors');
 const http = require('http');
 const { Server } = require('socket.io');
 const path = require('path');
+const fs = require('fs');
 
 // Config
 const { config, validateConfig } = require('./src/config/app');
@@ -176,6 +177,12 @@ app.use(errorHandler);
 const startServer = async () => {
     // Validate configuration
     validateConfig();
+
+    // Ensure upload directory exists
+    if (!fs.existsSync(config.uploadDir)) {
+        console.log(`📁 Creating upload directory: ${config.uploadDir}`);
+        fs.mkdirSync(config.uploadDir, { recursive: true });
+    }
 
     // Test database connection
     const dbConnected = await testConnection();

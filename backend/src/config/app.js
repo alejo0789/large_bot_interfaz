@@ -13,7 +13,7 @@ const config = {
     frontendUrl: process.env.FRONTEND_URL || 'http://localhost:3000',
 
     // File uploads
-    uploadDir: path.join(__dirname, '../../uploads'),
+    uploadDir: process.env.UPLOADS_PATH || path.join(__dirname, '../../uploads'),
     maxFileSize: 16 * 1024 * 1024, // 16MB
     allowedFileTypes: [
         'image/jpeg', 'image/png', 'image/gif', 'image/webp',
