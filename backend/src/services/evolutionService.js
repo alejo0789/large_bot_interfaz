@@ -242,30 +242,57 @@ class EvolutionService {
     }
 
     /**
-     * Fetch Base64 for a media message
-     * @param {Object} messageFull - The full message object from the webhook
+     * Mark a chat as read in WhatsApp
      */
-    async fetchBase64(messageFull) {
+    async markAsRead(phone) {
         try {
-            const url = `${this.baseUrl}/chat/getBase64FromMediaMessage/${this.instance}`;
+            const cleanNumber = phone.replace(/\D/g, '');
+            const isJID = phone.includes('-') || phone.includes('@');
+            const jid = isJID ? phone : `${cleanNumber}@c.us`;
 
+            const url = `${this.baseUrl}/chat/markMessageAsRead/${this.instance}`;
             const response = await fetch(url, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json', 'apikey': this.apiKey },
                 body: JSON.stringify({
-                    message: messageFull,
-                    convertToMp4: false
+                    number: jid,
+                    read: true
                 })
             });
 
-            const data = await response.json();
-            if (data && data.base64) {
-                return data.base64;
-            }
-            return null;
+            return await response.json();
         } catch (error) {
-            console.error('❌ Error fetching base64:', error.message);
-            return null;
+            console.error('❌ Error in markAsRead:', error.message);
+            return { error: error.message };
+        }
+    }
+
+    /**
+     * Mark a chat as unread in WhatsApp
+     */
+    async markAsUnread(phone) {
+        try {
+            const cleanNumber = phone.replace(/\D/g, '');
+            const isJID = phone.includes('-') || phone.includes('@');
+            const jid = isJID ? phone : `${cleanNumber}@c.us`;
+
+            // En Evolution API v2, marcar como NO leído suele ser el mismo endpoint con read: false
+            // o un endpoint específico dependiendo de la versión. 
+            // Intentaremos markMessageAsRead con read: false
+            const url = `${this.baseUrl}/chat/markMessageAsRead/${this.instance}`;
+            const response = await fetch(url, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json', 'apikey': this.apiKey },
+                body: JSON.stringify({
+                    number: jid,
+                    read: false
+                })
+            });
+
+            return await response.json();
+        } catch (error) {
+            console.error('❌ Error in markAsUnread:', error.message);
+            return { error: error.message };
         }
     }
 }

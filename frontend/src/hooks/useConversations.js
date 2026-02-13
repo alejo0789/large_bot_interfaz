@@ -151,15 +151,37 @@ export const useConversations = (socket) => {
             await fetch(`${API_URL}/api/conversations/${phone}/mark-read`, { method: 'POST' });
 
             setConversations(prev => prev.map(conv =>
-                conv.contact.phone === phone ? { ...conv, unread: 0 } : conv
+                (conv && conv.contact && conv.contact.phone === phone) ? { ...conv, unread: 0 } : conv
             ));
         } catch (error) {
             console.error('❌ Error marking as read:', error);
         }
     }, []);
 
+    // Mark conversation as unread
+    const markConversationAsUnread = useCallback(async (phone) => {
+        try {
+            await fetch(`${API_URL}/api/conversations/${phone}/mark-unread`, { method: 'POST' });
+
+            setConversations(prev => prev.map(conv =>
+                (conv && conv.contact && conv.contact.phone === phone) ? { ...conv, unread: 1 } : conv
+            ));
+        } catch (error) {
+            console.error('❌ Error marking as unread:', error);
+        }
+    }, []);
+
     // Select a conversation
     const selectConversation = useCallback(async (conversation) => {
+        // Handle deselection
+        if (!conversation) {
+            if (selectedConversation && socket) {
+                socket.emit('leave-conversation', selectedConversation.contact.phone);
+            }
+            setSelectedConversation(null);
+            return;
+        }
+
         const phone = conversation.contact.phone;
         console.log('🎯 Selecting conversation:', phone);
 
@@ -217,6 +239,8 @@ export const useConversations = (socket) => {
 
             if (conversationIndex !== -1) {
                 const targetConv = currentConversations[conversationIndex];
+                if (!targetConv || !targetConv.contact) return currentConversations;
+
                 const updatedConv = {
                     ...targetConv,
                     lastMessage: message,
@@ -460,12 +484,14 @@ export const useConversations = (socket) => {
 
                 if (index !== -1) {
                     const targetConv = currentConversations[index];
+                    if (!targetConv || !targetConv.contact) return currentConversations;
+
                     const updatedConv = {
                         ...targetConv,
                         lastMessage: formattedMessage.text,
                         timestamp: formattedMessage.timestamp,
                         rawTimestamp: formattedMessage.rawTimestamp,
-                        unread: (selectedConversation?.contact.phone === phone || isAgent)
+                        unread: (selectedConversation?.contact?.phone === phone || isAgent)
                             ? (targetConv.unread || 0)
                             : (targetConv.unread || 0) + 1
                     };
@@ -563,6 +589,8 @@ export const useConversations = (socket) => {
         selectConversation,
         sendMessage,
         toggleAI,
+        markConversationAsRead,
+        markConversationAsUnread,
         setSelectedConversation,
         loadMoreConversations,
         searchConversations,

@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Plus, X, Tag } from 'lucide-react';
+import { Plus, X, Tag, EyeOff } from 'lucide-react';
 import TagBadge from './TagBadge';
 
 const TAG_COLORS = [
@@ -24,13 +24,21 @@ const TagManager = ({
     conversationTags = [],
     onCreateTag,
     onAssignTag,
-    onRemoveTag
+    onRemoveTag,
+    onMarkUnread
 }) => {
     const [newTagName, setNewTagName] = useState('');
     const [newTagColor, setNewTagColor] = useState(TAG_COLORS[0].value);
     const [isCreating, setIsCreating] = useState(false);
 
     if (!isOpen) return null;
+
+    const handleMarkUnread = async () => {
+        if (onMarkUnread) {
+            await onMarkUnread(conversationPhone);
+            onClose();
+        }
+    };
 
     const handleCreateTag = async () => {
         if (!newTagName.trim()) return;
@@ -213,6 +221,66 @@ const TagManager = ({
                                 Nueva etiqueta
                             </button>
                         )}
+                    </div>
+
+                    {/* Actions Area */}
+                    <div style={{
+                        marginTop: 'var(--space-6)',
+                        paddingTop: 'var(--space-4)',
+                        borderTop: '1px solid var(--color-gray-200)',
+                        display: 'flex',
+                        flexDirection: 'column',
+                        gap: 'var(--space-3)'
+                    }}>
+                        {/* Secondary action: Mark as unread Link style */}
+                        <div style={{ display: 'flex', justifyContent: 'flex-start' }}>
+                            <button
+                                className="link-btn"
+                                onClick={handleMarkUnread}
+                                style={{
+                                    background: 'none',
+                                    border: 'none',
+                                    color: 'var(--color-primary)',
+                                    fontSize: 'var(--font-size-sm)',
+                                    cursor: 'pointer',
+                                    display: 'flex',
+                                    alignItems: 'center',
+                                    gap: 'var(--space-2)',
+                                    padding: 'var(--space-2) var(--space-3)',
+                                    marginLeft: '-var(--space-3)',
+                                    borderRadius: 'var(--radius-md)',
+                                    transition: 'all var(--transition-fast)',
+                                    fontWeight: 600
+                                }}
+                                onMouseEnter={(e) => {
+                                    e.currentTarget.style.backgroundColor = 'rgba(18, 140, 126, 0.1)';
+                                    e.currentTarget.style.textDecoration = 'underline';
+                                }}
+                                onMouseLeave={(e) => {
+                                    e.currentTarget.style.backgroundColor = 'transparent';
+                                    e.currentTarget.style.textDecoration = 'none';
+                                }}
+                            >
+                                <EyeOff className="w-5 h-5" />
+                                Marcar como no leído
+                            </button>
+                        </div>
+
+                        {/* Primary action: Save/Close */}
+                        <button
+                            className="btn btn-primary"
+                            onClick={onClose}
+                            style={{
+                                width: '100%',
+                                display: 'flex',
+                                alignItems: 'center',
+                                justifyContent: 'center',
+                                fontWeight: 600,
+                                padding: '10px'
+                            }}
+                        >
+                            Listo / Guardar
+                        </button>
                     </div>
                 </div>
             </div>

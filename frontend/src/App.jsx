@@ -102,6 +102,7 @@ const AuthenticatedApp = () => {
         sendMessage,
         sendFile,
         toggleAI,
+        markConversationAsUnread,
         loadMoreConversations,
         searchConversations,
         fetchConversations
@@ -398,8 +399,13 @@ const AuthenticatedApp = () => {
 
     const handleMouseMove = useCallback((e) => {
         if (!isResizing || isMobile) return;
-        const newWidth = Math.max(300, Math.min(800, e.clientX)); // Increased max width
-        setSidebarWidth(newWidth);
+
+        // Use requestAnimationFrame for smoother updates
+        window.requestAnimationFrame(() => {
+            if (!isResizing) return;
+            const newWidth = Math.max(300, Math.min(1000, e.clientX)); // Aumentado límite a 1000px
+            setSidebarWidth(newWidth);
+        });
     }, [isResizing, isMobile]);
 
     const handleMouseUp = useCallback(() => {
@@ -409,14 +415,17 @@ const AuthenticatedApp = () => {
     // Mouse event listeners for resize
     useEffect(() => {
         if (isResizing) {
+            document.body.classList.add('is-resizing');
             document.addEventListener('mousemove', handleMouseMove);
             document.addEventListener('mouseup', handleMouseUp);
         } else {
+            document.body.classList.remove('is-resizing');
             document.removeEventListener('mousemove', handleMouseMove);
             document.removeEventListener('mouseup', handleMouseUp);
         }
 
         return () => {
+            document.body.classList.remove('is-resizing');
             document.removeEventListener('mousemove', handleMouseMove);
             document.removeEventListener('mouseup', handleMouseUp);
         };
@@ -441,6 +450,12 @@ const AuthenticatedApp = () => {
     const currentConversationTags = targetConversation
         ? tagsByPhone[targetConversation.contact.phone] || []
         : [];
+
+    const handleMarkUnread = useCallback(async (phone) => {
+        await markConversationAsUnread(phone);
+        // Deseleccionar conversación para volver a la lista y ver el cambio
+        selectConversation(null);
+    }, [markConversationAsUnread, selectConversation]);
 
     return (
         <div className="app-container">
@@ -629,6 +644,7 @@ const AuthenticatedApp = () => {
                             conversation={selectedConversation}
                             aiEnabled={aiStatesByPhone[selectedConversation.contact.phone] ?? true}
                             onToggleAI={toggleAI}
+                            onMarkUnread={handleMarkUnread}
                             onBack={() => setShowSidebar(true)}
                             isMobile={isMobile}
                         />
@@ -714,6 +730,7 @@ const AuthenticatedApp = () => {
                 onCreateTag={handleCreateTag}
                 onAssignTag={handleAssignTag}
                 onRemoveTag={handleRemoveTag}
+                onMarkUnread={handleMarkUnread}
             />
 
             <BulkMessageModal

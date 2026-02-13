@@ -97,8 +97,34 @@ router.get('/:phone/messages/count', asyncHandler(async (req, res) => {
 // Mark conversation as read
 router.post('/:phone/mark-read', asyncHandler(async (req, res) => {
     const { phone } = req.params;
+    const evolutionService = require('../services/evolutionService');
+
+    // Local update
     await conversationService.markAsRead(phone);
+
+    // Evolution API update
+    evolutionService.markAsRead(phone).catch(err =>
+        console.warn(`⚠️ Could not mark as read on Evolution API for ${phone}:`, err.message)
+    );
+
     console.log(`✅ Marked as read: ${phone}`);
+    res.json({ success: true });
+}));
+
+// Mark conversation as unread
+router.post('/:phone/mark-unread', asyncHandler(async (req, res) => {
+    const { phone } = req.params;
+    const evolutionService = require('../services/evolutionService');
+
+    // Local update
+    await conversationService.markAsUnread(phone);
+
+    // Evolution API update
+    evolutionService.markAsUnread(phone).catch(err =>
+        console.warn(`⚠️ Could not mark as unread on Evolution API for ${phone}:`, err.message)
+    );
+
+    console.log(`✅ Marked as unread: ${phone}`);
     res.json({ success: true });
 }));
 

@@ -10,7 +10,7 @@ const config = {
     nodeEnv: process.env.NODE_ENV || 'development',
 
     // CORS
-    frontendUrl: process.env.FRONTEND_URL || 'http://localhost:3000',
+    frontendUrl: process.env.FRONTEND_URL ? process.env.FRONTEND_URL.split(',').map(url => url.trim()) : 'http://localhost:3000',
 
     // File uploads
     uploadDir: process.env.UPLOADS_PATH || path.join(__dirname, '../../uploads'),

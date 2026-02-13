@@ -4,7 +4,7 @@ import ConversationItem from './ConversationItem';
 /**
  * Conversation list component with infinite scroll
  */
-const ConversationList = ({
+const ConversationList = React.memo(({
     conversations,
     selectedId,
     searchQuery,
@@ -134,6 +134,6 @@ const ConversationList = ({
             )}
         </div>
     );
-};
+});
 
 export default ConversationList;

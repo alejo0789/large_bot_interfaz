@@ -198,7 +198,7 @@ const startServer = async () => {
         console.log('🚀 CHATBOT BACKEND SERVER');
         console.log('🚀 ================================');
         console.log(`📡 Server running on port ${config.port}`);
-        console.log(`🌐 Frontend URL: ${config.frontendUrl}`);
+        console.log(`🌐 Allowed Origins: ${Array.isArray(config.frontendUrl) ? config.frontendUrl.join(', ') : config.frontendUrl}`);
         console.log(`📁 Upload dir: ${config.uploadDir}`);
         console.log(`🔧 Environment: ${config.nodeEnv}`);
         console.log('🚀 ================================');

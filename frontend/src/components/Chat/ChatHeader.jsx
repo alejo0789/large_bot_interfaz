@@ -1,5 +1,4 @@
-import React from 'react';
-import { ArrowLeft, Phone, MoreVertical, User, Bot, UserCheck } from 'lucide-react';
+import { ArrowLeft, Phone, MoreVertical, User, Bot, UserCheck, EyeOff } from 'lucide-react';
 
 /**
  * Chat header component with AI toggle
@@ -8,6 +7,7 @@ const ChatHeader = ({
     conversation,
     aiEnabled,
     onToggleAI,
+    onMarkUnread,
     onBack,
     isMobile
 }) => {
@@ -52,6 +52,16 @@ const ChatHeader = ({
             </div>
 
             <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-3)' }}>
+                {/* Mark as unread button */}
+                <button
+                    className="btn btn-icon"
+                    onClick={() => onMarkUnread && onMarkUnread(contact.phone)}
+                    title="Marcar como no leído"
+                    style={{ color: 'var(--color-primary)' }}
+                >
+                    <EyeOff className="w-5 h-5" />
+                </button>
+
                 {/* AI Toggle */}
                 <div className="ai-toggle">
                     {!isMobile && (

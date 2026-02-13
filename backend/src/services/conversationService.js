@@ -214,6 +214,18 @@ class ConversationService {
     }
 
     /**
+     * Mark conversation as unread locally
+     */
+    async markAsUnread(phone) {
+        // Marcamos con 1 mensaje no leído si queremos forzar el estado
+        await pool.query(`
+            UPDATE conversations 
+            SET unread_count = GREATEST(unread_count, 1), updated_at = NOW() 
+            WHERE phone = $1
+        `, [phone]);
+    }
+
+    /**
      * Update last message
      */
     async updateLastMessage(phone, message) {

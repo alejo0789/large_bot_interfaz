@@ -4,7 +4,7 @@ import { User, Bot, UserCheck, Tag } from 'lucide-react';
 /**
  * Conversation item component
  */
-const ConversationItem = ({
+const ConversationItem = React.memo(({
     conversation,
     isSelected,
     aiEnabled,
@@ -17,19 +17,10 @@ const ConversationItem = ({
 
     return (
         <div
-            className={`conversation-item ${isSelected ? 'active' : ''}`}
+            className={`conversation-item ${isSelected ? 'active' : ''} ${hasUnread ? 'unread' : ''}`}
             onClick={onClick}
-            style={{
-                backgroundColor: hasUnread && !isSelected
-                    ? 'rgba(18, 140, 126, 0.05)'
-                    : undefined,
-                borderLeft: hasUnread && !isSelected
-                    ? '3px solid var(--color-primary-light)'
-                    : undefined,
-                position: 'relative' // For absolute positioning of tag button if needed, but flex is better
-            }}
+            style={{ position: 'relative' }}
         >
-            {/* Avatar with unread indicator */}
             <div style={{ position: 'relative' }}>
                 <div className="conversation-avatar">
                     <User className="w-6 h-6" />
@@ -53,12 +44,11 @@ const ConversationItem = ({
                     <span className="conversation-name" style={{
                         fontWeight: hasUnread ? 700 : 600,
                         color: hasUnread ? 'var(--color-gray-900)' : undefined,
-                        maxWidth: '60%' // Limit name width to avoid crowding status
+                        maxWidth: '60%'
                     }}>
                         {contact.name}
                     </span>
                     <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-2)' }}>
-                        {/* Tag Button - Only visible on hover or if already has tags (optional, but requested "without opening") */}
                         <button
                             className="btn-icon"
                             onClick={(e) => onTagClick && onTagClick(conversation, e)}
@@ -72,7 +62,6 @@ const ConversationItem = ({
                             <Tag className="w-3 h-3" />
                         </button>
 
-                        {/* AI Status indicator */}
                         <div className={`status-indicator ${aiEnabled ? 'status-ai' : 'status-manual'}`}
                             style={{ padding: '2px 6px', fontSize: '10px' }}>
                             {aiEnabled ? (
@@ -115,7 +104,6 @@ const ConversationItem = ({
                         {contact.phone}
                     </span>
 
-                    {/* Tags */}
                     {tags.length > 0 && (
                         <div className="tags-container" style={{ marginLeft: 'var(--space-2)', flexShrink: 0 }}>
                             {tags.slice(0, 2).map(tag => (
@@ -135,7 +123,6 @@ const ConversationItem = ({
                         </div>
                     )}
 
-                    {/* Unread badge - more prominent */}
                     {hasUnread && (
                         <span className="unread-badge" style={{
                             minWidth: '22px',
@@ -151,7 +138,7 @@ const ConversationItem = ({
             </div>
         </div>
     );
-};
+});
 
 export default ConversationItem;
 
