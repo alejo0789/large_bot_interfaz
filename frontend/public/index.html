@@ -404,10 +404,21 @@
         console.error('Promise rechazada:', e.reason);
       });
       
-      // PWA support detection
+      // PWA support detection and registration
       if ('serviceWorker' in navigator) {
-        console.log('🔧 Service Worker compatible');
-        // Aquí podrías registrar un service worker si lo necesitas
+        window.addEventListener('load', function() {
+          navigator.serviceWorker.register('/sw.js').then(function(registration) {
+            console.log('✅ ServiceWorker registrado con éxito: ', registration.scope);
+            
+            // Request notification permission
+            if (Notification.permission === 'default') {
+              // We can request later or here
+              // Notification.requestPermission();
+            }
+          }, function(err) {
+            console.log('❌ Error al registrar ServiceWorker: ', err);
+          });
+        });
       }
       
       // Optimización de rendimiento
