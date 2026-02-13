@@ -1,4 +1,4 @@
-import React, { useState, useRef, useEffect, useCallback } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import { Send, Paperclip, X, Image, FileText, Film, Mic, Square, Trash2, Smile } from 'lucide-react';
 
 /**
@@ -167,12 +167,6 @@ const MessageInput = ({ onSend, onSendFile, disabled, isMobile }) => {
         }
     };
 
-    const handleKeyPress = (e) => {
-        if (e.key === 'Enter' && !e.shiftKey) {
-            e.preventDefault();
-            handleSubmit();
-        }
-    };
 
     const handleFileSelect = (e) => {
         const file = e.target.files[0];

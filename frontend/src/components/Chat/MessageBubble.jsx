@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { CheckCheck, Clock, Download, Play, FileText, Image as ImageIcon, Film, Mic } from 'lucide-react';
+import { CheckCheck, Clock, Download, FileText, Image as ImageIcon, Mic } from 'lucide-react';
 
 /**
  * Message bubble component with media support
