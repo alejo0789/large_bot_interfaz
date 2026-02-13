@@ -26,8 +26,10 @@ import { useTags } from './hooks/useTags';
 import './styles/index.css';
 
 // --- CONFIGURATION ---
-const SOCKET_URL = process.env.REACT_APP_SOCKET_URL || 'http://localhost:4000';
-const API_URL = process.env.REACT_APP_API_URL || 'http://localhost:4000';
+const SOCKET_URL = process.env.REACT_APP_SOCKET_URL ||
+    (process.env.NODE_ENV === 'production' ? window.location.origin : 'http://localhost:4000');
+const API_URL = process.env.REACT_APP_API_URL ||
+    (process.env.NODE_ENV === 'production' ? window.location.origin : 'http://localhost:4000');
 
 const AuthenticatedApp = () => {
     const { user, logout } = useAuth();
