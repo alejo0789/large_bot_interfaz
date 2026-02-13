@@ -1,5 +1,5 @@
 import React from 'react';
-import { User, Bot, UserCheck } from 'lucide-react';
+import { User, Bot, UserCheck, Tag } from 'lucide-react';
 
 /**
  * Conversation item component
@@ -9,7 +9,8 @@ const ConversationItem = ({
     isSelected,
     aiEnabled,
     tags = [],
-    onClick
+    onClick,
+    onTagClick
 }) => {
     const { contact, lastMessage, timestamp, unread } = conversation;
     const hasUnread = unread > 0;
@@ -24,7 +25,8 @@ const ConversationItem = ({
                     : undefined,
                 borderLeft: hasUnread && !isSelected
                     ? '3px solid var(--color-primary-light)'
-                    : undefined
+                    : undefined,
+                position: 'relative' // For absolute positioning of tag button if needed, but flex is better
             }}
         >
             {/* Avatar with unread indicator */}
@@ -50,11 +52,26 @@ const ConversationItem = ({
                 <div className="conversation-header">
                     <span className="conversation-name" style={{
                         fontWeight: hasUnread ? 700 : 600,
-                        color: hasUnread ? 'var(--color-gray-900)' : undefined
+                        color: hasUnread ? 'var(--color-gray-900)' : undefined,
+                        maxWidth: '60%' // Limit name width to avoid crowding status
                     }}>
                         {contact.name}
                     </span>
                     <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-2)' }}>
+                        {/* Tag Button - Only visible on hover or if already has tags (optional, but requested "without opening") */}
+                        <button
+                            className="btn-icon"
+                            onClick={(e) => onTagClick && onTagClick(conversation, e)}
+                            title="Etiquetar"
+                            style={{
+                                padding: '2px',
+                                color: 'var(--color-gray-500)',
+                                opacity: 0.7
+                            }}
+                        >
+                            <Tag className="w-3 h-3" />
+                        </button>
+
                         {/* AI Status indicator */}
                         <div className={`status-indicator ${aiEnabled ? 'status-ai' : 'status-manual'}`}
                             style={{ padding: '2px 6px', fontSize: '10px' }}>
