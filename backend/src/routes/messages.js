@@ -31,7 +31,10 @@ const emitToConversation = (phone, event, data) => {
     io.to('conversations:list').emit('conversation-updated', {
         phone,
         lastMessage: data.message,
-        timestamp: data.timestamp
+        timestamp: data.timestamp || new Date().toISOString(),
+        contact_name: data.contact_name,
+        unread: 1,
+        sender_type: data.sender_type || 'agent'
     });
 
     // Also emit globally for backward compatibility

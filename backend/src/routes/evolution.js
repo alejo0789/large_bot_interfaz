@@ -25,8 +25,10 @@ const emitToConversation = (phone, event, data) => {
     io.to('conversations:list').emit('conversation-updated', {
         phone,
         lastMessage: data.message,
-        timestamp: data.timestamp || new Date().toLocaleString("en-US", { timeZone: "America/Bogota" }),
-        unread: 1
+        timestamp: data.timestamp || new Date().toISOString(),
+        contact_name: data.contact_name, // Added for new conversations
+        unread: 1,
+        isNew: data.isNew || false
     });
 
     // Also emit globally for compatibility until everything is room-based
@@ -228,13 +230,12 @@ router.post('/', async (req, res) => {
         // Logic from webhooks.js:
         // 1. Get/Create Conversation
         let conversation = await conversationService.getByPhone(phone);
+        let isNewConversation = false;
 
         if (!conversation) {
             // Upsert will now handle default AI settings internally
             conversation = await conversationService.upsert(phone, pushName);
-        } else {
-            // If it exists, just update the name if needed (handled by upsert internally, but here we just need the object)
-            // Ideally we call upsert every time to sync names, but optimize for now.
+            isNewConversation = true;
         }
 
         const currentState = conversation?.conversation_state || 'ai_active';
@@ -269,11 +270,12 @@ router.post('/', async (req, res) => {
             message: text,
             whatsapp_id: msg.key.id,
             sender_type: senderType, // Use dynamic sender type
-            timestamp: new Date().toLocaleString("en-US", { timeZone: "America/Bogota" }),
+            timestamp: new Date().toISOString(),
             conversation_state: currentState,
             ai_enabled: shouldActivateAI,
             media_type: mediaType,
-            media_url: mediaUrl
+            media_url: mediaUrl,
+            isNew: isNewConversation
         });
 
         // 5. AUTO-TRIGGER N8N IF AI IS ENABLED

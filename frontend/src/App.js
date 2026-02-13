@@ -234,10 +234,61 @@ const App = () => {
       });
     };
 
+    const handleConversationUpdated = (data) => {
+      console.log('📋 Lista de conversaciones actualizada:', data);
+
+      setConversations(prev => {
+        const currentConversations = Array.isArray(prev) ? prev : (prev.data || []);
+        const exists = currentConversations.some(conv => conv.contact.phone === data.phone);
+
+        const timestamp = formatTimestamp(data.timestamp);
+
+        if (!exists) {
+          // Si es una nueva conversación, añadirla!
+          const newConv = {
+            id: data.phone,
+            contact: {
+              name: data.contact_name || `Usuario ${data.phone.slice(-4)}`,
+              phone: data.phone
+            },
+            lastMessage: data.lastMessage,
+            timestamp: timestamp,
+            unread: 1,
+            status: 'active'
+          };
+          return [newConv, ...currentConversations];
+        }
+
+        // Si ya existe, actualizar y mover al tope
+        const updatedConversations = currentConversations.map(conv =>
+          conv.contact.phone === data.phone
+            ? {
+              ...conv,
+              lastMessage: data.lastMessage,
+              timestamp: timestamp,
+              unread: data.phone === selectedConversation?.contact.phone ? 0 : (conv.unread || 0) + (data.unread || 0)
+            }
+            : conv
+        );
+
+        const conversationIndex = updatedConversations.findIndex(
+          conv => conv.contact.phone === data.phone
+        );
+
+        if (conversationIndex > 0) {
+          const [movedConversation] = updatedConversations.splice(conversationIndex, 1);
+          return [movedConversation, ...updatedConversations];
+        }
+
+        return updatedConversations;
+      });
+    };
+
     socket.on('connect', handleConnect);
     socket.on('disconnect', handleDisconnect);
     socket.on('new-message', handleNewMessage);
     socket.on('agent-message', handleAgentMessage);
+    socket.on('conversation-updated', handleConversationUpdated);
     socket.on('conversation-state-changed', handleConversationStateChanged);
 
     return () => {
@@ -245,6 +296,7 @@ const App = () => {
       socket.off('disconnect', handleDisconnect);
       socket.off('new-message', handleNewMessage);
       socket.off('agent-message', handleAgentMessage);
+      socket.off('conversation-updated', handleConversationUpdated);
       socket.off('conversation-state-changed', handleConversationStateChanged);
     };
   }, [selectedConversation]);

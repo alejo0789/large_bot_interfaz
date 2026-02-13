@@ -28,7 +28,9 @@ const emitToConversation = (phone, event, data) => {
         phone,
         lastMessage: data.message,
         timestamp: data.timestamp,
-        unread: 1
+        contact_name: data.contact_name, // Added for new conversations
+        unread: 1,
+        isNew: data.isNew || false
     });
 
     // Also emit globally for backward compatibility (will be deprecated)
@@ -71,9 +73,11 @@ router.post('/receive-message', asyncHandler(async (req, res) => {
     const currentState = conversation?.conversation_state || 'ai_active';
     const shouldActivateAI = !conversation || conversation.ai_enabled !== false;
 
+    let isNewConversation = false;
     if (!conversation) {
         console.log(`➕ Creating new conversation for ${cleanPhone}`);
-        await conversationService.upsert(cleanPhone, contact_name || `Usuario ${cleanPhone.slice(-4)}`);
+        conversation = await conversationService.upsert(cleanPhone, contact_name || `Usuario ${cleanPhone.slice(-4)}`);
+        isNewConversation = true;
     }
 
     // Save message
@@ -101,7 +105,8 @@ router.post('/receive-message', asyncHandler(async (req, res) => {
         media_url,
         timestamp: timestamp || new Date().toISOString(),
         conversation_state: currentState,
-        ai_enabled: shouldActivateAI
+        ai_enabled: shouldActivateAI,
+        isNew: isNewConversation
     });
 
     res.json({
