@@ -63,7 +63,20 @@ async function main() {
 
 async function setWebhook() {
     console.log('🔗 Configuring Webhook...');
+
+    // Use the configured webhook URL or fallback
+    // IMPORTANT: For Railway, this must be your deployed backend URL + /evolution
+    const webhookUrl = process.env.WEBHOOK_URL;
+
+    if (!webhookUrl) {
+        console.error('❌ NO WEBHOOK_URL DEFINED IN .ENV! Auto-configuration skipped.');
+        console.error('   Please add WEBHOOK_URL=https://your-backend.railway.app/evolution to your .env file');
+        return;
+    }
+
     const url = `${BASE_URL}/webhook/set/${INSTANCE}`;
+    console.log(`📡 Setting webhook to: ${webhookUrl}`);
+
     try {
         const res = await fetch(url, {
             method: 'POST',
@@ -72,14 +85,20 @@ async function setWebhook() {
                 'apikey': API_KEY
             },
             body: JSON.stringify({
-                webhook: {
-                    url: process.env.WEBHOOK_URL || 'http://host.docker.internal:4000/evolution',
-                    enabled: true,
-                    events: ['MESSAGES_UPSERT'],
-                    groups: true
+                "webhook": {
+                    "enabled": true,
+                    "url": webhookUrl,
+                    "byEvents": false,
+                    "base64": true,
+                    "events": [
+                        "MESSAGES_UPSERT",
+                        "MESSAGES_UPDATE",
+                        "SEND_MESSAGE"
+                    ]
                 }
             })
         });
+
         const data = await res.json();
         console.log('✅ Webhook configured:', JSON.stringify(data));
     } catch (error) {
