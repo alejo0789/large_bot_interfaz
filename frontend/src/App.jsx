@@ -98,6 +98,7 @@ const AuthenticatedApp = () => {
         aiStatesByPhone,
         selectConversation,
         sendMessage,
+        sendFile,
         toggleAI,
         loadMoreConversations,
         searchConversations
@@ -252,34 +253,22 @@ const AuthenticatedApp = () => {
     const handleSendFile = useCallback(async (file, caption) => {
         if (!selectedConversation) return;
 
-        const formData = new FormData();
-        formData.append('file', file);
-        formData.append('phone', selectedConversation.contact.phone);
-        formData.append('name', selectedConversation.contact.name);
-        if (caption) formData.append('caption', caption);
-
-        // Add agent info
-        if (user) {
-            formData.append('agent_id', user.id);
-            formData.append('agent_name', user.name);
-        }
-
         try {
-            const response = await fetch(`${API_URL}/api/send-file`, {
-                method: 'POST',
-                body: formData
-            });
-
-            if (!response.ok) throw new Error('Error sending file');
-
-            const result = await response.json();
-            console.log('File sent:', result);
-            return result;
+            await sendFile(
+                selectedConversation.contact.phone,
+                file,
+                caption,
+                selectedConversation.contact.name,
+                {
+                    agentId: user?.id,
+                    agentName: user?.name
+                }
+            );
         } catch (error) {
-            console.error('Error sending file:', error);
-            throw error;
+            console.error('Error in App handleSendFile:', error);
+            alert('Error al enviar el archivo');
         }
-    }, [selectedConversation, user]);
+    }, [selectedConversation, sendFile, user]);
 
     // Handle bulk message - SCALABLE VERSION
     // Uses backend processing with progress tracking via Socket.IO

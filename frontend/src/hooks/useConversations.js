@@ -192,24 +192,33 @@ export const useConversations = (socket) => {
             [phone]: [...(prev[phone] || []), newMessage]
         }));
 
-        setConversations(prev => prev.map(conv =>
-            conv.contact.phone === phone
-                ? {
-                    ...conv,
+        setConversations(prev => {
+            const currentConversations = [...prev];
+            const cleanIncomingPhone = String(phone).replace(/\D/g, '');
+            const conversationIndex = currentConversations.findIndex(conv =>
+                String(conv.contact.phone).replace(/\D/g, '') === cleanIncomingPhone
+            );
+
+            if (conversationIndex !== -1) {
+                const targetConv = currentConversations[conversationIndex];
+                const updatedConv = {
+                    ...targetConv,
                     lastMessage: message,
                     timestamp: newMessage.timestamp,
                     rawTimestamp: newMessage.rawTimestamp
-                }
-                : conv
-        ));
+                };
+                currentConversations.splice(conversationIndex, 1);
+                return [updatedConv, ...currentConversations];
+            }
+            return currentConversations;
+        });
 
         try {
-            console.log(`📤 Sending message to ${phone}: ${message}`);
             const response = await fetch(`${API_URL}/api/send-message`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
-                    phone: String(phone), // Ensure it's a string
+                    phone: String(phone),
                     message,
                     name,
                     temp_id: tempId,
@@ -219,11 +228,8 @@ export const useConversations = (socket) => {
                 })
             });
 
-            if (!response.ok) {
-                throw new Error('Error sending message');
-            }
+            if (!response.ok) throw new Error('Error sending message');
 
-            // Update status to delivered
             setMessagesByConversation(prev => ({
                 ...prev,
                 [phone]: prev[phone].map(msg =>
@@ -234,18 +240,97 @@ export const useConversations = (socket) => {
             return true;
         } catch (error) {
             console.error('❌ Error sending message:', error);
-
-            // Update status to failed
             setMessagesByConversation(prev => ({
                 ...prev,
                 [phone]: prev[phone].map(msg =>
                     msg.id === tempId ? { ...msg, status: 'failed' } : msg
                 )
             }));
-
             return false;
         }
     }, [aiStatesByPhone]);
+
+    // Send a file
+    const sendFile = useCallback(async (phone, file, caption, name, options = {}) => {
+        const tempId = Date.now();
+        const { agentId, agentName } = options;
+        const media_type = file.type.startsWith('image/') ? 'image' :
+            file.type.startsWith('video/') ? 'video' :
+                file.type.startsWith('audio/') ? 'audio' : 'document';
+
+        const newMessage = {
+            id: tempId,
+            text: caption || file.name,
+            sender: 'agent',
+            agent_name: agentName,
+            media_type,
+            media_url: URL.createObjectURL(file), // Local preview
+            timestamp: new Date().toLocaleTimeString('es-CO', {
+                hour: '2-digit',
+                minute: '2-digit'
+            }),
+            rawTimestamp: new Date().toISOString(),
+            status: 'sending'
+        };
+
+        // Optimistic update
+        setMessagesByConversation(prev => ({
+            ...prev,
+            [phone]: [...(prev[phone] || []), newMessage]
+        }));
+
+        const formData = new FormData();
+        formData.append('file', file);
+        formData.append('phone', phone);
+        formData.append('name', name);
+        if (caption) formData.append('caption', caption);
+        if (agentId) formData.append('agent_id', agentId);
+        if (agentName) formData.append('agent_name', agentName);
+
+        try {
+            const response = await fetch(`${API_URL}/api/send-file`, {
+                method: 'POST',
+                body: formData
+            });
+
+            if (!response.ok) throw new Error('Error sending file');
+
+            const result = await response.json();
+
+            // Reordering after send
+            setConversations(prev => {
+                const currentConversations = [...prev];
+                const cleanIncomingPhone = String(phone).replace(/\D/g, '');
+                const conversationIndex = currentConversations.findIndex(conv =>
+                    String(conv.contact.phone).replace(/\D/g, '') === cleanIncomingPhone
+                );
+
+                if (conversationIndex !== -1) {
+                    const targetConv = currentConversations[conversationIndex];
+                    const updatedConv = {
+                        ...targetConv,
+                        lastMessage: caption || `📎 ${file.name}`,
+                        timestamp: newMessage.timestamp,
+                        rawTimestamp: newMessage.rawTimestamp
+                    };
+                    currentConversations.splice(conversationIndex, 1);
+                    return [updatedConv, ...currentConversations];
+                }
+                return currentConversations;
+            });
+
+            return result;
+        } catch (error) {
+            console.error('❌ Error sending file:', error);
+            setMessagesByConversation(prev => ({
+                ...prev,
+                [phone]: prev[phone].map(msg =>
+                    msg.id === tempId ? { ...msg, status: 'failed' } : msg
+                )
+            }));
+            throw error;
+        }
+    }, []);
 
     // Toggle AI for a conversation
     const toggleAI = useCallback(async (phone) => {
@@ -279,19 +364,18 @@ export const useConversations = (socket) => {
     useEffect(() => {
         if (!socket) return;
 
-        const handleNewMessage = (messageData) => {
-            console.log('📨 New message received:', messageData);
+        const handleSocketMessage = (messageData, isAgent = false) => {
+            console.log(`📨 ${isAgent ? 'Agent' : 'Customer'} message received:`, messageData);
 
-            const senderType = messageData.sender_type || messageData.sender || 'customer';
+            const phone = messageData.phone;
+            const senderType = isAgent ? 'agent' : (messageData.sender_type || messageData.sender || 'customer');
+            const cleanIncomingPhone = String(phone).replace(/\D/g, '');
 
-            // Ignore messages sent by agent - they were already added optimistically
-            if (senderType === 'agent' || senderType === 'me') {
-                console.log('⏭️ Ignoring agent message (already added optimistically)');
-                return;
-            }
+            // Ignore messages sent by agent from THIS session - they were already added optimistically
+            // (We check whatsapp_id if available to avoid duplicates)
 
             const formattedMessage = {
-                id: messageData.whatsapp_id || Date.now(),
+                id: messageData.whatsapp_id || messageData.id || Date.now(),
                 text: messageData.message || messageData.text,
                 sender: senderType,
                 timestamp: new Date(messageData.timestamp).toLocaleTimeString('es-CO', {
@@ -301,45 +385,115 @@ export const useConversations = (socket) => {
                 rawTimestamp: messageData.timestamp || new Date().toISOString(),
                 status: 'delivered',
                 // Media support
-                media_type: messageData.media_type || null,
-                media_url: messageData.media_url || null
+                media_type: messageData.media_type || messageData.mediaType || null,
+                media_url: messageData.media_url || messageData.mediaUrl || null,
+                agent_name: messageData.agent_name || null
             };
 
             // Check for duplicates before adding
             setMessagesByConversation(prev => {
-                const existingMessages = prev[messageData.phone] || [];
+                const existingMessages = prev[phone] || [];
 
-                // Check if message with same ID already exists
+                // Duplicate check by ID or content/timestamp
                 const isDuplicate = existingMessages.some(msg =>
                     msg.id === formattedMessage.id ||
                     (msg.text === formattedMessage.text &&
-                        Math.abs(new Date(msg.rawTimestamp) - new Date(formattedMessage.rawTimestamp)) < 5000)
+                        msg.sender === formattedMessage.sender &&
+                        Math.abs(new Date(msg.rawTimestamp) - new Date(formattedMessage.rawTimestamp)) < 3000)
                 );
 
                 if (isDuplicate) {
-                    console.log('⏭️ Ignoring duplicate message');
+                    // Update status if it was 'sending'
+                    if (isAgent) {
+                        return {
+                            ...prev,
+                            [phone]: existingMessages.map(msg =>
+                                (msg.text === formattedMessage.text && msg.status === 'sending')
+                                    ? { ...msg, status: 'delivered', id: formattedMessage.id }
+                                    : msg
+                            )
+                        };
+                    }
                     return prev;
                 }
 
                 return {
                     ...prev,
-                    [messageData.phone]: [...existingMessages, formattedMessage]
+                    [phone]: [...existingMessages, formattedMessage]
                 };
             });
 
-            setConversations(prev => prev.map(conv =>
-                conv.contact.phone === messageData.phone
-                    ? {
-                        ...conv,
+            // Update conversation in list and reorder
+            setConversations(prev => {
+                const currentConversations = [...prev];
+                const index = currentConversations.findIndex(conv =>
+                    String(conv.contact.phone).replace(/\D/g, '') === cleanIncomingPhone
+                );
+
+                if (index !== -1) {
+                    const targetConv = currentConversations[index];
+                    const updatedConv = {
+                        ...targetConv,
                         lastMessage: formattedMessage.text,
                         timestamp: formattedMessage.timestamp,
                         rawTimestamp: formattedMessage.rawTimestamp,
-                        unread: selectedConversation?.contact.phone === messageData.phone
-                            ? 0
-                            : (conv.unread || 0) + 1
-                    }
-                    : conv
-            ));
+                        unread: (selectedConversation?.contact.phone === phone || isAgent)
+                            ? (targetConv.unread || 0)
+                            : (targetConv.unread || 0) + 1
+                    };
+                    currentConversations.splice(index, 1);
+                    return [updatedConv, ...currentConversations];
+                }
+                return currentConversations;
+            });
+        };
+
+        const handleConversationUpdated = (data) => {
+            console.log('📋 Conversation list update received:', data);
+            const cleanPhone = String(data.phone).replace(/\D/g, '');
+
+            setConversations(prev => {
+                const currentConversations = [...prev];
+                const index = currentConversations.findIndex(conv =>
+                    String(conv.contact.phone).replace(/\D/g, '') === cleanPhone
+                );
+
+                const timestamp = new Date(data.timestamp).toLocaleTimeString('es-CO', {
+                    hour: '2-digit',
+                    minute: '2-digit'
+                });
+
+                if (index === -1) {
+                    // New conversation!
+                    const newConv = {
+                        id: data.phone,
+                        contact: {
+                            name: data.contact_name || `Usuario ${data.phone.slice(-4)}`,
+                            phone: data.phone
+                        },
+                        lastMessage: data.lastMessage,
+                        timestamp: timestamp,
+                        rawTimestamp: data.timestamp,
+                        unread: (selectedConversation?.contact.phone === data.phone) ? 0 : 1,
+                        status: 'active'
+                    };
+                    return [newConv, ...currentConversations];
+                }
+
+                // Update existing
+                const targetConv = currentConversations[index];
+                const updatedConv = {
+                    ...targetConv,
+                    lastMessage: data.lastMessage,
+                    timestamp: timestamp,
+                    rawTimestamp: data.timestamp,
+                    unread: (selectedConversation?.contact.phone === data.phone)
+                        ? (targetConv.unread || 0)
+                        : (targetConv.unread || 0) + (data.unread || 1)
+                };
+                currentConversations.splice(index, 1);
+                return [updatedConv, ...currentConversations];
+            });
         };
 
         const handleStateChange = (data) => {
@@ -349,12 +503,16 @@ export const useConversations = (socket) => {
             }));
         };
 
-        socket.on('new-message', handleNewMessage);
+        socket.on('new-message', (data) => handleSocketMessage(data, false));
+        socket.on('agent-message', (data) => handleSocketMessage(data, true));
+        socket.on('conversation-updated', handleConversationUpdated);
         socket.on('conversation-state-changed', handleStateChange);
 
         return () => {
-            socket.off('new-message', handleNewMessage);
-            socket.off('conversation-state-changed', handleStateChange);
+            socket.off('new-message');
+            socket.off('agent-message');
+            socket.off('conversation-updated');
+            socket.off('conversation-state-changed');
         };
     }, [socket, selectedConversation]);
 
@@ -379,7 +537,8 @@ export const useConversations = (socket) => {
         toggleAI,
         setSelectedConversation,
         loadMoreConversations,
-        searchConversations
+        searchConversations,
+        sendFile
     };
 };
 
