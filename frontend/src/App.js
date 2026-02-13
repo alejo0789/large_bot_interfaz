@@ -145,7 +145,8 @@ const App = () => {
           return [newConv, ...currentConversations];
         }
 
-        return currentConversations.map(conv =>
+        // Find the conversation and update it
+        const updatedConversations = currentConversations.map(conv =>
           conv.contact.phone === messageData.phone
             ? {
               ...conv,
@@ -155,6 +156,18 @@ const App = () => {
             }
             : conv
         );
+
+        // Reorder: Move the updated conversation to the top
+        const conversationIndex = updatedConversations.findIndex(
+          conv => conv.contact.phone === messageData.phone
+        );
+
+        if (conversationIndex > 0) {
+          const [movedConversation] = updatedConversations.splice(conversationIndex, 1);
+          return [movedConversation, ...updatedConversations];
+        }
+
+        return updatedConversations;
       });
     };
 
@@ -298,12 +311,26 @@ const App = () => {
       [targetPhone]: [...(prev[targetPhone] || []), message]
     }));
 
-    // Actualizar última conversación
-    setConversations(prev => prev.map(conv =>
-      conv.contact.phone === targetPhone
-        ? { ...conv, lastMessage: newMessage, timestamp: message.timestamp }
-        : conv
-    ));
+    // Actualizar última conversación y moverla al principio
+    setConversations(prev => {
+      const updatedConversations = prev.map(conv =>
+        conv.contact.phone === targetPhone
+          ? { ...conv, lastMessage: newMessage, timestamp: message.timestamp }
+          : conv
+      );
+
+      // Mover la conversación actual al principio
+      const conversationIndex = updatedConversations.findIndex(
+        conv => conv.contact.phone === targetPhone
+      );
+
+      if (conversationIndex > 0) {
+        const [movedConversation] = updatedConversations.splice(conversationIndex, 1);
+        return [movedConversation, ...updatedConversations];
+      }
+
+      return updatedConversations;
+    });
 
     const messageToSend = newMessage;
     setNewMessage('');
