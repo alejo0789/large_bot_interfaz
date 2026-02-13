@@ -163,7 +163,7 @@ router.post('/send-file', upload.single('file'), asyncHandler(async (req, res) =
         media_type: mediaType,
         media_url: fileUrl,
         sender_type: 'agent',
-        timestamp: new Date().toISOString(),
+        timestamp: new Date().toLocaleString("en-US", { timeZone: "America/Bogota" }),
         agent_id,
         agent_name
     });
@@ -250,7 +250,7 @@ router.post('/bulk-send', asyncHandler(async (req, res) => {
                 media_type: mType,
                 media_url: media,
                 sender_type: 'agent',
-                timestamp: new Date().toISOString(),
+                timestamp: new Date().toLocaleString("en-US", { timeZone: "America/Bogota" }),
                 agent_id: finalAgentId,
                 agent_name: finalAgentName
             });
@@ -259,7 +259,7 @@ router.post('/bulk-send', asyncHandler(async (req, res) => {
             io.to('conversations:list').emit('conversation-updated', {
                 phone,
                 lastMessage: msg || '📎 Media',
-                timestamp: new Date().toISOString()
+                timestamp: new Date().toLocaleString("en-US", { timeZone: "America/Bogota" })
             });
         }
     };

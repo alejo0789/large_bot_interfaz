@@ -88,11 +88,13 @@ class ConversationService {
             timestamp: conv.last_message_timestamp
                 ? new Date(conv.last_message_timestamp).toLocaleTimeString('es-CO', {
                     hour: '2-digit',
-                    minute: '2-digit'
+                    minute: '2-digit',
+                    timeZone: 'America/Bogota'
                 })
                 : new Date(conv.created_at).toLocaleTimeString('es-CO', {
                     hour: '2-digit',
-                    minute: '2-digit'
+                    minute: '2-digit',
+                    timeZone: 'America/Bogota'
                 }),
             rawTimestamp: conv.last_message_timestamp || conv.created_at,
             unread: conv.unread_count || 0,

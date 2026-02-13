@@ -105,7 +105,7 @@ class MessageService {
                 sender: msg.sender,
                 // Display time (HH:MM format)
                 timestamp: isValidDate
-                    ? msgTimestamp.toLocaleTimeString('es-CO', { hour: '2-digit', minute: '2-digit' })
+                    ? msgTimestamp.toLocaleTimeString('es-CO', { hour: '2-digit', minute: '2-digit', timeZone: 'America/Bogota' })
                     : '',
                 // Raw timestamp in ISO format for grouping
                 rawTimestamp: isValidDate ? msgTimestamp.toISOString() : null,
