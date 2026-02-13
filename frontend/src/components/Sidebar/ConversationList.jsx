@@ -31,24 +31,26 @@ const ConversationList = ({
         );
     }, [conversations, searchQuery]);
 
-    // Infinite scroll handler
+    // Infinite scroll using IntersectionObserver
     useEffect(() => {
-        const listElement = listRef.current;
-        if (!listElement) return;
+        if (!hasMore || isLoadingMore || !onLoadMore) return;
 
-        const handleScroll = () => {
-            const { scrollTop, scrollHeight, clientHeight } = listElement;
-            const scrollPercentage = (scrollTop + clientHeight) / scrollHeight;
+        const observer = new IntersectionObserver(
+            (entries) => {
+                if (entries[0].isIntersecting) {
+                    console.log('🔄 Sentinel visible - loading more conversations...');
+                    onLoadMore();
+                }
+            },
+            { threshold: 0.1 }
+        );
 
-            // When user scrolls past 50% of loaded conversations, load more
-            if (scrollPercentage > 0.5 && hasMore && !isLoadingMore) {
-                console.log('🔄 Loading more conversations...');
-                onLoadMore();
-            }
-        };
+        const sentinel = document.getElementById('conversation-list-sentinel');
+        if (sentinel) {
+            observer.observe(sentinel);
+        }
 
-        listElement.addEventListener('scroll', handleScroll);
-        return () => listElement.removeEventListener('scroll', handleScroll);
+        return () => observer.disconnect();
     }, [hasMore, isLoadingMore, onLoadMore]);
 
     if (isLoading) {
@@ -98,6 +100,9 @@ const ConversationList = ({
                     onTagClick={onTagClick}
                 />
             ))}
+
+            {/* Sentinel for infinite scroll */}
+            {hasMore && <div id="conversation-list-sentinel" style={{ height: '20px' }} />}
 
             {/* Loading more indicator */}
             {isLoadingMore && (

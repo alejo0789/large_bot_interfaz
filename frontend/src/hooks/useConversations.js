@@ -56,10 +56,13 @@ export const useConversations = (socket) => {
             }
 
             if (append) {
-                // Append to existing conversations (infinite scroll)
-                setConversations(prev => [...prev, ...newConversations]);
+                // Append and deduplicate by phone
+                setConversations(prev => {
+                    const existingPhones = new Set(prev.map(c => c.contact.phone));
+                    const uniqueNew = newConversations.filter(c => !existingPhones.has(c.contact.phone));
+                    return [...prev, ...uniqueNew];
+                });
             } else {
-                // Replace conversations (new search or initial load)
                 setConversations(newConversations);
             }
 
