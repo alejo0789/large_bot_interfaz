@@ -31,9 +31,11 @@ const ConversationList = ({
         );
     }, [conversations, searchQuery]);
 
+    const sentinelRef = useRef(null);
+
     // Infinite scroll using IntersectionObserver
     useEffect(() => {
-        if (!hasMore || isLoadingMore || !onLoadMore) return;
+        if (!hasMore || isLoadingMore || !onLoadMore || !listRef.current) return;
 
         const observer = new IntersectionObserver(
             (entries) => {
@@ -42,16 +44,19 @@ const ConversationList = ({
                     onLoadMore();
                 }
             },
-            { threshold: 0.1 }
+            {
+                root: listRef.current, // Use the scrollable list as root
+                rootMargin: '400px',   // Start loading when within 400px of bottom
+                threshold: 0
+            }
         );
 
-        const sentinel = document.getElementById('conversation-list-sentinel');
-        if (sentinel) {
-            observer.observe(sentinel);
+        if (sentinelRef.current) {
+            observer.observe(sentinelRef.current);
         }
 
         return () => observer.disconnect();
-    }, [hasMore, isLoadingMore, onLoadMore]);
+    }, [hasMore, isLoadingMore, onLoadMore, conversations.length]); // Re-observe when conversations change
 
     if (isLoading) {
         return (
@@ -102,7 +107,7 @@ const ConversationList = ({
             ))}
 
             {/* Sentinel for infinite scroll */}
-            {hasMore && <div id="conversation-list-sentinel" style={{ height: '20px' }} />}
+            {hasMore && <div ref={sentinelRef} style={{ height: '20px' }} />}
 
             {/* Loading more indicator */}
             {isLoadingMore && (

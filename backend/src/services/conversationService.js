@@ -148,7 +148,7 @@ class ConversationService {
         const existing = await this.getByPhone(phone);
 
         if (existing) {
-            // Only update contact name
+            // Only update contact name if provided
             const { rows } = await pool.query(`
                 UPDATE conversations 
                 SET 
@@ -159,13 +159,16 @@ class ConversationService {
             `, [contactName, phone]);
             return rows[0];
         } else {
+            // Use placeholder if no name provided for new conversation
+            const finalName = contactName || `Usuario ${phone.slice(-4)}`;
+
             // Insert new with default setting
             const { rows } = await pool.query(`
                 INSERT INTO conversations (phone, contact_name, ai_enabled, conversation_state, created_at, updated_at)
                 VALUES ($1, $2, $3, $4, NOW(), NOW())
                 ON CONFLICT (phone) DO UPDATE SET updated_at = NOW()
                 RETURNING *
-            `, [phone, contactName, defaultAiEnabled, defaultAiEnabled ? 'ai_active' : 'agent_active']);
+            `, [phone, finalName, defaultAiEnabled, defaultAiEnabled ? 'ai_active' : 'agent_active']);
             return rows[0];
         }
     }

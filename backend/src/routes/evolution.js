@@ -86,7 +86,12 @@ router.post('/', async (req, res) => {
 
         console.log(`📱 [WEBHOOK] Final Phone/ID used: ${phone}`);
 
-        let pushName = msg.pushName || `Usuario ${phone.slice(-4)}`;
+        let pushName = msg.pushName;
+
+        // If it's a private chat and the message is from me (agent), 
+        // the pushName belongs to the agent, not the contact.
+        // We should not use it to update the contact's name.
+        const nameToUse = (isGroup || !isFromAgent) ? pushName : null;
 
         // If it's a group, try to get the group subject
         if (isGroup) {
@@ -235,10 +240,13 @@ router.post('/', async (req, res) => {
         let conversation = await conversationService.getByPhone(phone);
         let isNewConversation = false;
 
-        if (!conversation) {
+        if (!conversation || nameToUse) {
             // Upsert will now handle default AI settings internally
-            conversation = await conversationService.upsert(phone, pushName);
-            isNewConversation = true;
+            // If nameToUse is null, it will keep existing or use placeholder if new
+            conversation = await conversationService.upsert(phone, nameToUse);
+            isNewConversation = !conversation; // If it didn't exist before the call
+            // Refresh conversation object
+            conversation = await conversationService.getByPhone(phone);
         }
 
         const currentState = conversation?.conversation_state || 'ai_active';
