@@ -1,8 +1,8 @@
-import React, { useMemo } from 'react';
+import React, { useMemo, useRef, useEffect } from 'react';
 import ConversationItem from './ConversationItem';
 
 /**
- * Conversation list component
+ * Conversation list component with infinite scroll
  */
 const ConversationList = ({
     conversations,
@@ -11,10 +11,15 @@ const ConversationList = ({
     aiStatesByPhone,
     tagsByPhone = {},
     isLoading,
+    isLoadingMore,
+    hasMore,
     onSelect,
-    onTagClick
+    onTagClick,
+    onLoadMore
 }) => {
-    // Filter conversations based on search
+    const listRef = useRef(null);
+
+    // Filter conversations based on search (client-side for already loaded)
     const filteredConversations = useMemo(() => {
         if (!searchQuery) return conversations;
 
@@ -25,6 +30,26 @@ const ConversationList = ({
             conv.lastMessage?.toLowerCase().includes(query)
         );
     }, [conversations, searchQuery]);
+
+    // Infinite scroll handler
+    useEffect(() => {
+        const listElement = listRef.current;
+        if (!listElement) return;
+
+        const handleScroll = () => {
+            const { scrollTop, scrollHeight, clientHeight } = listElement;
+            const scrollPercentage = (scrollTop + clientHeight) / scrollHeight;
+
+            // When user scrolls past 50% of loaded conversations, load more
+            if (scrollPercentage > 0.5 && hasMore && !isLoadingMore) {
+                console.log('🔄 Loading more conversations...');
+                onLoadMore();
+            }
+        };
+
+        listElement.addEventListener('scroll', handleScroll);
+        return () => listElement.removeEventListener('scroll', handleScroll);
+    }, [hasMore, isLoadingMore, onLoadMore]);
 
     if (isLoading) {
         return (
@@ -61,7 +86,7 @@ const ConversationList = ({
     }
 
     return (
-        <div className="conversation-list">
+        <div className="conversation-list" ref={listRef}>
             {filteredConversations.map(conversation => (
                 <ConversationItem
                     key={conversation.id}
@@ -73,6 +98,30 @@ const ConversationList = ({
                     onTagClick={onTagClick}
                 />
             ))}
+
+            {/* Loading more indicator */}
+            {isLoadingMore && (
+                <div style={{
+                    padding: 'var(--space-4)',
+                    textAlign: 'center',
+                    color: 'var(--color-gray-500)',
+                    fontSize: 'var(--font-size-sm)'
+                }}>
+                    <div className="loading">Cargando más...</div>
+                </div>
+            )}
+
+            {/* End of list indicator */}
+            {!hasMore && filteredConversations.length > 0 && (
+                <div style={{
+                    padding: 'var(--space-4)',
+                    textAlign: 'center',
+                    color: 'var(--color-gray-400)',
+                    fontSize: 'var(--font-size-xs)'
+                }}>
+                    No hay más conversaciones
+                </div>
+            )}
         </div>
     );
 };

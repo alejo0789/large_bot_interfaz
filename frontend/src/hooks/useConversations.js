@@ -15,28 +15,61 @@ export const useConversations = (socket) => {
     const [isLoadingMessages, setIsLoadingMessages] = useState(false);
     const [aiStatesByPhone, setAiStatesByPhone] = useState({});
 
-    // Fetch all conversations
-    const fetchConversations = useCallback(async () => {
-        try {
-            setIsLoading(true);
-            console.log('🔄 Fetching conversations...');
+    // Pagination state
+    const [currentPage, setCurrentPage] = useState(1);
+    const [hasMore, setHasMore] = useState(true);
+    const [isLoadingMore, setIsLoadingMore] = useState(false);
+    const [searchQuery, setSearchQuery] = useState('');
 
-            const response = await fetch(`${API_URL}/api/conversations`);
+    // Fetch all conversations with pagination
+    const fetchConversations = useCallback(async (page = 1, search = '', append = false) => {
+        try {
+            if (!append) setIsLoading(true);
+            else setIsLoadingMore(true);
+
+            console.log(`🔄 Fetching conversations (page ${page}, search: "${search}")...`);
+
+            const params = new URLSearchParams({
+                page: page.toString(),
+                limit: '100', // Changed from 50 to 100
+            });
+
+            if (search) {
+                params.append('search', search);
+            }
+
+            const response = await fetch(`${API_URL}/api/conversations?${params}`);
             if (!response.ok) throw new Error('Error fetching conversations');
 
             const data = await response.json();
+
             // Handle both paginated and legacy response formats
-            const conversations = Array.isArray(data) ? data : (data.data || []);
-            setConversations(conversations);
+            const newConversations = Array.isArray(data) ? data : (data.data || []);
+
+            // Check if there are more pages
+            if (data.pagination) {
+                setHasMore(data.pagination.hasNext);
+                setCurrentPage(data.pagination.page);
+            } else {
+                setHasMore(false);
+            }
+
+            if (append) {
+                // Append to existing conversations (infinite scroll)
+                setConversations(prev => [...prev, ...newConversations]);
+            } else {
+                // Replace conversations (new search or initial load)
+                setConversations(newConversations);
+            }
 
             // Initialize AI states from loaded conversations
             const initialAiStates = {};
-            conversations.forEach(conv => {
+            newConversations.forEach(conv => {
                 initialAiStates[conv.contact.phone] = conv.aiEnabled;
             });
-            setAiStatesByPhone(initialAiStates);
+            setAiStatesByPhone(prev => ({ ...prev, ...initialAiStates }));
 
-            console.log(`✅ Loaded ${conversations.length} conversations`);
+            console.log(`✅ Loaded ${newConversations.length} conversations (page ${page})`);
 
             return data;
         } catch (error) {
@@ -44,8 +77,23 @@ export const useConversations = (socket) => {
             return [];
         } finally {
             setIsLoading(false);
+            setIsLoadingMore(false);
         }
     }, []);
+
+    // Load more conversations (for infinite scroll)
+    const loadMoreConversations = useCallback(async () => {
+        if (!hasMore || isLoadingMore) return;
+        await fetchConversations(currentPage + 1, searchQuery, true);
+    }, [currentPage, hasMore, isLoadingMore, searchQuery, fetchConversations]);
+
+    // Search conversations (server-side)
+    const searchConversations = useCallback(async (query) => {
+        setSearchQuery(query);
+        setCurrentPage(1);
+        setHasMore(true);
+        await fetchConversations(1, query, false);
+    }, [fetchConversations]);
 
     // Fetch messages for a specific conversation
     const fetchMessages = useCallback(async (phone) => {
@@ -321,13 +369,17 @@ export const useConversations = (socket) => {
         messagesByConversation,
         isLoading,
         isLoadingMessages,
+        isLoadingMore,
+        hasMore,
         aiStatesByPhone,
         fetchConversations,
         fetchMessages,
         selectConversation,
         sendMessage,
         toggleAI,
-        setSelectedConversation
+        setSelectedConversation,
+        loadMoreConversations,
+        searchConversations
     };
 };
 

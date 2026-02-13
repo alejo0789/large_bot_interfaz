@@ -40,7 +40,10 @@ const AuthenticatedApp = () => {
     const [isMobile, setIsMobile] = useState(false);
     const [showSidebar, setShowSidebar] = useState(true);
     const [searchQuery, setSearchQuery] = useState('');
-    const [sidebarWidth, setSidebarWidth] = useState(360);
+    const [sidebarWidth, setSidebarWidth] = useState(() => {
+        const saved = localStorage.getItem('sidebarWidth');
+        return saved ? parseInt(saved, 10) : 360;
+    });
     const [isResizing, setIsResizing] = useState(false);
 
     // Filters
@@ -90,10 +93,14 @@ const AuthenticatedApp = () => {
         messagesByConversation,
         isLoading,
         isLoadingMessages,
+        isLoadingMore,
+        hasMore,
         aiStatesByPhone,
         selectConversation,
         sendMessage,
-        toggleAI
+        toggleAI,
+        loadMoreConversations,
+        searchConversations
     } = useConversations(socket);
 
     const {
@@ -103,6 +110,8 @@ const AuthenticatedApp = () => {
         assignTag,
         removeTag
     } = useTags();
+
+
 
     // Mobile detection - show sidebar by default on mobile
     useEffect(() => {
@@ -121,23 +130,13 @@ const AuthenticatedApp = () => {
         return () => window.removeEventListener('resize', checkMobile);
     }, []);
 
-    // Load tags for all conversations on mount
+    // Persist sidebar width to localStorage
     useEffect(() => {
-        const loadAllTags = async () => {
-            for (const conv of conversations) {
-                const phone = conv.contact.phone;
-                if (!tagsByPhone[phone]) {
-                    const convTags = await getConversationTags(phone);
-                    setTagsByPhone(prev => ({ ...prev, [phone]: convTags }));
-                }
-            }
-        };
-        if (conversations.length > 0) {
-            loadAllTags();
-        }
-    }, [conversations, getConversationTags, tagsByPhone]);
+        localStorage.setItem('sidebarWidth', sidebarWidth);
+    }, [sidebarWidth]);
 
-    // Load tags for selected conversation
+
+    // Load tags for selected conversation only (not all conversations)
     useEffect(() => {
         if (selectedConversation) {
             const phone = selectedConversation.contact.phone;
@@ -146,6 +145,7 @@ const AuthenticatedApp = () => {
             });
         }
     }, [selectedConversation, getConversationTags]);
+
 
     // Filter conversations based on tags and unread status
     const filteredConversations = useMemo(() => {
@@ -393,7 +393,22 @@ const AuthenticatedApp = () => {
         setIsResizing(false);
     }, []);
 
-    // ... (rest of effects)
+    // Mouse event listeners for resize
+    useEffect(() => {
+        if (isResizing) {
+            document.addEventListener('mousemove', handleMouseMove);
+            document.addEventListener('mouseup', handleMouseUp);
+        } else {
+            document.removeEventListener('mousemove', handleMouseMove);
+            document.removeEventListener('mouseup', handleMouseUp);
+        }
+
+        return () => {
+            document.removeEventListener('mousemove', handleMouseMove);
+            document.removeEventListener('mouseup', handleMouseUp);
+        };
+    }, [isResizing, handleMouseMove, handleMouseUp]);
+
 
     const handleOpenTagManager = useCallback((conversation, e) => {
         if (e) e.stopPropagation();
@@ -402,6 +417,11 @@ const AuthenticatedApp = () => {
     }, []);
 
     // ...
+
+    // Current conversation messages
+    const currentMessages = selectedConversation
+        ? messagesByConversation[selectedConversation.contact.phone] || []
+        : [];
 
     // Current conversation tags (for selected or tagging)
     const targetConversation = conversationToTag || selectedConversation;
@@ -416,9 +436,94 @@ const AuthenticatedApp = () => {
                 className={`sidebar ${isMobile && showSidebar ? 'open' : ''}`}
                 style={!isMobile ? { width: `${sidebarWidth}px` } : {}}
             >
-                {/* ... (Sidebar Header) ... */}
+                {/* Sidebar Header */}
+                <div className="sidebar-header">
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-2)' }}>
+                        <MessageSquare className="w-6 h-6" style={{ color: 'var(--color-primary)' }} />
+                        <span style={{ fontWeight: 600, fontSize: 'var(--font-size-lg)' }}>Chat</span>
+                    </div>
 
-                {/* ... (SearchBar and TagFilter) ... */}
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-2)', flexShrink: 0 }}>
+                        {/* Connection status */}
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-1)' }}>
+                            <span className={`connection-dot ${isConnected ? 'connected' : 'disconnected'}`} />
+                            <span style={{ fontSize: 'var(--font-size-xs)', color: 'var(--color-gray-500)' }}>
+                                {isConnected ? 'Conectado' : 'Desconectado'}
+                            </span>
+                        </div>
+
+                        {/* Bulk message button */}
+                        <button
+                            className="btn"
+                            onClick={() => setShowBulkMessage(true)}
+                            title="Envío masivo"
+                            style={{
+                                display: 'flex',
+                                alignItems: 'center',
+                                gap: 'var(--space-1)',
+                                backgroundColor: 'var(--color-primary)',
+                                color: 'white',
+                                padding: '6px 12px',
+                                fontSize: 'var(--font-size-xs)',
+                                fontWeight: 500
+                            }}
+                        >
+                            <Send className="w-4 h-4" />
+                            Masivo
+                        </button>
+
+                        {/* Settings button */}
+                        <button
+                            className="btn btn-icon"
+                            onClick={() => setShowSettings(true)}
+                            title="Configuración"
+                            style={{
+                                backgroundColor: 'var(--color-gray-600)',
+                                color: 'white',
+                                padding: '6px'
+                            }}
+                        >
+                            <Settings className="w-4 h-4" />
+                        </button>
+
+                        {/* Logout button */}
+                        <button
+                            className="btn btn-icon"
+                            onClick={logout}
+                            title="Cerrar sesión"
+                            style={{
+                                backgroundColor: '#ef4444',
+                                color: 'white',
+                                padding: '6px'
+                            }}
+                        >
+                            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                                <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"></path>
+                                <polyline points="16 17 21 12 16 7"></polyline>
+                                <line x1="21" y1="12" x2="9" y2="12"></line>
+                            </svg>
+                        </button>
+                    </div>
+                </div>
+
+                {/* Search */}
+                <SearchBar
+                    value={searchQuery}
+                    onChange={setSearchQuery}
+                />
+
+                {/* Tag Filter */}
+                <TagFilter
+                    tags={tags}
+                    selectedTagIds={selectedTagIds}
+                    onToggleTag={handleToggleTag}
+                    onClearFilter={handleClearFilters}
+                    showUnreadOnly={showUnreadOnly}
+                    onToggleUnreadOnly={() => setShowUnreadOnly(!showUnreadOnly)}
+                    dateFilter={dateFilter}
+                    onDateFilterChange={setDateFilter}
+                    unreadCount={unreadCount}
+                />
 
                 {/* Conversation List */}
                 <ConversationList
@@ -428,14 +533,157 @@ const AuthenticatedApp = () => {
                     aiStatesByPhone={aiStatesByPhone}
                     tagsByPhone={tagsByPhone}
                     isLoading={isLoading}
+                    isLoadingMore={isLoadingMore}
+                    hasMore={hasMore}
                     onSelect={handleSelectConversation}
                     onTagClick={handleOpenTagManager}
+                    onLoadMore={loadMoreConversations}
                 />
 
-                {/* ... (Resize Handle) ... */}
+                {/* Resize handle - Desktop only */}
+                {!isMobile && (
+                    <div
+                        style={{
+                            position: 'absolute',
+                            top: 0,
+                            right: -6,
+                            width: '12px',
+                            height: '100%',
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            cursor: 'ew-resize',
+                            zIndex: 10,
+                            transition: 'all var(--transition-fast)'
+                        }}
+                        onMouseDown={handleMouseDown}
+                    >
+                        {/* Visual indicator */}
+                        <div
+                            style={{
+                                width: '4px',
+                                height: '80px',
+                                backgroundColor: isResizing ? 'var(--color-primary)' : 'var(--color-gray-300)',
+                                borderRadius: '4px',
+                                display: 'flex',
+                                alignItems: 'center',
+                                justifyContent: 'center',
+                                position: 'relative',
+                                boxShadow: isResizing ? '0 0 8px rgba(0,0,0,0.2)' : '0 0 4px rgba(0,0,0,0.1)',
+                                transition: 'all var(--transition-fast)',
+                                opacity: 0.7
+                            }}
+                            onMouseEnter={(e) => {
+                                e.currentTarget.style.opacity = '1';
+                                e.currentTarget.style.backgroundColor = 'var(--color-primary)';
+                            }}
+                            onMouseLeave={(e) => {
+                                if (!isResizing) {
+                                    e.currentTarget.style.opacity = '0.7';
+                                    e.currentTarget.style.backgroundColor = 'var(--color-gray-300)';
+                                }
+                            }}
+                        >
+                            {/* Arrows icon */}
+                            <div style={{
+                                color: 'white',
+                                fontSize: '10px',
+                                fontWeight: 'bold',
+                                userSelect: 'none',
+                                position: 'absolute',
+                                top: '50%',
+                                left: '50%',
+                                transform: 'translate(-50%, -50%)'
+                            }}>
+                                ⟷
+                            </div>
+                        </div>
+                    </div>
+                )}
             </div>
 
-            {/* ... (Chat Area) ... */}
+            {/* Chat Area */}
+            <div
+                className="chat-container"
+                style={isMobile && showSidebar ? { display: 'none' } : {}}
+            >
+                {selectedConversation ? (
+                    <>
+                        <ChatHeader
+                            conversation={selectedConversation}
+                            aiEnabled={aiStatesByPhone[selectedConversation.contact.phone] ?? true}
+                            onToggleAI={toggleAI}
+                            onBack={() => setShowSidebar(true)}
+                            isMobile={isMobile}
+                        />
+
+                        {/* Tags bar */}
+                        <div style={{
+                            padding: 'var(--space-2) var(--space-4)',
+                            backgroundColor: 'var(--color-white)',
+                            borderBottom: '1px solid var(--color-gray-200)',
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: 'var(--space-2)',
+                            flexWrap: 'wrap'
+                        }}>
+                            {(tagsByPhone[selectedConversation.contact.phone] || []).map(tag => (
+                                <span
+                                    key={tag.id}
+                                    className="tag tag-small"
+                                    style={{ backgroundColor: tag.color, color: '#fff' }}
+                                >
+                                    {tag.name}
+                                </span>
+                            ))}
+                            <button
+                                className="btn btn-icon"
+                                onClick={() => {
+                                    setConversationToTag(selectedConversation);
+                                    setShowTagManager(true);
+                                }}
+                                style={{
+                                    padding: '2px 8px',
+                                    fontSize: 'var(--font-size-xs)',
+                                    backgroundColor: 'var(--color-gray-100)'
+                                }}
+                            >
+                                <Tag className="w-3 h-3" />
+                                <span style={{ marginLeft: '4px' }}>Etiquetas</span>
+                            </button>
+                        </div>
+
+                        <MessageList
+                            messages={currentMessages}
+                            isLoading={isLoadingMessages}
+                        />
+
+                        <MessageInput
+                            onSend={handleSendMessage}
+                            onSendFile={handleSendFile}
+                            disabled={false}
+                            isMobile={isMobile}
+                        />
+                    </>
+                ) : (
+                    <div className="flex-center" style={{ height: '100%', flexDirection: 'column', gap: 'var(--space-4)' }}>
+                        <MessageSquare className="w-16 h-16" style={{ color: 'var(--color-gray-300)' }} />
+                        <div style={{ textAlign: 'center' }}>
+                            <h2 style={{
+                                fontSize: 'var(--font-size-xl)',
+                                fontWeight: 600,
+                                color: 'var(--color-gray-700)',
+                                marginBottom: 'var(--space-2)'
+                            }}>
+                                Selecciona una conversación
+                            </h2>
+                            <p style={{ color: 'var(--color-gray-500)' }}>
+                                Elige una conversación de la lista para comenzar
+                            </p>
+                        </div>
+                    </div>
+                )}
+            </div>
 
             {/* Modals */}
             <TagManager
