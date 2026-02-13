@@ -91,7 +91,7 @@ router.post('/', async (req, res) => {
         // If it's a private chat and the message is from me (agent), 
         // the pushName belongs to the agent, not the contact.
         // We should not use it to update the contact's name.
-        const nameToUse = (isGroup || !isFromAgent) ? pushName : null;
+        let nameToUse = (isGroup || !isFromAgent) ? pushName : null;
 
         // If it's a group, try to get the group subject
         if (isGroup) {
@@ -123,6 +123,9 @@ router.post('/', async (req, res) => {
             } else {
                 pushName = existingConv.contact_name;
             }
+
+            // For groups, nameToUse MUST be the group subject, not the member pushName
+            nameToUse = pushName;
         }
 
         // Extract text
@@ -270,17 +273,24 @@ router.post('/', async (req, res) => {
 
         // 3. Update Conversation
         await conversationService.updateLastMessage(phone, text);
-        await conversationService.incrementUnread(phone);
+
+        if (!isFromAgent) {
+            await conversationService.incrementUnread(phone);
+        } else {
+            // If message is from agent (own phone), ensure unread is 0
+            await conversationService.markAsRead(phone);
+        }
 
         // 4. Emit
         // 4. Emit to Frontend (Socket.IO)
         // 4. Emit to Frontend (Socket.IO)
         emitToConversation(phone, 'new-message', {
             phone: phone,
-            contact_name: pushName,
+            contact_name: conversation.contact_name, // Use name from DB, not from agent's pushName
             message: text,
             whatsapp_id: msg.key.id,
             sender_type: senderType, // Use dynamic sender type
+            unread: isFromAgent ? 0 : 1, // Explicit unread delta
             timestamp: new Date().toISOString(),
             conversation_state: currentState,
             ai_enabled: shouldActivateAI,

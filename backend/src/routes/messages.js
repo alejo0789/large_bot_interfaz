@@ -27,13 +27,15 @@ const emitToConversation = (phone, event, data) => {
     // Emit to specific conversation room
     io.to(`conversation:${phone}`).emit(event, data);
 
+    const isAgent = (data.sender_type || data.sender) === 'agent';
+
     // Emit to global conversations list for updates
     io.to('conversations:list').emit('conversation-updated', {
         phone,
         lastMessage: data.message,
         timestamp: data.timestamp || new Date().toISOString(),
         contact_name: data.contact_name,
-        unread: 1,
+        unread: isAgent ? 0 : 1,
         sender_type: data.sender_type || 'agent'
     });
 

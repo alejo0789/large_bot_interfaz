@@ -368,7 +368,12 @@ export const useConversations = (socket) => {
     useEffect(() => {
         if (!socket) return;
 
-        const handleSocketMessage = (messageData, isAgent = false) => {
+        const handleSocketMessage = (messageData, isAgentEvent = false) => {
+            // Determine if agent based on event type OR payload
+            const isAgent = isAgentEvent ||
+                messageData.sender_type === 'agent' ||
+                messageData.sender === 'agent';
+
             console.log(`📨 ${isAgent ? 'Agent' : 'Customer'} message received:`, messageData);
 
             const phone = messageData.phone;
@@ -498,9 +503,9 @@ export const useConversations = (socket) => {
                     lastMessage: data.lastMessage,
                     timestamp: timestamp,
                     rawTimestamp: data.timestamp,
-                    unread: (selectedConversation?.contact.phone === data.phone)
+                    unread: (selectedConversation?.contact.phone === data.phone || data.sender_type === 'agent')
                         ? (targetConv.unread || 0)
-                        : (targetConv.unread || 0) + (data.unread || 1)
+                        : (targetConv.unread || 0) + (data.unread ?? 1)
                 };
                 currentConversations.splice(index, 1);
                 return [updatedConv, ...currentConversations];
