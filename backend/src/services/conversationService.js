@@ -25,7 +25,9 @@ class ConversationService {
             limit = DEFAULT_PAGE_SIZE,
             status = null,
             search = null,
-            tagId = null // Added tagId filter
+            tagId = null, // Added tagId filter
+            startDate = null,
+            endDate = null
         } = options;
 
         // Sanitize pagination
@@ -53,6 +55,16 @@ class ConversationService {
             joinClause = 'JOIN conversation_tags ct_filter ON c.phone = ct_filter.conversation_phone';
             conditions.push(`ct_filter.tag_id = $${paramIndex++}`);
             params.push(tagId);
+        }
+
+        if (startDate) {
+            conditions.push(`COALESCE(c.last_message_timestamp, c.created_at) >= $${paramIndex++}`);
+            params.push(startDate);
+        }
+
+        if (endDate) {
+            conditions.push(`COALESCE(c.last_message_timestamp, c.created_at) <= $${paramIndex++}`);
+            params.push(endDate);
         }
 
         const whereClause = conditions.length > 0

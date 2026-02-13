@@ -150,13 +150,59 @@ const AuthenticatedApp = () => {
         }
     }, [selectedConversation, getConversationTags]);
 
-    // Server-side filtering when tags or search change
+    // Calculate start/end dates for the backend based on dateFilter string
+    const dateRange = useMemo(() => {
+        if (!dateFilter) return { start: null, end: null };
+
+        const start = new Date();
+        const end = new Date();
+        end.setHours(23, 59, 59, 999);
+
+        switch (dateFilter) {
+            case 'today':
+                start.setHours(0, 0, 0, 0);
+                break;
+            case 'yesterday':
+                start.setDate(start.getDate() - 1);
+                start.setHours(0, 0, 0, 0);
+                const prevDayEnd = new Date();
+                prevDayEnd.setDate(prevDayEnd.getDate() - 1);
+                prevDayEnd.setHours(23, 59, 59, 999);
+                return { start: start.toISOString(), end: prevDayEnd.toISOString() };
+            case 'last7':
+                start.setDate(start.getDate() - 7);
+                start.setHours(0, 0, 0, 0);
+                break;
+            case 'last30':
+                start.setDate(start.getDate() - 30);
+                start.setHours(0, 0, 0, 0);
+                break;
+            case 'last90':
+                start.setDate(start.getDate() - 90);
+                start.setHours(0, 0, 0, 0);
+                break;
+            default:
+                return { start: null, end: null };
+        }
+
+        return {
+            start: start.toISOString(),
+            end: end.toISOString()
+        };
+    }, [dateFilter]);
+
+    // Server-side filtering when tags, search OR date change
     useEffect(() => {
         const activeTagId = selectedTagIds.length === 1 ? selectedTagIds[0] : null;
-        // Only fetch if searching or filtering by tag, 
-        // OR if we want to reset to page 1 when clearing
-        fetchConversations(1, searchQuery, false, activeTagId);
-    }, [selectedTagIds, searchQuery, fetchConversations]);
+        fetchConversations(
+            1,
+            searchQuery,
+            false,
+            activeTagId,
+            dateRange.start,
+            dateRange.end
+        );
+    }, [selectedTagIds, searchQuery, dateRange, fetchConversations]);
 
 
     // Filter conversations based on tags and unread status
@@ -168,7 +214,8 @@ const AuthenticatedApp = () => {
             result = result.filter(conv => conv.unread > 0);
         }
 
-        // Filter by tags
+        // Filter by tags (Keep client-side as well for multi-tag support if needed, 
+        // though backend handles single tagId for now)
         if (selectedTagIds.length > 0) {
             result = result.filter(conv => {
                 const convTags = conv.tags || tagsByPhone[conv.contact.phone] || [];
@@ -178,43 +225,9 @@ const AuthenticatedApp = () => {
             });
         }
 
-        // Filter by date
-        if (dateFilter) {
-            let cutoffDate = new Date();
-
-            switch (dateFilter) {
-                case 'today':
-                    cutoffDate.setHours(0, 0, 0, 0);
-                    break;
-                case 'yesterday':
-                    cutoffDate.setDate(cutoffDate.getDate() - 1);
-                    cutoffDate.setHours(0, 0, 0, 0);
-                    break;
-                case 'last7':
-                    cutoffDate.setDate(cutoffDate.getDate() - 7);
-                    break;
-                case 'last30':
-                    cutoffDate.setDate(cutoffDate.getDate() - 30);
-                    break;
-                case 'last90':
-                    cutoffDate.setDate(cutoffDate.getDate() - 90);
-                    break;
-                default:
-                    cutoffDate = null;
-            }
-
-            if (cutoffDate) {
-                result = result.filter(conv => {
-                    // Use rawTimestamp which contains last_message_timestamp from backend
-                    const convDate = conv.rawTimestamp ? new Date(conv.rawTimestamp) : null;
-                    if (!convDate || isNaN(convDate.getTime())) return false;
-                    return convDate >= cutoffDate;
-                });
-            }
-        }
-
+        // Date filtering is now handled server-side
         return result;
-    }, [conversations, showUnreadOnly, selectedTagIds, tagsByPhone, dateFilter]);
+    }, [conversations, showUnreadOnly, selectedTagIds, tagsByPhone]);
 
     // Count unread conversations
     const unreadCount = useMemo(() => {
@@ -539,7 +552,7 @@ const AuthenticatedApp = () => {
                     onTagClick={handleOpenTagManager}
                     onLoadMore={() => {
                         const activeTagId = selectedTagIds.length === 1 ? selectedTagIds[0] : null;
-                        loadMoreConversations(activeTagId);
+                        loadMoreConversations(activeTagId, dateRange.start, dateRange.end);
                     }}
                 />
 
