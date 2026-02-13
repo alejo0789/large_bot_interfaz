@@ -9,6 +9,22 @@ export const AuthProvider = ({ children }) => {
 
     const API_URL = process.env.REACT_APP_API_URL || 'http://localhost:4000';
 
+    const logout = useCallback(() => {
+        const tokenToRevoke = localStorage.getItem('auth_token');
+        setToken(null);
+        setUser(null);
+        localStorage.removeItem('auth_token');
+        localStorage.removeItem('auth_user');
+
+        // Optional: Call backend to log logout
+        if (tokenToRevoke) {
+            fetch(`${API_URL}/api/auth/logout`, {
+                method: 'POST',
+                headers: { 'Authorization': `Bearer ${tokenToRevoke}` }
+            }).catch(console.error);
+        }
+    }, [API_URL]);
+
     // Check for existing session on mount
     useEffect(() => {
         const storedToken = localStorage.getItem('auth_token');
@@ -84,20 +100,7 @@ export const AuthProvider = ({ children }) => {
         }
     };
 
-    const logout = useCallback(() => {
-        setToken(null);
-        setUser(null);
-        localStorage.removeItem('auth_token');
-        localStorage.removeItem('auth_user');
 
-        // Optional: Call backend to log logout
-        if (token) {
-            fetch(`${API_URL}/api/auth/logout`, {
-                method: 'POST',
-                headers: { 'Authorization': `Bearer ${token}` }
-            }).catch(console.error);
-        }
-    }, [token]);
 
     return (
         <AuthContext.Provider value={{
