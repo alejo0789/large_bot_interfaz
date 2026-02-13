@@ -410,7 +410,14 @@ export const useConversations = (socket) => {
                             ...prev,
                             [phone]: existingMessages.map(msg =>
                                 (msg.text === formattedMessage.text && msg.status === 'sending')
-                                    ? { ...msg, status: 'delivered', id: formattedMessage.id }
+                                    ? {
+                                        ...msg,
+                                        status: 'delivered',
+                                        id: formattedMessage.id,
+                                        media_url: formattedMessage.media_url,
+                                        media_type: formattedMessage.media_type,
+                                        agent_name: formattedMessage.agent_name
+                                    }
                                     : msg
                             )
                         };
@@ -469,7 +476,7 @@ export const useConversations = (socket) => {
                     const newConv = {
                         id: data.phone,
                         contact: {
-                            name: data.contact_name || `Usuario ${data.phone.slice(-4)}`,
+                            name: data.contact_name || `Usuario ${data.phone.slice(-4)} `,
                             phone: data.phone
                         },
                         lastMessage: data.lastMessage,

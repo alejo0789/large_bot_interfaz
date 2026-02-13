@@ -5,7 +5,9 @@ import { CheckCheck, Clock, Download, Play, FileText, Image as ImageIcon, Film, 
  * Message bubble component with media support
  */
 const MessageBubble = ({ message }) => {
-    const { text, sender, timestamp, status, media_type, media_url } = message;
+    const { text, sender, timestamp, status } = message;
+    const media_type = message.media_type || message.mediaType;
+    const media_url = message.media_url || message.mediaUrl;
     const [imageError, setImageError] = useState(false);
     const [showFullImage, setShowFullImage] = useState(false);
 
