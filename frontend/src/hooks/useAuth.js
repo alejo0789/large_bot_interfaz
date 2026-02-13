@@ -7,7 +7,8 @@ export const AuthProvider = ({ children }) => {
     const [token, setToken] = useState(null);
     const [loading, setLoading] = useState(true);
 
-    const API_URL = process.env.REACT_APP_API_URL || 'http://localhost:4000';
+    const API_URL = process.env.REACT_APP_API_URL ||
+        (process.env.NODE_ENV === 'production' ? window.location.origin : 'http://localhost:4000');
 
     const logout = useCallback(() => {
         const tokenToRevoke = localStorage.getItem('auth_token');

@@ -1,7 +1,8 @@
 import { useState, useEffect, useCallback } from 'react';
 import { io } from 'socket.io-client';
 
-const SOCKET_URL = process.env.REACT_APP_SOCKET_URL || 'http://localhost:4000';
+const SOCKET_URL = process.env.REACT_APP_SOCKET_URL ||
+    (process.env.NODE_ENV === 'production' ? window.location.origin : 'http://localhost:4000');
 
 /**
  * Custom hook for Socket.IO connection management
