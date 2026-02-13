@@ -1,15 +1,78 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { Send, Paperclip, X, Image, FileText, Film, Mic, Square, Trash2, Smile } from 'lucide-react';
+import { Send, Paperclip, X, Image, FileText, Film, Mic, Square, Trash2, Smile, Zap, Plus } from 'lucide-react';
+import { useQuickReplies } from '../../hooks/useQuickReplies';
+import QuickReplyManager from '../QuickReplies/QuickReplyManager';
+import EmojiPicker from 'emoji-picker-react';
 
 /**
  * Message input component with file attachment and voice recording
  */
 const MessageInput = ({ onSend, onSendFile, disabled, isMobile }) => {
+    const [showEmojiPicker, setShowEmojiPicker] = useState(false);
     const [message, setMessage] = useState('');
     const [selectedFile, setSelectedFile] = useState(null);
     const [filePreview, setFilePreview] = useState(null);
     const [isUploading, setIsUploading] = useState(false);
     const fileInputRef = useRef(null);
+    const emojiPickerRef = useRef(null);
+    const emojiButtonRef = useRef(null);
+
+    // Close emoji picker on click outside
+    useEffect(() => {
+        function handleClickOutside(event) {
+            if (showEmojiPicker &&
+                emojiPickerRef.current &&
+                !emojiPickerRef.current.contains(event.target) &&
+                emojiButtonRef.current &&
+                !emojiButtonRef.current.contains(event.target)) {
+                setShowEmojiPicker(false);
+            }
+        }
+        document.addEventListener("mousedown", handleClickOutside);
+        return () => document.removeEventListener("mousedown", handleClickOutside);
+    }, [showEmojiPicker]);
+
+    // Quick Replies State
+    const [showQuickReplies, setShowQuickReplies] = useState(false);
+    const [quickReplyFilter, setQuickReplyFilter] = useState('');
+    const [showQuickReplyManager, setShowQuickReplyManager] = useState(false);
+
+    // Load quick replies
+    const { quickReplies, fetchQuickReplies } = useQuickReplies();
+
+    // Check for quick reply trigger
+    useEffect(() => {
+        const lastSlashIndex = message.lastIndexOf('/');
+        if (lastSlashIndex !== -1) {
+            const textAfterSlash = message.substring(lastSlashIndex + 1);
+            // Only trigger if no spaces after last slash (part of the shortcut)
+            if (!textAfterSlash.includes(' ')) {
+                setQuickReplyFilter(textAfterSlash.toLowerCase());
+                setShowQuickReplies(true);
+                return;
+            }
+        }
+        setShowQuickReplies(false);
+    }, [message]);
+
+    const handleQuickReplySelect = (reply) => {
+        const lastSlashIndex = message.lastIndexOf('/');
+        const textBeforeSlash = message.substring(0, lastSlashIndex);
+
+        // If it has media, handle file attachment logic (mock for now or just text)
+        // Ideally we would fetch the media and attach it, but let's start with text
+
+        setMessage(textBeforeSlash + reply.content + ' ');
+        setShowQuickReplies(false);
+
+        // Focus back on textarea
+        // (This might happen automatically due to state change re-rendering)
+    };
+
+    const filteredReplies = quickReplies.filter(qr =>
+        qr.shortcut.toLowerCase().includes(quickReplyFilter) ||
+        qr.content.toLowerCase().includes(quickReplyFilter)
+    );
 
     // Voice recording state
     const [isRecording, setIsRecording] = useState(false);
@@ -17,16 +80,24 @@ const MessageInput = ({ onSend, onSendFile, disabled, isMobile }) => {
     const [audioBlob, setAudioBlob] = useState(null);
     const [audioUrl, setAudioUrl] = useState(null);
     const [audioWaveform, setAudioWaveform] = useState([]);
-    const [showEmojiPicker, setShowEmojiPicker] = useState(false);
+    const handleEmojiClick = (emojiData) => {
+        const emoji = emojiData.emoji;
+        const textarea = document.querySelector('.message-input');
+        if (!textarea) return;
 
-    // Common emojis
-    const commonEmojis = [
-        '😀', '😂', '🤣', '😊', '😍', '🥰', '😘', '😎',
-        '🤔', '😅', '😢', '😭', '😡', '🥺', '😱', '🤯',
-        '👍', '👎', '👏', '🙏', '💪', '🤝', '✌️', '👋',
-        '❤️', '💕', '💯', '🔥', '⭐', '✨', '🎉', '🎊',
-        '✅', '❌', '⚠️', '📌', '📎', '💼', '📱', '💻'
-    ];
+        const start = textarea.selectionStart;
+        const end = textarea.selectionEnd;
+        const newText = message.substring(0, start) + emoji + message.substring(end);
+
+        setMessage(newText);
+
+        // Return focus to textarea and set cursor position correctly
+        setTimeout(() => {
+            textarea.focus();
+            const newPos = start + emoji.length;
+            textarea.setSelectionRange(newPos, newPos);
+        }, 0);
+    };
 
     const mediaRecorderRef = useRef(null);
     const audioChunksRef = useRef([]);
@@ -164,6 +235,7 @@ const MessageInput = ({ onSend, onSendFile, disabled, isMobile }) => {
         } else if (message.trim() && !disabled) {
             onSend(message.trim());
             setMessage('');
+            setShowEmojiPicker(false);
         }
     };
 
@@ -352,7 +424,117 @@ const MessageInput = ({ onSend, onSendFile, disabled, isMobile }) => {
     }
 
     return (
-        <div style={{ width: '100%' }}>
+        <div style={{ width: '100%', position: 'relative' }}>
+            {/* Quick Reply Suggestions Popup - Moved here for better positioning context */}
+            {showQuickReplies && (
+                <div className="quick-reply-popup" style={{
+                    position: 'absolute',
+                    bottom: '100%',
+                    left: '0',
+                    width: '100%',
+                    maxHeight: '300px',
+                    backgroundColor: 'white',
+                    borderTopLeftRadius: 'var(--radius-lg)',
+                    borderTopRightRadius: 'var(--radius-lg)',
+                    boxShadow: '0 -4px 12px rgba(0, 0, 0, 0.1)',
+                    zIndex: 1000,
+                    overflowY: 'auto',
+                    border: '1px solid var(--color-gray-200)',
+                    marginBottom: '0'
+                }}>
+                    <div style={{ padding: '8px', borderBottom: '1px solid var(--color-gray-100)', fontSize: '12px', fontWeight: 600, color: 'var(--color-gray-500)', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                        <span>RESPUESTAS RÁPIDAS</span>
+                        <button onClick={() => setShowQuickReplies(false)} style={{ background: 'none', border: 'none', cursor: 'pointer' }}><X className="w-3 h-3" /></button>
+                    </div>
+
+                    {filteredReplies.length > 0 ? (
+                        filteredReplies.map(reply => (
+                            <button
+                                key={reply.id}
+                                onClick={() => handleQuickReplySelect(reply)}
+                                style={{
+                                    width: '100%',
+                                    display: 'flex',
+                                    alignItems: 'center',
+                                    gap: '12px',
+                                    padding: '10px 16px',
+                                    border: 'none',
+                                    background: 'none',
+                                    textAlign: 'left',
+                                    cursor: 'pointer',
+                                    borderBottom: '1px solid var(--color-gray-50)',
+                                    transition: 'background-color 0.2s'
+                                }}
+                                onMouseOver={(e) => e.currentTarget.style.backgroundColor = 'var(--color-gray-50)'}
+                                onMouseOut={(e) => e.currentTarget.style.backgroundColor = 'transparent'}
+                            >
+                                <div style={{
+                                    display: 'flex',
+                                    alignItems: 'center',
+                                    justifyContent: 'center',
+                                    width: '32px',
+                                    height: '32px',
+                                    backgroundColor: 'var(--color-primary-light)',
+                                    borderRadius: '50%',
+                                    color: 'white',
+                                    fontWeight: 'bold',
+                                    fontSize: '14px'
+                                }}>
+                                    /
+                                </div>
+                                <div style={{ flex: 1, overflow: 'hidden' }}>
+                                    <div style={{ fontWeight: 600, color: 'var(--color-gray-900)' }}>{reply.shortcut}</div>
+                                    <div style={{ fontSize: '12px', color: 'var(--color-gray-500)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                                        {reply.content}
+                                    </div>
+                                </div>
+                                {reply.media_url && <Image className="w-4 h-4 text-gray-400" />}
+                            </button>
+                        ))
+                    ) : (
+                        <div style={{ padding: '16px', textAlign: 'center', color: 'var(--color-gray-500)', fontSize: '13px' }}>
+                            No hay coincidencias para "{quickReplyFilter}"
+                        </div>
+                    )}
+
+                    {/* Create new option */}
+                    <button
+                        onClick={() => {
+                            setShowQuickReplies(false);
+                            setShowQuickReplyManager(true);
+                        }}
+                        style={{
+                            width: '100%',
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: '12px',
+                            padding: '12px 16px',
+                            border: 'none',
+                            background: 'var(--color-gray-50)',
+                            color: 'var(--color-primary)',
+                            textAlign: 'left',
+                            cursor: 'pointer',
+                            fontWeight: 600,
+                            borderTop: '1px solid var(--color-gray-200)'
+                        }}
+                    >
+                        <div style={{
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            width: '32px',
+                            height: '32px',
+                            borderRadius: '50%',
+                            border: '2px dashed var(--color-primary)',
+                            color: 'var(--color-primary)'
+                        }}>
+                            <Plus className="w-4 h-4" />
+                        </div>
+                        Crear nueva respuesta rápida...
+                    </button>
+                </div>
+            )}
+
             {/* File preview */}
             {selectedFile && (
                 <div style={{
@@ -441,9 +623,22 @@ const MessageInput = ({ onSend, onSendFile, disabled, isMobile }) => {
                     <Paperclip className="w-5 h-5" />
                 </button>
 
+                {/* Quick Reply Manager Modal */}
+                {showQuickReplyManager && (
+                    <QuickReplyManager
+                        isOpen={showQuickReplyManager}
+                        onClose={() => {
+                            setShowQuickReplyManager(false);
+                            fetchQuickReplies(); // Refresh list after closing
+                        }}
+                        initialContent={message.replace('/', '')} // Setup initial content
+                    />
+                )}
+
                 {/* Emoji button */}
                 <div style={{ position: 'relative' }}>
                     <button
+                        ref={emojiButtonRef}
                         className="btn btn-icon"
                         title="Emojis"
                         onClick={() => setShowEmojiPicker(!showEmojiPicker)}
@@ -456,50 +651,59 @@ const MessageInput = ({ onSend, onSendFile, disabled, isMobile }) => {
                         <Smile className="w-5 h-5" />
                     </button>
 
-                    {/* Emoji picker popup */}
                     {showEmojiPicker && (
-                        <div style={{
-                            position: 'absolute',
-                            bottom: '100%',
-                            left: 0,
-                            marginBottom: '8px',
-                            backgroundColor: 'var(--color-white)',
-                            borderRadius: 'var(--radius-lg)',
-                            boxShadow: 'var(--shadow-lg)',
-                            padding: 'var(--space-2)',
-                            width: '280px',
-                            maxHeight: '200px',
-                            overflowY: 'auto',
-                            zIndex: 100
-                        }}>
+                        <div
+                            ref={emojiPickerRef}
+                            style={{
+                                position: 'absolute',
+                                bottom: '100%',
+                                left: 0,
+                                marginBottom: '10px',
+                                zIndex: 1000,
+                                boxShadow: '0 10px 25px rgba(0,0,0,0.2)',
+                                borderRadius: '16px',
+                                overflow: 'hidden',
+                                background: 'white',
+                                display: 'flex',
+                                flexDirection: 'column'
+                            }}
+                        >
+                            {/* Picker Header with Close Button */}
                             <div style={{
-                                display: 'grid',
-                                gridTemplateColumns: 'repeat(8, 1fr)',
-                                gap: '4px'
+                                padding: '8px 12px',
+                                display: 'flex',
+                                justifyContent: 'flex-end',
+                                borderBottom: '1px solid var(--color-gray-100)',
+                                background: 'var(--color-gray-50)'
                             }}>
-                                {commonEmojis.map((emoji, index) => (
-                                    <button
-                                        key={index}
-                                        onClick={() => {
-                                            setMessage(prev => prev + emoji);
-                                            setShowEmojiPicker(false);
-                                        }}
-                                        style={{
-                                            background: 'none',
-                                            border: 'none',
-                                            fontSize: '20px',
-                                            padding: '4px',
-                                            cursor: 'pointer',
-                                            borderRadius: 'var(--radius-sm)',
-                                            transition: 'background-color 0.15s'
-                                        }}
-                                        onMouseOver={(e) => e.target.style.backgroundColor = 'var(--color-gray-100)'}
-                                        onMouseOut={(e) => e.target.style.backgroundColor = 'transparent'}
-                                    >
-                                        {emoji}
-                                    </button>
-                                ))}
+                                <button
+                                    onClick={() => setShowEmojiPicker(false)}
+                                    style={{
+                                        background: 'none',
+                                        border: 'none',
+                                        color: 'var(--color-gray-400)',
+                                        cursor: 'pointer',
+                                        padding: '4px',
+                                        display: 'flex',
+                                        alignItems: 'center',
+                                        justifyContent: 'center',
+                                        borderRadius: '50%'
+                                    }}
+                                    onMouseOver={(e) => e.currentTarget.style.color = '#EF4444'}
+                                    onMouseOut={(e) => e.currentTarget.style.color = 'var(--color-gray-400)'}
+                                >
+                                    <X className="w-4 h-4" />
+                                </button>
                             </div>
+
+                            <EmojiPicker
+                                onEmojiClick={handleEmojiClick}
+                                autoFocusSearch={false}
+                                theme="light"
+                                width={320}
+                                height={400}
+                                searchPlaceholder="Buscar emoji..."
+                            />
                         </div>
                     )}
                 </div>
@@ -510,6 +714,7 @@ const MessageInput = ({ onSend, onSendFile, disabled, isMobile }) => {
                     value={message}
                     onChange={(e) => {
                         setMessage(e.target.value);
+                        if (showEmojiPicker) setShowEmojiPicker(false);
                         // Auto-resize textarea
                         e.target.style.height = 'auto';
                         e.target.style.height = Math.min(e.target.scrollHeight, 120) + 'px';

@@ -34,6 +34,7 @@ const { router: messageRoutes, setSocketIO: setMessageSocketIO } = require('./sr
 const { router: webhookRoutes, setSocketIO: setWebhookSocketIO } = require('./src/routes/webhooks');
 const { router: evolutionRoutes, setSocketIO: setEvolutionSocketIO } = require('./src/routes/evolution');
 const settingsRoutes = require('./src/routes/settings');
+const quickReplyRoutes = require('./src/routes/quickReplies');
 
 // Initialize Express
 const app = express();
@@ -87,6 +88,7 @@ app.use('/api', messageRoutes);
 app.use('/webhook', webhookRoutes);
 app.use('/evolution', evolutionRoutes);
 app.use('/api/settings', settingsRoutes);
+app.use('/api/quick-replies', quickReplyRoutes);
 
 // Health check
 app.get('/health', (req, res) => {
