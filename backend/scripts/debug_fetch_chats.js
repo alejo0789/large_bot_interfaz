@@ -12,7 +12,15 @@ async function checkChats() {
 
     try {
         const response = await fetch(url, {
-            headers: { 'apikey': API_KEY }
+            method: 'POST',
+            headers: {
+                'apikey': API_KEY,
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({
+                "where": {},
+                "limit": 10
+            })
         });
 
         if (!response.ok) {

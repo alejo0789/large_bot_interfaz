@@ -18,6 +18,10 @@ async function checkData() {
         const messages = await client.query('SELECT id, sender, text_content, agent_id, agent_name, timestamp FROM messages ORDER BY timestamp DESC LIMIT 5');
         console.table(messages.rows);
 
+        console.log('\n--- LAST 10 CONVERSATIONS ---');
+        const conversations = await client.query('SELECT phone, contact_name, last_message_text, last_message_timestamp FROM conversations ORDER BY last_message_timestamp DESC LIMIT 10');
+        console.table(conversations.rows);
+
         client.release();
         pool.end();
     } catch (err) {
