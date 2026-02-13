@@ -53,12 +53,13 @@ const LoginPage = () => {
 
     return (
         <div style={{
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
             minHeight: '100vh',
             background: 'linear-gradient(135deg, #1e1b4b 0%, #312e81 50%, #4338ca 100%)',
-            padding: '20px'
+            display: 'flex',
+            flexDirection: 'column',
+            padding: '16px',
+            overflowY: 'auto',
+            WebkitOverflowScrolling: 'touch' // Smooth scrolling on iOS
         }}>
             <div style={{
                 background: 'white',
@@ -66,11 +67,14 @@ const LoginPage = () => {
                 boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.25)',
                 width: '100%',
                 maxWidth: '400px',
-                overflow: 'hidden'
+                margin: 'auto',
+                overflow: 'hidden',
+                marginTop: 'auto',
+                marginBottom: 'auto'
             }}>
                 {/* Header */}
                 <div style={{
-                    padding: '32px 32px 24px 32px',
+                    padding: '24px 20px 20px 20px',
                     textAlign: 'center',
                     borderBottom: '1px solid #e5e7eb'
                 }}>
@@ -82,13 +86,13 @@ const LoginPage = () => {
                         display: 'flex',
                         alignItems: 'center',
                         justifyContent: 'center',
-                        margin: '0 auto 16px auto',
+                        margin: '0 auto 12px auto',
                         boxShadow: '0 10px 15px -3px rgba(79, 70, 229, 0.3)'
                     }}>
                         <MessageSquare color="white" size={24} />
                     </div>
                     <h2 style={{
-                        fontSize: '24px',
+                        fontSize: '22px',
                         fontWeight: '700',
                         color: '#1f2937',
                         margin: 0
@@ -97,8 +101,8 @@ const LoginPage = () => {
                     </h2>
                     <p style={{
                         color: '#6b7280',
-                        marginTop: '8px',
-                        fontSize: '14px'
+                        marginTop: '6px',
+                        fontSize: '13px'
                     }}>
                         {isRegistering
                             ? 'Regístrate para gestionar conversaciones'
@@ -107,16 +111,16 @@ const LoginPage = () => {
                 </div>
 
                 {/* Form */}
-                <form onSubmit={handleSubmit} style={{ padding: '32px' }}>
+                <form onSubmit={handleSubmit} style={{ padding: '20px' }}>
                     {error && (
                         <div style={{
-                            marginBottom: '20px',
-                            padding: '12px',
+                            marginBottom: '16px',
+                            padding: '10px',
                             background: '#fee2e2',
                             border: '1px solid #fecaca',
                             borderRadius: '8px',
                             color: '#b91c1c',
-                            fontSize: '14px',
+                            fontSize: '13px',
                             display: 'flex',
                             alignItems: 'center',
                             gap: '8px'
@@ -126,11 +130,11 @@ const LoginPage = () => {
                         </div>
                     )}
 
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
                         {/* Name (Register only) */}
                         {isRegistering && (
                             <div className="form-group">
-                                <label style={{ display: 'block', fontSize: '14px', fontWeight: '500', color: '#374151', marginBottom: '6px' }}>
+                                <label style={{ display: 'block', fontSize: '13px', fontWeight: '500', color: '#374151', marginBottom: '6px' }}>
                                     Nombre Completo
                                 </label>
                                 <div style={{ position: 'relative' }}>
@@ -150,7 +154,8 @@ const LoginPage = () => {
                                             borderRadius: '8px',
                                             fontSize: '14px',
                                             transition: 'border-color 0.2s',
-                                            outline: 'none'
+                                            outline: 'none',
+                                            boxSizing: 'border-box'
                                         }}
                                         onFocus={(e) => e.target.style.borderColor = '#4f46e5'}
                                         onBlur={(e) => e.target.style.borderColor = '#d1d5db'}
@@ -160,7 +165,7 @@ const LoginPage = () => {
                         )}
 
                         <div className="form-group">
-                            <label style={{ display: 'block', fontSize: '14px', fontWeight: '500', color: '#374151', marginBottom: '6px' }}>
+                            <label style={{ display: 'block', fontSize: '13px', fontWeight: '500', color: '#374151', marginBottom: '6px' }}>
                                 Usuario
                             </label>
                             <div style={{ position: 'relative' }}>
@@ -180,7 +185,8 @@ const LoginPage = () => {
                                         borderRadius: '8px',
                                         fontSize: '14px',
                                         transition: 'border-color 0.2s',
-                                        outline: 'none'
+                                        outline: 'none',
+                                        boxSizing: 'border-box'
                                     }}
                                     onFocus={(e) => e.target.style.borderColor = '#4f46e5'}
                                     onBlur={(e) => e.target.style.borderColor = '#d1d5db'}
@@ -191,7 +197,7 @@ const LoginPage = () => {
                         {/* Email (Register only - optional) */}
                         {isRegistering && (
                             <div className="form-group">
-                                <label style={{ display: 'block', fontSize: '14px', fontWeight: '500', color: '#374151', marginBottom: '6px' }}>
+                                <label style={{ display: 'block', fontSize: '13px', fontWeight: '500', color: '#374151', marginBottom: '6px' }}>
                                     Email (Opcional)
                                 </label>
                                 <div style={{ position: 'relative' }}>
@@ -210,7 +216,8 @@ const LoginPage = () => {
                                             borderRadius: '8px',
                                             fontSize: '14px',
                                             transition: 'border-color 0.2s',
-                                            outline: 'none'
+                                            outline: 'none',
+                                            boxSizing: 'border-box'
                                         }}
                                         onFocus={(e) => e.target.style.borderColor = '#4f46e5'}
                                         onBlur={(e) => e.target.style.borderColor = '#d1d5db'}
@@ -220,7 +227,7 @@ const LoginPage = () => {
                         )}
 
                         <div className="form-group">
-                            <label style={{ display: 'block', fontSize: '14px', fontWeight: '500', color: '#374151', marginBottom: '6px' }}>
+                            <label style={{ display: 'block', fontSize: '13px', fontWeight: '500', color: '#374151', marginBottom: '6px' }}>
                                 Contraseña
                             </label>
                             <div style={{ position: 'relative' }}>
@@ -240,7 +247,8 @@ const LoginPage = () => {
                                         borderRadius: '8px',
                                         fontSize: '14px',
                                         transition: 'border-color 0.2s',
-                                        outline: 'none'
+                                        outline: 'none',
+                                        boxSizing: 'border-box'
                                     }}
                                     onFocus={(e) => e.target.style.borderColor = '#4f46e5'}
                                     onBlur={(e) => e.target.style.borderColor = '#d1d5db'}
@@ -254,13 +262,13 @@ const LoginPage = () => {
                         disabled={loading}
                         style={{
                             width: '100%',
-                            marginTop: '24px',
+                            marginTop: '20px',
                             background: 'linear-gradient(135deg, #4f46e5 0%, #3b82f6 100%)',
                             color: 'white',
                             border: 'none',
                             borderRadius: '8px',
                             padding: '12px',
-                            fontSize: '16px',
+                            fontSize: '15px',
                             fontWeight: '600',
                             cursor: loading ? 'wait' : 'pointer',
                             transition: 'opacity 0.2s',
@@ -284,7 +292,7 @@ const LoginPage = () => {
                         )}
                     </button>
 
-                    <div style={{ marginTop: '20px', textAlign: 'center' }}>
+                    <div style={{ marginTop: '16px', textAlign: 'center', paddingBottom: '8px' }}>
                         <button
                             type="button"
                             onClick={() => {
@@ -298,7 +306,8 @@ const LoginPage = () => {
                                 fontSize: '14px',
                                 fontWeight: '500',
                                 cursor: 'pointer',
-                                textDecoration: 'none'
+                                textDecoration: 'none',
+                                padding: '8px'
                             }}
                             onMouseEnter={(e) => e.target.style.textDecoration = 'underline'}
                             onMouseLeave={(e) => e.target.style.textDecoration = 'none'}
