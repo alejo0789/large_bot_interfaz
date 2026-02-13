@@ -57,13 +57,13 @@ router.post('/send-message', asyncHandler(async (req, res) => {
     console.log(`📤 Processed phone for sending: ${normalizedPhone} (was: ${phone})`);
 
     // Save message to database using normalized phone
-    await messageService.create({
+    const savedMessage = await messageService.create({
         phone: normalizedPhone,
         sender: 'agent',
         text: message,
         status: 'sending',
-        // Force Colombia Time
-        timestamp: new Date().toLocaleString("en-US", { timeZone: "America/Bogota" }),
+        // Use ISO string for consistent parsing
+        timestamp: new Date().toISOString(),
         agentId: finalAgentId,
         agentName: finalAgentName
     });
@@ -90,11 +90,12 @@ router.post('/send-message', asyncHandler(async (req, res) => {
 
     // Emit to frontend
     emitToConversation(normalizedPhone, 'agent-message', {
+        whatsapp_id: savedMessage.id, // Include the DB ID
         phone: normalizedPhone,
         message,
         sender_type: 'agent',
-        // Force Colombia Time for frontend display
-        timestamp: new Date().toLocaleString("en-US", { timeZone: "America/Bogota" }),
+        // Use ISO string
+        timestamp: new Date().toISOString(),
         agent_id: finalAgentId,
         agent_name: finalAgentName
     });
@@ -124,11 +125,12 @@ router.post('/send-file', upload.single('file'), asyncHandler(async (req, res) =
 
     console.log(`📎 File received: ${file.originalname} for ${phone} by ${agent_name}`);
 
-    const fileUrl = `${req.protocol}://${req.get('host')}/uploads/${file.filename}`;
+    // Final URL (Public or Local)
+    const fileUrl = `${config.publicUrl}/uploads/${file.filename}`;
     const mediaType = getMediaType(file.mimetype);
 
     // Save message to database
-    await messageService.create({
+    const savedMessage = await messageService.create({
         phone,
         sender: 'agent',
         text: caption || file.originalname,
@@ -136,7 +138,8 @@ router.post('/send-file', upload.single('file'), asyncHandler(async (req, res) =
         mediaUrl: fileUrl,
         status: 'sending',
         agentId: agent_id,     // Note: FormData sends strings
-        agentName: agent_name
+        agentName: agent_name,
+        timestamp: new Date().toISOString()
     });
 
     // Update conversation
@@ -158,12 +161,13 @@ router.post('/send-file', upload.single('file'), asyncHandler(async (req, res) =
 
     // Emit to frontend (OPTIMIZED: uses rooms)
     emitToConversation(phone, 'agent-message', {
+        whatsapp_id: savedMessage.id,
         phone,
         message: caption || file.originalname,
         media_type: mediaType,
         media_url: fileUrl,
         sender_type: 'agent',
-        timestamp: new Date().toLocaleString("en-US", { timeZone: "America/Bogota" }),
+        timestamp: new Date().toISOString(),
         agent_id,
         agent_name
     });

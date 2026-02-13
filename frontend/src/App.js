@@ -109,7 +109,9 @@ const App = () => {
         text: messageData.message || messageData.text,
         sender: messageData.sender_type || messageData.sender || 'customer',
         timestamp: formatTimestamp(messageData.timestamp),
-        status: 'delivered'
+        status: 'delivered',
+        mediaType: messageData.media_type || messageData.mediaType || null,
+        mediaUrl: messageData.media_url || messageData.mediaUrl || null
       };
 
       // Actualizar mensajes
@@ -183,13 +185,13 @@ const App = () => {
       console.log('📤 Mensaje de agente recibido:', messageData);
 
       const formattedMessage = {
-        id: messageData.whatsapp_id || Date.now(),
+        id: messageData.whatsapp_id || messageData.id || Date.now(),
         text: messageData.message || messageData.text,
         sender: 'agent',
         timestamp: formatTimestamp(messageData.timestamp),
         status: 'delivered',
-        mediaType: messageData.media_type || null,
-        mediaUrl: messageData.media_url || null
+        mediaType: messageData.media_type || messageData.mediaType || null,
+        mediaUrl: messageData.media_url || messageData.mediaUrl || null
       };
 
       // Actualizar mensajes

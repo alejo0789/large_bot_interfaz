@@ -110,10 +110,10 @@ class MessageService {
                 // Raw timestamp in ISO format for grouping
                 rawTimestamp: isValidDate ? msgTimestamp.toISOString() : null,
                 status: msg.status || 'delivered',
-                media_type: msg.media_type || null,
-                media_url: msg.media_url || null,
-                agent_id: msg.agent_id,
-                agent_name: msg.agent_name
+                mediaType: msg.media_type || null,
+                mediaUrl: msg.media_url || null,
+                agentId: msg.agent_id,
+                agentName: msg.agent_name
             };
         });
 

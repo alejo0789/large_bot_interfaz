@@ -564,8 +564,9 @@ app.post('/api/send-file', upload.single('file'), async (req, res) => {
 
     console.log(`📎 Archivo recibido: ${file.originalname} para ${phone}`);
 
-    // URL del archivo subido
-    const fileUrl = `${req.protocol}://${req.get('host')}/uploads/${file.filename}`;
+    // URL del archivo subido (Usar WEBHOOK_URL si existe para evitar localhost en producción)
+    const baseUrl = process.env.WEBHOOK_URL ? process.env.WEBHOOK_URL.replace('/evolution', '') : `${req.protocol}://${req.get('host')}`;
+    const fileUrl = `${baseUrl}/uploads/${file.filename}`;
 
     // Determinar tipo de media
     let mediaType = 'document';
@@ -586,6 +587,8 @@ app.post('/api/send-file', upload.single('file'), async (req, res) => {
       ) VALUES ($1, $2, $3, $4, $5, $6, NOW())
       RETURNING id
     `, [phone, 'agent', caption || file.originalname, mediaType, fileUrl, 'sending']);
+
+    const savedId = messageResult.rows[0].id;
 
     // Actualizar la conversación
     await pool.query(`
@@ -623,6 +626,7 @@ app.post('/api/send-file', upload.single('file'), async (req, res) => {
 
     // Emitir al frontend
     const messageData = {
+      id: savedId, // Usar el ID real
       phone: phone,
       message: caption || file.originalname,
       media_type: mediaType,

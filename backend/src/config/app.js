@@ -36,7 +36,10 @@ const config = {
     evolutionInstance: process.env.EVOLUTION_INSTANCE || 'chatbot',
 
     // Logging
-    logLevel: process.env.LOG_LEVEL || 'info'
+    logLevel: process.env.LOG_LEVEL || 'info',
+
+    // Public URL for media links
+    publicUrl: process.env.WEBHOOK_URL ? process.env.WEBHOOK_URL.replace('/evolution', '') : 'http://localhost:4000'
 };
 
 // Validate required config
