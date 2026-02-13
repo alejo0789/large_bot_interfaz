@@ -179,15 +179,70 @@ const App = () => {
       }));
     };
 
+    const handleAgentMessage = (messageData) => {
+      console.log('📤 Mensaje de agente recibido:', messageData);
+
+      const formattedMessage = {
+        id: messageData.whatsapp_id || Date.now(),
+        text: messageData.message || messageData.text,
+        sender: 'agent',
+        timestamp: formatTimestamp(messageData.timestamp),
+        status: 'delivered',
+        mediaType: messageData.media_type || null,
+        mediaUrl: messageData.media_url || null
+      };
+
+      // Actualizar mensajes
+      setMessagesByConversation(prev => {
+        const currentMessages = prev[messageData.phone] || [];
+        // Evitar duplicados (por whatsapp_id)
+        if (currentMessages.some(m => m.id === formattedMessage.id)) return prev;
+
+        return {
+          ...prev,
+          [messageData.phone]: [...currentMessages, formattedMessage]
+        };
+      });
+
+      // Actualizar conversaciones con el nuevo mensaje y reordenar
+      setConversations(prev => {
+        const currentConversations = Array.isArray(prev) ? prev : (prev.data || []);
+
+        const updatedConversations = currentConversations.map(conv =>
+          conv.contact.phone === messageData.phone
+            ? {
+              ...conv,
+              lastMessage: formattedMessage.text,
+              timestamp: formattedMessage.timestamp
+            }
+            : conv
+        );
+
+        // Reorder: Move the updated conversation to the top
+        const conversationIndex = updatedConversations.findIndex(
+          conv => conv.contact.phone === messageData.phone
+        );
+
+        if (conversationIndex > 0) {
+          const [movedConversation] = updatedConversations.splice(conversationIndex, 1);
+          return [movedConversation, ...updatedConversations];
+        }
+
+        return updatedConversations;
+      });
+    };
+
     socket.on('connect', handleConnect);
     socket.on('disconnect', handleDisconnect);
     socket.on('new-message', handleNewMessage);
+    socket.on('agent-message', handleAgentMessage);
     socket.on('conversation-state-changed', handleConversationStateChanged);
 
     return () => {
       socket.off('connect', handleConnect);
       socket.off('disconnect', handleDisconnect);
       socket.off('new-message', handleNewMessage);
+      socket.off('agent-message', handleAgentMessage);
       socket.off('conversation-state-changed', handleConversationStateChanged);
     };
   }, [selectedConversation]);
@@ -781,6 +836,47 @@ const App = () => {
                           : 'bg-white text-gray-900 border border-gray-200'  // Customer = Blanco
                         }`}
                     >
+                      {/* Media Content */}
+                      {message.mediaUrl && message.mediaType && (
+                        <div className="mb-2">
+                          {message.mediaType === 'image' && (
+                            <img
+                              src={message.mediaUrl}
+                              alt={message.text}
+                              className="rounded-lg max-w-full h-auto"
+                              style={{ maxHeight: '300px' }}
+                            />
+                          )}
+                          {message.mediaType === 'video' && (
+                            <video
+                              controls
+                              className="rounded-lg max-w-full"
+                              style={{ maxHeight: '300px' }}
+                            >
+                              <source src={message.mediaUrl} type="video/mp4" />
+                            </video>
+                          )}
+                          {message.mediaType === 'audio' && (
+                            <audio controls className="w-full">
+                              <source src={message.mediaUrl} type="audio/ogg" />
+                              <source src={message.mediaUrl} type="audio/mpeg" />
+                            </audio>
+                          )}
+                          {message.mediaType === 'document' && (
+                            <a
+                              href={message.mediaUrl}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="flex items-center space-x-2 text-blue-600 hover:underline"
+                            >
+                              <Paperclip className="w-4 h-4" />
+                              <span>Documento</span>
+                            </a>
+                          )}
+                        </div>
+                      )}
+
+                      {/* Text Content */}
                       <p className={`${isMobile ? 'text-sm' : 'text-sm'}`}>{message.text}</p>
                       <div className="flex items-center justify-end space-x-1 mt-1">
                         <span className={`text-xs ${message.sender === 'agent' || message.sender === 'bot'
