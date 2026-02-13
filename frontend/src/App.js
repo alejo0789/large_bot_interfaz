@@ -4,11 +4,19 @@ import { io } from 'socket.io-client';
 import './mobile-styles.css';
 
 // --- CONFIGURACIÓN DE CONEXIÓN ---
-const SOCKET_URL = process.env.REACT_APP_SOCKET_URL || 'http://localhost:4000';
-const API_URL = process.env.REACT_APP_API_URL || 'http://localhost:4000';
+// Use window.location.origin in production, localhost in development
+const SOCKET_URL = process.env.REACT_APP_SOCKET_URL ||
+  (process.env.NODE_ENV === 'production' ? window.location.origin : 'http://localhost:4000');
+const API_URL = process.env.REACT_APP_API_URL ||
+  (process.env.NODE_ENV === 'production' ? window.location.origin : 'http://localhost:4000');
+
+console.log('🔌 Socket URL:', SOCKET_URL);
+console.log('🌐 API URL:', API_URL);
+
 const socket = io(SOCKET_URL, {
-  transports: ['websocket'],
-  reconnectionAttempts: 5
+  transports: ['websocket', 'polling'], // Try websocket first, fallback to polling
+  reconnectionAttempts: 5,
+  timeout: 10000
 });
 
 const App = () => {
