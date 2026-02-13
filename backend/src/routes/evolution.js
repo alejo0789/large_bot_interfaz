@@ -25,7 +25,7 @@ const emitToConversation = (phone, event, data) => {
     io.to('conversations:list').emit('conversation-updated', {
         phone,
         lastMessage: data.message,
-        timestamp: data.timestamp || new Date().toISOString(),
+        timestamp: data.timestamp || new Date().toLocaleString("en-US", { timeZone: "America/Bogota" }),
         unread: 1
     });
 
@@ -265,7 +265,7 @@ router.post('/', async (req, res) => {
             message: text,
             whatsapp_id: msg.key.id,
             sender_type: 'user',
-            timestamp: new Date().toISOString(),
+            timestamp: new Date().toLocaleString("en-US", { timeZone: "America/Bogota" }),
             conversation_state: currentState,
             ai_enabled: shouldActivateAI,
             media_type: mediaType,
@@ -316,7 +316,7 @@ router.post('/', async (req, res) => {
                     message: aiResponseText,
                     whatsapp_id: agentMessageId,
                     sender: 'ai', // Mark as 'ai' for blue styling
-                    timestamp: new Date().toISOString(),
+                    timestamp: new Date().toLocaleString("en-US", { timeZone: "America/Bogota" }),
                     conversation_state: currentState,
                     ai_enabled: true
                 });

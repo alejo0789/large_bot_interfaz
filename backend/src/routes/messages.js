@@ -62,6 +62,8 @@ router.post('/send-message', asyncHandler(async (req, res) => {
         sender: 'agent',
         text: message,
         status: 'sending',
+        // Force Colombia Time
+        timestamp: new Date().toLocaleString("en-US", { timeZone: "America/Bogota" }),
         agentId: finalAgentId,
         agentName: finalAgentName
     });
@@ -91,7 +93,8 @@ router.post('/send-message', asyncHandler(async (req, res) => {
         phone: normalizedPhone,
         message,
         sender_type: 'agent',
-        timestamp: new Date().toISOString(),
+        // Force Colombia Time for frontend display
+        timestamp: new Date().toLocaleString("en-US", { timeZone: "America/Bogota" }),
         agent_id: finalAgentId,
         agent_name: finalAgentName
     });
