@@ -68,12 +68,15 @@ router.post('/', async (req, res) => {
         let phone;
         if (isGroup) {
             phone = remoteJid;
-        } else if (remoteJid.endsWith('@s.whatsapp.net')) {
-            phone = remoteJid.split('@')[0].replace(/[^0-9]/g, '');
         } else {
-            // Non-standard domain, keep full JID to ensure we can reply back correctly
-            phone = remoteJid;
-            console.log(`⚠️ Non-standard JID domain detected, using full JID: ${phone}`);
+            // Normalize standard numbers (strip domain, strip non-numeric)
+            const numeric = remoteJid.split('@')[0].replace(/\D/g, '');
+            // For Colombia numbers (starting with 57), add the '+' prefix for consistency with DB
+            phone = (numeric.startsWith('57')) ? `+${numeric}` : numeric;
+
+            if (!remoteJid.endsWith('@s.whatsapp.net')) {
+                console.log(`⚠️ Non-standard JID domain detected, but using normalized phone: ${phone}`);
+            }
         }
 
         if (!phone) {

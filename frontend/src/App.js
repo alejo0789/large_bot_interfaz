@@ -129,10 +129,16 @@ const App = () => {
       // Actualizar conversaciones con el nuevo mensaje
       setConversations(prev => {
         const currentConversations = Array.isArray(prev) ? prev : (prev.data || []);
-        const exists = currentConversations.some(conv => conv.contact.phone === messageData.phone);
 
-        if (!exists) {
-          // Si es una nueva conversación, añadirla manualmente
+        // Normalizar para comparación robusta
+        const cleanIncomingPhone = String(messageData.phone).replace(/\D/g, '');
+
+        const conversationIndex = currentConversations.findIndex(conv =>
+          String(conv.contact.phone).replace(/\D/g, '') === cleanIncomingPhone
+        );
+
+        if (conversationIndex === -1) {
+          // Si es una nueva conversación, añadirla al principio
           const newConv = {
             id: messageData.phone,
             contact: {
@@ -147,29 +153,19 @@ const App = () => {
           return [newConv, ...currentConversations];
         }
 
-        // Find the conversation and update it
-        const updatedConversations = currentConversations.map(conv =>
-          conv.contact.phone === messageData.phone
-            ? {
-              ...conv,
-              lastMessage: formattedMessage.text,
-              timestamp: formattedMessage.timestamp,
-              unread: conv.contact.phone === selectedConversation?.contact.phone ? 0 : (conv.unread || 0) + 1
-            }
-            : conv
-        );
+        // Si ya existe, actualizarla
+        const targetConv = currentConversations[conversationIndex];
+        const updatedConv = {
+          ...targetConv,
+          lastMessage: formattedMessage.text,
+          timestamp: formattedMessage.timestamp,
+          unread: targetConv.contact.phone === selectedConversation?.contact.phone ? 0 : (targetConv.unread || 0) + 1
+        };
 
-        // Reorder: Move the updated conversation to the top
-        const conversationIndex = updatedConversations.findIndex(
-          conv => conv.contact.phone === messageData.phone
-        );
-
-        if (conversationIndex > 0) {
-          const [movedConversation] = updatedConversations.splice(conversationIndex, 1);
-          return [movedConversation, ...updatedConversations];
-        }
-
-        return updatedConversations;
+        // Mover al principio
+        const remainingConversations = [...currentConversations];
+        remainingConversations.splice(conversationIndex, 1);
+        return [updatedConv, ...remainingConversations];
       });
     };
 
@@ -209,28 +205,24 @@ const App = () => {
       // Actualizar conversaciones con el nuevo mensaje y reordenar
       setConversations(prev => {
         const currentConversations = Array.isArray(prev) ? prev : (prev.data || []);
+        const cleanIncomingPhone = String(messageData.phone).replace(/\D/g, '');
 
-        const updatedConversations = currentConversations.map(conv =>
-          conv.contact.phone === messageData.phone
-            ? {
-              ...conv,
-              lastMessage: formattedMessage.text,
-              timestamp: formattedMessage.timestamp
-            }
-            : conv
+        const conversationIndex = currentConversations.findIndex(conv =>
+          String(conv.contact.phone).replace(/\D/g, '') === cleanIncomingPhone
         );
 
-        // Reorder: Move the updated conversation to the top
-        const conversationIndex = updatedConversations.findIndex(
-          conv => conv.contact.phone === messageData.phone
-        );
+        if (conversationIndex === -1) return prev; // El agente suele escribir en una que existe
 
-        if (conversationIndex > 0) {
-          const [movedConversation] = updatedConversations.splice(conversationIndex, 1);
-          return [movedConversation, ...updatedConversations];
-        }
+        const targetConv = currentConversations[conversationIndex];
+        const updatedConv = {
+          ...targetConv,
+          lastMessage: formattedMessage.text,
+          timestamp: formattedMessage.timestamp
+        };
 
-        return updatedConversations;
+        const remainingConversations = [...currentConversations];
+        remainingConversations.splice(conversationIndex, 1);
+        return [updatedConv, ...remainingConversations];
       });
     };
 
@@ -239,11 +231,14 @@ const App = () => {
 
       setConversations(prev => {
         const currentConversations = Array.isArray(prev) ? prev : (prev.data || []);
-        const exists = currentConversations.some(conv => conv.contact.phone === data.phone);
-
+        const cleanIncomingPhone = String(data.phone).replace(/\D/g, '');
         const timestamp = formatTimestamp(data.timestamp);
 
-        if (!exists) {
+        const conversationIndex = currentConversations.findIndex(conv =>
+          String(conv.contact.phone).replace(/\D/g, '') === cleanIncomingPhone
+        );
+
+        if (conversationIndex === -1) {
           // Si es una nueva conversación, añadirla!
           const newConv = {
             id: data.phone,
@@ -259,28 +254,20 @@ const App = () => {
           return [newConv, ...currentConversations];
         }
 
-        // Si ya existe, actualizar y mover al tope
-        const updatedConversations = currentConversations.map(conv =>
-          conv.contact.phone === data.phone
-            ? {
-              ...conv,
-              lastMessage: data.lastMessage,
-              timestamp: timestamp,
-              unread: data.phone === selectedConversation?.contact.phone ? 0 : (conv.unread || 0) + (data.unread || 0)
-            }
-            : conv
-        );
+        // Si ya existe, actualizarla y mover al tope
+        const targetConv = currentConversations[conversationIndex];
+        const updatedConv = {
+          ...targetConv,
+          lastMessage: data.lastMessage,
+          timestamp: timestamp,
+          unread: String(data.phone).replace(/\D/g, '') === String(selectedConversation?.contact.phone).replace(/\D/g, '')
+            ? 0
+            : (targetConv.unread || 0) + (data.unread || 1)
+        };
 
-        const conversationIndex = updatedConversations.findIndex(
-          conv => conv.contact.phone === data.phone
-        );
-
-        if (conversationIndex > 0) {
-          const [movedConversation] = updatedConversations.splice(conversationIndex, 1);
-          return [movedConversation, ...updatedConversations];
-        }
-
-        return updatedConversations;
+        const remainingConversations = [...currentConversations];
+        remainingConversations.splice(conversationIndex, 1);
+        return [updatedConv, ...remainingConversations];
       });
     };
 
