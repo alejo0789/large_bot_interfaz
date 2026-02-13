@@ -103,7 +103,8 @@ const AuthenticatedApp = () => {
         sendFile,
         toggleAI,
         loadMoreConversations,
-        searchConversations
+        searchConversations,
+        fetchConversations
     } = useConversations(socket);
 
     const {
