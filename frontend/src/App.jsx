@@ -149,6 +149,14 @@ const AuthenticatedApp = () => {
         }
     }, [selectedConversation, getConversationTags]);
 
+    // Server-side filtering when tags or search change
+    useEffect(() => {
+        const activeTagId = selectedTagIds.length === 1 ? selectedTagIds[0] : null;
+        // Only fetch if searching or filtering by tag, 
+        // OR if we want to reset to page 1 when clearing
+        fetchConversations(1, searchQuery, false, activeTagId);
+    }, [selectedTagIds, searchQuery, fetchConversations]);
+
 
     // Filter conversations based on tags and unread status
     const filteredConversations = useMemo(() => {
@@ -162,7 +170,7 @@ const AuthenticatedApp = () => {
         // Filter by tags
         if (selectedTagIds.length > 0) {
             result = result.filter(conv => {
-                const convTags = tagsByPhone[conv.contact.phone] || [];
+                const convTags = conv.tags || tagsByPhone[conv.contact.phone] || [];
                 return selectedTagIds.some(tagId =>
                     convTags.some(t => t.id === tagId)
                 );
@@ -528,7 +536,10 @@ const AuthenticatedApp = () => {
                     hasMore={hasMore}
                     onSelect={handleSelectConversation}
                     onTagClick={handleOpenTagManager}
-                    onLoadMore={loadMoreConversations}
+                    onLoadMore={() => {
+                        const activeTagId = selectedTagIds.length === 1 ? selectedTagIds[0] : null;
+                        loadMoreConversations(activeTagId);
+                    }}
                 />
 
                 {/* Resize handle - Desktop only */}

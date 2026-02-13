@@ -24,7 +24,8 @@ class ConversationService {
             page = 1,
             limit = DEFAULT_PAGE_SIZE,
             status = null,
-            search = null
+            search = null,
+            tagId = null // Added tagId filter
         } = options;
 
         // Sanitize pagination
@@ -35,16 +36,23 @@ class ConversationService {
         const conditions = [];
         const params = [];
         let paramIndex = 1;
+        let joinClause = '';
 
         if (status) {
-            conditions.push(`status = $${paramIndex++}`);
+            conditions.push(`c.status = $${paramIndex++}`);
             params.push(status);
         }
 
         if (search) {
-            conditions.push(`(contact_name ILIKE $${paramIndex} OR phone ILIKE $${paramIndex})`);
+            conditions.push(`(c.contact_name ILIKE $${paramIndex} OR c.phone ILIKE $${paramIndex})`);
             params.push(`%${search}%`);
             paramIndex++;
+        }
+
+        if (tagId) {
+            joinClause = 'JOIN conversation_tags ct_filter ON c.phone = ct_filter.conversation_phone';
+            conditions.push(`ct_filter.tag_id = $${paramIndex++}`);
+            params.push(tagId);
         }
 
         const whereClause = conditions.length > 0
@@ -52,26 +60,34 @@ class ConversationService {
             : '';
 
         // Count total (for pagination metadata)
-        const countQuery = `SELECT COUNT(*) FROM conversations ${whereClause}`;
+        const countQuery = `SELECT COUNT(*) FROM conversations c ${joinClause} ${whereClause}`;
         const countResult = await pool.query(countQuery, params);
         const total = parseInt(countResult.rows[0].count);
 
         // Get paginated data
         const dataQuery = `
             SELECT 
-                phone,
-                contact_name,
-                last_message_text,
-                last_message_timestamp,
-                unread_count,
-                status,
-                ai_enabled,
-                conversation_state,
-                created_at,
-                updated_at
-            FROM conversations 
+                c.phone,
+                c.contact_name,
+                c.last_message_text,
+                c.last_message_timestamp,
+                c.unread_count,
+                c.status,
+                c.ai_enabled,
+                c.conversation_state,
+                c.created_at,
+                c.updated_at,
+                COALESCE(
+                    (SELECT json_agg(json_build_object('id', t.id, 'name', t.name, 'color', t.color))
+                     FROM tags t
+                     JOIN conversation_tags ct ON t.id = ct.tag_id
+                     WHERE ct.conversation_phone = c.phone
+                    ), '[]'
+                ) as tags
+            FROM conversations c
+            ${joinClause}
             ${whereClause}
-            ORDER BY last_message_timestamp DESC NULLS LAST, created_at DESC
+            ORDER BY c.last_message_timestamp DESC NULLS LAST, c.created_at DESC
             LIMIT $${paramIndex} OFFSET $${paramIndex + 1}
         `;
         params.push(safeLimit, offset);
@@ -100,7 +116,8 @@ class ConversationService {
             unread: conv.unread_count || 0,
             status: conv.status || 'active',
             aiEnabled: conv.ai_enabled !== false,
-            state: conv.conversation_state || 'ai_active'
+            state: conv.conversation_state || 'ai_active',
+            tags: conv.tags || []
         }));
 
         return {

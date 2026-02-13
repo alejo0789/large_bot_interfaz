@@ -100,7 +100,7 @@ const ConversationList = ({
                     conversation={conversation}
                     isSelected={selectedId === conversation.id}
                     aiEnabled={aiStatesByPhone[conversation.contact.phone] ?? true}
-                    tags={tagsByPhone[conversation.contact.phone] || []}
+                    tags={conversation.tags || tagsByPhone[conversation.contact.phone] || []}
                     onClick={() => onSelect(conversation)}
                     onTagClick={onTagClick}
                 />

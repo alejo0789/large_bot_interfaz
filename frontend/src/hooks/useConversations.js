@@ -23,12 +23,12 @@ export const useConversations = (socket) => {
     const [searchQuery, setSearchQuery] = useState('');
 
     // Fetch all conversations with pagination
-    const fetchConversations = useCallback(async (page = 1, search = '', append = false) => {
+    const fetchConversations = useCallback(async (page = 1, search = '', append = false, tagId = null) => {
         try {
             if (!append) setIsLoading(true);
             else setIsLoadingMore(true);
 
-            console.log(`🔄 Fetching conversations (page ${page}, search: "${search}")...`);
+            console.log(`🔄 Fetching conversations (page ${page}, search: "${search}", tag: ${tagId})...`);
 
             const params = new URLSearchParams({
                 page: page.toString(),
@@ -37,6 +37,10 @@ export const useConversations = (socket) => {
 
             if (search) {
                 params.append('search', search);
+            }
+
+            if (tagId) {
+                params.append('tagId', tagId);
             }
 
             const response = await fetch(`${API_URL}/api/conversations?${params}`);
@@ -86,9 +90,9 @@ export const useConversations = (socket) => {
     }, []);
 
     // Load more conversations (for infinite scroll)
-    const loadMoreConversations = useCallback(async () => {
+    const loadMoreConversations = useCallback(async (tagId = null) => {
         if (!hasMore || isLoadingMore) return;
-        await fetchConversations(currentPage + 1, searchQuery, true);
+        await fetchConversations(currentPage + 1, searchQuery, true, tagId);
     }, [currentPage, hasMore, isLoadingMore, searchQuery, fetchConversations]);
 
     // Search conversations (server-side)
