@@ -47,9 +47,12 @@ router.post('/', async (req, res) => {
         if (!msg || !msg.key) {
             return res.sendStatus(200);
         }
-        if (!msg.key || msg.key.fromMe) {
-            return res.sendStatus(200); // Ignore self-sent messages
-        }
+
+        // Determine if this message is from the business (agent) or from client (user)
+        const isFromAgent = msg.key.fromMe === true;
+        const senderType = isFromAgent ? 'agent' : 'user';
+
+        console.log(`📋 Message Type: ${isFromAgent ? 'FROM AGENT (your phone)' : 'FROM CLIENT'}`);
 
         const remoteJid = msg.key.remoteJid;
         const isGroup = remoteJid.includes('@g.us');
@@ -244,12 +247,13 @@ router.post('/', async (req, res) => {
         } else {
             await messageService.create({
                 phone: phone,
-                sender: 'user',
+                sender: senderType, // Use dynamic sender type (agent or user)
                 text: text,
                 whatsappId: msg.key.id,
                 mediaType: mediaType,
                 mediaUrl: mediaUrl
             });
+            console.log(`💾 Saved message as '${senderType}' from ${isFromAgent ? 'your phone' : 'client'}`);
         }
 
         // 3. Update Conversation
@@ -264,7 +268,7 @@ router.post('/', async (req, res) => {
             contact_name: pushName,
             message: text,
             whatsapp_id: msg.key.id,
-            sender_type: 'user',
+            sender_type: senderType, // Use dynamic sender type
             timestamp: new Date().toLocaleString("en-US", { timeZone: "America/Bogota" }),
             conversation_state: currentState,
             ai_enabled: shouldActivateAI,
@@ -273,7 +277,8 @@ router.post('/', async (req, res) => {
         });
 
         // 5. AUTO-TRIGGER N8N IF AI IS ENABLED
-        if (shouldActivateAI && !isGroup) {
+        // Only trigger AI for messages from CLIENTS, not from agent's phone
+        if (shouldActivateAI && !isGroup && !isFromAgent) {
             console.log(`🧠 AI is enabled for ${phone}, triggering N8N...`);
 
             // Wait for N8N response
@@ -326,7 +331,10 @@ router.post('/', async (req, res) => {
             }
 
         } else {
-            console.log(`🛑 AI skipped for ${phone} (Group: ${isGroup}, Enabled: ${shouldActivateAI})`);
+            const skipReason = isFromAgent ? 'Message from agent phone' :
+                isGroup ? 'Group message' :
+                    'AI disabled';
+            console.log(`🛑 AI skipped for ${phone} (${skipReason})`);
         }
 
         return res.json({ success: true });
