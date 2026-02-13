@@ -31,21 +31,21 @@ const N8NTestChat = ({ isOpen, onClose }) => {
 
     useEffect(() => {
         // Check webhook connectivity
+        const checkWebhookConnection = async () => {
+            // Just check if URL is valid
+            try {
+                const url = new URL(webhookUrl);
+                setIsConnected(!!url.hostname);
+            } catch (error) {
+                setIsConnected(false);
+            }
+        };
+
         checkWebhookConnection();
     }, [webhookUrl]);
 
     const scrollToBottom = () => {
         messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
-    };
-
-    const checkWebhookConnection = async () => {
-        // Just check if URL is valid
-        try {
-            const url = new URL(webhookUrl);
-            setIsConnected(!!url.hostname);
-        } catch (error) {
-            setIsConnected(false);
-        }
     };
 
     const sendTestMessage = async () => {

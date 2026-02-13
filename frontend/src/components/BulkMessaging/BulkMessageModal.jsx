@@ -30,7 +30,7 @@ const BulkMessageModal = ({
 
     // Progress tracking
     const [progress, setProgress] = useState(null);
-    const [batchId, setBatchId] = useState(null);
+    const [, setBatchId] = useState(null);
 
     // Media state
     const [mediaFile, setMediaFile] = useState(null);

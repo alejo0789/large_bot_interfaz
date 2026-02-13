@@ -36,7 +36,7 @@ export const AuthProvider = ({ children }) => {
         } else {
             setLoading(false);
         }
-    }, [API_URL]);
+    }, [API_URL, logout]);
 
     const login = async (username, password) => {
         try {
@@ -84,7 +84,7 @@ export const AuthProvider = ({ children }) => {
         }
     };
 
-    const logout = () => {
+    const logout = useCallback(() => {
         setToken(null);
         setUser(null);
         localStorage.removeItem('auth_token');
@@ -97,7 +97,7 @@ export const AuthProvider = ({ children }) => {
                 headers: { 'Authorization': `Bearer ${token}` }
             }).catch(console.error);
         }
-    };
+    }, [token]);
 
     return (
         <AuthContext.Provider value={{

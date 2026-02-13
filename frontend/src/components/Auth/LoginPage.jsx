@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { useAuth } from '../../hooks/useAuth';
-import { MessageSquare, Lock, User, LogIn, AlertCircle, UserPlus, ArrowLeft } from 'lucide-react';
+import { MessageSquare, Lock, User, LogIn, AlertCircle, UserPlus } from 'lucide-react';
 
 const LoginPage = () => {
     const { login, register } = useAuth();

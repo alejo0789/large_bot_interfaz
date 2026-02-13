@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { io } from 'socket.io-client';
-import { Tag, MessageSquare, Send, Bot, Settings } from 'lucide-react';
+import { Tag, MessageSquare, Send, Settings } from 'lucide-react';
 
 // Auth
 import { AuthProvider, useAuth } from './hooks/useAuth';
@@ -93,8 +93,7 @@ const AuthenticatedApp = () => {
         aiStatesByPhone,
         selectConversation,
         sendMessage,
-        toggleAI,
-        setSelectedConversation
+        toggleAI
     } = useConversations(socket);
 
     const {
@@ -136,7 +135,7 @@ const AuthenticatedApp = () => {
         if (conversations.length > 0) {
             loadAllTags();
         }
-    }, [conversations, getConversationTags]);
+    }, [conversations, getConversationTags, tagsByPhone]);
 
     // Load tags for selected conversation
     useEffect(() => {

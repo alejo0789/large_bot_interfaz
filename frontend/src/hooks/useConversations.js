@@ -81,6 +81,19 @@ export const useConversations = (socket) => {
         }
     }, []);
 
+    // Mark conversation as read
+    const markConversationAsRead = useCallback(async (phone) => {
+        try {
+            await fetch(`${API_URL}/api/conversations/${phone}/mark-read`, { method: 'POST' });
+
+            setConversations(prev => prev.map(conv =>
+                conv.contact.phone === phone ? { ...conv, unread: 0 } : conv
+            ));
+        } catch (error) {
+            console.error('❌ Error marking as read:', error);
+        }
+    }, []);
+
     // Select a conversation
     const selectConversation = useCallback(async (conversation) => {
         const phone = conversation.contact.phone;
@@ -104,20 +117,7 @@ export const useConversations = (socket) => {
         }
 
         await fetchMessages(phone);
-    }, [fetchMessages, selectedConversation, socket]);
-
-    // Mark conversation as read
-    const markConversationAsRead = useCallback(async (phone) => {
-        try {
-            await fetch(`${API_URL}/api/conversations/${phone}/mark-read`, { method: 'POST' });
-
-            setConversations(prev => prev.map(conv =>
-                conv.contact.phone === phone ? { ...conv, unread: 0 } : conv
-            ));
-        } catch (error) {
-            console.error('❌ Error marking as read:', error);
-        }
-    }, []);
+    }, [fetchMessages, selectedConversation, socket, markConversationAsRead]);
 
     // Send a message
     const sendMessage = useCallback(async (phone, message, name, options = {}) => {
