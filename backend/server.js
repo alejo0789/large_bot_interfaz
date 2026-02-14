@@ -551,7 +551,7 @@ app.post('/api/conversations/:phone/close', async (req, res) => {
 // 6.5 ENDPOINT PARA ENVIAR ARCHIVOS
 app.post('/api/send-file', upload.single('file'), async (req, res) => {
   try {
-    const { phone, name, caption } = req.body;
+    const { phone, name, caption, temp_id, agent_id, agent_name } = req.body;
     const file = req.file;
 
     if (!file) {
@@ -562,7 +562,7 @@ app.post('/api/send-file', upload.single('file'), async (req, res) => {
       return res.status(400).json({ error: 'Falta el número de teléfono' });
     }
 
-    console.log(`📎 Archivo recibido: ${file.originalname} para ${phone}`);
+    console.log(`📎 Archivo recibido: ${file.originalname} para ${phone} (temp_id: ${temp_id})`);
 
     // URL del archivo subido (Usar WEBHOOK_URL si existe para evitar localhost en producción)
     const baseUrl = process.env.WEBHOOK_URL ? process.env.WEBHOOK_URL.replace('/evolution', '') : `${req.protocol}://${req.get('host')}`;
@@ -574,21 +574,25 @@ app.post('/api/send-file', upload.single('file'), async (req, res) => {
     else if (file.mimetype.startsWith('video/')) mediaType = 'video';
     else if (file.mimetype.startsWith('audio/')) mediaType = 'audio';
 
-    // Guardar mensaje en la base de datos
+    // Guardar mensaje en la base de datos con whatsapp_id usando temp_id
     const messageResult = await pool.query(`
       INSERT INTO messages (
+        whatsapp_id,
         conversation_phone, 
         sender, 
         text_content, 
         media_type,
         media_url,
         status, 
-        timestamp
-      ) VALUES ($1, $2, $3, $4, $5, $6, NOW())
-      RETURNING id
-    `, [phone, 'agent', caption || file.originalname, mediaType, fileUrl, 'sending']);
+        timestamp,
+        agent_id,
+        agent_name
+      ) VALUES ($1, $2, $3, $4, $5, $6, $7, NOW(), $8, $9)
+      RETURNING id, whatsapp_id
+    `, [temp_id || `temp_${Date.now()}`, phone, 'agent', caption || '', mediaType, fileUrl, 'sending', agent_id, agent_name]);
 
     const savedId = messageResult.rows[0].id;
+    const savedWhatsappId = messageResult.rows[0].whatsapp_id;
 
     // Actualizar la conversación
     await pool.query(`
@@ -615,6 +619,9 @@ app.post('/api/send-file', upload.single('file'), async (req, res) => {
             media_type: mediaType,
             media_url: fileUrl,
             file_name: file.originalname,
+            temp_id: temp_id,
+            agent_id: agent_id,
+            agent_name: agent_name,
             conversation_state: 'agent_active'
           })
         });
@@ -626,15 +633,20 @@ app.post('/api/send-file', upload.single('file'), async (req, res) => {
 
     // Emitir al frontend
     const messageData = {
-      id: savedId, // Usar el ID real
+      id: savedWhatsappId, // Usar whatsapp_id (que es el temp_id)
+      whatsapp_id: savedWhatsappId,
+      temp_id: temp_id, // Incluir temp_id para detectar duplicados
       phone: phone,
-      message: caption || file.originalname,
+      message: caption || '',
+      text: caption || '',
       media_type: mediaType,
       media_url: fileUrl,
+      sender: 'agent',
       sender_type: 'agent',
+      agent_name: agent_name,
       timestamp: new Date().toISOString()
     };
-    io.emit('new-message', messageData);
+    io.emit('agent-message', messageData);
 
     res.json({
       success: true,

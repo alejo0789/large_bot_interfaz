@@ -448,45 +448,77 @@ export const useConversations = (socket) => {
                 const existingMessages = prev[phone] || [];
 
                 // Duplicate check by ID or content/timestamp
-                // If the message has no text (media only), we check if there is a 'sending' message with same media_type
-                // that was sent recently (< 10s)
-                const isDuplicate = existingMessages.some(msg =>
-                    msg.id === formattedMessage.id ||
-                    (formattedMessage.temp_id && msg.id === formattedMessage.temp_id) ||
-                    (
-                        // Match Text
-                        (msg.text && msg.text === formattedMessage.text) ||
-                        // Match Media (both have no text, same media type, created recently)
-                        (!msg.text && !formattedMessage.text && msg.media_type === formattedMessage.media_type &&
-                            Math.abs(new Date(msg.rawTimestamp) - new Date(formattedMessage.rawTimestamp)) < 20000)
-                    ) &&
-                    msg.sender === formattedMessage.sender
-                );
+                // Priority:
+                // 1. Check by temp_id (most reliable)
+                // 2. Check by media_type if present (for media messages with or without caption)
+                // 3. Check by text content (for text-only messages)
+                const isDuplicate = existingMessages.some(msg => {
+                    // Check by ID
+                    if (msg.id === formattedMessage.id) return true;
+
+                    // Check by temp_id
+                    if (formattedMessage.temp_id && msg.id === formattedMessage.temp_id) return true;
+
+                    // Only check content if same sender
+                    if (msg.sender !== formattedMessage.sender) return false;
+
+                    // Check by media type if either message has media
+                    if (msg.media_type || formattedMessage.media_type) {
+                        return msg.media_type === formattedMessage.media_type &&
+                            Math.abs(new Date(msg.rawTimestamp) - new Date(formattedMessage.rawTimestamp)) < 20000;
+                    }
+
+                    // Check by text content
+                    return msg.text && msg.text === formattedMessage.text;
+                });
 
                 if (isDuplicate) {
                     // Update status if it was 'sending'
                     if (isAgent) {
                         return {
                             ...prev,
-                            [phone]: existingMessages.map(msg =>
-                                // Check by temp_id if available, otherwise fallback to content matching
-                                (
-                                    (formattedMessage.temp_id && msg.id === formattedMessage.temp_id) ||
-                                    (!formattedMessage.temp_id && msg.status === 'sending' && (
-                                        (msg.text && msg.text === formattedMessage.text) ||
-                                        (!msg.text && !formattedMessage.text && msg.media_type === formattedMessage.media_type)
-                                    ))
-                                )
-                                    ? {
+                            [phone]: existingMessages.map(msg => {
+                                // Check by temp_id if available
+                                if (formattedMessage.temp_id && msg.id === formattedMessage.temp_id) {
+                                    return {
                                         ...msg,
                                         status: 'delivered',
                                         id: formattedMessage.id,
                                         media_url: formattedMessage.media_url, // Update URL (e.g. from blob: to http:)
                                         media_type: formattedMessage.media_type,
                                         agent_name: formattedMessage.agent_name
+                                    };
+                                }
+
+                                // Fallback to content matching
+                                if (!formattedMessage.temp_id && msg.status === 'sending') {
+                                    // Match by media type if present
+                                    if (msg.media_type || formattedMessage.media_type) {
+                                        if (msg.media_type === formattedMessage.media_type &&
+                                            Math.abs(new Date(msg.rawTimestamp) - new Date(formattedMessage.rawTimestamp)) < 20000) {
+                                            return {
+                                                ...msg,
+                                                status: 'delivered',
+                                                id: formattedMessage.id,
+                                                media_url: formattedMessage.media_url,
+                                                media_type: formattedMessage.media_type,
+                                                agent_name: formattedMessage.agent_name
+                                            };
+                                        }
                                     }
-                                    : msg
-                            )
+                                    // Match by text content
+                                    else if (msg.text && msg.text === formattedMessage.text) {
+                                        return {
+                                            ...msg,
+                                            status: 'delivered',
+                                            id: formattedMessage.id,
+                                            agent_name: formattedMessage.agent_name
+                                        };
+                                    }
+                                }
+
+                                return msg;
+                            })
                         };
                     }
                     return prev;
