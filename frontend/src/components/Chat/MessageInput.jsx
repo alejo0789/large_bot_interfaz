@@ -39,7 +39,7 @@ const MessageInput = ({ onSend, onSendFile, disabled, isMobile }) => {
     const [editingQuickReply, setEditingQuickReply] = useState(null);
 
     // Load quick replies
-    const { quickReplies, fetchQuickReplies } = useQuickReplies();
+    const { quickReplies, fetchQuickReplies, deleteQuickReply } = useQuickReplies();
 
     // Check for quick reply trigger
     useEffect(() => {
@@ -540,36 +540,68 @@ const MessageInput = ({ onSend, onSendFile, disabled, isMobile }) => {
                                 </div>
 
                                 {/* Edit Button */}
-                                <button
-                                    onClick={(e) => {
-                                        e.stopPropagation();
-                                        setEditingQuickReply(reply);
-                                        setShowQuickReplies(false);
-                                        setShowQuickReplyManager(true);
-                                    }}
-                                    style={{
-                                        background: 'none',
-                                        border: 'none',
-                                        padding: '6px',
-                                        cursor: 'pointer',
-                                        color: 'var(--color-gray-400)',
-                                        display: 'flex',
-                                        alignItems: 'center',
-                                        justifyContent: 'center',
-                                        borderRadius: '50%',
-                                    }}
-                                    title="Editar"
-                                    onMouseOver={(e) => {
-                                        e.currentTarget.style.backgroundColor = 'var(--color-gray-200)';
-                                        e.currentTarget.style.color = 'var(--color-primary)';
-                                    }}
-                                    onMouseOut={(e) => {
-                                        e.currentTarget.style.backgroundColor = 'transparent';
-                                        e.currentTarget.style.color = 'var(--color-gray-400)';
-                                    }}
-                                >
-                                    <Edit2 className="w-4 h-4" />
-                                </button>
+                                <div style={{ display: 'flex', gap: '4px' }}>
+                                    <button
+                                        onClick={(e) => {
+                                            e.stopPropagation();
+                                            setEditingQuickReply(reply);
+                                            setShowQuickReplies(false);
+                                            setShowQuickReplyManager(true);
+                                        }}
+                                        style={{
+                                            background: 'none',
+                                            border: 'none',
+                                            padding: '6px',
+                                            cursor: 'pointer',
+                                            color: 'var(--color-gray-400)',
+                                            display: 'flex',
+                                            alignItems: 'center',
+                                            justifyContent: 'center',
+                                            borderRadius: '50%',
+                                        }}
+                                        title="Editar"
+                                        onMouseOver={(e) => {
+                                            e.currentTarget.style.backgroundColor = 'var(--color-gray-200)';
+                                            e.currentTarget.style.color = 'var(--color-primary)';
+                                        }}
+                                        onMouseOut={(e) => {
+                                            e.currentTarget.style.backgroundColor = 'transparent';
+                                            e.currentTarget.style.color = 'var(--color-gray-400)';
+                                        }}
+                                    >
+                                        <Edit2 className="w-4 h-4" />
+                                    </button>
+                                    <button
+                                        onClick={(e) => {
+                                            e.stopPropagation();
+                                            if (window.confirm('¿Eliminar esta respuesta rápida?')) {
+                                                deleteQuickReply(reply.id);
+                                            }
+                                        }}
+                                        style={{
+                                            background: 'none',
+                                            border: 'none',
+                                            padding: '6px',
+                                            cursor: 'pointer',
+                                            color: 'var(--color-gray-400)',
+                                            display: 'flex',
+                                            alignItems: 'center',
+                                            justifyContent: 'center',
+                                            borderRadius: '50%',
+                                        }}
+                                        title="Eliminar"
+                                        onMouseOver={(e) => {
+                                            e.currentTarget.style.backgroundColor = '#FEE2E2';
+                                            e.currentTarget.style.color = '#EF4444';
+                                        }}
+                                        onMouseOut={(e) => {
+                                            e.currentTarget.style.backgroundColor = 'transparent';
+                                            e.currentTarget.style.color = 'var(--color-gray-400)';
+                                        }}
+                                    >
+                                        <Trash2 className="w-4 h-4" />
+                                    </button>
+                                </div>
                             </div>
                         ))
                     ) : (
