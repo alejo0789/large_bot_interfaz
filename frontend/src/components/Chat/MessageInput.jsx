@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { Send, Paperclip, X, Image, FileText, Film, Mic, Square, Trash2, Smile, Zap, Plus } from 'lucide-react';
+import { Send, Paperclip, X, Image, FileText, Film, Mic, Square, Trash2, Smile, Zap, Plus, Edit2 } from 'lucide-react';
 import { useQuickReplies } from '../../hooks/useQuickReplies';
 import QuickReplyManager from '../QuickReplies/QuickReplyManager';
 import EmojiPicker from 'emoji-picker-react';
@@ -36,6 +36,7 @@ const MessageInput = ({ onSend, onSendFile, disabled, isMobile }) => {
     const [showQuickReplies, setShowQuickReplies] = useState(false);
     const [quickReplyFilter, setQuickReplyFilter] = useState('');
     const [showQuickReplyManager, setShowQuickReplyManager] = useState(false);
+    const [editingQuickReply, setEditingQuickReply] = useState(null);
 
     // Load quick replies
     const { quickReplies, fetchQuickReplies } = useQuickReplies();
@@ -487,47 +488,89 @@ const MessageInput = ({ onSend, onSendFile, disabled, isMobile }) => {
 
                     {filteredReplies.length > 0 ? (
                         filteredReplies.map(reply => (
-                            <button
+                            <div
                                 key={reply.id}
-                                onClick={() => handleQuickReplySelect(reply)}
                                 style={{
                                     width: '100%',
                                     display: 'flex',
                                     alignItems: 'center',
                                     gap: '12px',
                                     padding: '10px 16px',
-                                    border: 'none',
-                                    background: 'none',
-                                    textAlign: 'left',
-                                    cursor: 'pointer',
                                     borderBottom: '1px solid var(--color-gray-50)',
-                                    transition: 'background-color 0.2s'
+                                    transition: 'background-color 0.2s',
+                                    cursor: 'default' // Default cursor for container
                                 }}
                                 onMouseOver={(e) => e.currentTarget.style.backgroundColor = 'var(--color-gray-50)'}
                                 onMouseOut={(e) => e.currentTarget.style.backgroundColor = 'transparent'}
                             >
-                                <div style={{
-                                    display: 'flex',
-                                    alignItems: 'center',
-                                    justifyContent: 'center',
-                                    width: '32px',
-                                    height: '32px',
-                                    backgroundColor: 'var(--color-primary-light)',
-                                    borderRadius: '50%',
-                                    color: 'white',
-                                    fontWeight: 'bold',
-                                    fontSize: '14px'
-                                }}>
-                                    /
-                                </div>
-                                <div style={{ flex: 1, overflow: 'hidden' }}>
-                                    <div style={{ fontWeight: 600, color: 'var(--color-gray-900)' }}>{reply.shortcut}</div>
-                                    <div style={{ fontSize: '12px', color: 'var(--color-gray-500)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-                                        {reply.content}
+                                {/* Main clickable area for selecting reply */}
+                                <div
+                                    onClick={() => handleQuickReplySelect(reply)}
+                                    style={{
+                                        display: 'flex',
+                                        alignItems: 'center',
+                                        gap: '12px',
+                                        flex: 1,
+                                        cursor: 'pointer',
+                                        minWidth: 0 // For text overflow
+                                    }}
+                                >
+                                    <div style={{
+                                        display: 'flex',
+                                        alignItems: 'center',
+                                        justifyContent: 'center',
+                                        width: '32px',
+                                        height: '32px',
+                                        backgroundColor: 'var(--color-primary-light)',
+                                        borderRadius: '50%',
+                                        color: 'white',
+                                        fontWeight: 'bold',
+                                        fontSize: '14px',
+                                        flexShrink: 0
+                                    }}>
+                                        /
                                     </div>
+                                    <div style={{ flex: 1, overflow: 'hidden' }}>
+                                        <div style={{ fontWeight: 600, color: 'var(--color-gray-900)' }}>{reply.shortcut}</div>
+                                        <div style={{ fontSize: '12px', color: 'var(--color-gray-500)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                                            {reply.content}
+                                        </div>
+                                    </div>
+                                    {reply.media_url && <Image className="w-4 h-4 text-gray-400" />}
                                 </div>
-                                {reply.media_url && <Image className="w-4 h-4 text-gray-400" />}
-                            </button>
+
+                                {/* Edit Button */}
+                                <button
+                                    onClick={(e) => {
+                                        e.stopPropagation();
+                                        setEditingQuickReply(reply);
+                                        setShowQuickReplies(false);
+                                        setShowQuickReplyManager(true);
+                                    }}
+                                    style={{
+                                        background: 'none',
+                                        border: 'none',
+                                        padding: '6px',
+                                        cursor: 'pointer',
+                                        color: 'var(--color-gray-400)',
+                                        display: 'flex',
+                                        alignItems: 'center',
+                                        justifyContent: 'center',
+                                        borderRadius: '50%',
+                                    }}
+                                    title="Editar"
+                                    onMouseOver={(e) => {
+                                        e.currentTarget.style.backgroundColor = 'var(--color-gray-200)';
+                                        e.currentTarget.style.color = 'var(--color-primary)';
+                                    }}
+                                    onMouseOut={(e) => {
+                                        e.currentTarget.style.backgroundColor = 'transparent';
+                                        e.currentTarget.style.color = 'var(--color-gray-400)';
+                                    }}
+                                >
+                                    <Edit2 className="w-4 h-4" />
+                                </button>
+                            </div>
                         ))
                     ) : (
                         <div style={{ padding: '16px', textAlign: 'center', color: 'var(--color-gray-500)', fontSize: '13px' }}>
@@ -667,9 +710,11 @@ const MessageInput = ({ onSend, onSendFile, disabled, isMobile }) => {
                         isOpen={showQuickReplyManager}
                         onClose={() => {
                             setShowQuickReplyManager(false);
+                            setEditingQuickReply(null); // Clear editing state
                             fetchQuickReplies(); // Refresh list after closing
                         }}
-                        initialContent={message.replace('/', '')} // Setup initial content
+                        initialContent={!editingQuickReply ? message.replace('/', '') : ''} // Setup initial content only if not editing
+                        initialData={editingQuickReply}
                     />
                 )}
 

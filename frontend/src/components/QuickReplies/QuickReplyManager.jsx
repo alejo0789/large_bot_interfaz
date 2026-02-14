@@ -3,8 +3,8 @@ import { X, Save, Image as ImageIcon, Sparkles, Zap, Command, MessageSquare, Smi
 import { useQuickReplies } from '../../hooks/useQuickReplies';
 import EmojiPicker from 'emoji-picker-react';
 
-const QuickReplyManager = ({ isOpen, onClose, initialContent = '' }) => {
-    const { createQuickReply, uploadQuickReplyMedia } = useQuickReplies();
+const QuickReplyManager = ({ isOpen, onClose, initialContent = '', initialData = null }) => {
+    const { createQuickReply, updateQuickReply, uploadQuickReplyMedia } = useQuickReplies();
     const [shortcut, setShortcut] = useState('');
     const [content, setContent] = useState('');
     const [mediaUrl, setMediaUrl] = useState('');
@@ -36,18 +36,34 @@ const QuickReplyManager = ({ isOpen, onClose, initialContent = '' }) => {
 
     useEffect(() => {
         if (isOpen) {
-            setContent(initialContent);
-            if (initialContent) {
-                const words = initialContent.split(' ').slice(0, 2).join('').toLowerCase();
-                setShortcut(words.replace(/[^a-z0-9]/g, ''));
+            if (initialData) {
+                // Editing mode
+                setShortcut(initialData.shortcut);
+                setContent(initialData.content);
+                setMediaUrl(initialData.media_url || '');
+                if (initialData.media_url) {
+                    setFilePreview(initialData.media_url);
+                } else {
+                    setFilePreview(null);
+                }
+            } else {
+                // Creating mode
+                setContent(initialContent);
+                if (initialContent) {
+                    const words = initialContent.split(' ').slice(0, 2).join('').toLowerCase();
+                    setShortcut(words.replace(/[^a-z0-9]/g, ''));
+                } else {
+                    setShortcut('');
+                }
+                setMediaUrl('');
+                setFilePreview(null);
             }
-            // Reset files and picker
+            // Reset common state
             setSelectedFile(null);
-            setFilePreview(null);
-            setMediaUrl('');
+            setError('');
             setShowEmojiPicker(false);
         }
-    }, [isOpen, initialContent]);
+    }, [isOpen, initialContent, initialData]);
 
     const handleFileChange = (e) => {
         const file = e.target.files[0];
@@ -70,7 +86,6 @@ const QuickReplyManager = ({ isOpen, onClose, initialContent = '' }) => {
         const newText = content.substring(0, start) + emoji + content.substring(end);
         setContent(newText);
 
-        // Return focus to textarea and set cursor position correctly
         setTimeout(() => {
             if (textAreaRef.current) {
                 textAreaRef.current.focus();
@@ -94,12 +109,19 @@ const QuickReplyManager = ({ isOpen, onClose, initialContent = '' }) => {
                 finalMediaUrl = uploadResult.url;
             }
 
-            await createQuickReply({
+            const replyData = {
                 shortcut: shortcut.toLowerCase(),
                 content,
                 mediaUrl: finalMediaUrl || null,
                 mediaType: finalMediaUrl ? 'image' : null
-            });
+            };
+
+            if (initialData && initialData.id) {
+                await updateQuickReply(initialData.id, replyData);
+            } else {
+                await createQuickReply(replyData);
+            }
+
             onClose();
         } catch (err) {
             setError(err.message || 'Error al guardar la respuesta rápida');
@@ -121,10 +143,13 @@ const QuickReplyManager = ({ isOpen, onClose, initialContent = '' }) => {
             <div className="modal" style={{
                 maxWidth: '520px',
                 width: '95%',
+                maxHeight: '90vh', // Responsive height
+                display: 'flex', // Layout for scrolling
+                flexDirection: 'column',
                 background: 'var(--color-white)',
                 borderRadius: '24px',
                 boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.25), 0 0 0 1px rgba(0,0,0,0.05)',
-                overflow: 'visible',
+                overflow: 'hidden', // Contain children
                 animation: 'modalSlideUp 0.4s cubic-bezier(0.16, 1, 0.3, 1)'
             }}>
                 {/* Header with Gradient */}
@@ -187,7 +212,7 @@ const QuickReplyManager = ({ isOpen, onClose, initialContent = '' }) => {
                     }} />
                 </div>
 
-                <form onSubmit={handleSubmit} style={{ padding: '32px' }}>
+                <form onSubmit={handleSubmit} style={{ padding: '32px', overflowY: 'auto' }}>
                     {error && (
                         <div style={{
                             padding: '16px',
@@ -457,7 +482,7 @@ const QuickReplyManager = ({ isOpen, onClose, initialContent = '' }) => {
                                     padding: '12px',
                                     justifyContent: 'space-between'
                                 }}>
-                                    <span style={{ color: 'white', fontSize: '0.75rem', fontWeight: 600 }}>{selectedFile.name}</span>
+                                    <span style={{ color: 'white', fontSize: '0.75rem', fontWeight: 600 }}>{selectedFile ? selectedFile.name : 'Imagen actual'}</span>
                                     <button
                                         type="button"
                                         onClick={() => { setSelectedFile(null); setFilePreview(null); }}

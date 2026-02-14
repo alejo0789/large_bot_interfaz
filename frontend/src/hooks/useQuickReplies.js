@@ -43,6 +43,27 @@ export const useQuickReplies = () => {
         }
     }, [fetchQuickReplies]);
 
+    const updateQuickReply = useCallback(async (id, data) => {
+        try {
+            const response = await fetch(`${API_URL}/api/quick-replies/${id}`, {
+                method: 'PUT',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(data)
+            });
+
+            if (!response.ok) {
+                const errorData = await response.json();
+                throw new Error(errorData.error || 'Error updating quick reply');
+            }
+
+            await fetchQuickReplies();
+            return await response.json();
+        } catch (err) {
+            console.error('Error updating quick reply:', err);
+            throw err;
+        }
+    }, [fetchQuickReplies]);
+
     const uploadQuickReplyMedia = useCallback(async (file) => {
         try {
             const formData = new FormData();
@@ -92,6 +113,7 @@ export const useQuickReplies = () => {
         error,
         fetchQuickReplies,
         createQuickReply,
+        updateQuickReply,
         deleteQuickReply,
         uploadQuickReplyMedia
     };

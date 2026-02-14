@@ -14,13 +14,9 @@ router.post('/upload', upload.single('file'), (req, res) => {
             return res.status(400).json({ error: 'No se recibió ningún archivo' });
         }
 
-        // Use the request host to construct the URL
-        // This ensures it works for the current environment (local or production)
-        const protocol = req.protocol;
-        const host = req.get('host');
-        // If behind a proxy (like Nginx/Railway), use 'x-forwarded-proto' and 'x-forwarded-host' if available
-        // But for now, simple req.get('host') is safer for local dev
-        const fileUrl = `${protocol}://${host}/uploads/${req.file.filename}`;
+        // Use the configured public URL (derived from WEBHOOK_URL in production)
+        // This ensures proper HTTPS and domain usage when behind a proxy
+        const fileUrl = `${config.publicUrl}/uploads/${req.file.filename}`;
 
         res.json({
             url: fileUrl,
