@@ -55,18 +55,56 @@ const MessageInput = ({ onSend, onSendFile, disabled, isMobile }) => {
         setShowQuickReplies(false);
     }, [message]);
 
-    const handleQuickReplySelect = (reply) => {
+    const handleQuickReplySelect = async (reply) => {
         const lastSlashIndex = message.lastIndexOf('/');
         const textBeforeSlash = message.substring(0, lastSlashIndex);
-
-        // If it has media, handle file attachment logic (mock for now or just text)
-        // Ideally we would fetch the media and attach it, but let's start with text
 
         setMessage(textBeforeSlash + reply.content + ' ');
         setShowQuickReplies(false);
 
-        // Focus back on textarea
-        // (This might happen automatically due to state change re-rendering)
+        // Handle Media Attachment
+        if (reply.media_url) {
+            setIsUploading(true); // Show loading state while fetching media
+            try {
+                let url = reply.media_url;
+
+                // Fix: If on mobile/remote device and URL is localhost, try to replace with current hostname
+                if (url.includes('localhost') && window.location.hostname !== 'localhost') {
+                    url = url.replace('localhost', window.location.hostname);
+                }
+
+                console.log('Fetching media from:', url);
+                const response = await fetch(url);
+
+                if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
+
+                const blob = await response.blob();
+
+                // Determine file name and type
+                const filename = url.split('/').pop() || 'media_attachment';
+                const file = new File([blob], filename, { type: blob.type });
+
+                setSelectedFile(file);
+
+                // Generate Preview if Image
+                if (file.type.startsWith('image/')) {
+                    const reader = new FileReader();
+                    reader.onload = (e) => setFilePreview(e.target.result);
+                    reader.readAsDataURL(file);
+                } else {
+                    setFilePreview(null);
+                }
+
+            } catch (error) {
+                console.error('Error fetching quick reply media:', error);
+                alert(`Error al cargar la imagen: ${error.message}`);
+                // Clear the potentially partial file state
+                setSelectedFile(null);
+                setFilePreview(null);
+            } finally {
+                setIsUploading(false);
+            }
+        }
     };
 
     const filteredReplies = quickReplies.filter(qr =>
