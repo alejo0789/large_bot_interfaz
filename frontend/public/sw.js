@@ -21,6 +21,13 @@ self.addEventListener('install', event => {
 });
 
 self.addEventListener('fetch', event => {
+    const url = new URL(event.request.url);
+
+    // Bypass cache for API and webhook requests
+    if (url.pathname.includes('/api/') || url.pathname.includes('/webhook/') || url.pathname.includes('/evolution/')) {
+        return event.respondWith(fetch(event.request));
+    }
+
     event.respondWith(
         caches.match(event.request)
             .then(response => {

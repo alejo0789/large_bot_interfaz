@@ -142,17 +142,17 @@ router.post('/', async (req, res) => {
         } else if (msg.message.extendedTextMessage?.text) {
             text = msg.message.extendedTextMessage.text;
         } else if (msg.message.imageMessage) {
-            text = msg.message.imageMessage.caption || '📷 Imagen';
+            text = msg.message.imageMessage.caption || null;
             mediaType = 'image';
             mediaUrl = msg.message.imageMessage.url;
             mimetype = msg.message.imageMessage.mimetype || 'image/jpeg';
         } else if (msg.message.videoMessage) {
-            text = msg.message.videoMessage.caption || '🎥 Video';
+            text = msg.message.videoMessage.caption || null;
             mediaType = 'video';
             mediaUrl = msg.message.videoMessage.url;
             mimetype = msg.message.videoMessage.mimetype || 'video/mp4';
         } else if (msg.message.audioMessage) {
-            text = '🎵 Audio';
+            text = null;
             mediaType = 'audio';
             mediaUrl = msg.message.audioMessage.url;
             mimetype = msg.message.audioMessage.mimetype || 'audio/ogg; codecs=opus';
@@ -295,8 +295,13 @@ router.post('/', async (req, res) => {
             console.log(`💾 Saved message as '${senderType}' from ${isFromAgent ? 'your phone' : 'client'}`);
         }
 
-        // 3. Update Conversation
-        await conversationService.updateLastMessage(phone, text);
+        // 3. Update Conversation (use placeholder if text is null due to media)
+        const previewText = text || (
+            mediaType === 'image' ? '📷 Imagen' :
+                mediaType === 'video' ? '🎥 Video' :
+                    mediaType === 'audio' ? '🎵 Audio' : '📎 Archivo'
+        );
+        await conversationService.updateLastMessage(phone, previewText);
 
         if (!isFromAgent) {
             await conversationService.incrementUnread(phone);

@@ -31,6 +31,9 @@ const SOCKET_URL = process.env.REACT_APP_SOCKET_URL ||
 const API_URL = process.env.REACT_APP_API_URL ||
     (process.env.NODE_ENV === 'production' ? window.location.origin : 'http://localhost:4000');
 
+console.log('🌐 Configured API_URL:', API_URL);
+console.log('🔌 Configured SOCKET_URL:', SOCKET_URL);
+
 const AuthenticatedApp = () => {
     const { user, logout } = useAuth();
 

@@ -137,7 +137,7 @@ router.post('/send-file', upload.single('file'), asyncHandler(async (req, res) =
     const savedMessage = await messageService.create({
         phone,
         sender: 'agent',
-        text: caption || file.originalname,
+        text: (mediaType === 'image' || mediaType === 'video' || mediaType === 'audio') ? (caption || null) : (caption || file.originalname),
         mediaType,
         mediaUrl: fileUrl,
         status: 'sending',

@@ -33,6 +33,7 @@ export const useConversations = (socket) => {
             const params = new URLSearchParams({
                 page: page.toString(),
                 limit: '100', // Changed from 50 to 100
+                _t: Date.now().toString() // Cache busting
             });
 
             if (search) {
@@ -51,7 +52,9 @@ export const useConversations = (socket) => {
                 params.append('endDate', endDate);
             }
 
-            const response = await fetch(`${API_URL}/api/conversations?${params}`);
+            const response = await fetch(`${API_URL}/api/conversations?${params}`, {
+                cache: 'no-cache'
+            });
             if (!response.ok) throw new Error('Error fetching conversations');
 
             const data = await response.json();
@@ -300,7 +303,7 @@ export const useConversations = (socket) => {
 
         const newMessage = {
             id: tempId,
-            text: caption || file.name,
+            text: (media_type === 'document') ? (caption || file.name) : (caption || null),
             sender: 'agent',
             agent_name: agentName,
             media_type,
@@ -349,7 +352,11 @@ export const useConversations = (socket) => {
                     const targetConv = currentConversations[conversationIndex];
                     const updatedConv = {
                         ...targetConv,
-                        lastMessage: caption || `📎 ${file.name}`,
+                        lastMessage: caption || (
+                            media_type === 'image' ? '📷 Imagen' :
+                                media_type === 'video' ? '🎥 Video' :
+                                    media_type === 'audio' ? '🎵 Audio' : `📎 ${file.name}`
+                        ),
                         timestamp: newMessage.timestamp,
                         rawTimestamp: newMessage.rawTimestamp
                     };
@@ -557,12 +564,19 @@ export const useConversations = (socket) => {
             }));
         };
 
+        const handleConnect = () => {
+            console.log('🔄 Socket reconnected, refreshing conversations...');
+            fetchConversations(1, searchQuery, false);
+        };
+
+        socket.on('connect', handleConnect);
         socket.on('new-message', (data) => handleSocketMessage(data, false));
         socket.on('agent-message', (data) => handleSocketMessage(data, true));
         socket.on('conversation-updated', handleConversationUpdated);
         socket.on('conversation-state-changed', handleStateChange);
 
         return () => {
+            socket.off('connect', handleConnect);
             socket.off('new-message');
             socket.off('agent-message');
             socket.off('conversation-updated');
