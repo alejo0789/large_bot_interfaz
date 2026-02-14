@@ -167,7 +167,7 @@ router.post('/send-file', upload.single('file'), asyncHandler(async (req, res) =
     emitToConversation(phone, 'agent-message', {
         whatsapp_id: savedMessage.id,
         phone,
-        message: caption || file.originalname,
+        message: (mediaType === 'image' || mediaType === 'video' || mediaType === 'audio') ? (caption || null) : (caption || file.originalname),
         media_type: mediaType,
         media_url: fileUrl,
         sender: 'agent', // Added for consistency

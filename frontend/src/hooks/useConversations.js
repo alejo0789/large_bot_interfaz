@@ -447,11 +447,15 @@ export const useConversations = (socket) => {
                 const existingMessages = prev[phone] || [];
 
                 // Duplicate check by ID or content/timestamp
+                // If the message has no text (media only), we check if there is a 'sending' message with same media_type
+                // that was sent recently (< 10s)
                 const isDuplicate = existingMessages.some(msg =>
                     msg.id === formattedMessage.id ||
-                    (msg.text === formattedMessage.text &&
+                    (
+                        ((msg.text === formattedMessage.text) || (!msg.text && !formattedMessage.text && msg.media_type === formattedMessage.media_type)) &&
                         msg.sender === formattedMessage.sender &&
-                        Math.abs(new Date(msg.rawTimestamp) - new Date(formattedMessage.rawTimestamp)) < 3000)
+                        Math.abs(new Date(msg.rawTimestamp) - new Date(formattedMessage.rawTimestamp)) < 10000 // Increased tolerance
+                    )
                 );
 
                 if (isDuplicate) {
@@ -460,12 +464,13 @@ export const useConversations = (socket) => {
                         return {
                             ...prev,
                             [phone]: existingMessages.map(msg =>
-                                (msg.text === formattedMessage.text && msg.status === 'sending')
+                                ((msg.text === formattedMessage.text && msg.status === 'sending') ||
+                                    (!msg.text && !formattedMessage.text && msg.status === 'sending' && msg.media_type === formattedMessage.media_type))
                                     ? {
                                         ...msg,
                                         status: 'delivered',
                                         id: formattedMessage.id,
-                                        media_url: formattedMessage.media_url,
+                                        media_url: formattedMessage.media_url, // Update URL (e.g. from blob: to http:)
                                         media_type: formattedMessage.media_type,
                                         agent_name: formattedMessage.agent_name
                                     }
