@@ -93,13 +93,12 @@ router.post('/send-message', asyncHandler(async (req, res) => {
         sendResult = { sent: result.sent, platform: 'n8n', ...result };
     }
 
-    // Emit to frontend
     emitToConversation(normalizedPhone, 'agent-message', {
         whatsapp_id: savedMessage.id, // Include the DB ID
         phone: normalizedPhone,
         message,
+        sender: 'agent', // Added for consistency
         sender_type: 'agent',
-        // Use ISO string
         timestamp: new Date().toISOString(),
         agent_id: finalAgentId,
         agent_name: finalAgentName
@@ -171,6 +170,7 @@ router.post('/send-file', upload.single('file'), asyncHandler(async (req, res) =
         message: caption || file.originalname,
         media_type: mediaType,
         media_url: fileUrl,
+        sender: 'agent', // Added for consistency
         sender_type: 'agent',
         timestamp: new Date().toISOString(),
         agent_id,

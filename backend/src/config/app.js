@@ -38,8 +38,10 @@ const config = {
     // Logging
     logLevel: process.env.LOG_LEVEL || 'info',
 
-    // Public URL for media links
-    publicUrl: process.env.WEBHOOK_URL ? process.env.WEBHOOK_URL.replace('/evolution', '') : 'http://localhost:4000'
+    // Public URL for media links (clean trailing slash)
+    publicUrl: (process.env.WEBHOOK_URL
+        ? process.env.WEBHOOK_URL.replace('/evolution', '').replace(/\/$/, '')
+        : 'http://localhost:4000').replace(/\/$/, '')
 };
 
 // Validate required config

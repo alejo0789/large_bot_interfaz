@@ -177,11 +177,14 @@ class ConversationService {
         const existing = await this.getByPhone(phone);
 
         if (existing) {
-            // Only update contact name if provided
+            // Only update contact name if provided AND the current name is a placeholder or empty
             const { rows } = await pool.query(`
                 UPDATE conversations 
                 SET 
-                    contact_name = COALESCE($1, contact_name),
+                    contact_name = CASE 
+                        WHEN contact_name IS NULL OR contact_name = '' OR contact_name LIKE 'Usuario %' OR contact_name = phone THEN COALESCE($1, contact_name)
+                        ELSE contact_name
+                    END,
                     updated_at = NOW()
                 WHERE phone = $2
                 RETURNING *

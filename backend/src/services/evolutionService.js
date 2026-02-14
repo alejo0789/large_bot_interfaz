@@ -295,6 +295,45 @@ class EvolutionService {
             return { error: error.message };
         }
     }
+
+    /**
+     * Fetch media as base64 from a message object
+     * @param {Object} msg - The message object from webhook (data)
+     */
+    async fetchBase64(msg) {
+        try {
+            const url = `${this.baseUrl}/chat/getBase64FromMessage/${this.instance}`;
+
+            // Evolution v2 expects the message object that contains 'key' and 'message'
+            const response = await fetch(url, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'apikey': this.apiKey
+                },
+                body: JSON.stringify({
+                    message: {
+                        key: msg.key,
+                        message: msg.message
+                    }
+                })
+            });
+
+            if (!response.ok) {
+                const errorData = await response.json();
+                console.error('❌ Evolution fetchBase64 failed:', errorData);
+                return null;
+            }
+
+            const data = await response.json();
+            // Evolution usually returns { base64: "..." }
+            return data.base64 || null;
+
+        } catch (error) {
+            console.error('❌ Error in fetchBase64:', error.message);
+            return null;
+        }
+    }
 }
 
 module.exports = new EvolutionService();

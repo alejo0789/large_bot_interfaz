@@ -5,7 +5,8 @@ import { CheckCheck, Clock, Download, FileText, Image as ImageIcon, Mic } from '
  * Message bubble component with media support
  */
 const MessageBubble = ({ message }) => {
-    const { text, sender, timestamp, status } = message;
+    const { text, timestamp, status } = message;
+    const sender = message.sender || message.sender_type;
     const media_type = message.media_type || message.mediaType;
     const media_url = message.media_url || message.mediaUrl;
     const [imageError, setImageError] = useState(false);

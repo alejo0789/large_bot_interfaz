@@ -102,7 +102,7 @@ router.post('/receive-message', asyncHandler(async (req, res) => {
     // Emit to frontend (OPTIMIZED: uses rooms)
     emitToConversation(cleanPhone, 'new-message', {
         phone: cleanPhone,
-        contact_name: contact_name || `Usuario ${cleanPhone.slice(-4)}`,
+        contact_name: conversation?.contact_name || contact_name || `Usuario ${cleanPhone.slice(-4)}`,
         message,
         whatsapp_id,
         sender_type,

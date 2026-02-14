@@ -10,6 +10,7 @@ const conversationService = require('../services/conversationService');
 const evolutionService = require('../services/evolutionService');
 const n8nService = require('../services/n8nService');
 const settingsService = require('../services/settingsService');
+const { saveBase64AsFile } = require('../utils/fileUtils');
 
 let io = null;
 const setSocketIO = (socketIO) => { io = socketIO; };
@@ -159,24 +160,31 @@ router.post('/', async (req, res) => {
             text = msg.message.documentMessage.fileName || '📄 Documento';
             mediaType = 'document';
             mediaUrl = msg.message.documentMessage.url;
-            mimetype = msg.message.documentMessage.mimetype || 'application/pdf';
+            mimetype = msg.message.documentMessage.mimetype || 'application/octet-stream';
         }
 
         // --- MEDIA HANDLING: BASE64 PRIORITY ---
-        // Debugging Base64 Arrival
-        console.log(`🔎 [DEBUG MEDIA] Keys in msg object: ${Object.keys(msg).join(', ')}`);
-
-        let finalBase64 = msg.base64;
+        // Try to find base64 in common locations (Evolution v1 vs v2)
+        let finalBase64 = msg.base64 ||
+            (msg.message && msg.message.base64) ||
+            (msg.message && msg.message.imageMessage && msg.message.imageMessage.base64) ||
+            (msg.message && msg.message.videoMessage && msg.message.videoMessage.base64) ||
+            (msg.message && msg.message.audioMessage && msg.message.audioMessage.base64);
 
         // Fallback: If no base64 in webhook, try to fetch it from Evolution API
         if (!finalBase64 && mediaType) {
             console.log(`⚠️ No base64 in webhook. Attempting to fetch media from Evolution API for [${mediaType}]...`);
             try {
-                finalBase64 = await evolutionService.fetchBase64(msg); // Pass full message object
-                if (finalBase64) {
-                    console.log(`✅ Successfully fetched base64 from API! Length: ${finalBase64.length}`);
+                // Ensure we have a valid fetchBase64 method
+                if (typeof evolutionService.fetchBase64 === 'function') {
+                    finalBase64 = await evolutionService.fetchBase64(msg);
+                    if (finalBase64) {
+                        console.log(`✅ Successfully fetched base64 from API! Length: ${finalBase64.length}`);
+                    } else {
+                        console.warn(`❌ Failed to fetch base64 from API.`);
+                    }
                 } else {
-                    console.warn(`❌ Failed to fetch base64 from API.`);
+                    console.warn(`❌ evolutionService.fetchBase64 is not defined! Images will not show.`);
                 }
             } catch (errFallback) {
                 console.error(`❌ Error in fetchBase64 fallback: ${errFallback.message}`);
@@ -184,11 +192,26 @@ router.post('/', async (req, res) => {
         }
 
         if (finalBase64) {
-            console.log(`💎 Base64 Media ready! Creating Data URI for [${mediaType}]`);
-            // Construct Data URI: data:<mediatype>;base64,<data>
-            mediaUrl = `data:${mimetype};base64,${finalBase64}`;
+            console.log(`💎 Base64 Media ready! Saving to persistent storage...`);
+            // Ensure we have a mimetype
+            const safeMimetype = mimetype || (mediaType === 'image' ? 'image/jpeg' :
+                mediaType === 'video' ? 'video/mp4' :
+                    mediaType === 'audio' ? 'audio/ogg' : 'application/octet-stream');
+
+            // Save to disk and get public URL
+            const savedUrl = await saveBase64AsFile(finalBase64, mediaType, safeMimetype);
+            if (savedUrl) {
+                mediaUrl = savedUrl;
+                console.log(`✅ Media saved to volume: ${mediaUrl}`);
+            } else {
+                console.warn(`⚠️ Failed to save media to disk, falling back to Data URI (will not persist in volume)`);
+                mediaUrl = `data:${safeMimetype};base64,${finalBase64}`;
+            }
         } else if (mediaUrl && mediaUrl.includes('whatsapp.net')) {
             console.warn(`⚠️ Warning: Using internal WhatsApp URL which may not be accessible: ${mediaUrl}`);
+            // If it's a whatsapp.net URL and we don't have base64, the frontend won't be able to show it
+            // We set it to null so the frontend doesn't show a broken image icon
+            mediaUrl = null;
         }
 
         // --- MEDIA URL FALLBACK LOGIC ---
@@ -287,11 +310,12 @@ router.post('/', async (req, res) => {
         // 4. Emit to Frontend (Socket.IO)
         emitToConversation(phone, 'new-message', {
             phone: phone,
-            contact_name: conversation.contact_name, // Use name from DB, not from agent's pushName
+            contact_name: conversation.contact_name,
             message: text,
             whatsapp_id: msg.key.id,
-            sender_type: senderType, // Use dynamic sender type
-            unread: isFromAgent ? 0 : 1, // Explicit unread delta
+            sender: senderType, // Changed from sender_type for consistency
+            sender_type: senderType, // Keep for backward compatibility
+            unread: isFromAgent ? 0 : 1,
             timestamp: new Date().toISOString(),
             conversation_state: currentState,
             ai_enabled: shouldActivateAI,
@@ -341,7 +365,7 @@ router.post('/', async (req, res) => {
                 // 4. Emit to Frontend
                 emitToConversation(phone, 'new-message', {
                     phone: phone,
-                    contact_name: pushName,
+                    contact_name: conversation?.contact_name || pushName,
                     message: aiResponseText,
                     whatsapp_id: agentMessageId,
                     sender: 'ai', // Mark as 'ai' for blue styling
