@@ -29,7 +29,7 @@ const emitToConversation = (phone, event, data) => {
         lastMessage: data.message,
         timestamp: data.timestamp,
         contact_name: data.contact_name, // Added for new conversations
-        unread: 1,
+        unread: data.unread !== undefined ? data.unread : 1,
         isNew: data.isNew || false
     });
 
@@ -92,7 +92,12 @@ router.post('/receive-message', asyncHandler(async (req, res) => {
 
     // Update conversation
     await conversationService.updateLastMessage(cleanPhone, message);
-    await conversationService.incrementUnread(cleanPhone);
+
+    // Only increment unread for user messages
+    const isAgent = sender_type === 'agent';
+    if (!isAgent) {
+        await conversationService.incrementUnread(cleanPhone);
+    }
 
     // Emit to frontend (OPTIMIZED: uses rooms)
     emitToConversation(cleanPhone, 'new-message', {
@@ -103,6 +108,7 @@ router.post('/receive-message', asyncHandler(async (req, res) => {
         sender_type,
         media_type,
         media_url,
+        unread: isAgent ? 0 : 1,
         timestamp: timestamp || new Date().toISOString(),
         conversation_state: currentState,
         ai_enabled: shouldActivateAI,

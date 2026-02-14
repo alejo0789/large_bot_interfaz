@@ -27,7 +27,8 @@ const emitToConversation = (phone, event, data) => {
         lastMessage: data.message,
         timestamp: data.timestamp || new Date().toISOString(),
         contact_name: data.contact_name, // Added for new conversations
-        unread: 1,
+        unread: data.unread !== undefined ? data.unread : 1,
+        sender_type: data.sender_type || 'user',
         isNew: data.isNew || false
     });
 
