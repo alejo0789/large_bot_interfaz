@@ -508,7 +508,10 @@ const AuthenticatedApp = () => {
         await markConversationAsUnread(phone);
         // Deseleccionar conversación para volver a la lista y ver el cambio
         selectConversation(null);
-    }, [markConversationAsUnread, selectConversation]);
+        if (isMobile) {
+            setShowSidebar(true);
+        }
+    }, [markConversationAsUnread, selectConversation, isMobile]);
 
     // Exponer fetchConversations globalmente para que el Service Worker o el componente Pull-to-Refresh puedan usarlo
     useEffect(() => {
