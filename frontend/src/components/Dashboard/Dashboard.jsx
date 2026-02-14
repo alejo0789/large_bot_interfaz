@@ -190,68 +190,128 @@ const Dashboard = ({ isMobile }) => {
                 gridTemplateColumns: isMobile ? '1fr' : '2fr 1fr',
                 gap: '24px'
             }}>
-                {/* Main Chart */}
-                <div style={{
-                    backgroundColor: 'white',
-                    borderRadius: '16px',
-                    padding: '24px',
-                    boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06)',
-                    border: '1px solid #f1f5f9'
-                }}>
-                    <h3 style={{ fontSize: '1.125rem', fontWeight: 600, color: '#1e293b', marginBottom: '20px' }}>
-                        Actividad de Mensajes
-                    </h3>
-                    <div style={{ height: '300px', width: '100%' }}>
-                        <ResponsiveContainer width="100%" height="100%">
-                            <AreaChart data={chartData} margin={{ top: 10, right: 10, left: 0, bottom: 0 }}>
-                                <defs>
-                                    <linearGradient id="colorReceived" x1="0" y1="0" x2="0" y2="1">
-                                        <stop offset="5%" stopColor="#3b82f6" stopOpacity={0.1} />
-                                        <stop offset="95%" stopColor="#3b82f6" stopOpacity={0} />
-                                    </linearGradient>
-                                    <linearGradient id="colorSent" x1="0" y1="0" x2="0" y2="1">
-                                        <stop offset="5%" stopColor="#22c55e" stopOpacity={0.1} />
-                                        <stop offset="95%" stopColor="#22c55e" stopOpacity={0} />
-                                    </linearGradient>
-                                </defs>
-                                <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e2e8f0" />
-                                <XAxis
-                                    dataKey="time"
-                                    tick={{ fill: '#64748b', fontSize: 12 }}
-                                    axisLine={false}
-                                    tickLine={false}
-                                    dy={10}
-                                />
-                                <YAxis
-                                    tick={{ fill: '#64748b', fontSize: 12 }}
-                                    axisLine={false}
-                                    tickLine={false}
-                                />
-                                <Tooltip
-                                    contentStyle={{ borderRadius: '8px', border: 'none', boxShadow: '0 4px 6px -1px rgba(0,0,0,0.1)' }}
-                                />
-                                <Legend />
-                                <Area
-                                    type="monotone"
-                                    dataKey="received"
-                                    name="Recibidos"
-                                    stroke="#3b82f6"
-                                    strokeWidth={2}
-                                    fillOpacity={1}
-                                    fill="url(#colorReceived)"
-                                />
-                                <Area
-                                    type="monotone"
-                                    dataKey="sent"
-                                    name="Enviados"
-                                    stroke="#22c55e"
-                                    strokeWidth={2}
-                                    fillOpacity={1}
-                                    fill="url(#colorSent)"
-                                />
-                            </AreaChart>
-                        </ResponsiveContainer>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
+
+                    {/* Chart 1: Messages Coverage */}
+                    <div style={{
+                        backgroundColor: 'white',
+                        borderRadius: '16px',
+                        padding: '24px',
+                        boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06)',
+                        border: '1px solid #f1f5f9'
+                    }}>
+                        <h3 style={{ fontSize: '1.125rem', fontWeight: 600, color: '#1e293b', marginBottom: '20px' }}>
+                            Flujo de Mensajes
+                        </h3>
+                        <div style={{ height: '300px', width: '100%' }}>
+                            <ResponsiveContainer width="100%" height="100%">
+                                <AreaChart data={chartData} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
+                                    <defs>
+                                        <linearGradient id="colorReceived" x1="0" y1="0" x2="0" y2="1">
+                                            <stop offset="5%" stopColor="#3b82f6" stopOpacity={0.1} />
+                                            <stop offset="95%" stopColor="#3b82f6" stopOpacity={0} />
+                                        </linearGradient>
+                                        <linearGradient id="colorSent" x1="0" y1="0" x2="0" y2="1">
+                                            <stop offset="5%" stopColor="#22c55e" stopOpacity={0.1} />
+                                            <stop offset="95%" stopColor="#22c55e" stopOpacity={0} />
+                                        </linearGradient>
+                                    </defs>
+                                    <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e2e8f0" />
+                                    <XAxis
+                                        dataKey="time"
+                                        tick={{ fill: '#64748b', fontSize: 11 }}
+                                        tickFormatter={(val) => isMobile ? val.split(':')[0] + 'h' : val}
+                                        axisLine={false}
+                                        tickLine={false}
+                                        dy={10}
+                                        interval={isMobile ? 'preserveStartEnd' : 0}
+                                    />
+                                    <YAxis
+                                        tick={{ fill: '#64748b', fontSize: 11 }}
+                                        axisLine={false}
+                                        tickLine={false}
+                                    />
+                                    <Tooltip
+                                        contentStyle={{ borderRadius: '8px', border: 'none', boxShadow: '0 4px 6px -1px rgba(0,0,0,0.1)' }}
+                                    />
+                                    <Legend wrapperStyle={{ paddingTop: '20px' }} />
+                                    <Area
+                                        type="monotone"
+                                        dataKey="received"
+                                        name="Recibidos"
+                                        stroke="#3b82f6"
+                                        strokeWidth={2}
+                                        fillOpacity={1}
+                                        fill="url(#colorReceived)"
+                                    />
+                                    <Area
+                                        type="monotone"
+                                        dataKey="sent"
+                                        name="Enviados"
+                                        stroke="#22c55e"
+                                        strokeWidth={2}
+                                        fillOpacity={1}
+                                        fill="url(#colorSent)"
+                                    />
+                                </AreaChart>
+                            </ResponsiveContainer>
+                        </div>
                     </div>
+
+                    {/* Chart 2: New Conversations */}
+                    <div style={{
+                        backgroundColor: 'white',
+                        borderRadius: '16px',
+                        padding: '24px',
+                        boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06)',
+                        border: '1px solid #f1f5f9'
+                    }}>
+                        <h3 style={{ fontSize: '1.125rem', fontWeight: 600, color: '#1e293b', marginBottom: '20px' }}>
+                            Nuevas Conversaciones
+                        </h3>
+                        <div style={{ height: '250px', width: '100%' }}>
+                            <ResponsiveContainer width="100%" height="100%">
+                                <AreaChart data={chartData} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
+                                    <defs>
+                                        <linearGradient id="colorCreated" x1="0" y1="0" x2="0" y2="1">
+                                            <stop offset="5%" stopColor="#9333ea" stopOpacity={0.1} />
+                                            <stop offset="95%" stopColor="#9333ea" stopOpacity={0} />
+                                        </linearGradient>
+                                    </defs>
+                                    <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e2e8f0" />
+                                    <XAxis
+                                        dataKey="time"
+                                        tick={{ fill: '#64748b', fontSize: 11 }}
+                                        tickFormatter={(val) => isMobile ? val.split(':')[0] + 'h' : val}
+                                        axisLine={false}
+                                        tickLine={false}
+                                        dy={10}
+                                        interval={isMobile ? 'preserveStartEnd' : 0}
+                                    />
+                                    <YAxis
+                                        tick={{ fill: '#64748b', fontSize: 11 }}
+                                        axisLine={false}
+                                        tickLine={false}
+                                        allowDecimals={false}
+                                    />
+                                    <Tooltip
+                                        contentStyle={{ borderRadius: '8px', border: 'none', boxShadow: '0 4px 6px -1px rgba(0,0,0,0.1)' }}
+                                    />
+                                    <Legend wrapperStyle={{ paddingTop: '20px' }} />
+                                    <Area
+                                        type="monotone"
+                                        dataKey="created"
+                                        name="Nuevas"
+                                        stroke="#9333ea"
+                                        strokeWidth={2}
+                                        fillOpacity={1}
+                                        fill="url(#colorCreated)"
+                                    />
+                                </AreaChart>
+                            </ResponsiveContainer>
+                        </div>
+                    </div>
+
                 </div>
 
                 {/* Agent Performance */}

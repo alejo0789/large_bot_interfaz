@@ -142,17 +142,61 @@ router.get('/charts', async (req, res) => {
             ORDER BY time_slot ASC
         `;
 
-        const chartParams = [...params, period];
-        const { rows } = await pool.query(chartQuery, chartParams);
+        // Gráfica de Nuevas Conversaciones
+        const dateFilterConv = dateFilter.replace(/timestamp/g, 'created_at');
+        const convQuery = `
+            SELECT 
+                date_trunc($${params.length + 1}, created_at) as time_slot,
+                COUNT(*) as created
+            FROM conversations
+            WHERE ${dateFilterConv}
+            GROUP BY time_slot
+            ORDER BY time_slot ASC
+        `;
 
-        const chartData = rows.map(row => ({
-            time: period === 'hour'
-                ? new Date(row.time_slot).toLocaleTimeString('es-CO', { hour: '2-digit', minute: '2-digit' })
-                : new Date(row.time_slot).toLocaleDateString('es-CO', { month: 'short', day: 'numeric' }),
-            received: parseInt(row.received),
-            sent: parseInt(row.sent),
-            rawTime: row.time_slot
-        }));
+        const chartParams = [...params, period];
+
+        const [msgRes, convRes] = await Promise.all([
+            pool.query(chartQuery, chartParams),
+            pool.query(convQuery, chartParams)
+        ]);
+
+        // Merge Data
+        const dataMap = new Map();
+
+        // Process Messages
+        msgRes.rows.forEach(row => {
+            const timeKey = row.time_slot.toISOString();
+            if (!dataMap.has(timeKey)) {
+                dataMap.set(timeKey, { time_slot: row.time_slot, received: 0, sent: 0, created: 0 });
+            }
+            const data = dataMap.get(timeKey);
+            data.received = parseInt(row.received);
+            data.sent = parseInt(row.sent);
+        });
+
+        // Process Conversations
+        convRes.rows.forEach(row => {
+            const timeKey = row.time_slot.toISOString();
+            if (!dataMap.has(timeKey)) {
+                dataMap.set(timeKey, { time_slot: row.time_slot, received: 0, sent: 0, created: 0 });
+            }
+            const data = dataMap.get(timeKey);
+            data.created = parseInt(row.created);
+        });
+
+        // Convert Map to Array and Sort
+        const chartData = Array.from(dataMap.values())
+            .sort((a, b) => new Date(a.time_slot) - new Date(b.time_slot))
+            .map(row => ({
+                time: period === 'hour'
+                    ? new Date(row.time_slot).toLocaleTimeString('es-CO', { hour: '2-digit', minute: '2-digit' })
+                    : new Date(row.time_slot).toLocaleDateString('es-CO', { month: 'short', day: 'numeric' }),
+                received: row.received,
+                sent: row.sent,
+                created: row.created,
+                rawTime: row.time_slot
+            }));
 
         res.json(chartData);
 
