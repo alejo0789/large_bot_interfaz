@@ -488,72 +488,77 @@ const AuthenticatedApp = () => {
                             </span>
                         </div>
 
-                        {/* Bulk message button */}
-                        <button
-                            className="btn"
-                            onClick={() => setShowBulkMessage(true)}
-                            title="Envío masivo"
-                            style={{
-                                display: 'flex',
-                                alignItems: 'center',
-                                gap: 'var(--space-1)',
-                                backgroundColor: 'var(--color-primary)',
-                                color: 'white',
-                                padding: '6px 12px',
-                                fontSize: 'var(--font-size-xs)',
-                                fontWeight: 500
-                            }}
-                        >
-                            <Send className="w-4 h-4" />
-                            Masivo
-                        </button>
+                        {/* Only show these buttons if this is desktop OR sidebar is explicitly active on mobile */}
+                        {(!isMobile || showSidebar) && (
+                            <>
+                                {/* Bulk message button */}
+                                <button
+                                    className="btn"
+                                    onClick={() => setShowBulkMessage(true)}
+                                    title="Envío masivo"
+                                    style={{
+                                        display: 'flex',
+                                        alignItems: 'center',
+                                        gap: 'var(--space-1)',
+                                        backgroundColor: 'var(--color-primary)',
+                                        color: 'white',
+                                        padding: '6px 12px',
+                                        fontSize: 'var(--font-size-xs)',
+                                        fontWeight: 500
+                                    }}
+                                >
+                                    <Send className="w-4 h-4" />
+                                    Masivo
+                                </button>
 
-                        {/* Refresh button */}
-                        <button
-                            className="btn btn-icon"
-                            onClick={() => fetchConversations()}
-                            disabled={isLoading}
-                            title="Recargar conversaciones"
-                            style={{
-                                backgroundColor: 'var(--color-primary)',
-                                color: 'white',
-                                padding: '6px'
-                            }}
-                        >
-                            <RotateCw className={`w-4 h-4 ${isLoading ? 'animate-spin' : ''}`} />
-                        </button>
+                                {/* Refresh button */}
+                                <button
+                                    className="btn btn-icon"
+                                    onClick={() => fetchConversations()}
+                                    disabled={isLoading}
+                                    title="Recargar conversaciones"
+                                    style={{
+                                        backgroundColor: 'var(--color-primary)',
+                                        color: 'white',
+                                        padding: '6px'
+                                    }}
+                                >
+                                    <RotateCw className={`w-4 h-4 ${isLoading ? 'animate-spin' : ''}`} />
+                                </button>
 
-                        {/* Settings button */}
-                        <button
-                            className="btn btn-icon"
-                            onClick={() => setShowSettings(true)}
-                            title="Configuración"
-                            style={{
-                                backgroundColor: 'var(--color-gray-600)',
-                                color: 'white',
-                                padding: '6px'
-                            }}
-                        >
-                            <Settings className="w-4 h-4" />
-                        </button>
+                                {/* Settings button */}
+                                <button
+                                    className="btn btn-icon"
+                                    onClick={() => setShowSettings(true)}
+                                    title="Configuración"
+                                    style={{
+                                        backgroundColor: 'var(--color-gray-600)',
+                                        color: 'white',
+                                        padding: '6px'
+                                    }}
+                                >
+                                    <Settings className="w-4 h-4" />
+                                </button>
 
-                        {/* Logout button */}
-                        <button
-                            className="btn btn-icon"
-                            onClick={logout}
-                            title="Cerrar sesión"
-                            style={{
-                                backgroundColor: '#ef4444',
-                                color: 'white',
-                                padding: '6px'
-                            }}
-                        >
-                            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                                <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"></path>
-                                <polyline points="16 17 21 12 16 7"></polyline>
-                                <line x1="21" y1="12" x2="9" y2="12"></line>
-                            </svg>
-                        </button>
+                                {/* Logout button */}
+                                <button
+                                    className="btn btn-icon"
+                                    onClick={logout}
+                                    title="Cerrar sesión"
+                                    style={{
+                                        backgroundColor: '#ef4444',
+                                        color: 'white',
+                                        padding: '6px'
+                                    }}
+                                >
+                                    <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                                        <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"></path>
+                                        <polyline points="16 17 21 12 16 7"></polyline>
+                                        <line x1="21" y1="12" x2="9" y2="12"></line>
+                                    </svg>
+                                </button>
+                            </>
+                        )}
                     </div>
                 </div>
 
