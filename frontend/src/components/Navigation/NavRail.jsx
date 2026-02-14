@@ -1,5 +1,5 @@
 import React from 'react';
-import { MessageSquare, Brain, Settings, X, LogOut, Send } from 'lucide-react';
+import { MessageSquare, Brain, Settings, X, LogOut, Send, LayoutDashboard } from 'lucide-react';
 
 const NavRail = ({ activeTab, onTabChange, isMobile, isOpen, onClose, onOpen, onLogout, onBulkMessage }) => {
     const [isCollapsed, setIsCollapsed] = React.useState(true);
@@ -123,6 +123,13 @@ const NavRail = ({ activeTab, onTabChange, isMobile, isOpen, onClose, onOpen, on
                             label="Cerebro IA"
                             active={activeTab === 'ai'}
                             onClick={() => { onTabChange('ai'); onClose(); }}
+                            fullWidth
+                        />
+                        <NavButton
+                            icon={<LayoutDashboard />}
+                            label="Dashboard"
+                            active={activeTab === 'dashboard'}
+                            onClick={() => { onTabChange('dashboard'); onClose(); }}
                             fullWidth
                         />
                         <NavButton
@@ -251,6 +258,12 @@ const NavRail = ({ activeTab, onTabChange, isMobile, isOpen, onClose, onOpen, on
                     label="IA"
                     active={activeTab === 'ai'}
                     onClick={() => onTabChange('ai')}
+                />
+                <NavButton
+                    icon={<LayoutDashboard />}
+                    label="Panel"
+                    active={activeTab === 'dashboard'}
+                    onClick={() => onTabChange('dashboard')}
                 />
                 <NavButton
                     icon={<Send />}

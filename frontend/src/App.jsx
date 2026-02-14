@@ -19,6 +19,7 @@ import N8NTestChat from './components/Testing/N8NTestChat';
 import SettingsModal from './components/Settings/SettingsModal';
 import MainLayout from './components/MainLayout';
 import AIArea from './components/AI/AIArea';
+import Dashboard from './components/Dashboard/Dashboard';
 
 // Hooks
 import { useConversations } from './hooks/useConversations';
@@ -752,6 +753,7 @@ const AuthenticatedApp = () => {
                 onClose={() => setShowSettings(false)}
             />
 
+            {activeTab === 'dashboard' && <Dashboard isMobile={isMobile} />}
             {activeTab === 'ai' && <AIArea isMobile={isMobile} />}
         </MainLayout>
     );

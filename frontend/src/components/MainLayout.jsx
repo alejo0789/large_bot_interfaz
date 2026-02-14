@@ -77,6 +77,7 @@ const MainLayout = ({
                             <h1 style={{ fontSize: '1rem', fontWeight: 700, margin: 0, color: 'var(--color-gray-800)' }}>
                                 {activeTab === 'chat' && 'Chats'}
                                 {activeTab === 'ai' && 'IA'}
+                                {activeTab === 'dashboard' && 'Dashboard'}
                                 {activeTab === 'settings' && 'Config'}
                             </h1>
                         </div>

@@ -90,6 +90,7 @@ app.use('/evolution', evolutionRoutes);
 app.use('/api/settings', settingsRoutes);
 app.use('/api/quick-replies', quickReplyRoutes);
 app.use('/api/ai-knowledge', require('./src/routes/ai_knowledge'));
+app.use('/api/dashboard', require('./src/routes/dashboard'));
 
 // Health check
 app.get('/health', (req, res) => {
