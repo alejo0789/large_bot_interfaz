@@ -69,7 +69,12 @@ const AuthenticatedApp = () => {
     useEffect(() => {
         const socketInstance = io(SOCKET_URL, {
             transports: ['websocket'],
-            reconnectionAttempts: 5,
+            reconnectionAttempts: 10, // Más intentos de reconexión
+            reconnectionDelay: 1000,   // Delay entre intentos
+            reconnectionDelayMax: 5000, // Delay máximo
+            timeout: 20000,             // Timeout más alto para PWA
+            forceNew: false,            // Reutilizar conexión existente
+            autoConnect: true           // Conectar automáticamente
         });
 
         socketInstance.on('connect', () => {
@@ -82,6 +87,15 @@ const AuthenticatedApp = () => {
         socketInstance.on('disconnect', () => {
             console.log('🔴 Disconnected from Socket.IO');
             setIsConnected(false);
+        });
+
+        socketInstance.on('reconnect', (attemptNumber) => {
+            console.log(`🔄 Reconnected to Socket.IO after ${attemptNumber} attempts`);
+            setIsConnected(true);
+        });
+
+        socketInstance.on('reconnect_attempt', () => {
+            console.log('🔌 Attempting to reconnect...');
         });
 
         setSocket(socketInstance);
@@ -142,6 +156,42 @@ const AuthenticatedApp = () => {
     useEffect(() => {
         localStorage.setItem('sidebarWidth', sidebarWidth);
     }, [sidebarWidth]);
+
+    // Auto-refresh when PWA becomes visible
+    useEffect(() => {
+        const handleVisibilityChange = () => {
+            if (document.visibilityState === 'visible') {
+                console.log('🔄 App became visible, refreshing conversations...');
+
+                // Refresh conversations
+                if (fetchConversations) {
+                    fetchConversations();
+                }
+
+                // Reconnect socket if disconnected
+                if (socket && !socket.connected) {
+                    console.log('🔌 Reconnecting socket...');
+                    socket.connect();
+                }
+            }
+        };
+
+        // Also listen for focus event (when app comes to foreground on mobile)
+        const handleFocus = () => {
+            if (fetchConversations) {
+                console.log('🔄 App focused, refreshing conversations...');
+                fetchConversations();
+            }
+        };
+
+        document.addEventListener('visibilitychange', handleVisibilityChange);
+        window.addEventListener('focus', handleFocus);
+
+        return () => {
+            document.removeEventListener('visibilitychange', handleVisibilityChange);
+            window.removeEventListener('focus', handleFocus);
+        };
+    }, [socket, fetchConversations]);
 
 
     // Load tags for selected conversation only (not all conversations)
