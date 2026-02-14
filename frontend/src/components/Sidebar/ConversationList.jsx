@@ -19,6 +19,10 @@ const ConversationList = React.memo(({
     onRefresh
 }) => {
     const listRef = useRef(null);
+    const [refreshing, setRefreshing] = React.useState(false);
+    const [pullDistance, setPullDistance] = React.useState(0);
+    const touchStartRef = useRef(0);
+    const isPullingRef = useRef(false);
 
     // Filter conversations based on search (client-side for already loaded)
     const filteredConversations = useMemo(() => {
@@ -92,10 +96,6 @@ const ConversationList = React.memo(({
             </div>
         );
     }
-    const [refreshing, setRefreshing] = React.useState(false);
-    const [pullDistance, setPullDistance] = React.useState(0);
-    const touchStartRef = useRef(0);
-    const isPullingRef = useRef(false);
 
     const handleTouchStart = (e) => {
         if (listRef.current.scrollTop === 0) {
