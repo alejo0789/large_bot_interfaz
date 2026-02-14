@@ -890,3 +890,13 @@ body {
   align-items: center;
   justify-content: center;
 }
+ @ k e y f r a m e s   s p i n   { 
+     f r o m   {   t r a n s f o r m :   r o t a t e ( 0 d e g ) ;   } 
+     t o   {   t r a n s f o r m :   r o t a t e ( 3 6 0 d e g ) ;   } 
+ } 
+ 
+ . a n i m a t e - s p i n   { 
+     a n i m a t i o n :   s p i n   1 s   l i n e a r   i n f i n i t e ; 
+ } 
+  
+ 

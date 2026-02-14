@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { io } from 'socket.io-client';
-import { Tag, MessageSquare, Send, Settings } from 'lucide-react';
+import { Tag, MessageSquare, Send, Settings, RotateCw } from 'lucide-react';
 
 // Auth
 import { AuthProvider, useAuth } from './hooks/useAuth';
@@ -457,6 +457,11 @@ const AuthenticatedApp = () => {
         selectConversation(null);
     }, [markConversationAsUnread, selectConversation]);
 
+    // Exponer fetchConversations globalmente para que el Service Worker o el componente Pull-to-Refresh puedan usarlo
+    useEffect(() => {
+        window.fetchConversations = fetchConversations;
+    }, [fetchConversations]);
+
     return (
         <div className="app-container">
             {/* Sidebar */}
@@ -498,6 +503,21 @@ const AuthenticatedApp = () => {
                         >
                             <Send className="w-4 h-4" />
                             Masivo
+                        </button>
+
+                        {/* Refresh button */}
+                        <button
+                            className="btn btn-icon"
+                            onClick={() => fetchConversations()}
+                            disabled={isLoading}
+                            title="Recargar conversaciones"
+                            style={{
+                                backgroundColor: 'var(--color-primary)',
+                                color: 'white',
+                                padding: '6px'
+                            }}
+                        >
+                            <RotateCw className={`w-4 h-4 ${isLoading ? 'animate-spin' : ''}`} />
                         </button>
 
                         {/* Settings button */}
@@ -553,6 +573,7 @@ const AuthenticatedApp = () => {
                     unreadCount={unreadCount}
                 />
 
+
                 {/* Conversation List */}
                 <ConversationList
                     conversations={filteredConversations}
@@ -565,6 +586,7 @@ const AuthenticatedApp = () => {
                     hasMore={hasMore}
                     onSelect={handleSelectConversation}
                     onTagClick={handleOpenTagManager}
+                    onRefresh={() => fetchConversations()}
                     onLoadMore={() => {
                         const activeTagId = selectedTagIds.length === 1 ? selectedTagIds[0] : null;
                         loadMoreConversations(activeTagId, dateRange.start, dateRange.end);

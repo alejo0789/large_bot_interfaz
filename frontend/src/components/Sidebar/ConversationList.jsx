@@ -15,7 +15,8 @@ const ConversationList = React.memo(({
     hasMore,
     onSelect,
     onTagClick,
-    onLoadMore
+    onLoadMore,
+    onRefresh
 }) => {
     const listRef = useRef(null);
 
@@ -91,9 +92,92 @@ const ConversationList = React.memo(({
             </div>
         );
     }
+    const [refreshing, setRefreshing] = React.useState(false);
+    const [pullDistance, setPullDistance] = React.useState(0);
+    const touchStartRef = useRef(0);
+    const isPullingRef = useRef(false);
+
+    const handleTouchStart = (e) => {
+        if (listRef.current.scrollTop === 0) {
+            touchStartRef.current = e.touches[0].clientY;
+            isPullingRef.current = true;
+        }
+    };
+
+    const handleTouchMove = (e) => {
+        if (!isPullingRef.current) return;
+
+        const touchY = e.touches[0].clientY;
+        const distance = touchY - touchStartRef.current;
+
+        if (distance > 0 && listRef.current.scrollTop === 0) {
+            // Prevent default to avoid browser's native pull-to-refresh if possible
+            // and apply a resistance factor
+            const pull = Math.min(distance * 0.4, 80);
+            setPullDistance(pull);
+
+            if (pull > 10) {
+                // Prevent standard scroll when pulling down
+                if (e.cancelable) e.preventDefault();
+            }
+        } else if (distance < 0) {
+            isPullingRef.current = false;
+            setPullDistance(0);
+        }
+    };
+
+    const handleTouchEnd = () => {
+        if (!isPullingRef.current) return;
+
+        if (pullDistance > 60) {
+            triggerRefresh();
+        }
+
+        isPullingRef.current = false;
+        setPullDistance(0);
+    };
+
+    const triggerRefresh = async () => {
+        if (refreshing || isLoading) return;
+
+        setRefreshing(true);
+        if (onRefresh) {
+            await onRefresh();
+        } else if (window.fetchConversations) {
+            await window.fetchConversations();
+        } else {
+            // Fallback
+            await new Promise(resolve => setTimeout(resolve, 1000));
+            window.location.reload();
+        }
+        setRefreshing(false);
+    };
 
     return (
-        <div className="conversation-list" ref={listRef}>
+        <div
+            className="conversation-list"
+            ref={listRef}
+            onTouchStart={handleTouchStart}
+            onTouchMove={handleTouchMove}
+            onTouchEnd={handleTouchEnd}
+            style={{ position: 'relative' }}
+        >
+            {/* Pull-to-refresh indicator */}
+            <div style={{
+                height: `${pullDistance}px`,
+                overflow: 'hidden',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                backgroundColor: 'var(--color-gray-50)',
+                transition: isPullingRef.current ? 'none' : 'height 0.3s ease',
+                opacity: pullDistance / 60,
+                fontSize: '0.8rem',
+                color: 'var(--color-primary)',
+                fontWeight: '600'
+            }}>
+                {pullDistance > 55 ? 'Suelta para actualizar' : 'Tira para actualizar'}
+            </div>
             {filteredConversations.map(conversation => (
                 <ConversationItem
                     key={conversation.id}
