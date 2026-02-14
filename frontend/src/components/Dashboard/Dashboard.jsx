@@ -87,6 +87,22 @@ const Dashboard = ({ isMobile }) => {
         );
     }
 
+    const formatXAxis = (tickItem) => {
+        if (!tickItem) return '';
+        const date = new Date(tickItem);
+        // For long ranges (week/month), show date
+        if (dateRange === 'week' || dateRange === 'month') {
+            return date.toLocaleDateString('es-CO', { day: 'numeric', month: 'short' });
+        }
+        // For today/yesterday, show time
+        // Mobile: "1pm", "2am"
+        if (isMobile) {
+            return date.toLocaleTimeString('es-CO', { hour: 'numeric', hour12: true }).replace(':00', '').replace(' ', '').toLowerCase();
+        }
+        // Desktop: "13:00"
+        return date.toLocaleTimeString('es-CO', { hour: '2-digit', minute: '2-digit' });
+    };
+
     return (
         <div className="dashboard-container" style={{
             padding: isMobile ? '16px' : '24px',
@@ -218,9 +234,9 @@ const Dashboard = ({ isMobile }) => {
                                     </defs>
                                     <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e2e8f0" />
                                     <XAxis
-                                        dataKey="time"
+                                        dataKey="rawTime"
                                         tick={{ fill: '#64748b', fontSize: 11 }}
-                                        tickFormatter={(val) => isMobile ? val.split(':')[0] + 'h' : val}
+                                        tickFormatter={formatXAxis}
                                         axisLine={false}
                                         tickLine={false}
                                         dy={10}
@@ -233,6 +249,7 @@ const Dashboard = ({ isMobile }) => {
                                     />
                                     <Tooltip
                                         contentStyle={{ borderRadius: '8px', border: 'none', boxShadow: '0 4px 6px -1px rgba(0,0,0,0.1)' }}
+                                        labelFormatter={(label) => new Date(label).toLocaleString('es-CO')}
                                     />
                                     <Legend wrapperStyle={{ paddingTop: '20px' }} />
                                     <Area
@@ -280,9 +297,9 @@ const Dashboard = ({ isMobile }) => {
                                     </defs>
                                     <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e2e8f0" />
                                     <XAxis
-                                        dataKey="time"
+                                        dataKey="rawTime"
                                         tick={{ fill: '#64748b', fontSize: 11 }}
-                                        tickFormatter={(val) => isMobile ? val.split(':')[0] + 'h' : val}
+                                        tickFormatter={formatXAxis}
                                         axisLine={false}
                                         tickLine={false}
                                         dy={10}
@@ -296,6 +313,7 @@ const Dashboard = ({ isMobile }) => {
                                     />
                                     <Tooltip
                                         contentStyle={{ borderRadius: '8px', border: 'none', boxShadow: '0 4px 6px -1px rgba(0,0,0,0.1)' }}
+                                        labelFormatter={(label) => new Date(label).toLocaleString('es-CO')}
                                     />
                                     <Legend wrapperStyle={{ paddingTop: '20px' }} />
                                     <Area
