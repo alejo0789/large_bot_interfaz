@@ -428,9 +428,9 @@
           console.log('✅ ServiceWorker registrado con éxito: ', registration.scope);
 
           // Request notification permission
-          if (Notification.permission === 'default') {
-            // We can request later or here
-            // Notification.requestPermission();
+          // Request notification permission safely
+          if (window.Notification && Notification.permission === 'default') {
+            // Permission logic can go here
           }
         }, function (err) {
           console.log('❌ Error al registrar ServiceWorker: ', err);
