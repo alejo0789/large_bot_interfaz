@@ -145,10 +145,6 @@ const ConversationList = React.memo(({
             await onRefresh();
         } else if (window.fetchConversations) {
             await window.fetchConversations();
-        } else {
-            // Fallback
-            await new Promise(resolve => setTimeout(resolve, 1000));
-            window.location.reload();
         }
         setRefreshing(false);
     };

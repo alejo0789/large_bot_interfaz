@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { Tag, X, Filter, ChevronDown, Calendar, Check } from 'lucide-react';
+import { Tag, X, Filter, ChevronDown, Calendar, Check, RotateCw } from 'lucide-react';
 
 /**
  * Improved Tag filter component with dropdown and date filter
@@ -13,7 +13,9 @@ const TagFilter = ({
     onToggleUnreadOnly,
     dateFilter,
     onDateFilterChange,
-    unreadCount = 0
+    unreadCount = 0,
+    onRefresh,
+    isLoading
 }) => {
     const [showTagDropdown, setShowTagDropdown] = useState(false);
     const [showDateDropdown, setShowDateDropdown] = useState(false);
@@ -73,26 +75,59 @@ const TagFilter = ({
                     Filtros
                 </div>
 
-                {hasActiveFilters && (
-                    <button
-                        onClick={onClearFilter}
-                        style={{
-                            display: 'flex',
-                            alignItems: 'center',
-                            gap: '4px',
-                            padding: '2px 6px',
-                            fontSize: '11px',
-                            color: 'var(--color-error)',
-                            backgroundColor: 'transparent',
-                            border: 'none',
-                            cursor: 'pointer',
-                            fontWeight: 500
-                        }}
-                    >
-                        <X className="w-3 h-3" />
-                        Limpiar
-                    </button>
-                )}
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                    {onRefresh && (
+                        <button
+                            onClick={(e) => {
+                                e.stopPropagation();
+                                onRefresh();
+                            }}
+                            disabled={isLoading}
+                            title="Recargar conversaciones"
+                            style={{
+                                background: 'white',
+                                border: '1px solid var(--color-gray-200)',
+                                borderRadius: '4px',
+                                padding: '4px 8px',
+                                color: 'var(--color-primary)',
+                                cursor: 'pointer',
+                                display: 'flex',
+                                alignItems: 'center',
+                                gap: '4px',
+                                fontSize: '10px',
+                                fontWeight: 600,
+                                boxShadow: '0 1px 2px rgba(0,0,0,0.05)',
+                                transition: 'all 0.2s'
+                            }}
+                            onMouseEnter={(e) => e.currentTarget.style.backgroundColor = 'var(--color-gray-50)'}
+                            onMouseLeave={(e) => e.currentTarget.style.backgroundColor = 'white'}
+                        >
+                            <RotateCw className={`w-3 h-3 ${isLoading ? 'animate-spin' : ''}`} />
+                            {isLoading ? 'Cargando...' : 'Actualizar'}
+                        </button>
+                    )}
+
+                    {hasActiveFilters && (
+                        <button
+                            onClick={onClearFilter}
+                            style={{
+                                display: 'flex',
+                                alignItems: 'center',
+                                gap: '4px',
+                                padding: '2px 6px',
+                                fontSize: '11px',
+                                color: 'var(--color-error)',
+                                backgroundColor: 'transparent',
+                                border: 'none',
+                                cursor: 'pointer',
+                                fontWeight: 500
+                            }}
+                        >
+                            <X className="w-3 h-3" />
+                            Limpiar
+                        </button>
+                    )}
+                </div>
             </div>
 
             {/* Filter buttons row */}

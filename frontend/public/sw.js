@@ -1,16 +1,17 @@
 /* eslint-disable no-restricted-globals */
 
 // This service worker can be customized for caching strategies
-const CACHE_NAME = 'chat-large-v1';
+const CACHE_NAME = 'chat-large-v1.1';
 const urlsToCache = [
     '/',
     '/index.html',
-    '/static/js/bundle.js',
     '/manifest.json',
     '/logo.png'
 ];
 
 self.addEventListener('install', event => {
+    // Skip waiting to activate immediately
+    self.skipWaiting();
     event.waitUntil(
         caches.open(CACHE_NAME)
             .then(cache => {
@@ -20,22 +21,40 @@ self.addEventListener('install', event => {
     );
 });
 
+self.addEventListener('activate', event => {
+    // Clean up old caches
+    event.waitUntil(
+        caches.keys().then(cacheNames => {
+            return Promise.all(
+                cacheNames.map(cacheName => {
+                    if (cacheName !== CACHE_NAME) {
+                        console.log('Deleting old cache:', cacheName);
+                        return caches.delete(cacheName);
+                    }
+                    return null;
+                })
+            );
+        })
+    );
+});
+
 self.addEventListener('fetch', event => {
     const url = new URL(event.request.url);
 
-    // Bypass cache for API and webhook requests
-    if (url.pathname.includes('/api/') || url.pathname.includes('/webhook/') || url.pathname.includes('/evolution/')) {
-        return event.respondWith(fetch(event.request));
+    // Bypass cache for API, webhook, socket.io and other dynamic requests
+    if (url.pathname.includes('/api/') ||
+        url.pathname.includes('/webhook/') ||
+        url.pathname.includes('/evolution/') ||
+        url.pathname.includes('/socket.io/') ||
+        url.hostname === 'localhost') {
+        return;
     }
 
+    // Network first strategy
     event.respondWith(
-        caches.match(event.request)
-            .then(response => {
-                // Cache hit - return response
-                if (response) {
-                    return response;
-                }
-                return fetch(event.request);
+        fetch(event.request)
+            .catch(() => {
+                return caches.match(event.request);
             })
     );
 });

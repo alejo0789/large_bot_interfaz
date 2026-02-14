@@ -592,19 +592,12 @@ export const useConversations = (socket) => {
             }));
         };
 
-        const handleConnect = () => {
-            console.log('🔄 Socket reconnected, refreshing conversations...');
-            fetchConversations(1, searchQuery, false);
-        };
-
-        socket.on('connect', handleConnect);
         socket.on('new-message', (data) => handleSocketMessage(data, false));
         socket.on('agent-message', (data) => handleSocketMessage(data, true));
         socket.on('conversation-updated', handleConversationUpdated);
         socket.on('conversation-state-changed', handleStateChange);
 
         return () => {
-            socket.off('connect', handleConnect);
             socket.off('new-message');
             socket.off('agent-message');
             socket.off('conversation-updated');
@@ -612,10 +605,12 @@ export const useConversations = (socket) => {
         };
     }, [socket, selectedConversation]);
 
-    // Initial fetch
+    // Initial fetch removed - let parent component control it
+    /*
     useEffect(() => {
         fetchConversations();
     }, [fetchConversations]);
+    */
 
     return {
         conversations,

@@ -116,10 +116,7 @@ const QuickReplyManager = ({ isOpen, onClose, initialContent = '' }) => {
             backgroundColor: 'rgba(15, 23, 42, 0.65)',
             display: 'flex',
             alignItems: 'center',
-            justifyContent: 'center',
-            position: 'fixed',
-            inset: 0,
-            zIndex: 1000
+            justifyContent: 'center'
         }}>
             <div className="modal" style={{
                 maxWidth: '520px',
@@ -213,7 +210,6 @@ const QuickReplyManager = ({ isOpen, onClose, initialContent = '' }) => {
 
                     <div style={{ marginBottom: '24px' }}>
                         <label style={{
-                            display: 'block',
                             fontSize: '0.875rem',
                             fontWeight: 600,
                             color: 'var(--color-gray-700)',
@@ -397,7 +393,6 @@ const QuickReplyManager = ({ isOpen, onClose, initialContent = '' }) => {
 
                     <div style={{ marginBottom: '32px' }}>
                         <label style={{
-                            display: 'block',
                             fontSize: '0.875rem',
                             fontWeight: 600,
                             color: 'var(--color-gray-700)',

@@ -17,7 +17,7 @@ const ChatHeader = ({
 
     return (
         <div className="chat-header">
-            <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-3)', flex: 1, minWidth: 0 }}>
+            <div className="chat-header-info" style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-3)', flex: 1, minWidth: 0 }}>
                 {isMobile && (
                     <button className="btn btn-icon" onClick={onBack}>
                         <ArrowLeft className="w-5 h-5" />
@@ -51,16 +51,8 @@ const ChatHeader = ({
                 </div>
             </div>
 
-            <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-3)' }}>
-                {/* Mark as unread button */}
-                <button
-                    className="btn btn-icon"
-                    onClick={() => onMarkUnread && onMarkUnread(contact.phone)}
-                    title="Marcar como no leído"
-                    style={{ color: 'var(--color-primary)' }}
-                >
-                    <EyeOff className="w-5 h-5" />
-                </button>
+            <div className="chat-header-actions" style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-3)' }}>
+
 
                 {/* AI Toggle */}
                 <div className="ai-toggle">
@@ -73,7 +65,10 @@ const ChatHeader = ({
 
                     <button
                         className={`toggle-switch ${aiEnabled ? 'active' : ''}`}
-                        onClick={() => onToggleAI(contact.phone)}
+                        onClick={(e) => {
+                            e.stopPropagation();
+                            onToggleAI(contact.phone);
+                        }}
                         title={aiEnabled ? 'IA Activa - Click para desactivar' : 'IA Desactivada - Click para activar'}
                     >
                         <span className="toggle-switch-handle" />

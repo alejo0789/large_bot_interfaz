@@ -89,6 +89,7 @@ app.use('/webhook', webhookRoutes);
 app.use('/evolution', evolutionRoutes);
 app.use('/api/settings', settingsRoutes);
 app.use('/api/quick-replies', quickReplyRoutes);
+app.use('/api/ai-knowledge', require('./src/routes/ai_knowledge'));
 
 // Health check
 app.get('/health', (req, res) => {

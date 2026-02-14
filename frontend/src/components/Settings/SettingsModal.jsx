@@ -59,30 +59,17 @@ const SettingsModal = ({ isOpen, onClose }) => {
 
     if (!isOpen) return null;
 
-    const overlayStyle = {
-        position: 'fixed',
-        inset: '0',
-        backgroundColor: 'rgba(0, 0, 0, 0.75)', // Darker background
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'center',
-        zIndex: 9999, // Very high z-index
-        backdropFilter: 'blur(4px)' // Add blur effect
-    };
+
 
     return (
-        <div className="modal-overlay" onClick={onClose} style={overlayStyle}>
-            <div className="modal-content" onClick={e => e.stopPropagation()} style={{
+        <div className="modal-overlay" onClick={onClose}>
+            <div className="modal" onClick={e => e.stopPropagation()} style={{
                 maxWidth: '500px',
-                backgroundColor: 'white',
-                borderRadius: '12px',
-                boxShadow: '0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04)',
-                position: 'relative',
-                zIndex: 10000,
-                width: '90%'
+                width: '90%',
+                padding: '0' // modal class provides border-radius and background
             }}>
                 <div className="modal-header">
-                    <h2 style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                    <h2 style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '1.25rem', fontWeight: 600 }}>
                         <Settings className="w-5 h-5" />
                         Configuración Global
                     </h2>
@@ -91,7 +78,7 @@ const SettingsModal = ({ isOpen, onClose }) => {
                     </button>
                 </div>
 
-                <div className="modal-body">
+                <div className="modal-body" style={{ padding: '20px' }}>
                     <div style={{ marginBottom: '20px' }}>
                         <h3 style={{ fontSize: '1rem', fontWeight: 600, marginBottom: '10px' }}>
                             Inteligencia Artificial (IA)
@@ -152,7 +139,7 @@ const SettingsModal = ({ isOpen, onClose }) => {
                     )}
                 </div>
 
-                <div className="modal-footer">
+                <div className="modal-footer" style={{ padding: '20px', borderTop: '1px solid var(--color-gray-200)', display: 'flex', justifyContent: 'flex-end', gap: '12px' }}>
                     <button className="btn btn-secondary" onClick={onClose}>
                         Cerrar
                     </button>
@@ -168,7 +155,7 @@ const SettingsModal = ({ isOpen, onClose }) => {
                 </div>
             </div>
 
-            <style jsx>{`
+            <style>{`
                 /* Toggle Switch Styles */
                 .switch {
                     position: relative;
