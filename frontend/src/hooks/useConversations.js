@@ -300,26 +300,8 @@ export const useConversations = (socket) => {
             file.type.startsWith('video/') ? 'video' :
                 file.type.startsWith('audio/') ? 'audio' : 'document';
 
-        const newMessage = {
-            id: tempId,
-            text: (media_type === 'document') ? (caption || file.name) : (caption || null),
-            sender: 'agent',
-            agent_name: agentName,
-            media_type,
-            media_url: URL.createObjectURL(file), // Local preview
-            timestamp: new Date().toLocaleTimeString('es-CO', {
-                hour: '2-digit',
-                minute: '2-digit'
-            }),
-            rawTimestamp: new Date().toISOString(),
-            status: 'sending'
-        };
-
-        // Optimistic update
-        setMessagesByConversation(prev => ({
-            ...prev,
-            [phone]: [...(prev[phone] || []), newMessage]
-        }));
+        // NO crear mensaje optimista - solo se mostrará cuando llegue del servidor
+        // Esto evita ver dos imágenes (preview optimista + imagen real)
 
         const formData = new FormData();
         formData.append('file', file);
@@ -357,8 +339,11 @@ export const useConversations = (socket) => {
                                 media_type === 'video' ? '🎥 Video' :
                                     media_type === 'audio' ? '🎵 Audio' : `📎 ${file.name}`
                         ),
-                        timestamp: newMessage.timestamp,
-                        rawTimestamp: newMessage.rawTimestamp
+                        timestamp: new Date().toLocaleTimeString('es-CO', {
+                            hour: '2-digit',
+                            minute: '2-digit'
+                        }),
+                        rawTimestamp: new Date().toISOString()
                     };
                     currentConversations.splice(conversationIndex, 1);
                     return [updatedConv, ...currentConversations];
@@ -369,12 +354,7 @@ export const useConversations = (socket) => {
             return result;
         } catch (error) {
             console.error('❌ Error sending file:', error);
-            setMessagesByConversation(prev => ({
-                ...prev,
-                [phone]: prev[phone].map(msg =>
-                    msg.id === tempId ? { ...msg, status: 'failed' } : msg
-                )
-            }));
+            // Ya no hay mensaje optimista que actualizar
             throw error;
         }
     }, []);
