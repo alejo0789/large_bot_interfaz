@@ -293,9 +293,8 @@ export const useConversations = (socket) => {
         }
     }, [aiStatesByPhone]);
 
-    // Send a file
     const sendFile = useCallback(async (phone, file, caption, name, options = {}) => {
-        const tempId = Date.now();
+        const tempId = `temp_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
         const { agentId, agentName } = options;
         const media_type = file.type.startsWith('image/') ? 'image' :
             file.type.startsWith('video/') ? 'video' :
@@ -326,6 +325,7 @@ export const useConversations = (socket) => {
         formData.append('file', file);
         formData.append('phone', phone);
         formData.append('name', name);
+        formData.append('temp_id', tempId);
         if (caption) formData.append('caption', caption);
         if (agentId) formData.append('agent_id', agentId);
         if (agentName) formData.append('agent_name', agentName);
@@ -451,11 +451,15 @@ export const useConversations = (socket) => {
                 // that was sent recently (< 10s)
                 const isDuplicate = existingMessages.some(msg =>
                     msg.id === formattedMessage.id ||
+                    (formattedMessage.temp_id && msg.id === formattedMessage.temp_id) ||
                     (
-                        ((msg.text === formattedMessage.text) || (!msg.text && !formattedMessage.text && msg.media_type === formattedMessage.media_type)) &&
-                        msg.sender === formattedMessage.sender &&
-                        Math.abs(new Date(msg.rawTimestamp) - new Date(formattedMessage.rawTimestamp)) < 10000 // Increased tolerance
-                    )
+                        // Match Text
+                        (msg.text && msg.text === formattedMessage.text) ||
+                        // Match Media (both have no text, same media type, created recently)
+                        (!msg.text && !formattedMessage.text && msg.media_type === formattedMessage.media_type &&
+                            Math.abs(new Date(msg.rawTimestamp) - new Date(formattedMessage.rawTimestamp)) < 20000)
+                    ) &&
+                    msg.sender === formattedMessage.sender
                 );
 
                 if (isDuplicate) {
@@ -464,8 +468,14 @@ export const useConversations = (socket) => {
                         return {
                             ...prev,
                             [phone]: existingMessages.map(msg =>
-                                ((msg.text === formattedMessage.text && msg.status === 'sending') ||
-                                    (!msg.text && !formattedMessage.text && msg.status === 'sending' && msg.media_type === formattedMessage.media_type))
+                                // Check by temp_id if available, otherwise fallback to content matching
+                                (
+                                    (formattedMessage.temp_id && msg.id === formattedMessage.temp_id) ||
+                                    (!formattedMessage.temp_id && msg.status === 'sending' && (
+                                        (msg.text && msg.text === formattedMessage.text) ||
+                                        (!msg.text && !formattedMessage.text && msg.media_type === formattedMessage.media_type)
+                                    ))
+                                )
                                     ? {
                                         ...msg,
                                         status: 'delivered',

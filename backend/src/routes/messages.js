@@ -116,7 +116,7 @@ router.post('/send-message', asyncHandler(async (req, res) => {
 
 // Send file
 router.post('/send-file', upload.single('file'), asyncHandler(async (req, res) => {
-    const { phone, name, caption, agent_id, agent_name } = req.body;
+    const { phone, name, caption, agent_id, agent_name, temp_id } = req.body;
     const file = req.file;
 
     if (!file) {
@@ -174,7 +174,8 @@ router.post('/send-file', upload.single('file'), asyncHandler(async (req, res) =
         sender_type: 'agent',
         timestamp: new Date().toISOString(),
         agent_id,
-        agent_name
+        agent_name,
+        temp_id: temp_id // Emitting back the temp_id so frontend can match
     });
 
     res.json({
