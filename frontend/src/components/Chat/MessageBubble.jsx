@@ -8,7 +8,13 @@ const MessageBubble = ({ message }) => {
     const { text, timestamp, status } = message;
     const sender = message.sender || message.sender_type;
     const media_type = message.media_type || message.mediaType;
-    const media_url = message.media_url || message.mediaUrl;
+    let media_url = message.media_url || message.mediaUrl;
+
+    // Fix localhost URLs for mobile/remote access
+    if (media_url && typeof media_url === 'string' && media_url.includes('localhost') && window.location.hostname !== 'localhost') {
+        media_url = media_url.replace('localhost', window.location.hostname);
+    }
+
     const [imageError, setImageError] = useState(false);
     const [showFullImage, setShowFullImage] = useState(false);
 
