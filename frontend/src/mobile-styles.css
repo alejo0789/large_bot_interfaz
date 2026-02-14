@@ -183,6 +183,6 @@ html, body {
   }
   
   .mobile-input-area {
-    padding-bottom: max(env(safe-area-inset-bottom), 1rem) !important;
+    padding-bottom: max(env(safe-area-inset-bottom), 2rem) !important;
   }
 }

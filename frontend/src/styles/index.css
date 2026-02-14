@@ -798,8 +798,9 @@ body {
   }
 
   /* Chat input mobile optimization */
-  .chat-input-container {
-    padding: var(--space-2) !important;
+    .chat-input-container {
+    padding: var(--space-2) var(--space-3) !important;
+    padding-bottom: calc(var(--space-3) + env(safe-area-inset-bottom, 12px)) !important;
     gap: var(--space-1) !important;
   }
 
