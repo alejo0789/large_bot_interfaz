@@ -57,7 +57,8 @@ class MessageService {
                 status,
                 timestamp,
                 agent_id,
-                agent_name
+                agent_name,
+                sender_name
             FROM messages 
             WHERE conversation_phone = $1 ${cursorCondition}
             ORDER BY timestamp ${orderDirection}
@@ -113,7 +114,8 @@ class MessageService {
                 media_type: msg.media_type || null,
                 media_url: msg.media_url || null,
                 agentId: msg.agent_id,
-                agentName: msg.agent_name
+                agentName: msg.agent_name,
+                sender_name: msg.sender_name
             };
         });
 
@@ -167,7 +169,7 @@ class MessageService {
     /**
      * Create a new message
      */
-    async create({ phone, sender, text, whatsappId, mediaType, mediaUrl, status = 'delivered', agentId, agentName }) {
+    async create({ phone, sender, text, whatsappId, mediaType, mediaUrl, status = 'delivered', agentId, agentName, senderName }) {
         // Verify if agent exists before inserting to avoid FK error
         let verifiedAgentId = agentId;
         if (agentId) {
@@ -189,10 +191,11 @@ class MessageService {
                 status, 
                 timestamp,
                 agent_id,
-                agent_name
-            ) VALUES ($1, $2, $3, $4, $5, $6, $7, NOW(), $8, $9)
+                agent_name,
+                sender_name
+            ) VALUES ($1, $2, $3, $4, $5, $6, $7, NOW(), $8, $9, $10)
             RETURNING id, timestamp
-        `, [phone, sender, text, whatsappId, mediaType, mediaUrl, status, verifiedAgentId, agentName]);
+        `, [phone, sender, text, whatsappId, mediaType, mediaUrl, status, verifiedAgentId, agentName, senderName]);
 
         return rows[0];
     }

@@ -86,7 +86,8 @@ router.post('/send-message', asyncHandler(async (req, res) => {
         // Use ISO string for consistent parsing
         timestamp: new Date().toISOString(),
         agentId: finalAgentId,
-        agentName: finalAgentName
+        agentName: finalAgentName,
+        senderName: finalAgentName
     });
 
     // Update conversation
@@ -164,6 +165,7 @@ router.post('/send-file', upload.single('file'), asyncHandler(async (req, res) =
         status: 'sending',
         agentId: agent_id,     // Note: FormData sends strings
         agentName: agent_name,
+        senderName: agent_name,
         timestamp: new Date().toISOString()
     });
 
@@ -305,7 +307,8 @@ router.post('/bulk-send', asyncHandler(async (req, res) => {
             mediaUrl: media || null,
             status: 'sending',
             agentId: finalAgentId,
-            agentName: finalAgentName
+            agentName: finalAgentName,
+            senderName: finalAgentName
         });
 
         // Update conversation

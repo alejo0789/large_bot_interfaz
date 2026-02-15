@@ -290,7 +290,8 @@ router.post('/', async (req, res) => {
                 text: text,
                 whatsappId: msg.key.id,
                 mediaType: mediaType,
-                mediaUrl: mediaUrl
+                mediaUrl: mediaUrl,
+                senderName: msg.pushName || (isFromAgent ? 'Tú' : 'Cliente')
             });
             console.log(`💾 Saved message as '${senderType}' from ${isFromAgent ? 'your phone' : 'client'}`);
         }
@@ -363,7 +364,8 @@ router.post('/', async (req, res) => {
                     whatsappId: agentMessageId,
                     mediaType: null,
                     mediaUrl: null,
-                    status: 'delivered'
+                    status: 'delivered',
+                    senderName: 'Inteligencia Artificial'
                 });
 
                 // 3. Update Conversation Last Message
