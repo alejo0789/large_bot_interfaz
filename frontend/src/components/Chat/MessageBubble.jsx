@@ -1,10 +1,10 @@
 import React, { useState } from 'react';
-import { CheckCheck, Clock, Download, FileText, Image as ImageIcon, Mic } from 'lucide-react';
+import { CheckCheck, Clock, Download, FileText, Image as ImageIcon, Mic, Share } from 'lucide-react';
 
 /**
  * Message bubble component with media support
  */
-const MessageBubble = ({ message }) => {
+const MessageBubble = ({ message, onForward }) => {
     const { text, timestamp, status } = message;
     const sender = message.sender || message.sender_type;
     const media_type = message.media_type || message.mediaType;
@@ -164,55 +164,110 @@ const MessageBubble = ({ message }) => {
     return (
         <>
             <div className={getMessageClass()}>
-                <div className="message-bubble" style={{
-                    padding: media_url ? 'var(--space-1)' : undefined,
-                    overflow: 'hidden',
-                    position: 'relative', // Ensure absolute positioning works if needed, standard flow otherwise
-                    minWidth: '120px' // Ensure minimum width for name
-                }}>
-                    {/* Agent Name Display - Top Right */}
-                    {isAgent && message.agent_name && (
-                        <div style={{
-                            fontSize: '9px',
-                            fontWeight: '600',
-                            color: 'rgba(255, 255, 255, 0.7)',
-                            textAlign: 'right',
-                            marginBottom: '2px',
-                            paddingRight: media_url ? '4px' : '0', // Adjust if media
-                            paddingTop: media_url ? '4px' : '0'    // Adjust if media
-                        }}>
-                            {message.agent_name}
-                        </div>
-                    )}
-
-                    {renderMedia()}
-                    {text && !media_type && (
-                        <p className="message-text" style={{
-                            padding: media_url ? 'var(--space-1) var(--space-2)' : undefined
-                        }}>
-                            {text}
-                        </p>
-                    )}
-                    {text && media_type && (
-                        <p className="message-text" style={{
-                            padding: 'var(--space-1) var(--space-2)',
-                            fontSize: 'var(--font-size-sm)'
-                        }}>
-                            {text}
-                        </p>
-                    )}
-
-                    <div className="message-meta" style={{
-                        padding: media_url ? '0 var(--space-2) var(--space-1)' : undefined
+                <div className="message-container" style={{ position: 'relative' }}>
+                    <div className="message-bubble" style={{
+                        padding: media_url ? 'var(--space-1)' : undefined,
+                        overflow: 'hidden',
+                        position: 'relative', // Ensure absolute positioning works if needed, standard flow otherwise
+                        minWidth: '120px' // Ensure minimum width for name
                     }}>
-                        <span className="message-time">{timestamp}</span>
-                        {isOutgoing && (
-                            <span className="message-status">
-                                {getStatusIcon()}
-                            </span>
+                        {/* Agent Name Display - Top Right */}
+                        {isAgent && message.agent_name && (
+                            <div style={{
+                                fontSize: '9px',
+                                fontWeight: '600',
+                                color: 'rgba(255, 255, 255, 0.7)',
+                                textAlign: 'right',
+                                marginBottom: '2px',
+                                paddingRight: media_url ? '4px' : '0', // Adjust if media
+                                paddingTop: media_url ? '4px' : '0'    // Adjust if media
+                            }}>
+                                {message.agent_name}
+                            </div>
                         )}
+
+                        {renderMedia()}
+                        {text && !media_type && (
+                            <p className="message-text" style={{
+                                padding: media_url ? 'var(--space-1) var(--space-2)' : undefined
+                            }}>
+                                {text}
+                            </p>
+                        )}
+                        {text && media_type && (
+                            <p className="message-text" style={{
+                                padding: 'var(--space-1) var(--space-2)',
+                                fontSize: 'var(--font-size-sm)'
+                            }}>
+                                {text}
+                            </p>
+                        )}
+
+                        <div className="message-meta" style={{
+                            padding: media_url ? '0 var(--space-2) var(--space-1)' : undefined
+                        }}>
+                            <span className="message-time">{timestamp}</span>
+                            {isOutgoing && (
+                                <span className="message-status">
+                                    {getStatusIcon()}
+                                </span>
+                            )}
+                        </div>
                     </div>
+
+                    {/* Forward Button */}
+                    {onForward && (
+                        <button
+                            className="forward-btn"
+                            onClick={(e) => {
+                                e.stopPropagation();
+                                onForward(message);
+                            }}
+                            title="Reenviar mensaje"
+                            style={{
+                                position: 'absolute',
+                                top: '50%',
+                                transform: 'translateY(-50%)',
+                                right: isOutgoing ? '100%' : 'auto',
+                                left: isOutgoing ? 'auto' : '100%',
+                                marginLeft: isOutgoing ? '0' : '8px',
+                                marginRight: isOutgoing ? '8px' : '0',
+                                background: 'white',
+                                border: '1px solid var(--color-gray-200)',
+                                borderRadius: '50%',
+                                cursor: 'pointer',
+                                color: 'var(--color-gray-500)',
+                                padding: '6px',
+                                boxShadow: '0 1px 3px rgba(0,0,0,0.1)',
+                                display: 'flex',
+                                alignItems: 'center',
+                                justifyContent: 'center',
+                                zIndex: 10,
+                                opacity: 0,
+                                transition: 'opacity 0.2s',
+                                pointerEvents: 'none'
+                            }}
+                            onMouseEnter={(e) => {
+                                e.currentTarget.style.color = 'var(--color-primary)';
+                                e.currentTarget.style.backgroundColor = 'var(--color-gray-50)';
+                            }}
+                            onMouseLeave={(e) => {
+                                e.currentTarget.style.color = 'var(--color-gray-500)';
+                                e.currentTarget.style.backgroundColor = 'white';
+                            }}
+                        >
+                            <Share className="w-3 h-3" />
+                        </button>
+                    )}
                 </div>
+
+                {/* CSS to show forward button on hover - Scoped to this message item */}
+                <style>{`
+                    .message:hover .forward-btn {
+                        opacity: 1 !important;
+                        pointer-events: auto !important;
+                    }
+                `}</style>
             </div>
 
             {/* Full screen image modal */}
@@ -263,4 +318,3 @@ const MessageBubble = ({ message }) => {
 };
 
 export default MessageBubble;
-

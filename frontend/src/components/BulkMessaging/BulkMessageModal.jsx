@@ -19,10 +19,15 @@ const BulkMessageModal = ({
     tags,
     tagsByPhone = {},
     onSend,
-    socket
+    socket,
+    initialMessage = '',
+    initialMediaUrl = null,
+    initialMediaType = null,
+    title = 'Envío Masivo de Mensajes',
+    disableSelectionModeChange = false
 }) => {
-    const [message, setMessage] = useState('');
-    const [selectionMode, setSelectionMode] = useState('all'); // 'all', 'tag', 'manual'
+    const [message, setMessage] = useState(initialMessage);
+    const [selectionMode, setSelectionMode] = useState(disableSelectionModeChange ? 'manual' : 'all'); // 'all', 'tag', 'manual'
     const [selectedTagIds, setSelectedTagIds] = useState([]);
     const [selectedPhones, setSelectedPhones] = useState([]);
     const [isSending, setIsSending] = useState(false);
@@ -39,8 +44,22 @@ const BulkMessageModal = ({
 
     // Media state
     const [mediaFile, setMediaFile] = useState(null);
-    const [mediaPreview, setMediaPreview] = useState(null);
-    const [mediaType, setMediaType] = useState(null); // 'image', 'video', 'audio'
+
+    // Initialize preview with URL if provided
+    const [mediaPreview, setMediaPreview] = useState(initialMediaUrl);
+    const [mediaType, setMediaType] = useState(initialMediaType); // 'image', 'video', 'audio', 'document'
+
+    // Update state when initial props change (for forwarding)
+    useEffect(() => {
+        if (initialMessage) setMessage(initialMessage);
+        if (initialMediaUrl) {
+            setMediaPreview(initialMediaUrl);
+            setMediaType(initialMediaType);
+        }
+        if (disableSelectionModeChange) {
+            setSelectionMode('manual');
+        }
+    }, [initialMessage, initialMediaUrl, initialMediaType, disableSelectionModeChange]);
 
     const fileInputRef = useRef(null);
 
@@ -212,7 +231,19 @@ const BulkMessageModal = ({
                 payload = filters;
             }
 
-            const result = await onSend(payload, message, mediaFile);
+            // If we have a mediaFile, pass it. If we have mediaUrl (forwarding), pass that.
+            // onSend signature needs to support (payload, message, mediaFile, mediaUrl, mediaType)
+            // But App.jsx expects handleBulkSend(phonesOrFilters, message, mediaFile)
+            // We need to update App.jsx handleBulkSend to accept mediaUrl option or handle it here
+            // If we call onSend with mediaFile as null, but we need to pass URL.
+            // Let's assume onSend can take an options object as 3rd arg or we modify App.jsx first to be flexible.
+            // Actually, let's look at App.jsx handleBulkSend signature.
+            // It is: `handleBulkSend(phonesOrFilters, message, mediaFile)`
+            // We should modify App.jsx to: `handleBulkSend(phonesOrFilters, message, mediaFile, mediaOptions)`
+            // OR reuse mediaFile argument to pass an object? No, likely cleaner to update App.jsx.
+
+            // For now, let's assume we update App.jsx to accept a 4th argument or check if mediaFile is an object with {url, type}
+            const result = await onSend(payload, message, mediaFile, { mediaUrl: initialMediaUrl, mediaType: initialMediaType });
 
             // If using new bulk system (text only), progress comes via Socket.IO
             // The useEffect will handle completion
@@ -280,7 +311,7 @@ const BulkMessageModal = ({
                 }}>
                     <h3 className="modal-title" style={{ color: 'white', display: 'flex', alignItems: 'center', gap: 'var(--space-2)' }}>
                         <Send className="w-5 h-5" />
-                        Envío Masivo de Mensajes
+                        {title}
                     </h3>
                     <button className="btn btn-icon" onClick={onClose} style={{ color: 'white' }}>
                         <X className="w-5 h-5" />
@@ -388,92 +419,94 @@ const BulkMessageModal = ({
                         </div>
                     )}
 
-                    {/* Selection mode tabs */}
-                    <div style={{ marginBottom: 'var(--space-4)' }}>
-                        <h4 style={{
-                            fontSize: 'var(--font-size-sm)',
-                            fontWeight: 600,
-                            marginBottom: 'var(--space-2)',
-                            color: 'var(--color-gray-700)'
-                        }}>
-                            Modo de selección
-                        </h4>
+                    {/* Selection mode tabs - Hidden if mode change disabled */}
+                    {!disableSelectionModeChange && (
+                        <div style={{ marginBottom: 'var(--space-4)' }}>
+                            <h4 style={{
+                                fontSize: 'var(--font-size-sm)',
+                                fontWeight: 600,
+                                marginBottom: 'var(--space-2)',
+                                color: 'var(--color-gray-700)'
+                            }}>
+                                Modo de selección
+                            </h4>
 
-                        <div style={{
-                            display: 'flex',
-                            gap: '0',
-                            borderRadius: 'var(--radius-lg)',
-                            border: '1px solid var(--color-gray-200)',
-                            overflow: 'hidden'
-                        }}>
-                            <button
-                                onClick={() => setSelectionMode('all')}
-                                style={{
-                                    flex: 1,
-                                    padding: 'var(--space-2) var(--space-3)',
-                                    border: 'none',
-                                    cursor: 'pointer',
-                                    display: 'flex',
-                                    alignItems: 'center',
-                                    justifyContent: 'center',
-                                    gap: 'var(--space-1)',
-                                    fontSize: 'var(--font-size-sm)',
-                                    fontWeight: 500,
-                                    backgroundColor: selectionMode === 'all' ? 'var(--color-primary)' : 'white',
-                                    color: selectionMode === 'all' ? 'white' : 'var(--color-gray-700)',
-                                    transition: 'all var(--transition-fast)'
-                                }}
-                            >
-                                <Users className="w-4 h-4" />
-                                Todos ({conversations.length})
-                            </button>
+                            <div style={{
+                                display: 'flex',
+                                gap: '0',
+                                borderRadius: 'var(--radius-lg)',
+                                border: '1px solid var(--color-gray-200)',
+                                overflow: 'hidden'
+                            }}>
+                                <button
+                                    onClick={() => setSelectionMode('all')}
+                                    style={{
+                                        flex: 1,
+                                        padding: 'var(--space-2) var(--space-3)',
+                                        border: 'none',
+                                        cursor: 'pointer',
+                                        display: 'flex',
+                                        alignItems: 'center',
+                                        justifyContent: 'center',
+                                        gap: 'var(--space-1)',
+                                        fontSize: 'var(--font-size-sm)',
+                                        fontWeight: 500,
+                                        backgroundColor: selectionMode === 'all' ? 'var(--color-primary)' : 'white',
+                                        color: selectionMode === 'all' ? 'white' : 'var(--color-gray-700)',
+                                        transition: 'all var(--transition-fast)'
+                                    }}
+                                >
+                                    <Users className="w-4 h-4" />
+                                    Todos ({conversations.length})
+                                </button>
 
-                            <button
-                                onClick={() => setSelectionMode('tag')}
-                                style={{
-                                    flex: 1,
-                                    padding: 'var(--space-2) var(--space-3)',
-                                    border: 'none',
-                                    borderLeft: '1px solid var(--color-gray-200)',
-                                    borderRight: '1px solid var(--color-gray-200)',
-                                    cursor: 'pointer',
-                                    display: 'flex',
-                                    alignItems: 'center',
-                                    justifyContent: 'center',
-                                    gap: 'var(--space-1)',
-                                    fontSize: 'var(--font-size-sm)',
-                                    fontWeight: 500,
-                                    backgroundColor: selectionMode === 'tag' ? 'var(--color-primary)' : 'white',
-                                    color: selectionMode === 'tag' ? 'white' : 'var(--color-gray-700)',
-                                    transition: 'all var(--transition-fast)'
-                                }}
-                            >
-                                <Tag className="w-4 h-4" />
-                                Por etiquetas
-                            </button>
+                                <button
+                                    onClick={() => setSelectionMode('tag')}
+                                    style={{
+                                        flex: 1,
+                                        padding: 'var(--space-2) var(--space-3)',
+                                        border: 'none',
+                                        borderLeft: '1px solid var(--color-gray-200)',
+                                        borderRight: '1px solid var(--color-gray-200)',
+                                        cursor: 'pointer',
+                                        display: 'flex',
+                                        alignItems: 'center',
+                                        justifyContent: 'center',
+                                        gap: 'var(--space-1)',
+                                        fontSize: 'var(--font-size-sm)',
+                                        fontWeight: 500,
+                                        backgroundColor: selectionMode === 'tag' ? 'var(--color-primary)' : 'white',
+                                        color: selectionMode === 'tag' ? 'white' : 'var(--color-gray-700)',
+                                        transition: 'all var(--transition-fast)'
+                                    }}
+                                >
+                                    <Tag className="w-4 h-4" />
+                                    Por etiquetas
+                                </button>
 
-                            <button
-                                onClick={() => setSelectionMode('manual')}
-                                style={{
-                                    flex: 1,
-                                    padding: 'var(--space-2) var(--space-3)',
-                                    border: 'none',
-                                    cursor: 'pointer',
-                                    display: 'flex',
-                                    alignItems: 'center',
-                                    justifyContent: 'center',
-                                    gap: 'var(--space-1)',
-                                    fontSize: 'var(--font-size-sm)',
-                                    fontWeight: 500,
-                                    backgroundColor: selectionMode === 'manual' ? 'var(--color-primary)' : 'white',
-                                    color: selectionMode === 'manual' ? 'white' : 'var(--color-gray-700)',
-                                    transition: 'all var(--transition-fast)'
-                                }}
-                            >
-                                ✓ Manual
-                            </button>
+                                <button
+                                    onClick={() => setSelectionMode('manual')}
+                                    style={{
+                                        flex: 1,
+                                        padding: 'var(--space-2) var(--space-3)',
+                                        border: 'none',
+                                        cursor: 'pointer',
+                                        display: 'flex',
+                                        alignItems: 'center',
+                                        justifyContent: 'center',
+                                        gap: 'var(--space-1)',
+                                        fontSize: 'var(--font-size-sm)',
+                                        fontWeight: 500,
+                                        backgroundColor: selectionMode === 'manual' ? 'var(--color-primary)' : 'white',
+                                        color: selectionMode === 'manual' ? 'white' : 'var(--color-gray-700)',
+                                        transition: 'all var(--transition-fast)'
+                                    }}
+                                >
+                                    ✓ Manual
+                                </button>
+                            </div>
                         </div>
-                    </div>
+                    )}
 
                     {/* Tag selection - Only show in tag mode */}
                     {selectionMode === 'tag' && (
@@ -547,8 +580,8 @@ const BulkMessageModal = ({
                         </div>
                     )}
 
-                    {/* Date Filter - For All or Tag modes */}
-                    {selectionMode !== 'manual' && (
+                    {/* Date Filter - For All or Tag modes (Hidden if forced manual) */}
+                    {selectionMode !== 'manual' && !disableSelectionModeChange && (
                         <div style={{ marginBottom: 'var(--space-4)', padding: 'var(--space-3)', backgroundColor: '#eff6ff', borderRadius: 'var(--radius-lg)', border: '1px solid #dbeafe' }}>
                             <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-2)', marginBottom: 'var(--space-2)' }}>
                                 <input
@@ -585,9 +618,19 @@ const BulkMessageModal = ({
                         </div>
                     )}
 
-                    {/* Manual selection list */}
+                    {/* Manual Contact Selection Header (When forced or selected) */}
                     {selectionMode === 'manual' && (
                         <div style={{ marginBottom: 'var(--space-4)' }}>
+                            {disableSelectionModeChange && (
+                                <h4 style={{
+                                    fontSize: 'var(--font-size-sm)',
+                                    fontWeight: 600,
+                                    marginBottom: 'var(--space-2)',
+                                    color: 'var(--color-gray-700)'
+                                }}>
+                                    Seleccionar destinatarios
+                                </h4>
+                            )}
                             <div style={{
                                 display: 'flex',
                                 justifyContent: 'space-between',
@@ -756,7 +799,7 @@ const BulkMessageModal = ({
                             style={{ display: 'none' }}
                         />
 
-                        {!mediaFile ? (
+                        {!mediaFile && !initialMediaUrl ? (
                             <div style={{
                                 display: 'flex',
                                 gap: 'var(--space-2)',
@@ -845,7 +888,9 @@ const BulkMessageModal = ({
                                 {/* Preview */}
                                 {mediaType === 'image' && mediaPreview && (
                                     <img
-                                        src={mediaPreview}
+                                        src={mediaPreview.includes('localhost') && window.location.hostname !== 'localhost'
+                                            ? mediaPreview.replace('localhost', window.location.hostname)
+                                            : mediaPreview}
                                         alt="Preview"
                                         style={{
                                             width: '80px',
@@ -857,7 +902,9 @@ const BulkMessageModal = ({
                                 )}
                                 {mediaType === 'video' && mediaPreview && (
                                     <video
-                                        src={mediaPreview}
+                                        src={mediaPreview.includes('localhost') && window.location.hostname !== 'localhost'
+                                            ? mediaPreview.replace('localhost', window.location.hostname)
+                                            : mediaPreview}
                                         style={{
                                             width: '80px',
                                             height: '80px',
@@ -884,15 +931,18 @@ const BulkMessageModal = ({
                                     <div style={{
                                         fontSize: 'var(--font-size-sm)',
                                         fontWeight: 500,
-                                        color: 'var(--color-gray-700)'
+                                        color: 'var(--color-gray-700)',
+                                        overflow: 'hidden',
+                                        textOverflow: 'ellipsis',
+                                        whiteSpace: 'nowrap'
                                     }}>
-                                        {mediaFile.name}
+                                        {mediaFile ? mediaFile.name : (initialMediaUrl ? 'Archivo reenviado' : 'Archivo adjunto')}
                                     </div>
                                     <div style={{
                                         fontSize: 'var(--font-size-xs)',
                                         color: 'var(--color-gray-500)'
                                     }}>
-                                        {(mediaFile.size / 1024 / 1024).toFixed(2)} MB • {mediaType}
+                                        {mediaFile ? `${(mediaFile.size / 1024 / 1024).toFixed(2)} MB • ` : ''} {mediaType}
                                     </div>
                                 </div>
 
