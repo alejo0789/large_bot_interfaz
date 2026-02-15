@@ -326,40 +326,87 @@ const AuthenticatedApp = () => {
         }
     }, [selectedConversation, sendFile, user]);
 
-    const handleBulkSend = useCallback(async (phones, message, mediaFile = null) => {
-        const recipients = phones.map(phone => {
-            const conv = conversations.find(c => c.contact.phone === phone);
-            return { phone, name: conv?.contact.name || 'Unknown' };
-        });
+    const handleBulkSend = useCallback(async (phonesOrFilters, message, mediaFile = null) => {
+        let recipients = [];
+        let filters = null;
 
-        if (mediaFile) {
-            console.warn('⚠️ Bulk send with media uses sequential sending');
-            for (const { phone, name } of recipients) {
-                const formData = new FormData();
-                formData.append('file', mediaFile);
-                formData.append('phone', phone);
-                formData.append('name', name);
-                if (message) formData.append('caption', message);
-                if (user) {
-                    formData.append('agent_id', user.id);
-                    formData.append('agent_name', user.name);
-                }
-                try {
-                    await fetch(`${API_URL}/api/send-file`, { method: 'POST', body: formData });
-                } catch (error) {
-                    console.error(`Error sending file to ${phone}:`, error);
-                }
-                await new Promise(resolve => setTimeout(resolve, 150));
-            }
-            return { success: true, method: 'sequential' };
+        // Determine if we're sending explicit recipients or filters
+        if (Array.isArray(phonesOrFilters)) {
+            recipients = phonesOrFilters.map(phone => {
+                const conv = conversations.find(c => c.contact.phone === phone);
+                return { phone, name: conv?.contact.name || 'Unknown' };
+            });
+        } else {
+            // It's a filter object
+            filters = phonesOrFilters;
+            console.log('Using server-side filters:', filters);
         }
 
-        console.log(`📤 Sending bulk message to ${recipients.length} recipients via /api/bulk-send`);
+        if (mediaFile) {
+            if (filters) {
+                // If using filters with media, we can't use the sequential client-side sending
+                // We must rely on the backend (which we updated to handle this, theoretically, but wait...)
+                // The backend /send-file ENDPOINT (singular) doesn't support bulk.
+                // The /bulk-send endpoint IS what we want to use for both text and media if we have filters.
+                // However, /bulk-send supports mediaUrl, but we have a File object.
+                // We need to upload the file first.
+                const formData = new FormData();
+                formData.append('file', mediaFile);
+                const uploadRes = await fetch(`${API_URL}/api/upload`, { method: 'POST', body: formData });
+                if (!uploadRes.ok) throw new Error('Error subiendo archivo para envío masivo');
+                const { file: uploadedFile } = await uploadRes.json();
+
+                // Now proceed to bulk send with the URL
+                const response = await fetch(`${API_URL}/api/bulk-send`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        recipients: [], // Empty recipients
+                        filters, // Pass filters
+                        message,
+                        mediaUrl: uploadedFile.url,
+                        mediaType: uploadedFile.type, // 'image', 'video', etc.
+                        agentId: user?.id,
+                        agentName: user?.name,
+                        agent_id: user?.id,
+                        agent_name: user?.name
+                    })
+                });
+
+                if (!response.ok) throw new Error('Error al iniciar envío masivo con archivo');
+                const result = await response.json();
+                return result;
+
+            } else {
+                console.warn('⚠️ Bulk send with media uses sequential sending for explicit list');
+                for (const { phone, name } of recipients) {
+                    const formData = new FormData();
+                    formData.append('file', mediaFile);
+                    formData.append('phone', phone);
+                    formData.append('name', name);
+                    if (message) formData.append('caption', message);
+                    if (user) {
+                        formData.append('agent_id', user.id);
+                        formData.append('agent_name', user.name);
+                    }
+                    try {
+                        await fetch(`${API_URL}/api/send-file`, { method: 'POST', body: formData });
+                    } catch (error) {
+                        console.error(`Error sending file to ${phone}:`, error);
+                    }
+                    await new Promise(resolve => setTimeout(resolve, 150));
+                }
+                return { success: true, method: 'sequential' };
+            }
+        }
+
+        console.log(`📤 Sending bulk message via /api/bulk-send`);
         const response = await fetch(`${API_URL}/api/bulk-send`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
-                recipients,
+                recipients: filters ? [] : recipients,
+                filters: filters || undefined,
                 message,
                 agentId: user?.id,
                 agentName: user?.name,

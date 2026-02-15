@@ -56,10 +56,26 @@ router.post('/send-message', asyncHandler(async (req, res) => {
     // Normalize phone: 
     // If it has a domain (@), it's a JID or a special ID, KEEP IT AS IS.
     // Otherwise, clean it as a standard number.
+    // Customize phone normalization to match webhook (Evolution) logic
+    // 1. Strip non-digits
+    const cleanPhone = String(phone).replace(/\D/g, '');
+    // 2. If it's a special ID (groups, etc), use original. Else, format.
     const isSpecialId = String(phone).includes('@') || String(phone).includes('-');
-    const normalizedPhone = isSpecialId ? String(phone) : String(phone).replace(/\D/g, '');
+
+    let normalizedPhone = cleanPhone;
+    if (!isSpecialId) {
+        // Match evolution.js: Add '+' for Colombia numbers (57) for consistency
+        if (cleanPhone.startsWith('57')) {
+            normalizedPhone = `+${cleanPhone}`;
+        }
+    } else {
+        normalizedPhone = String(phone);
+    }
 
     console.log(`📤 Processed phone for sending: ${normalizedPhone} (was: ${phone})`);
+
+    // Ensure conversation exists to avoid FK error
+    await conversationService.upsert(normalizedPhone, name);
 
     // Save message to database using normalized phone
     const savedMessage = await messageService.create({
@@ -132,6 +148,9 @@ router.post('/send-file', upload.single('file'), asyncHandler(async (req, res) =
     // Final URL (Public or Local)
     const fileUrl = `${config.publicUrl}/uploads/${file.filename}`;
     const mediaType = getMediaType(file.mimetype);
+
+    // Ensure conversation exists to avoid FK error
+    await conversationService.upsert(phone, name);
 
     // Save message to database
     const savedMessage = await messageService.create({
@@ -207,8 +226,8 @@ router.post('/bulk-send', asyncHandler(async (req, res) => {
     const finalAgentId = agentId || agent_id;
     const finalAgentName = agentName || agent_name;
 
-    if (!recipients || !Array.isArray(recipients) || recipients.length === 0) {
-        throw new AppError('Se requiere un array de destinatarios', 400);
+    if ((!recipients || !Array.isArray(recipients) || recipients.length === 0) && !req.body.filters) {
+        throw new AppError('Se requiere un array de destinatarios o filtros de búsqueda', 400);
     }
 
     if (!message && !mediaUrl) {
@@ -218,16 +237,45 @@ router.post('/bulk-send', asyncHandler(async (req, res) => {
     // Generate unique batch ID
     const batchId = `bulk_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
 
-    console.log(`📤 Starting bulk send ${batchId}: ${recipients.length} recipients by ${finalAgentName || 'unknown'}`);
+    // Determine final recipients
+    let finalRecipients = recipients || [];
+
+    // If filters are provided and no explicit recipients (or mixed), fetch from DB
+    if (req.body.filters && (!recipients || recipients.length === 0)) {
+        console.log('🔍 Fetching recipients from DB with filters:', req.body.filters);
+        const dbRecipients = await conversationService.getRecipients(req.body.filters);
+        finalRecipients = dbRecipients;
+        console.log(`✅ Found ${finalRecipients.length} recipients from DB`);
+    }
+
+    if (finalRecipients.length === 0) {
+        throw new AppError('No se encontraron destinatarios para los filtros seleccionados', 404);
+    }
+
+    console.log(`📤 Starting bulk send ${batchId}: ${finalRecipients.length} recipients by ${finalAgentName || 'unknown'}`);
 
     // Send function for each recipient
     const sendFn = async ({ phone, name, message: msg, mediaUrl: media, mediaType: mType }) => {
+        // Normalize phone to match webhook logic (evolution.js)
+        const cleanPhone = String(phone).replace(/\D/g, '');
+        const isSpecialId = String(phone).includes('@') || String(phone).includes('-');
+        let normalizedPhone = cleanPhone;
+
+        if (!isSpecialId) {
+            // Match evolution.js: Add '+' for Colombia numbers (57) for consistency
+            if (cleanPhone.startsWith('57')) {
+                normalizedPhone = `+${cleanPhone}`;
+            }
+        } else {
+            normalizedPhone = String(phone);
+        }
+
         // Ensure conversation exists
-        await conversationService.upsert(phone, name);
+        await conversationService.upsert(normalizedPhone, name);
 
         // Save message to database
         await messageService.create({
-            phone,
+            phone: normalizedPhone,
             sender: 'agent',
             text: msg || '',
             mediaType: mType || null,
@@ -238,11 +286,11 @@ router.post('/bulk-send', asyncHandler(async (req, res) => {
         });
 
         // Update conversation
-        await conversationService.updateLastMessage(phone, msg || '📎 Media');
+        await conversationService.updateLastMessage(normalizedPhone, msg || '📎 Media');
 
         // Send to N8N for WhatsApp delivery
         await n8nService.sendMessage({
-            phone,
+            phone: normalizedPhone,
             name,
             message: msg,
             mediaType: mType,
@@ -254,8 +302,8 @@ router.post('/bulk-send', asyncHandler(async (req, res) => {
         // Emit to frontend (OPTIMIZED: uses rooms)
         // This ensures the sender sees the message immediately correctly
         if (io) {
-            io.to(`conversation:${phone}`).emit('agent-message', {
-                phone,
+            io.to(`conversation:${normalizedPhone}`).emit('agent-message', {
+                phone: normalizedPhone,
                 message: msg || (media ? 'Evaluando archivo...' : ''),
                 media_type: mType,
                 media_url: media,
@@ -267,7 +315,7 @@ router.post('/bulk-send', asyncHandler(async (req, res) => {
 
             // Also emit to global list
             io.to('conversations:list').emit('conversation-updated', {
-                phone,
+                phone: normalizedPhone,
                 lastMessage: msg || '📎 Media',
                 timestamp: new Date().toLocaleString("en-US", { timeZone: "America/Bogota" })
             });
@@ -284,7 +332,7 @@ router.post('/bulk-send', asyncHandler(async (req, res) => {
     // Start processing in background (don't await)
     bulkMessageService.processBulkSend({
         batchId,
-        recipients,
+        recipients: finalRecipients,
         message,
         mediaUrl,
         mediaType,
@@ -307,8 +355,8 @@ router.post('/bulk-send', asyncHandler(async (req, res) => {
     res.json({
         success: true,
         batchId,
-        message: `Iniciando envío masivo de ${recipients.length} mensajes`,
-        estimatedTime: Math.ceil(recipients.length * 0.15) // ~0.15s per message
+        message: `Iniciando envío masivo de ${finalRecipients.length} mensajes`,
+        estimatedTime: Math.ceil(finalRecipients.length * 0.15) // ~0.15s per message
     });
 }));
 

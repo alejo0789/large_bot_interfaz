@@ -341,6 +341,66 @@ class ConversationService {
         `);
         return rows[0];
     }
+
+    /**
+     * Get recipients for bulk messaging based on filters
+     * @param {Object} filters
+     */
+    async getRecipients(filters = {}) {
+        const {
+            tagId = null,
+            startDate = null,
+            endDate = null,
+            status = 'active'
+        } = filters;
+
+        // Build dynamic WHERE clause
+        const conditions = [];
+        const params = [];
+        let paramIndex = 1;
+        let joinClause = '';
+
+        if (status) {
+            conditions.push(`c.status = $${paramIndex++}`);
+            params.push(status);
+        }
+
+        if (tagId) {
+            joinClause = ' JOIN conversation_tags ct_filter ON c.phone = ct_filter.conversation_phone';
+            conditions.push(`ct_filter.tag_id = $${paramIndex++}`);
+            params.push(tagId);
+        }
+
+        if (startDate) {
+            conditions.push(` COALESCE(c.last_message_timestamp, c.created_at) >= $${paramIndex++}`);
+            params.push(startDate);
+        }
+
+        if (endDate) {
+            conditions.push(` COALESCE(c.last_message_timestamp, c.created_at) <= $${paramIndex++}`);
+            params.push(endDate);
+        }
+
+        const whereClause = conditions.length > 0
+            ? `WHERE ${conditions.join(' AND ')}`
+            : '';
+
+        const query = `
+            SELECT 
+                c.phone,
+                c.contact_name
+            FROM conversations c
+            ${joinClause}
+            ${whereClause}
+        `;
+
+        const { rows } = await pool.query(query, params);
+
+        return rows.map(row => ({
+            phone: row.phone,
+            name: row.contact_name || 'Usuario'
+        }));
+    }
 }
 
 module.exports = new ConversationService();
