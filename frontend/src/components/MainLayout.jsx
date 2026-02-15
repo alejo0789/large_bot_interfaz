@@ -39,15 +39,30 @@ const MainLayout = ({
     );
 
     return (
-        <div className="layout-container" style={{ display: 'flex', height: '100%', width: '100%', overflow: 'hidden' }}>
+        <div className="layout-container" style={{
+            display: 'flex',
+            height: '100%',
+            width: '100%',
+            maxWidth: '100vw',
+            overflow: 'hidden'
+        }}>
             {/* Desktop Navigation Rail */}
             {!isMobile && renderNavigation()}
 
-            {/* Mobile Navigation Drawer (Handled inside NavRail logic but rendered here if mobile) */}
+            {/* Mobile Navigation Drawer */}
             {isMobile && renderNavigation()}
 
             {/* Main Content Area */}
-            <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden', position: 'relative', height: '100%' }}>
+            <div style={{
+                flex: 1,
+                display: 'flex',
+                flexDirection: 'column',
+                overflow: 'hidden',
+                position: 'relative',
+                height: '100%',
+                width: '100%',
+                maxWidth: isMobile ? '100vw' : 'none'
+            }}>
 
                 {/* Mobile Header (Only visible on mobile AND if not hidden) */}
                 {isMobile && !hideHeader && (

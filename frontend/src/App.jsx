@@ -589,7 +589,13 @@ const AuthenticatedApp = () => {
             onMenuOpen={() => setIsMobileMenuOpen(true)}
             onMenuClose={() => setIsMobileMenuOpen(false)}
         >
-            <div className="app-container" style={{ display: activeTab === 'chat' ? 'flex' : 'none', height: '100%', width: '100%' }}>
+            <div className="app-container" style={{
+                display: activeTab === 'chat' ? 'flex' : 'none',
+                height: '100%',
+                width: '100%',
+                maxWidth: '100vw',
+                overflowX: 'hidden'
+            }}>
                 {/* Sidebar */}
                 <div
                     className={`sidebar ${isMobile && showSidebar ? 'open' : ''}`}

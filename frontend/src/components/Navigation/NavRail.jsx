@@ -37,9 +37,7 @@ const NavRail = ({ activeTab, onTabChange, isMobile, isOpen, onClose, onOpen, on
                         width: '300px',
                         zIndex: 5000,
                         backgroundColor: 'white',
-                        transform: isOpen ? 'translateX(0)' : 'translateX(-100%)',
-                        transition: 'transform 0.4s cubic-bezier(0.16, 1, 0.3, 1)',
-                        display: 'flex',
+                        display: isOpen ? 'flex' : 'none', // Changed from transform to display
                         flexDirection: 'column',
                         overflow: 'hidden',
                         boxShadow: '15px 0 35px rgba(0,0,0,0.15)'
@@ -200,7 +198,6 @@ const NavRail = ({ activeTab, onTabChange, isMobile, isOpen, onClose, onOpen, on
             paddingTop: '24px',
             gap: '16px',
             zIndex: 100,
-            transition: 'width 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
             position: 'relative',
         }}>
             <button

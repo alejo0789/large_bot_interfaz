@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { CheckCheck, Clock, Download, FileText, Image as ImageIcon, Mic, Share } from 'lucide-react';
+import { CheckCheck, Clock, Download, FileText, Image as ImageIcon, Mic, Forward } from 'lucide-react';
 
 /**
  * Message bubble component with media support
@@ -268,7 +268,7 @@ const MessageBubble = ({ message, onForward }) => {
                                 e.currentTarget.style.backgroundColor = 'white';
                             }}
                         >
-                            <Share className="w-3 h-3" />
+                            <Forward className="w-3 h-3" />
                         </button>
                     )}
                 </div>
