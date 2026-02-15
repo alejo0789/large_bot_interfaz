@@ -74,6 +74,16 @@ const AuthenticatedApp = () => {
     const [forwardMessage, setForwardMessage] = useState(null);
     const [showForwardModal, setShowForwardModal] = useState(false);
 
+    const [fontSize, setFontSize] = useState(() => {
+        return localStorage.getItem('chat-font-size') || '16px';
+    });
+
+    // Apply font size to document root
+    useEffect(() => {
+        document.documentElement.style.fontSize = fontSize;
+        localStorage.setItem('chat-font-size', fontSize);
+    }, [fontSize]);
+
     // Tags by conversation
     const [tagsByPhone, setTagsByPhone] = useState({});
 
@@ -647,6 +657,8 @@ const AuthenticatedApp = () => {
                         unreadCount={unreadCount}
                         onRefresh={fetchConversations}
                         isLoading={isLoading}
+                        fontSize={fontSize}
+                        onFontSizeChange={setFontSize}
                     />
 
 

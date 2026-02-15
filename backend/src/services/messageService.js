@@ -168,6 +168,16 @@ class MessageService {
      * Create a new message
      */
     async create({ phone, sender, text, whatsappId, mediaType, mediaUrl, status = 'delivered', agentId, agentName }) {
+        // Verify if agent exists before inserting to avoid FK error
+        let verifiedAgentId = agentId;
+        if (agentId) {
+            const { rows: agentRows } = await pool.query('SELECT 1 FROM agents WHERE id = $1', [agentId]);
+            if (agentRows.length === 0) {
+                console.warn(`⚠️ Warning: Agent ID ${agentId} not found, saving message without agent reference`);
+                verifiedAgentId = null;
+            }
+        }
+
         const { rows } = await pool.query(`
             INSERT INTO messages (
                 conversation_phone, 
@@ -182,7 +192,7 @@ class MessageService {
                 agent_name
             ) VALUES ($1, $2, $3, $4, $5, $6, $7, NOW(), $8, $9)
             RETURNING id, timestamp
-        `, [phone, sender, text, whatsappId, mediaType, mediaUrl, status, agentId, agentName]);
+        `, [phone, sender, text, whatsappId, mediaType, mediaUrl, status, verifiedAgentId, agentName]);
 
         return rows[0];
     }

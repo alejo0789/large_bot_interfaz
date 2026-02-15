@@ -26,7 +26,17 @@ const MessageList = ({ messages, isLoading, onForward }) => {
 
     // Auto scroll to bottom when new messages arrive
     useEffect(() => {
-        messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+        if (!messages || messages.length === 0) return;
+
+        // Perform instant scroll first
+        messagesEndRef.current?.scrollIntoView({ behavior: 'auto' });
+
+        // Backup scroll after a short delay for images/layout
+        const timeoutId = setTimeout(() => {
+            messagesEndRef.current?.scrollIntoView({ behavior: 'auto' });
+        }, 100);
+
+        return () => clearTimeout(timeoutId);
     }, [messages]);
 
     if (isLoading) {
