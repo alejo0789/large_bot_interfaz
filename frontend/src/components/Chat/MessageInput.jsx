@@ -154,10 +154,42 @@ const MessageInput = ({ onSend, onSendFile, disabled, isMobile }) => {
     // Start voice recording
     const startRecording = async () => {
         try {
+            // Check for browser support
+            if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+                alert('Tu navegador no soporta grabación de audio. Asegúrate de usar HTTPS.');
+                return;
+            }
+
             const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
 
-            // Create audio context for visualization
-            const audioContext = new (window.AudioContext || window.webkitAudioContext)();
+            // Detect supported MIME types for maximum compatibility (iOS/Safari vs Android/Chrome)
+            const mimeTypes = [
+                'audio/webm;codecs=opus',
+                'audio/mp4',
+                'audio/ogg;codecs=opus',
+                'audio/webm',
+                'audio/aac'
+            ];
+
+            let supportedMimeType = '';
+            for (const type of mimeTypes) {
+                if (MediaRecorder.isTypeSupported(type)) {
+                    supportedMimeType = type;
+                    break;
+                }
+            }
+
+            console.log(`🎙️ Using supported MIME type: ${supportedMimeType || 'browser default'}`);
+
+            // Create audio context for visualization (User gesture requirement)
+            const AudioContextClass = window.AudioContext || window.webkitAudioContext;
+            const audioContext = new AudioContextClass();
+
+            // Resume context if suspended (common in PWAs/Safari)
+            if (audioContext.state === 'suspended') {
+                await audioContext.resume();
+            }
+
             const source = audioContext.createMediaStreamSource(stream);
             const analyser = audioContext.createAnalyser();
             analyser.fftSize = 256;
@@ -182,24 +214,32 @@ const MessageInput = ({ onSend, onSendFile, disabled, isMobile }) => {
             };
             updateWaveform();
 
-            // Create media recorder
-            const mediaRecorder = new MediaRecorder(stream);
+            // Create media recorder with supported settings
+            const options = supportedMimeType ? { mimeType: supportedMimeType } : {};
+            const mediaRecorder = new MediaRecorder(stream, options);
             mediaRecorderRef.current = mediaRecorder;
             audioChunksRef.current = [];
 
             mediaRecorder.ondataavailable = (event) => {
-                audioChunksRef.current.push(event.data);
+                if (event.data.size > 0) {
+                    audioChunksRef.current.push(event.data);
+                }
             };
 
             mediaRecorder.onstop = () => {
-                const audioBlob = new Blob(audioChunksRef.current, { type: 'audio/webm' });
+                // Use the same MIME type used for recording
+                const finalType = supportedMimeType || mediaRecorder.mimeType || 'audio/webm';
+                const audioBlob = new Blob(audioChunksRef.current, { type: finalType });
+
+                console.log(`🔊 Recording stopped. Size: ${audioBlob.size} bytes, Type: ${finalType}`);
+
                 setAudioBlob(audioBlob);
                 setAudioUrl(URL.createObjectURL(audioBlob));
                 stream.getTracks().forEach(track => track.stop());
                 audioContext.close();
             };
 
-            mediaRecorder.start();
+            mediaRecorder.start(1000); // Collect data every second for safety
             setIsRecording(true);
             setRecordingTime(0);
 
@@ -209,8 +249,14 @@ const MessageInput = ({ onSend, onSendFile, disabled, isMobile }) => {
             }, 1000);
 
         } catch (error) {
-            console.error('Error accessing microphone:', error);
-            alert('No se pudo acceder al micrófono. Verifica los permisos.');
+            console.error('❌ Error accessing microphone:', error);
+            if (error.name === 'NotAllowedError' || error.name === 'PermissionDeniedError') {
+                alert('Permiso denegado. Habilita el micrófono en la configuración de tu navegador.');
+            } else if (error.name === 'NotFoundError') {
+                alert('No se encontró ningún micrófono conectado.');
+            } else {
+                alert(`Error al iniciar grabación: ${error.message}`);
+            }
         }
     };
 
@@ -244,8 +290,12 @@ const MessageInput = ({ onSend, onSendFile, disabled, isMobile }) => {
 
         setIsUploading(true);
         try {
-            // Create a file from the blob
-            const audioFile = new File([audioBlob], `audio_${Date.now()}.webm`, { type: 'audio/webm' });
+            // Determine extension based on actual blob type
+            const extension = audioBlob.type.includes('mp4') ? 'mp4' :
+                audioBlob.type.includes('ogg') ? 'ogg' : 'webm';
+
+            // Create a file from the blob with the correct type
+            const audioFile = new File([audioBlob], `audio_${Date.now()}.${extension}`, { type: audioBlob.type });
             await onSendFile(audioFile, '');
             cancelRecording();
         } catch (error) {
