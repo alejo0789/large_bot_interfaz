@@ -203,12 +203,12 @@ class MessageService {
     /**
      * Update message status
      */
-    async updateStatus(whatsappId, status) {
+    async updateStatus(messageId, status) {
         await pool.query(`
             UPDATE messages 
             SET status = $1 
-            WHERE whatsapp_id = $2
-        `, [status, whatsappId]);
+            WHERE id = $2
+        `, [status, messageId]);
     }
 
     /**

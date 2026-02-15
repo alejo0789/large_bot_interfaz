@@ -111,6 +111,13 @@ router.post('/send-message', asyncHandler(async (req, res) => {
         sendResult = { sent: result.sent, platform: 'n8n', ...result };
     }
 
+    // UPDATE STATUS IN DB after successful send
+    if (sendResult.sent) {
+        await messageService.updateStatus(savedMessage.id, 'delivered');
+    } else {
+        await messageService.updateStatus(savedMessage.id, 'failed');
+    }
+
     emitToConversation(normalizedPhone, 'agent-message', {
         whatsapp_id: savedMessage.id, // Include the DB ID
         phone: normalizedPhone,
@@ -120,7 +127,8 @@ router.post('/send-message', asyncHandler(async (req, res) => {
         timestamp: new Date().toISOString(),
         agent_id: finalAgentId,
         agent_name: finalAgentName,
-        sender_name: finalAgentName
+        sender_name: finalAgentName,
+        status: sendResult.sent ? 'delivered' : 'failed'
     });
 
     res.json({
@@ -187,6 +195,13 @@ router.post('/send-file', upload.single('file'), asyncHandler(async (req, res) =
         });
     }
 
+    // Update status in DB
+    if (sendResult.sent) {
+        await messageService.updateStatus(savedMessage.id, 'delivered');
+    } else {
+        await messageService.updateStatus(savedMessage.id, 'failed');
+    }
+
     // Emit to frontend (OPTIMIZED: uses rooms)
     emitToConversation(phone, 'agent-message', {
         whatsapp_id: savedMessage.id,
@@ -200,6 +215,7 @@ router.post('/send-file', upload.single('file'), asyncHandler(async (req, res) =
         agent_id,
         agent_name,
         sender_name: agent_name,
+        status: sendResult.sent ? 'delivered' : 'failed',
         temp_id: temp_id // Emitting back the temp_id so frontend can match
     });
 
@@ -299,7 +315,7 @@ router.post('/bulk-send', asyncHandler(async (req, res) => {
         await conversationService.upsert(normalizedPhone, name);
 
         // Save message to database
-        await messageService.create({
+        const savedMessage = await messageService.create({
             phone: normalizedPhone,
             sender: 'agent',
             text: msg || '',
@@ -340,6 +356,9 @@ router.post('/bulk-send', asyncHandler(async (req, res) => {
             });
         }
 
+        // Update status in DB after successful send
+        await messageService.updateStatus(savedMessage.id, 'delivered');
+
         // Emit to frontend (OPTIMIZED: uses rooms)
         // This ensures the sender sees the message immediately correctly
         if (io) {
@@ -352,7 +371,8 @@ router.post('/bulk-send', asyncHandler(async (req, res) => {
                 timestamp: new Date().toLocaleString("en-US", { timeZone: "America/Bogota" }),
                 agent_id: finalAgentId,
                 agent_name: finalAgentName,
-                sender_name: finalAgentName
+                sender_name: finalAgentName,
+                status: 'delivered'
             });
 
             // Also emit to global list
