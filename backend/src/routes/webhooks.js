@@ -108,6 +108,7 @@ router.post('/receive-message', asyncHandler(async (req, res) => {
         sender_type,
         media_type,
         media_url,
+        sender_name: contact_name || `Usuario ${cleanPhone.slice(-4)}`,
         unread: isAgent ? 0 : 1,
         timestamp: timestamp || new Date().toISOString(),
         conversation_state: currentState,

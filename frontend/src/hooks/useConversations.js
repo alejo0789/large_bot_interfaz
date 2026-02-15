@@ -422,6 +422,7 @@ export const useConversations = (socket) => {
                 media_type: messageData.media_type || messageData.mediaType || null,
                 media_url: messageData.media_url || messageData.mediaUrl || null,
                 agent_name: messageData.agent_name || null,
+                sender_name: messageData.sender_name || messageData.pushName || messageData.contact_name || null,
                 temp_id: messageData.temp_id // Crucial for duplicate matching
             };
 

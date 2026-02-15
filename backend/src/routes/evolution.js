@@ -320,6 +320,8 @@ router.post('/', async (req, res) => {
             whatsapp_id: msg.key.id,
             sender: senderType, // Changed from sender_type for consistency
             sender_type: senderType, // Keep for backward compatibility
+            sender_name: msg.pushName || (isFromAgent ? 'Tú' : 'Cliente'),
+            agent_name: isFromAgent ? (msg.pushName || 'Agente') : null,
             unread: isFromAgent ? 0 : 1,
             timestamp: new Date().toISOString(),
             conversation_state: currentState,
@@ -375,6 +377,7 @@ router.post('/', async (req, res) => {
                     message: aiResponseText,
                     whatsapp_id: agentMessageId,
                     sender: 'ai', // Mark as 'ai' for blue styling
+                    sender_name: 'Inteligencia Artificial',
                     timestamp: new Date().toLocaleString("en-US", { timeZone: "America/Bogota" }),
                     conversation_state: currentState,
                     ai_enabled: true

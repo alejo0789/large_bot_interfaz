@@ -118,7 +118,8 @@ router.post('/send-message', asyncHandler(async (req, res) => {
         sender_type: 'agent',
         timestamp: new Date().toISOString(),
         agent_id: finalAgentId,
-        agent_name: finalAgentName
+        agent_name: finalAgentName,
+        sender_name: finalAgentName
     });
 
     res.json({
@@ -196,6 +197,7 @@ router.post('/send-file', upload.single('file'), asyncHandler(async (req, res) =
         timestamp: new Date().toISOString(),
         agent_id,
         agent_name,
+        sender_name: agent_name,
         temp_id: temp_id // Emitting back the temp_id so frontend can match
     });
 
@@ -346,7 +348,8 @@ router.post('/bulk-send', asyncHandler(async (req, res) => {
                 sender_type: 'agent',
                 timestamp: new Date().toLocaleString("en-US", { timeZone: "America/Bogota" }),
                 agent_id: finalAgentId,
-                agent_name: finalAgentName
+                agent_name: finalAgentName,
+                sender_name: finalAgentName
             });
 
             // Also emit to global list

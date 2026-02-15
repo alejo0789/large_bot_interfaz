@@ -183,18 +183,19 @@ const MessageBubble = ({ message, onForward }) => {
                         position: 'relative', // Ensure absolute positioning works if needed, standard flow otherwise
                         minWidth: '120px' // Ensure minimum width for name
                     }}>
-                        {/* Agent Name Display - Top Right */}
-                        {isAgent && message.agent_name && (
+                        {/* Sender Name Display */}
+                        {(message.sender_name || message.agent_name) && (
                             <div style={{
-                                fontSize: '9px',
-                                fontWeight: '600',
-                                color: 'rgba(255, 255, 255, 0.7)',
-                                textAlign: 'right',
-                                marginBottom: '2px',
-                                paddingRight: media_url ? '4px' : '0', // Adjust if media
-                                paddingTop: media_url ? '4px' : '0'    // Adjust if media
+                                fontSize: '10px',
+                                fontWeight: '700',
+                                color: isOutgoing ? 'rgba(255, 255, 255, 0.85)' : 'var(--color-primary)',
+                                textAlign: isOutgoing ? 'right' : 'left',
+                                marginBottom: '4px',
+                                paddingRight: (isOutgoing && media_url) ? '4px' : '0',
+                                paddingLeft: (!isOutgoing && media_url) ? '4px' : '0',
+                                paddingTop: media_url ? '4px' : '0'
                             }}>
-                                {message.agent_name}
+                                {message.sender_name || message.agent_name}
                             </div>
                         )}
 
