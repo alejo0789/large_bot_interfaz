@@ -140,8 +140,9 @@ const TagFilter = ({
             {/* Filter buttons row */}
             <div style={{
                 display: 'flex',
-                gap: 'var(--space-2)',
-                flexWrap: 'wrap'
+                gap: '8px', // Fixed gap prevents control row from expanding too much
+                flexWrap: 'wrap',
+                alignItems: 'center'
             }}>
                 {/* Unread filter */}
                 <button
@@ -152,7 +153,8 @@ const TagFilter = ({
                         alignItems: 'center',
                         justifyContent: 'center',
                         gap: '4px',
-                        padding: '5px 8px', // Compact padding
+                        padding: '0 8px', // Horizontal padding only
+                        height: '32px',   // Standard height for better touch
                         fontSize: '11px',
                         fontWeight: 600,
                         borderRadius: 'var(--radius-md)',
@@ -160,7 +162,7 @@ const TagFilter = ({
                             ? '1px solid var(--color-primary)'
                             : '1px solid var(--color-gray-300)',
                         backgroundColor: showUnreadOnly
-                            ? 'var(--color-primary)' // Solid primary when active
+                            ? 'var(--color-primary)'
                             : 'var(--color-white)',
                         color: showUnreadOnly
                             ? 'white'
@@ -203,7 +205,8 @@ const TagFilter = ({
                             display: 'flex',
                             alignItems: 'center',
                             gap: '4px',
-                            padding: '5px 10px',
+                            padding: '0 10px',
+                            height: '32px',
                             fontSize: '11px',
                             fontWeight: 500,
                             borderRadius: 'var(--radius-md)',
@@ -345,7 +348,8 @@ const TagFilter = ({
                             display: 'flex',
                             alignItems: 'center',
                             gap: '4px',
-                            padding: '5px 10px',
+                            padding: '0 10px',
+                            height: '32px',
                             fontSize: '11px',
                             fontWeight: 500,
                             borderRadius: 'var(--radius-md)',
@@ -466,31 +470,33 @@ const TagFilter = ({
                             display: 'flex',
                             alignItems: 'center',
                             justifyContent: 'center',
-                            padding: '5px 8px',
+                            padding: '0 10px',
                             borderRadius: 'var(--radius-md)',
                             border: '1px solid var(--color-gray-300)',
                             backgroundColor: 'white',
                             color: 'var(--color-gray-600)',
                             cursor: 'pointer',
-                            height: '26px'
+                            height: '32px',
+                            width: '48px', // Increased from 40px
+                            whiteSpace: 'nowrap'
                         }}
                     >
-                        <Type className="w-4 h-4" />
-                        <ChevronDown className="w-2 h-2 ml-1" />
+                        <Type className="w-6 h-6" />
+                        <ChevronDown className="w-3 h-3 ml-0.5" />
                     </button>
 
                     {showFontSizeDropdown && (
                         <div style={{
                             position: 'absolute',
                             top: '100%',
-                            right: 0,
+                            right: 0, // Changed back to right: 0 per user preference
                             marginTop: '4px',
                             minWidth: '150px',
                             backgroundColor: 'white',
                             borderRadius: 'var(--radius-lg)',
                             boxShadow: '0 4px 20px rgba(0,0,0,0.15)',
                             border: '1px solid var(--color-gray-200)',
-                            zIndex: 100
+                            zIndex: 1000 // Higher z-index
                         }}>
                             <div style={{
                                 padding: '8px',

@@ -366,6 +366,7 @@ router.post('/', async (req, res) => {
 
                 // 3. Update Conversation Last Message
                 await conversationService.updateLastMessage(phone, aiResponseText);
+                await conversationService.markAsRead(phone);
 
                 // 4. Emit to Frontend
                 emitToConversation(phone, 'new-message', {

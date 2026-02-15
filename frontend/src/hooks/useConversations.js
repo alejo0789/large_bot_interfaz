@@ -392,15 +392,17 @@ export const useConversations = (socket) => {
         if (!socket) return;
 
         const handleSocketMessage = (messageData, isAgentEvent = false) => {
-            // Determine if agent based on event type OR payload
+            // Determine if agent/outgoing message based on event type OR payload
             const isAgent = isAgentEvent ||
                 messageData.sender_type === 'agent' ||
-                messageData.sender === 'agent';
+                messageData.sender === 'agent' ||
+                messageData.sender_type === 'ai' ||
+                messageData.sender === 'ai';
 
             console.log(`📨 ${isAgent ? 'Agent' : 'Customer'} message received:`, messageData);
 
             const phone = messageData.phone;
-            const senderType = isAgent ? 'agent' : (messageData.sender_type || messageData.sender || 'customer');
+            const senderType = messageData.sender_type || messageData.sender || (isAgent ? 'agent' : 'customer');
             const cleanIncomingPhone = String(phone).replace(/\D/g, '');
 
             // Ignore messages sent by agent from THIS session - they were already added optimistically

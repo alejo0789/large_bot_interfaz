@@ -1,23 +1,15 @@
-const { Pool } = require('pg');
-const dotenv = require('dotenv');
-const path = require('path');
+const { pool } = require('./src/config/database');
+require('dotenv').config();
 
-dotenv.config({ path: path.join(__dirname, '.env') });
-
-const pool = new Pool({
-    connectionString: process.env.DATABASE_URL,
-    ssl: { rejectUnauthorized: false }
-});
-
-async function run() {
+async function listAgents() {
     try {
-        const { rows } = await pool.query('SELECT id, name, username FROM agents');
-        console.log(JSON.stringify(rows, null, 2));
-    } catch (err) {
-        console.error(err);
+        const { rows } = await pool.query('SELECT id, username, name, is_active FROM agents');
+        console.log('Current agents:', JSON.stringify(rows, null, 2));
+    } catch (error) {
+        console.error('❌ Error listing agents:', error);
     } finally {
         await pool.end();
     }
 }
 
-run();
+listAgents();

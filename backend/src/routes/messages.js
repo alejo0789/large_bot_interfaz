@@ -91,6 +91,7 @@ router.post('/send-message', asyncHandler(async (req, res) => {
 
     // Update conversation
     await conversationService.updateLastMessage(normalizedPhone, message);
+    await conversationService.markAsRead(normalizedPhone);
 
     // Send Message Logic (Evolution > N8N)
     let sendResult;
@@ -167,6 +168,7 @@ router.post('/send-file', upload.single('file'), asyncHandler(async (req, res) =
 
     // Update conversation
     await conversationService.updateLastMessage(phone, caption || `📎 ${file.originalname}`);
+    await conversationService.markAsRead(phone);
 
     // Send Media Logic
     if (config.evolutionApiUrl) {
@@ -306,6 +308,7 @@ router.post('/bulk-send', asyncHandler(async (req, res) => {
 
         // Update conversation
         await conversationService.updateLastMessage(normalizedPhone, msg || '📎 Media');
+        await conversationService.markAsRead(normalizedPhone);
 
         // Send Logic (Evolution > N8N)
         if (config.evolutionApiUrl) {
