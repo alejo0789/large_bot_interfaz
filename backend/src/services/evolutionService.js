@@ -111,39 +111,53 @@ class EvolutionService {
             const isJID = phone.includes('-') || phone.includes('@');
             const url = `${this.baseUrl}/message/sendMedia/${this.instance}`;
 
+            // --- LOCALHOST FIX ---
+            let finalMediaUrl = mediaUrl;
+            if (finalMediaUrl.includes('localhost') && config.publicUrl && !config.publicUrl.includes('localhost')) {
+                console.log(`🔄 Replacing localhost in media URL [${mediaUrl}] with public URL: [${config.publicUrl}]`);
+                finalMediaUrl = finalMediaUrl.replace(/http:\/\/localhost:\d+/, config.publicUrl);
+            }
+
+            // Infer extension if missing from fileName
+            let finalFileName = fileName || 'file';
+            if (!finalFileName.includes('.')) {
+                if (mediaType === 'image') finalFileName += '.jpg';
+                else if (mediaType === 'video') finalFileName += '.mp4';
+                else if (mediaType === 'audio') finalFileName += '.mp3';
+                else if (mediaType === 'document') finalFileName += '.pdf';
+            }
+
             const attempts = [
                 {
-                    name: 'Flat Minimal',
+                    name: 'mediatype (lowercase)',
                     body: {
                         number: isJID ? phone : cleanNumber,
                         mediatype: mediaType,
-                        media: mediaUrl,
+                        media: finalMediaUrl,
                         caption: caption || '',
-                        fileName: fileName,
+                        fileName: finalFileName,
                         checkContact: false
                     }
                 },
                 {
-                    name: 'Nested mediaMessage',
+                    name: 'mediaType (CamelCase)',
                     body: {
                         number: isJID ? phone : cleanNumber,
-                        mediaMessage: {
-                            mediatype: mediaType,
-                            caption: caption || '',
-                            media: mediaUrl,
-                            fileName: fileName
-                        },
+                        mediaType: mediaType,
+                        media: finalMediaUrl,
+                        caption: caption || '',
+                        fileName: finalFileName,
                         checkContact: false
                     }
                 },
                 {
-                    name: 'JID Suffix',
+                    name: 'type (legacy/v1)',
                     body: {
-                        number: isJID ? phone : `${cleanNumber}@s.whatsapp.net`,
-                        mediatype: mediaType,
-                        media: mediaUrl,
+                        number: isJID ? phone : cleanNumber,
+                        type: mediaType,
+                        media: finalMediaUrl,
                         caption: caption || '',
-                        fileName: fileName,
+                        fileName: finalFileName,
                         checkContact: false
                     }
                 }

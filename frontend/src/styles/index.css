@@ -371,22 +371,30 @@ body {
 .message {
   display: flex;
   margin-bottom: var(--space-2);
+  width: 100%;
 }
 
 .message.outgoing {
-  justify-content: flex-end;
+  justify-content: flex-end !important;
 }
 
 .message.incoming {
-  justify-content: flex-start;
+  justify-content: flex-start !important;
+}
+
+.message-container {
+  max-width: 80%;
+  display: flex;
+  flex-direction: column;
 }
 
 .message-bubble {
-  max-width: 65%;
+  width: 100%;
   padding: var(--space-2) var(--space-3);
   border-radius: var(--radius-lg);
   position: relative;
   word-wrap: break-word;
+  word-break: break-word;
 }
 
 .message.outgoing .message-bubble {

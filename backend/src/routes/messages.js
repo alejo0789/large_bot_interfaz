@@ -209,6 +209,25 @@ router.post('/send-file', upload.single('file'), asyncHandler(async (req, res) =
     });
 }));
 
+// Basic upload endpoint (just saves file and returns URL)
+router.post('/upload', upload.single('file'), asyncHandler(async (req, res) => {
+    const file = req.file;
+    if (!file) throw new AppError('No se recibió ningún archivo', 400);
+
+    const fileUrl = `${config.publicUrl}/uploads/${file.filename}`;
+    const mediaType = getMediaType(file.mimetype);
+
+    res.json({
+        success: true,
+        file: {
+            name: file.originalname,
+            url: fileUrl,
+            type: mediaType,
+            size: file.size
+        }
+    });
+}));
+
 // ==========================================
 // BULK MESSAGE ENDPOINT - SCALABLE
 // ==========================================
@@ -288,16 +307,30 @@ router.post('/bulk-send', asyncHandler(async (req, res) => {
         // Update conversation
         await conversationService.updateLastMessage(normalizedPhone, msg || '📎 Media');
 
-        // Send to N8N for WhatsApp delivery
-        await n8nService.sendMessage({
-            phone: normalizedPhone,
-            name,
-            message: msg,
-            mediaType: mType,
-            mediaUrl: media,
-            agentId: finalAgentId,
-            agentName: finalAgentName
-        });
+        // Send Logic (Evolution > N8N)
+        if (config.evolutionApiUrl) {
+            let result;
+            if (media && mType) {
+                result = await evolutionService.sendMedia(normalizedPhone, media, mType, msg || '', 'file');
+            } else {
+                result = await evolutionService.sendText(normalizedPhone, msg);
+            }
+
+            if (!result.success) {
+                throw new Error(result.error?.message || 'Error en Evolution API');
+            }
+        } else {
+            // Fallback to N8N
+            await n8nService.sendMessage({
+                phone: normalizedPhone,
+                name,
+                message: msg,
+                mediaType: mType,
+                mediaUrl: media,
+                agentId: finalAgentId,
+                agentName: finalAgentName
+            });
+        }
 
         // Emit to frontend (OPTIMIZED: uses rooms)
         // This ensures the sender sees the message immediately correctly

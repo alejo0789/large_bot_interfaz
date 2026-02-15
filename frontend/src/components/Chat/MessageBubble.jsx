@@ -6,7 +6,9 @@ import { CheckCheck, Clock, Download, FileText, Image as ImageIcon, Mic, Share }
  */
 const MessageBubble = ({ message, onForward }) => {
     const { text, timestamp, status } = message;
-    const sender = message.sender || message.sender_type;
+    const rawSender = message.sender || message.sender_type || 'customer';
+    const sender = String(rawSender).toLowerCase().trim();
+
     const media_type = message.media_type || message.mediaType;
     let media_url = message.media_url || message.mediaUrl;
 
@@ -18,14 +20,24 @@ const MessageBubble = ({ message, onForward }) => {
     const [imageError, setImageError] = useState(false);
     const [showFullImage, setShowFullImage] = useState(false);
 
-    const isOutgoing = sender === 'agent' || sender === 'bot' || sender === 'me' || sender === 'ai';
-    const isBot = sender === 'bot' || sender === 'ai';
-    const isAgent = sender === 'agent' || sender === 'me';
+    // Identify if message is outgoing (from the business/bot)
+    // Be broad to catch variations in naming (agent, bot, system, me, ai, etc.)
+    const isBot = sender.includes('bot') || sender.includes('ai');
+    const isAgent = sender.includes('agent') || sender.includes('agente') || sender === 'me' || sender === 'yo';
+    const isSystem = sender.includes('system') || sender.includes('sistema') || sender.includes('admin');
+
+    const isOutgoing = isAgent || isBot || isSystem;
 
     const getMessageClass = () => {
-        if (isAgent) return 'message outgoing agent';
-        if (isBot) return 'message outgoing bot';
-        return 'message incoming';
+        let classes = ['message'];
+        if (isOutgoing) classes.push('outgoing');
+        else classes.push('incoming');
+
+        if (isAgent) classes.push('agent');
+        if (isBot) classes.push('bot');
+        if (isSystem) classes.push('system');
+
+        return classes.join(' ');
     };
 
     const getStatusIcon = () => {
