@@ -1,0 +1,714 @@
+{
+  "name": "Chat_service_MULTIMEDIA_GEMINI",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "2afec38c-8a97-49e7-a4e2-9ccda2751cb2",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2.1,
+      "position": [
+        -960,
+        400
+      ],
+      "id": "05904052-11a7-48de-bb9a-e8680e7447bf",
+      "name": "Webhook",
+      "webhookId": "2afec38c-8a97-49e7-a4e2-9ccda2751cb2"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Detectar y procesar el tipo de media\nconst body = $json.body || $json;\nconst mediaType = body.media_type || 'text';\nconst mediaUrl = body.media_url || '';\nconst phone = body.phone || '';\nconst name = body.name || '';\nconst message = body.message || '';\nconst timestamp = body.timestamp || new Date().toISOString();\n\nlet processedData = {\n  phone,\n  name,\n  message,\n  timestamp,\n  media_type: mediaType,\n  media_url: mediaUrl,\n  has_media: mediaType !== 'text' && mediaType !== '' && mediaUrl !== ''\n};\n\n// Si es audio, extraer el base64 y mime type\nif (mediaType === 'audio' && mediaUrl) {\n  if (mediaUrl.startsWith('data:')) {\n    const matches = mediaUrl.match(/^data:([^;]+);base64,(.+)$/);\n    if (matches) {\n      processedData.audio_mime_type = matches[1];\n      processedData.audio_base64 = matches[2];\n    }\n  }\n}\n\n// Si es imagen, extraer base64 y mime type\nif (mediaType === 'image' && mediaUrl) {\n  if (mediaUrl.startsWith('data:')) {\n    const matches = mediaUrl.match(/^data:([^;]+);base64,(.+)$/);\n    if (matches) {\n      processedData.image_mime_type = matches[1];\n      processedData.image_base64 = matches[2];\n    }\n  }\n  processedData.image_data = mediaUrl;\n}\n\n// Determinar ruta\nlet route = 'text';\nif (mediaType === 'audio') route = 'audio';\nelse if (mediaType === 'image') route = 'image';\nelse if (mediaType === 'video' || mediaType === 'document') route = 'unsupported';\n\nprocessedData.route = route;\n\nreturn [{ json: processedData }];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -720,
+        400
+      ],
+      "id": "dc80d1cc-5d3c-4722-b15b-c613a84278ab",
+      "name": "Procesar Media Entrante"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "leftValue": "={{ $json.route }}",
+              "rightValue": "audio",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        -384,
+        352
+      ],
+      "id": "bc6aeb96-d2a2-471e-9be7-97784389978e",
+      "name": "Es Audio?"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "leftValue": "={{ $json.route }}",
+              "rightValue": "image",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        -208,
+        448
+      ],
+      "id": "3dcf4ea1-35a8-4ade-bcc9-2192327ae829",
+      "name": "Es Imagen?"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "leftValue": "={{ $json.route }}",
+              "rightValue": "unsupported",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              },
+              "id": "fa781327-e01b-4ef2-a906-babfcc444989"
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        0,
+        608
+      ],
+      "id": "b4cf7827-1ab5-42f9-88a7-adb2e2f9339f",
+      "name": "Es No Soportado?"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpQueryAuth",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"contents\": [\n    {\n      \"parts\": [\n        {\n          \"inline_data\": {\n            \"mime_type\": \"{{ $json.audio_mime_type }}\",\n            \"data\": \"{{ $json.audio_base64 }}\"\n          }\n        },\n        {\n          \"text\": \"Transcribe este audio en español. Solo devuelve la transcripción exacta, sin comentarios adicionales ni explicaciones.\"\n        }\n      ]\n    }\n  ],\n  \"generationConfig\": {\n    \"temperature\": 0.1,\n    \"maxOutputTokens\": 2048\n  }\n}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        -672,
+        32
+      ],
+      "id": "c427eb7e-fe35-436e-94f6-2ca49a420ce0",
+      "name": "Gemini Transcribir Audio"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Extraer transcripción de la respuesta de Gemini\nlet transcription = '';\n\ntry {\n  if ($json.candidates && $json.candidates[0] && $json.candidates[0].content) {\n    transcription = $json.candidates[0].content.parts[0].text || '';\n  }\n} catch (e) {\n  transcription = 'No se pudo transcribir el audio';\n}\n\nconst originalData = $('Es Audio?').first().json;\n\nreturn [{\n  json: {\n    phone: originalData.phone,\n    name: originalData.name,\n    timestamp: originalData.timestamp,\n    media_type: 'audio',\n    original_message: originalData.message,\n    transcription: transcription.trim(),\n    ai_message: `[Nota de voz transcrita]: ${transcription.trim()}`,\n    unsupported_media: false\n  }\n}];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        288,
+        0
+      ],
+      "id": "60b06fc0-6258-46d4-a5a2-75f014df1f60",
+      "name": "Extraer Transcripcion"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpQueryAuth",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"contents\": [\n    {\n      \"parts\": [\n        {\n          \"inline_data\": {\n            \"mime_type\": \"{{ $json.image_mime_type }}\",\n            \"data\": \"{{ $json.image_base64 }}\"\n          }\n        },\n        {\n          \"text\": \"Describe brevemente esta imagen en español. Si es una foto de cabello, describe su estado, color, textura y cualquier tratamiento visible. Si es otra cosa, describe lo que ves.\"\n        }\n      ]\n    }\n  ],\n  \"generationConfig\": {\n    \"temperature\": 0.3,\n    \"maxOutputTokens\": 500\n  }\n}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        288,
+        288
+      ],
+      "id": "c2305b0a-9287-4637-b0c1-399406ba39a2",
+      "name": "Gemini Analizar Imagen"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Extraer descripción de imagen de Gemini\nlet imageDescription = '';\n\ntry {\n  if ($json.candidates && $json.candidates[0] && $json.candidates[0].content) {\n    imageDescription = $json.candidates[0].content.parts[0].text || '';\n  }\n} catch (e) {\n  imageDescription = 'No se pudo analizar la imagen';\n}\n\nconst originalData = $('Es Imagen?').first().json;\n\nreturn [{\n  json: {\n    phone: originalData.phone,\n    name: originalData.name,\n    timestamp: originalData.timestamp,\n    media_type: 'image',\n    original_message: originalData.message,\n    image_description: imageDescription.trim(),\n    ai_message: `[Imagen recibida - Análisis]: ${imageDescription.trim()}. Mensaje del usuario: ${originalData.message || 'sin mensaje'}`,\n    unsupported_media: false\n  }\n}];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        560,
+        288
+      ],
+      "id": "22c9f758-a394-4dcb-8b5e-1f533cc6a142",
+      "name": "Extraer Descripcion Imagen"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Para video y documentos - respuesta por defecto\nreturn [{\n  json: {\n    phone: $json.phone,\n    name: $json.name,\n    timestamp: $json.timestamp,\n    media_type: $json.media_type,\n    original_message: $json.message,\n    ai_message: $json.message,\n    unsupported_media: true,\n    default_response: `¡Hola hermosa! 🌿✨ Recibí tu ${$json.media_type === 'video' ? 'video' : 'documento'}, pero por el momento no puedo procesarlo. ¿Podrías contarme en texto o con una nota de voz qué necesitas? 💚🌸`\n  }\n}];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        288,
+        528
+      ],
+      "id": "fcc16ab7-9d34-4d8a-8b58-9eb5d43e4b56",
+      "name": "Media No Soportada"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Texto normal sin media\nreturn [{\n  json: {\n    phone: $json.phone,\n    name: $json.name,\n    timestamp: $json.timestamp,\n    media_type: 'text',\n    original_message: $json.message,\n    ai_message: $json.message,\n    unsupported_media: false\n  }\n}];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        288,
+        720
+      ],
+      "id": "c903c3dc-7e43-4758-94b6-1078e19bf390",
+      "name": "Texto Normal"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "leftValue": "={{ $json.unsupported_media }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "true"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        880,
+        400
+      ],
+      "id": "ffebfb09-84dc-44cf-aca3-f5f8e998abc4",
+      "name": "Es Media No Soportada?"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Usar respuesta predefinida para media no soportada\nreturn [{\n  json: {\n    output: $json.default_response,\n    phone: $json.phone,\n    name: $json.name,\n    media_type: $json.media_type\n  }\n}];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1168,
+        288
+      ],
+      "id": "05996233-898c-4675-ab63-7f1f9f09161b",
+      "name": "Respuesta por Defecto"
+    },
+    {
+      "parameters": {
+        "promptType": "define",
+        "text": "={{ $json.ai_message }}",
+        "options": {
+          "systemMessage": "# IDENTIDAD Y PERSONALIDAD\nEres una asistente virtual del Club de Alisados Large, tu función principal es tratar de persuadir a las personas para agendar citas y resolver las dudas con la información oficial. Tu personalidad es:\n\n- **Cálida y profesional**: Siempre cordial y amigable\n- **Palabras clave solo usas de vez en cuando**: \"hermosa\", \"querida\", \"princesa\"\n- **Emojis apropiados**: 🌿💚🌸✨💆‍♀️💫🃏⭐🌺 (usa 2-3 por mensaje)\n\n## Saludo estándar:\n¡Hola hermosa! 🌿✨\nbienvenida con mucho cariño a la familia Large cali 💚🌸\n¡Aquí cuidamos tu cabello con lo mejor de la naturaleza! 🃏💆‍♀️\n¿En qué puedo ayudarte hoy? 💫\n\n# MANEJO DE MULTIMEDIA\n\n## Cuando recibes [Nota de voz transcrita]:\n- La transcripción viene después de los dos puntos\n- Responde naturalmente al contenido transcrito\n- NO menciones que fue una nota de voz, responde como si fuera texto normal\n\n## Cuando recibes [Imagen recibida - Análisis]:\n- El análisis de la imagen viene después de los dos puntos\n- Usa esa información para dar recomendaciones personalizadas\n- Si es una foto de cabello, comenta sobre su estado y ofrece tratamientos específicos\n- NO digas \"según el análisis\" o \"la imagen muestra\", habla naturalmente\n\n# ESTILO DE COMUNICACIÓN\n- Ser cálida, profesional y cercana\n- Usar frases breves y preguntas claras\n- Incluir 2-3 emojis por mensaje\n- NUNCA digas \"voy a consultar\" o \"déjame verificar\""
+        }
+      },
+      "type": "@n8n/n8n-nodes-langchain.agent",
+      "typeVersion": 2.1,
+      "position": [
+        1168,
+        528
+      ],
+      "id": "70deda0f-c7fd-45d4-bca6-3d9897e70e0c",
+      "name": "AI Agent Principal"
+    },
+    {
+      "parameters": {
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.lmChatGoogleGemini",
+      "typeVersion": 1,
+      "position": [
+        800,
+        736
+      ],
+      "id": "35898d3f-4970-47f8-ab17-2fc7ccff13ab",
+      "name": "Google Gemini Chat Model",
+      "credentials": {
+        "googlePalmApi": {
+          "id": "CDjIjnAjMCpD3jc9",
+          "name": "Google Gemini(PaLM) Api account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "sessionIdType": "customKey",
+        "sessionKey": "={{ $json.phone }}"
+      },
+      "type": "@n8n/n8n-nodes-langchain.memoryBufferWindow",
+      "typeVersion": 1.3,
+      "position": [
+        960,
+        736
+      ],
+      "id": "9c2871b5-17e7-41cd-b582-7b591019c07a",
+      "name": "Memory por Telefono"
+    },
+    {
+      "parameters": {
+        "jsCode": "const output = $('AI Agent Principal').first().json.output;\nlet result;\nif (Array.isArray(output)) {\n  result = output[0];\n} else {\n  result = output;\n}\n\nconst originalData = $('Es Media No Soportada?').first().json;\n\nreturn [{\n  json: {\n    output: result,\n    phone: originalData.phone,\n    name: originalData.name,\n    media_type: originalData.media_type\n  }\n}];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1488,
+        528
+      ],
+      "id": "36fab4a5-9421-4b4c-9ba6-64bb6c93d444",
+      "name": "Limpiar Output AI"
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ { \"success\": true, \"response\": $json.output, \"phone\": $json.phone, \"media_type\": $json.media_type } }}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.5,
+      "position": [
+        2000,
+        400
+      ],
+      "id": "0806efca-f810-4141-9849-ba7afc852898",
+      "name": "Respond to Webhook"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://largebotinterfaz-production-5b38.up.railway.app/webhook/receive-message",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"phone\": \"{{ $json.phone }}\",\n  \"contact_name\": \"{{ $json.name }}\",\n  \"message\": {{ JSON.stringify($json.output) }},\n  \"whatsapp_id\": \"bot_{{ Date.now() }}_{{ Math.floor(Math.random() * 1000) }}\",\n  \"sender_type\": \"bot\",\n  \"timestamp\": \"{{ $now.toISO() }}\",\n  \"media_type\": \"{{ $json.media_type }}\"\n}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        2000,
+        608
+      ],
+      "id": "4a2965ea-1f10-4dfb-bfb1-28bff4e6da56",
+      "name": "Guardar Respuesta en Backend"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Merge final - preparar para respuesta\nconst data = $json;\n\nreturn [{\n  json: {\n    output: data.output,\n    phone: data.phone,\n    name: data.name,\n    media_type: data.media_type\n  }\n}];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1760,
+        400
+      ],
+      "id": "51047838-7088-49dc-9e77-36121240f1f0",
+      "name": "Preparar Respuesta Final"
+    },
+    {
+      "parameters": {
+        "resource": "audio",
+        "modelId": {
+          "__rl": true,
+          "value": "models/gemini-flash-latest",
+          "mode": "list",
+          "cachedResultName": "models/gemini-flash-latest"
+        },
+        "inputType": "binary",
+        "binaryPropertyName": "={{ $json.audio_base64 }}",
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.googleGemini",
+      "typeVersion": 1,
+      "position": [
+        -80,
+        160
+      ],
+      "id": "c89b2d0d-8122-4918-93a4-2c53ee3c72cf",
+      "name": "Transcribe a recording",
+      "credentials": {
+        "googlePalmApi": {
+          "id": "CDjIjnAjMCpD3jc9",
+          "name": "Google Gemini(PaLM) Api account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "mode": "retrieve-as-tool",
+        "tableName": {
+          "__rl": true,
+          "mode": "list",
+          "value": ""
+        },
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.vectorStoreSupabase",
+      "typeVersion": 1.3,
+      "position": [
+        1616,
+        624
+      ],
+      "id": "11b9027b-792b-4bde-9e5f-e350bbb6cf05",
+      "name": "Supabase Vector Store"
+    },
+    {
+      "parameters": {
+        "mode": "retrieve-as-tool",
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.vectorStorePGVector",
+      "typeVersion": 1.3,
+      "position": [
+        1712,
+        720
+      ],
+      "id": "dc234a47-c98a-4a17-bbf2-82127a4819b2",
+      "name": "Postgres PGVector Store"
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "Webhook": {
+      "main": [
+        [
+          {
+            "node": "Procesar Media Entrante",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Procesar Media Entrante": {
+      "main": [
+        [
+          {
+            "node": "Es Audio?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Es Audio?": {
+      "main": [
+        [
+          {
+            "node": "Transcribe a recording",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Es Imagen?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Es Imagen?": {
+      "main": [
+        [],
+        [
+          {
+            "node": "Es No Soportado?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Es No Soportado?": {
+      "main": [
+        [
+          {
+            "node": "Media No Soportada",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Texto Normal",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Gemini Transcribir Audio": {
+      "main": [
+        []
+      ]
+    },
+    "Extraer Transcripcion": {
+      "main": [
+        [
+          {
+            "node": "Es Media No Soportada?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Gemini Analizar Imagen": {
+      "main": [
+        [
+          {
+            "node": "Extraer Descripcion Imagen",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Extraer Descripcion Imagen": {
+      "main": [
+        [
+          {
+            "node": "Es Media No Soportada?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Media No Soportada": {
+      "main": [
+        [
+          {
+            "node": "Es Media No Soportada?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Texto Normal": {
+      "main": [
+        [
+          {
+            "node": "Es Media No Soportada?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Es Media No Soportada?": {
+      "main": [
+        [
+          {
+            "node": "Respuesta por Defecto",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "AI Agent Principal",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Respuesta por Defecto": {
+      "main": [
+        [
+          {
+            "node": "Preparar Respuesta Final",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "AI Agent Principal": {
+      "main": [
+        [
+          {
+            "node": "Limpiar Output AI",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Google Gemini Chat Model": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "AI Agent Principal",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Memory por Telefono": {
+      "ai_memory": [
+        [
+          {
+            "node": "AI Agent Principal",
+            "type": "ai_memory",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Limpiar Output AI": {
+      "main": [
+        [
+          {
+            "node": "Preparar Respuesta Final",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Preparar Respuesta Final": {
+      "main": [
+        [
+          {
+            "node": "Respond to Webhook",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Guardar Respuesta en Backend",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Transcribe a recording": {
+      "main": [
+        [
+          {
+            "node": "Extraer Transcripcion",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Supabase Vector Store": {
+      "ai_tool": [
+        [
+          {
+            "node": "AI Agent Principal",
+            "type": "ai_tool",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Postgres PGVector Store": {
+      "ai_tool": [
+        [
+          {
+            "node": "AI Agent Principal",
+            "type": "ai_tool",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "versionId": "c617fcf7-9543-49ec-8d16-54199451772a",
+  "meta": {
+    "templateCredsSetupCompleted": true,
+    "instanceId": "9d3dca8d6aa02f6d8b93cec87b44e118adc566c8aef43c67bbf89a4968e8773f"
+  },
+  "id": "we3WL1bELedaweYQ",
+  "tags": []
+}

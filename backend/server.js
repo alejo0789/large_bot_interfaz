@@ -8,6 +8,7 @@ require('dotenv').config();
 // --- CONFIGURACIÓN ---
 const app = express();
 const server = http.createServer(app);
+const evolutionService = require('./src/services/evolutionService');
 const io = socketIo(server, {
   cors: {
     origin: process.env.FRONTEND_URL || "http://localhost:3000",
@@ -435,6 +436,22 @@ app.post('/receive-message', async (req, res) => {
 
     console.log('📤 Emitiendo mensaje al frontend:', messageData);
     io.emit('new-message', messageData);
+
+    // --- ENVIAR A WHATSAPP (EVOLUTION API) ---
+    // Si el mensaje es del bot o IA, enviarlo al usuario final
+    if (sender_type === 'bot' || sender_type === 'ai') {
+      console.log(`🤖 Intentando enviar respuesta de IA a ${cleanPhone}...`);
+      try {
+        const result = await evolutionService.sendText(cleanPhone, message);
+        if (result && result.success) {
+          console.log(`✅ Mensaje de IA enviado exitosamente a WhatsApp (${cleanPhone})`);
+        } else {
+          console.error(`❌ Error al enviar mensaje de IA a ${cleanPhone}:`, result ? result.error : 'Respuesta vacía');
+        }
+      } catch (evoError) {
+        console.error('❌ Error fatal en el servicio de Evolution:', evoError.message);
+      }
+    }
 
     // ✅ RESPUESTA AL WEBHOOK
     res.json({
