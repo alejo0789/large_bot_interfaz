@@ -85,7 +85,10 @@ router.post('/receive-message', asyncHandler(async (req, res) => {
     // --- DETECCIÓN AUTOMÁTICA DE IMÁGENES POR ID ---
     // Si es un mensaje del bot y tiene el tag [ID: uuid], buscamos la imagen
     if ((isBot || isAgent) && message) {
-        const idMatch = message.match(/\[ID:\s*([0-9a-fA-F-]{36})\]/i);
+        console.log(`🤖 AI Message Content (Raw): "${message}"`);
+        // Regex flexible para ID con o sin corchetes
+        // Match [ID: uuid] OR ID: uuid
+        const idMatch = message.match(/(?:\[ID:\s*|ID:\s*)([0-9a-fA-F-]{36})(?:\])?/i);
         if (idMatch) {
             const contextId = idMatch[1];
 
@@ -107,7 +110,7 @@ router.post('/receive-message', asyncHandler(async (req, res) => {
                          WHERE phone = $1 
                          AND media_url = $2 
                          AND (sender = 'bot' OR sender = 'ai') 
-                         AND timestamp > NOW() - INTERVAL '24 hours'
+                         AND timestamp > NOW() - INTERVAL '1 minute'
                          LIMIT 1`,
                         [dbPhone, candidateUrl]
                     );

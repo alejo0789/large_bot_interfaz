@@ -90,9 +90,18 @@ router.get('/', async (req, res, next) => {
 const fetch = (...args) => import('node-fetch').then(({ default: fetch }) => fetch(...args));
 
 // Función para generar embeddings automáticamente
+// Función para generar embeddings automáticamente
 async function getEmbedding(text) {
     const API_KEY = process.env.GOOGLE_AI_API_KEY;
-    if (!API_KEY) return null;
+    if (!API_KEY) {
+        console.error('❌ Error: GOOGLE_AI_API_KEY no configurada');
+        return null;
+    }
+
+    if (!text || !text.trim()) {
+        console.warn('⚠️ Texto vacío para embedding, omitiendo...');
+        return null;
+    }
 
     try {
         const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-embedding-001:embedContent?key=${API_KEY}`;
@@ -104,7 +113,14 @@ async function getEmbedding(text) {
                 output_dimensionality: 3072
             })
         });
+
         const data = await response.json();
+
+        if (!response.ok) {
+            console.error(`❌ Google API Error: ${data.error?.message || response.statusText}`);
+            return null;
+        }
+
         return data.embedding ? `[${data.embedding.values.join(',')}]` : null;
     } catch (err) {
         console.error('❌ Error generando embedding automático:', err.message);
@@ -131,7 +147,8 @@ router.post('/upload', upload.single('file'), async (req, res, next) => {
         const keywordArray = keywords ? (Array.isArray(keywords) ? keywords : keywords.split(',').map(k => k.trim())) : [];
 
         // Generar embedding automático del contenido/descripción
-        const embedding = await getEmbedding(`${title || ''} ${description || ''}`);
+        const embeddingText = `${title || ''} ${description || ''}`.trim();
+        const embedding = await getEmbedding(embeddingText);
 
         const query = `
             INSERT INTO ai_knowledge 
@@ -179,8 +196,9 @@ router.post('/text', upload.single('file'), async (req, res, next) => {
         const keywordArray = keywords ? (Array.isArray(keywords) ? keywords : keywords.split(',').map(k => k.trim())) : [];
 
         // Generar embedding automático (Título + Contenido)
-        console.log(`🧬 Generando embedding automático para: ${title}`);
-        const embedding = await getEmbedding(`${title} ${content}`);
+        const embeddingText = `${title || ''} ${content || ''}`.trim();
+        console.log(`🧬 Generando embedding automático para: ${title || 'Sin título'}`);
+        const embedding = await getEmbedding(embeddingText);
 
         const query = `
             INSERT INTO ai_knowledge 
@@ -253,8 +271,9 @@ router.put('/:id', upload.single('file'), async (req, res, next) => {
         // Re-generar embedding si cambió el contenido o título
         let embedding = oldResource.embedding;
         if (content !== oldResource.content || title !== oldResource.title) {
-            console.log(`🧬 Re-generando embedding para actualización: ${title}`);
-            embedding = await getEmbedding(`${title || ''} ${content || ''}`);
+            console.log(`🧬 Re-generando embedding para actualización: ${title || 'Sin título'}`);
+            const embeddingText = `${title || ''} ${content || ''}`.trim();
+            embedding = await getEmbedding(embeddingText);
         }
 
         const query = `

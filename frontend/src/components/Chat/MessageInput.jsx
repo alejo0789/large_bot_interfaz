@@ -109,8 +109,8 @@ const MessageInput = ({ onSend, onSendFile, disabled, isMobile }) => {
     };
 
     const filteredReplies = quickReplies.filter(qr =>
-        qr.shortcut.toLowerCase().includes(quickReplyFilter) ||
-        qr.content.toLowerCase().includes(quickReplyFilter)
+        qr.shortcut.toLowerCase().startsWith(quickReplyFilter) ||
+        qr.content.toLowerCase().startsWith(quickReplyFilter)
     );
 
     // Voice recording state
