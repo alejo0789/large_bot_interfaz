@@ -413,6 +413,37 @@ class ConversationService {
         );
         return rows[0];
     }
+    /**
+     * Get or create a conversation
+     */
+    async getOrCreate(phone) {
+        // Try to get existing
+        const { rows } = await pool.query('SELECT * FROM conversations WHERE phone = $1', [phone]);
+
+        if (rows.length > 0) {
+            // Fetch tags for consistency
+            const tagsQuery = `
+                SELECT json_agg(json_build_object('id', t.id, 'name', t.name, 'color', t.color)) as tags
+                FROM tags t
+                JOIN conversation_tags ct ON t.id = ct.tag_id
+                WHERE ct.conversation_phone = $1
+            `;
+            const tagsRes = await pool.query(tagsQuery, [phone]);
+            rows[0].tags = tagsRes.rows[0].tags || [];
+            return rows[0];
+        }
+
+        // Create new
+        const insertQuery = `
+            INSERT INTO conversations (phone, contact_name, status, created_at, updated_at, ai_enabled, unread_count, conversation_state)
+            VALUES ($1, $1, 'active', NOW(), NOW(), true, 0, 'ai_active')
+            RETURNING *
+        `;
+        const result = await pool.query(insertQuery, [phone]);
+        const newConv = result.rows[0];
+        newConv.tags = [];
+        return newConv;
+    }
 }
 
 module.exports = new ConversationService();

@@ -16,6 +16,8 @@ import MessageInput from './components/Chat/MessageInput';
 import TagManager from './components/Tags/TagManager';
 import BulkMessageModal from './components/BulkMessaging/BulkMessageModal';
 import N8NTestChat from './components/Testing/N8NTestChat';
+import EditContactModal from './components/Sidebar/EditContactModal';
+import NewChatModal from './components/Sidebar/NewChatModal';
 import SettingsModal from './components/Settings/SettingsModal';
 import MainLayout from './components/MainLayout';
 import AIArea from './components/AI/AIArea';
@@ -588,6 +590,44 @@ const AuthenticatedApp = () => {
         }
     }, [isMobile]);
 
+    const [showNewChat, setShowNewChat] = useState(false);
+
+    const handleStartNewChat = async (phone) => {
+        // Build API URL
+        let apiUrl = '/api';
+        if (process.env.REACT_APP_API_URL) apiUrl = process.env.REACT_APP_API_URL;
+        else if (window.location.hostname !== 'localhost') apiUrl = 'https://largebotinterfaz-production-5b38.up.railway.app';
+
+        if (apiUrl.endsWith('/')) apiUrl = apiUrl.slice(0, -1);
+
+        // Fix double /api if present in base URL or constructed URL
+        const finalUrl = apiUrl.includes('/api') ? `${apiUrl}/conversations/start-new` : `${apiUrl}/api/conversations/start-new`;
+        const cleanUrl = finalUrl.replace(/([^:]\/)\/+/g, "$1");
+
+        const res = await fetch(cleanUrl, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ phone })
+        });
+
+        const data = await res.json();
+
+        if (!res.ok) {
+            throw new Error(data.message || 'Error al verificar número');
+        }
+
+        const newConv = data.conversation;
+
+        // Select conversation (will trigger open chat)
+        // If it's not in the list, we might need to refresh or manually add it
+        // Ideally fetchConversations should pick it up if we refresh, or we optimistically add it.
+        // Let's reload conversations to be safe and ensure consistent state
+        await fetchConversations();
+
+        selectConversation(newConv);
+        if (isMobile) setShowSidebar(false);
+    };
+
     return (
         <MainLayout
             activeTab={activeTab}
@@ -638,11 +678,35 @@ const AuthenticatedApp = () => {
                         </div>
                     </div>
 
-                    {/* Search */}
-                    <SearchBar
-                        value={searchQuery}
-                        onChange={setSearchQuery}
-                    />
+                    {/* Search & New Chat */}
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px', paddingRight: '12px' }}>
+                        <div style={{ flex: 1 }}>
+                            <SearchBar
+                                value={searchQuery}
+                                onChange={setSearchQuery}
+                            />
+                        </div>
+                        <button
+                            className="btn-icon"
+                            title="Nuevo Chat / Verificar WhatsApp"
+                            onClick={() => setShowNewChat(true)}
+                            style={{
+                                backgroundColor: 'var(--color-primary)',
+                                color: 'white',
+                                width: '36px',
+                                height: '36px',
+                                borderRadius: '50%',
+                                display: 'flex',
+                                alignItems: 'center',
+                                justifyContent: 'center',
+                                boxShadow: '0 2px 5px rgba(0,0,0,0.15)',
+                                border: 'none',
+                                cursor: 'pointer'
+                            }}
+                        >
+                            <UserPlus className="w-5 h-5" />
+                        </button>
+                    </div>
 
                     {/* Tag Filter */}
                     <TagFilter
@@ -839,9 +903,15 @@ const AuthenticatedApp = () => {
                         </div>
                     )}
                 </div>
-
-                {/* Modals */}
             </div >
+
+            {showNewChat && (
+                <NewChatModal
+                    isOpen={showNewChat}
+                    onClose={() => setShowNewChat(false)}
+                    onStartChat={handleStartNewChat}
+                />
+            )}
 
             {/* Modals - Moved outside app-container to be visible in all tabs */}
             <TagManager

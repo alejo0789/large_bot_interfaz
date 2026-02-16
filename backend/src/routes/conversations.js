@@ -229,5 +229,37 @@ router.put('/update-contact-name', asyncHandler(async (req, res) => {
     res.json({ success: true, conversation });
 }));
 
+// Start new conversation (check whatsapp first)
+router.post('/start-new', asyncHandler(async (req, res) => {
+    let { phone } = req.body;
+
+    if (!phone) throw new AppError('Teléfono requerido', 400);
+
+    // Clean phone for Evolution check
+    // Evolution API expects numbers without + or special chars
+    const cleanPhone = phone.replace(/\D/g, '');
+
+    // Check Evolution
+    const evolutionService = require('../services/evolutionService');
+    const check = await evolutionService.checkNumber(cleanPhone);
+
+    if (!check || !check.exists) {
+        return res.status(404).json({
+            success: false,
+            message: 'El número no tiene WhatsApp o no es válido.'
+        });
+    }
+
+    // Use the JID from Evolution to get the correct standard number
+    let finalPhone = check.jid ? check.jid.split('@')[0] : cleanPhone;
+
+    // Ideally we should check if DB uses '+'. Assuming standard format without '+' for now based on Evolution integration.
+    // If your DB uses '+', prepend it here: finalPhone = '+' + finalPhone;
+
+    const conversation = await conversationService.getOrCreate(finalPhone);
+
+    res.json({ success: true, conversation });
+}));
+
 module.exports = router;
 

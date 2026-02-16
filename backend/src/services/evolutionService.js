@@ -357,6 +357,48 @@ class EvolutionService {
             return null;
         }
     }
+    /**
+     * Check if a number is registered on WhatsApp
+     * Using /chat/whatsappNumbers/{instance} endpoint
+     */
+    async checkNumber(phone) {
+        try {
+            // Clean number (only digits)
+            const cleanNumber = phone.replace(/\D/g, '');
+            const url = `${this.baseUrl}/chat/whatsappNumbers/${this.instance}`;
+
+            console.log(`🔍 Checking WhatsApp number in Evolution: ${url} -> ${cleanNumber}`);
+
+            const response = await fetch(url, {
+                method: 'POST',
+                headers: {
+                    'apikey': this.apiKey,
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({
+                    "numbers": [cleanNumber]
+                })
+            });
+
+            if (!response.ok) {
+                console.warn(`⚠️ API Error checking number: ${response.status}`);
+                return false;
+            }
+
+            const data = await response.json();
+            // Expected: [{ "exists": true, "jid": "57315...@s.whatsapp.net" }]
+
+            if (Array.isArray(data) && data.length > 0) {
+                return data[0]; // Return full object {exists, jid}
+            }
+
+            return false;
+
+        } catch (error) {
+            console.error('❌ Error checking WhatsApp number:', error);
+            return false;
+        }
+    }
 }
 
 module.exports = new EvolutionService();
