@@ -173,17 +173,29 @@ const MessageBubble = ({ message, onForward }) => {
         }
     };
 
-    // Simple markdown-like formatter for bold text
+    // Updated formatter to handle bold and newlines explicitly
     const formatText = (content) => {
         if (!content) return content;
 
+        // Convert to string just in case
+        const textStr = String(content);
+
         // Handle bold: **text**
-        const parts = content.split(/(\*\*.*?\*\*)/g);
-        return parts.map((part, i) => {
+        const boldParts = textStr.split(/(\*\*.*?\*\*)/g);
+
+        return boldParts.map((part, i) => {
             if (part.startsWith('**') && part.endsWith('**')) {
-                return <strong key={i}>{part.slice(2, -2)}</strong>;
+                return <strong key={`b-${i}`}>{part.slice(2, -2)}</strong>;
             }
-            return part;
+
+            // For non-bold parts, handle newlines
+            const lineParts = part.split('\n');
+            return lineParts.map((line, j) => (
+                <React.Fragment key={`l-${i}-${j}`}>
+                    {line}
+                    {j < lineParts.length - 1 && <br />}
+                </React.Fragment>
+            ));
         });
     };
 
@@ -214,17 +226,13 @@ const MessageBubble = ({ message, onForward }) => {
                         )}
 
                         {renderMedia()}
-                        {text && !media_type && (
+                        {text && (
                             <p className="message-text" style={{
-                                padding: media_url ? 'var(--space-1) var(--space-2)' : undefined
-                            }}>
-                                {formatText(text)}
-                            </p>
-                        )}
-                        {text && media_type && (
-                            <p className="message-text" style={{
-                                padding: 'var(--space-1) var(--space-2)',
-                                fontSize: 'var(--font-size-sm)'
+                                padding: media_url ? 'var(--space-1) var(--space-2)' : undefined,
+                                fontSize: media_type ? 'var(--font-size-sm)' : undefined,
+                                overflowWrap: 'anywhere',
+                                wordBreak: 'normal',
+                                whiteSpace: 'pre-wrap'
                             }}>
                                 {formatText(text)}
                             </p>

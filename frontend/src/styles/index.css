@@ -241,6 +241,7 @@ body {
 .chat-messages {
   flex: 1;
   overflow-y: auto;
+  overflow-x: hidden;
   padding: var(--space-4);
   scrollbar-width: thin;
 }
@@ -438,8 +439,11 @@ body {
 
 .message-text {
   font-size: var(--font-size-sm);
-  line-height: 1.4;
+  line-height: 1.5;
   white-space: pre-wrap;
+  word-wrap: break-word;
+  overflow-wrap: break-word;
+  word-break: normal;
 }
 
 .message-meta {
