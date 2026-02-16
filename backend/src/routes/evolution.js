@@ -63,15 +63,32 @@ router.post('/', async (req, res) => {
             const numeric = remoteJid.split('@')[0].replace(/\D/g, '');
             const phone = (numeric.startsWith('57')) ? `+${numeric}` : numeric;
 
-            // Extract text for matching
+            // Extract text for matching (support both text and multimedia)
             let textToMatch = '';
-            if (msg.message?.conversation) textToMatch = msg.message.conversation;
-            else if (msg.message?.extendedTextMessage?.text) textToMatch = msg.message.extendedTextMessage.text;
+            let mediaTypeToMatch = null;
 
-            const cacheKey = `${phone}:${textToMatch.trim()}`;
+            if (msg.message?.conversation) {
+                textToMatch = msg.message.conversation;
+            } else if (msg.message?.extendedTextMessage?.text) {
+                textToMatch = msg.message.extendedTextMessage.text;
+            } else if (msg.message?.imageMessage) {
+                textToMatch = msg.message.imageMessage.caption || '';
+                mediaTypeToMatch = 'image';
+            } else if (msg.message?.videoMessage) {
+                textToMatch = msg.message.videoMessage.caption || '';
+                mediaTypeToMatch = 'video';
+            } else if (msg.message?.audioMessage) {
+                textToMatch = '🎤 Nota de voz';
+                mediaTypeToMatch = 'audio';
+            }
+
+            // Create cache key including media type for multimedia messages
+            const cacheKey = mediaTypeToMatch
+                ? `${phone}:${mediaTypeToMatch}:${textToMatch.trim()}`
+                : `${phone}:${textToMatch.trim()}`;
+
             if (global.recentAiMessages && global.recentAiMessages.has(cacheKey)) {
-                console.log(`♻️ Skipping webhook for recent AI message confirmation: ${cacheKey}`);
-                // Optional: Update status in DB here if we had the original temp ID
+                console.log(`♻️ Skipping webhook for recent AI ${mediaTypeToMatch || 'text'} message: ${cacheKey.substring(0, 50)}...`);
                 return res.sendStatus(200);
             }
         }
@@ -408,11 +425,16 @@ router.post('/', async (req, res) => {
                 }
 
                 // --- DE-DUPLICATION CACHE ---
-                // We store the content to ignore the next webhook confirmation for this exact message
+                // Store the content to ignore the next webhook confirmation
                 if (!global.recentAiMessages) global.recentAiMessages = new Set();
-                const cacheKey = `${phone}:${aiResponseText.trim()}`;
+
+                // Use same cache key format as the deduplication check
+                const cacheKey = finalMediaType
+                    ? `${phone}:${finalMediaType}:${cleanAiText.trim()}`
+                    : `${phone}:${aiResponseText.trim()}`;
+
                 global.recentAiMessages.add(cacheKey);
-                setTimeout(() => global.recentAiMessages.delete(cacheKey), 30000); // 30 sec window
+                setTimeout(() => global.recentAiMessages.delete(cacheKey), 30000);
 
                 // 1. Send via WhatsApp (Evolution API)
                 if (finalMediaUrl) {

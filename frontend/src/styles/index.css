@@ -241,9 +241,11 @@ body {
 .chat-messages {
   flex: 1;
   overflow-y: auto;
-  overflow-x: hidden;
+  overflow-x: hidden !important;
   padding: var(--space-4);
   scrollbar-width: thin;
+  max-width: 100%;
+  width: 100%;
 }
 
 .chat-input-container {
@@ -381,6 +383,8 @@ body {
   display: flex;
   margin-bottom: var(--space-2);
   width: 100%;
+  max-width: 100%;
+  overflow: hidden;
 }
 
 .message.outgoing {
@@ -396,7 +400,8 @@ body {
   display: flex;
   flex-direction: column;
   align-items: flex-start;
-  /* Default for incoming */
+  overflow: hidden;
+  min-width: 0;
 }
 
 .message.outgoing .message-container {
@@ -413,9 +418,11 @@ body {
   position: relative;
   word-wrap: break-word;
   overflow-wrap: anywhere;
-  word-break: normal;
+  word-break: break-word;
   display: flex;
   flex-direction: column;
+  overflow: hidden;
+  box-sizing: border-box;
 }
 
 .message.outgoing .message-bubble {
@@ -447,9 +454,10 @@ body {
   white-space: pre-wrap;
   word-wrap: break-word;
   overflow-wrap: anywhere;
-  word-break: normal;
+  word-break: break-word;
   max-width: 100%;
   margin: 0;
+  overflow: hidden;
 }
 
 .message-meta {

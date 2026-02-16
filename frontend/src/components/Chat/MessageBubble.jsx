@@ -234,7 +234,7 @@ const MessageBubble = ({ message, onForward }) => {
                                 padding: media_url ? 'var(--space-1) var(--space-2)' : undefined,
                                 fontSize: media_type ? 'var(--font-size-sm)' : undefined,
                                 overflowWrap: 'anywhere',
-                                wordBreak: 'normal',
+                                wordBreak: 'break-word',
                                 whiteSpace: 'pre-wrap',
                                 maxWidth: '100%'
                             }}>
