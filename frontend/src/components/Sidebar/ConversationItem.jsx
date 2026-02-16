@@ -64,6 +64,12 @@ const ConversationItem = React.memo(({
                 apiUrl = 'http://localhost:4000';
             }
 
+            // Fallback for PRODUCTION if env var is missing/not injected
+            else if ((!apiUrl || apiUrl === '/api') && window.location.hostname !== 'localhost') {
+                console.warn('⚠️ REACT_APP_API_URL not found in production, using fallback');
+                apiUrl = 'https://largebotinterfaz-production-5b38.up.railway.app';
+            }
+
             console.log('🔗 Updating Name using API:', apiUrl);
 
             // Remove trailing slash if present
