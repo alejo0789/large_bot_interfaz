@@ -237,7 +237,12 @@ router.post('/start-new', asyncHandler(async (req, res) => {
 
     // Clean phone for Evolution check
     // Evolution API expects numbers without + or special chars
-    const cleanPhone = phone.replace(/\D/g, '');
+    let cleanPhone = phone.replace(/\D/g, '');
+
+    // Auto-prefix 57 for Colombia (10 digits)
+    if (cleanPhone.length === 10) {
+        cleanPhone = '57' + cleanPhone;
+    }
 
     // Check Evolution
     const evolutionService = require('../services/evolutionService');

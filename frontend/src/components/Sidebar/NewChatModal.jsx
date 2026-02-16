@@ -24,8 +24,7 @@ const NewChatModal = ({ isOpen, onClose, onStartChat }) => {
         try {
             await onStartChat(cleanPhone); // Send clean phone
             setPhone('');
-            // Parent handles closing on success usually, but we can do it here if parent resolves
-            // However, parent might throw error, so we catch it.
+            onClose(); // Close modal on success
         } catch (err) {
             console.error(err);
             if (err.message && err.message.includes('404')) {

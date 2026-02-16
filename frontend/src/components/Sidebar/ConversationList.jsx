@@ -1,5 +1,6 @@
 import React, { useMemo, useRef, useEffect } from 'react';
 import ConversationItem from './ConversationItem';
+import { UserPlus } from 'lucide-react';
 
 /**
  * Conversation list component with infinite scroll
@@ -16,7 +17,8 @@ const ConversationList = React.memo(({
     onSelect,
     onTagClick,
     onLoadMore,
-    onRefresh
+    onRefresh,
+    onStartNewChat // New prop
 }) => {
     const listRef = useRef(null);
     const [refreshing, setRefreshing] = React.useState(false);
@@ -80,9 +82,23 @@ const ConversationList = React.memo(({
                     {searchQuery ? (
                         <>
                             <p>No se encontraron conversaciones</p>
-                            <p style={{ fontSize: 'var(--font-size-sm)', marginTop: 'var(--space-2)' }}>
-                                Intenta con otro término de búsqueda
-                            </p>
+
+                            {onStartNewChat && searchQuery.replace(/\D/g, '').length >= 7 && (
+                                <button
+                                    className="btn btn-primary"
+                                    style={{ marginTop: '16px', display: 'flex', alignItems: 'center', gap: '8px', margin: '16px auto' }}
+                                    onClick={() => onStartNewChat(searchQuery.replace(/\D/g, ''))}
+                                >
+                                    <UserPlus className="w-4 h-4" />
+                                    Iniciar chat con {searchQuery.replace(/\D/g, '')}
+                                </button>
+                            )}
+
+                            {(!onStartNewChat || searchQuery.replace(/\D/g, '').length < 7) && (
+                                <p style={{ fontSize: 'var(--font-size-sm)', marginTop: 'var(--space-2)' }}>
+                                    Intenta con otro término de búsqueda
+                                </p>
+                            )}
                         </>
                     ) : (
                         <>

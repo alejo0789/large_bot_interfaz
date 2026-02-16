@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { io } from 'socket.io-client';
-import { Tag, MessageSquare, Settings, RotateCw, Menu, EyeOff, UserPlus } from 'lucide-react';
+import { Tag, MessageSquare, Settings, RotateCw, Menu, EyeOff } from 'lucide-react';
 
 // Auth
 import { AuthProvider, useAuth } from './hooks/useAuth';
@@ -17,7 +17,6 @@ import TagManager from './components/Tags/TagManager';
 import BulkMessageModal from './components/BulkMessaging/BulkMessageModal';
 import N8NTestChat from './components/Testing/N8NTestChat';
 import EditContactModal from './components/Sidebar/EditContactModal';
-import NewChatModal from './components/Sidebar/NewChatModal';
 import SettingsModal from './components/Settings/SettingsModal';
 import MainLayout from './components/MainLayout';
 import AIArea from './components/AI/AIArea';
@@ -611,12 +610,25 @@ const AuthenticatedApp = () => {
         });
 
         const data = await res.json();
+        console.log("StartNewChat Response:", data);
 
         if (!res.ok) {
             throw new Error(data.message || 'Error al verificar número');
         }
 
-        const newConv = data.conversation;
+        const rawConv = data.conversation;
+        if (!rawConv) {
+            throw new Error('La API no devolvió los datos de la conversación.');
+        }
+
+        // Normalize structure for useConversations (needs contact object)
+        const newConv = {
+            ...rawConv,
+            contact: {
+                phone: rawConv.phone,
+                name: rawConv.contact_name || rawConv.phone
+            }
+        };
 
         // Select conversation (will trigger open chat)
         // If it's not in the list, we might need to refresh or manually add it
@@ -678,34 +690,12 @@ const AuthenticatedApp = () => {
                         </div>
                     </div>
 
-                    {/* Search & New Chat */}
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px', paddingRight: '12px' }}>
-                        <div style={{ flex: 1 }}>
-                            <SearchBar
-                                value={searchQuery}
-                                onChange={setSearchQuery}
-                            />
-                        </div>
-                        <button
-                            className="btn-icon"
-                            title="Nuevo Chat / Verificar WhatsApp"
-                            onClick={() => setShowNewChat(true)}
-                            style={{
-                                backgroundColor: 'var(--color-primary)',
-                                color: 'white',
-                                width: '36px',
-                                height: '36px',
-                                borderRadius: '50%',
-                                display: 'flex',
-                                alignItems: 'center',
-                                justifyContent: 'center',
-                                boxShadow: '0 2px 5px rgba(0,0,0,0.15)',
-                                border: 'none',
-                                cursor: 'pointer'
-                            }}
-                        >
-                            <UserPlus className="w-5 h-5" />
-                        </button>
+                    {/* Search */}
+                    <div style={{ paddingRight: '12px' }}>
+                        <SearchBar
+                            value={searchQuery}
+                            onChange={setSearchQuery}
+                        />
                     </div>
 
                     {/* Tag Filter */}
@@ -743,6 +733,7 @@ const AuthenticatedApp = () => {
                             const activeTagId = selectedTagIds.length === 1 ? selectedTagIds[0] : null;
                             loadMoreConversations(activeTagId, dateRange.start, dateRange.end);
                         }}
+                        onStartNewChat={handleStartNewChat}
                     />
 
                     {/* Resize handle - Desktop only */}
@@ -905,13 +896,7 @@ const AuthenticatedApp = () => {
                 </div>
             </div >
 
-            {showNewChat && (
-                <NewChatModal
-                    isOpen={showNewChat}
-                    onClose={() => setShowNewChat(false)}
-                    onStartChat={handleStartNewChat}
-                />
-            )}
+
 
             {/* Modals - Moved outside app-container to be visible in all tabs */}
             <TagManager
