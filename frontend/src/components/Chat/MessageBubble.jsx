@@ -137,7 +137,7 @@ const MessageBubble = ({ message, onForward }) => {
             case 'document':
             default:
                 if (media_url) {
-                    const fileName = text || media_url.split('/').pop();
+                    const fileName = media_url.split('/').pop() || 'file';
                     return (
                         <a
                             href={media_url}
