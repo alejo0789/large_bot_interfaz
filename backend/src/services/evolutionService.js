@@ -107,6 +107,16 @@ class EvolutionService {
      */
     async sendMedia(phone, mediaUrl, mediaType, caption, fileName) {
         try {
+            console.log(`📡 sendMedia called with:`, { phone, mediaUrl, mediaType, caption, fileName });
+
+            // Force valid mediaType locally just in case
+            let validMediaType = (mediaType || '').trim().toLowerCase();
+            const allowed = ['image', 'video', 'audio', 'document'];
+            if (!allowed.includes(validMediaType)) {
+                console.warn(`⚠️ Invalid mediaType passed to service: '${mediaType}'. Defaulting to 'document'.`);
+                validMediaType = 'document';
+            }
+
             const cleanNumber = phone.replace(/\D/g, '');
             const isJID = phone.includes('-') || phone.includes('@');
             const url = `${this.baseUrl}/message/sendMedia/${this.instance}`;
@@ -121,10 +131,10 @@ class EvolutionService {
             // Infer extension if missing from fileName
             let finalFileName = fileName || 'file';
             if (!finalFileName.includes('.')) {
-                if (mediaType === 'image') finalFileName += '.jpg';
-                else if (mediaType === 'video') finalFileName += '.mp4';
-                else if (mediaType === 'audio') finalFileName += '.mp3';
-                else if (mediaType === 'document') finalFileName += '.pdf';
+                if (validMediaType === 'image') finalFileName += '.jpg';
+                else if (validMediaType === 'video') finalFileName += '.mp4';
+                else if (validMediaType === 'audio') finalFileName += '.mp3';
+                else if (validMediaType === 'document') finalFileName += '.pdf';
             }
 
             const attempts = [
@@ -132,7 +142,7 @@ class EvolutionService {
                     name: 'standard (media + mediatype)',
                     body: {
                         number: isJID ? phone : cleanNumber,
-                        mediatype: mediaType,
+                        mediatype: validMediaType,
                         media: finalMediaUrl,
                         caption: caption || '',
                         fileName: finalFileName
@@ -142,7 +152,7 @@ class EvolutionService {
                     name: 'alternative (url + mediatype)',
                     body: {
                         number: isJID ? phone : cleanNumber,
-                        mediatype: mediaType,
+                        mediatype: validMediaType,
                         url: finalMediaUrl,
                         caption: caption || '',
                         fileName: finalFileName
@@ -152,7 +162,7 @@ class EvolutionService {
                     name: 'legacy (media + type)',
                     body: {
                         number: isJID ? phone : cleanNumber,
-                        type: mediaType,
+                        type: validMediaType,
                         media: finalMediaUrl,
                         caption: caption || '',
                         fileName: finalFileName
@@ -163,6 +173,8 @@ class EvolutionService {
             let lastError = null;
 
             for (const attempt of attempts) {
+                console.log(`🚀 Attempting Strategy [${attempt.name}]`);
+                console.log(`   Body:`, JSON.stringify(attempt.body));
                 console.log(`📡 Trying sendMedia strategy [${attempt.name}] to ${attempt.body.number}...`);
 
                 try {
