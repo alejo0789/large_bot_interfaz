@@ -50,19 +50,55 @@ const ConversationItem = React.memo(({
         try {
             // Encode + sign in phone number
             const encodedPhone = contact.phone.replace('+', '%2B');
+
+            // Robust API URL detection (CRA vs Vite)
             let apiUrl = '/api';
-            try {
-                if (import.meta && import.meta.env && import.meta.env.VITE_API_URL) {
-                    apiUrl = import.meta.env.VITE_API_URL;
+
+            // Check for CRA (Create React App) environment variables
+            if (typeof process !== 'undefined' && process.env && process.env.REACT_APP_API_URL) {
+                apiUrl = process.env.REACT_APP_API_URL;
+            }
+            // Check for Vite environment variables
+            else {
+                try {
+                    if (import.meta && import.meta.env && import.meta.env.VITE_API_URL) {
+                        apiUrl = import.meta.env.VITE_API_URL;
+                    }
+                } catch (e) {
+                    // Ignore, likely not Vite
                 }
-            } catch (e) {
-                // Ignore
             }
 
-            // Use relative path if proxy is set up or absolute if VITE_API_URL is defined
-            const url = `${apiUrl}/conversations/${encodedPhone}/name`;
+            // Remove trailing slash if present
+            if (apiUrl.endsWith('/')) apiUrl = apiUrl.slice(0, -1);
 
-            const res = await fetch(url.replace('//conversations', '/conversations'), { // Prevent double slash issues
+            // Construct full URL
+            // Note: If apiUrl already includes /api (like http://localhost:4000/api), we should be careful.
+            // But based on .env (http://localhost:4000), we probably need to append /api unless the var includes it.
+            // Let's assume the var is base URL.
+
+            // Actually, looking at .env: REACT_APP_API_URL=http://localhost:4000
+            // The routes are mounted at /api/conversations.
+            // So we need `${apiUrl}/api/conversations/...` IF apiUrl is just the host.
+            // BUT usually REACT_APP_API_URL includes /api in some setups.
+            // Let's check how other components do it. 
+            // For safety, I'll stick to the previous logic: apiUrl + endpoint.
+            // If apiUrl is http://localhost:4000, and endpoint is /conversations... wait.
+            // In App.js routes are mounted at /api/conversations.
+            // So URL should be http://localhost:4000/api/conversations/...
+
+            // Let's refine the URL construction
+            let finalUrl;
+            if (apiUrl.includes('/api')) {
+                finalUrl = `${apiUrl}/conversations/${encodedPhone}/name`;
+            } else {
+                finalUrl = `${apiUrl}/api/conversations/${encodedPhone}/name`;
+            }
+
+            // Fix double slashes just in case
+            finalUrl = finalUrl.replace(/([^:]\/)\/+/g, "$1");
+
+            const res = await fetch(finalUrl, {
                 method: 'PUT',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ name: editValue })
