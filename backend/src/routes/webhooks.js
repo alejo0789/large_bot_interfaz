@@ -81,16 +81,21 @@ router.post('/receive-message', asyncHandler(async (req, res) => {
             console.log(`🔍 Detectado ID de contexto: ${contextId}. Buscando imagen...`);
 
             try {
-                const result = await pool.query('SELECT media_url FROM ai_knowledge WHERE id = $1', [contextId]);
+                const result = await pool.query('SELECT media_url, type FROM ai_knowledge WHERE id = $1', [contextId]);
                 if (result.rows.length > 0 && result.rows[0].media_url) {
                     media_url = result.rows[0].media_url;
+
+                    // Si encontramos el tipo en la BD, lo usamos
+                    if (result.rows[0].type && result.rows[0].type !== 'text') {
+                        media_type = result.rows[0].type;
+                    }
 
                     // Si la URL es local, construir la URL absoluta para Evolution API
                     if (media_url.startsWith('/')) {
                         const baseUrl = process.env.BACKEND_URL || `${req.protocol}://${req.get('host')}`;
                         media_url = `${baseUrl}${media_url}`;
                     }
-                    console.log(`🖼️ Imagen encontrada vinculada al ID: ${media_url}`);
+                    console.log(`🖼️ Imagen encontrada vinculada al ID: ${media_url} (Tipo DB: ${result.rows[0].type})`);
                 }
 
                 // Limpiar el tag del mensaje para que el usuario no vea el código técnico
@@ -162,8 +167,19 @@ router.post('/receive-message', asyncHandler(async (req, res) => {
 
             if (media_url) {
                 // Si n8n o el sistema envían una URL, la usamos directamente
-                const type = media_type || (media_url.match(/\.(mp4|mov|avi)$/i) ? 'video' : 'image');
-                console.log(`🖼️ Enviando multimedia: ${media_url} (Tipo: ${type})`);
+                // Normalizar tipo de medio
+                let type = (media_type || '').trim().toLowerCase();
+
+                // Si viene como 'text' o vacío, intentar inferir por extensión
+                if (!type || type === 'text') {
+                    if (media_url.match(/\.(jpg|jpeg|png|gif|webp)$/i)) type = 'image';
+                    else if (media_url.match(/\.(mp4|avi|mov)$/i)) type = 'video';
+                    else if (media_url.match(/\.(mp3|ogg|wav)$/i)) type = 'audio';
+                    else if (media_url.match(/\.(pdf|doc|docx)$/i)) type = 'document';
+                    else type = 'image'; // Default a imagen si tiene URL pero no extensión conocida (más probable)
+                }
+
+                console.log(`🖼️ Enviando multimedia: ${media_url} (Tipo Original: ${media_type}, Final: ${type})`);
                 result = await evolutionService.sendMedia(purePhone, media_url, type, message);
             } else {
                 result = await evolutionService.sendText(purePhone, message);
