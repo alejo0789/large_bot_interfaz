@@ -22,20 +22,29 @@ const setSocketIO = (socketIO) => { io = socketIO; };
 const emitToConversation = (phone, event, data) => {
     if (!io) return;
 
-    // Emit to specific conversation room (clients viewing this chat)
-    io.to(`conversation:${phone}`).emit(event, data);
+    // Normalizar para asegurar entrega a ambos tipos de salas
+    const purePhone = phone.replace(/\D/g, '');
+    const dbPhone = purePhone.startsWith('57') ? `+${purePhone}` : purePhone;
+
+    // Emitir a la sala con + (formato DB)
+    io.to(`conversation:${dbPhone}`).emit(event, data);
+
+    // Emitir a la sala sin + (formato puro, común en frontend antiguo/específico)
+    if (dbPhone !== purePhone) {
+        io.to(`conversation:${purePhone}`).emit(event, data);
+    }
 
     // Emit to global conversations room (for updating conversation list)
     io.to('conversations:list').emit('conversation-updated', {
-        phone,
+        phone: dbPhone,
         lastMessage: data.message,
         timestamp: data.timestamp,
-        contact_name: data.contact_name, // Added for new conversations
+        contact_name: data.contact_name,
         unread: data.unread !== undefined ? data.unread : 1,
         isNew: data.isNew || false
     });
 
-    // Also emit globally for backward compatibility (will be deprecated)
+    // Also emit globally for backward compatibility
     io.emit('new-message', data);
 };
 
