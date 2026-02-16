@@ -111,7 +111,7 @@ router.post('/receive-message', asyncHandler(async (req, res) => {
                          WHERE conversation_phone = $1 
                          AND media_url = $2 
                          AND (sender = 'bot' OR sender = 'ai') 
-                         AND timestamp > NOW() - INTERVAL '1 minute'
+                         AND timestamp > NOW() - INTERVAL '12 hours'
                          LIMIT 1`,
                         [dbPhone, candidateUrl]
                     );
