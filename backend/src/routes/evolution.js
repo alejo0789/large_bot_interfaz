@@ -432,9 +432,22 @@ router.post('/', async (req, res) => {
                                     console.log(`   To: ${finalMediaUrl}`);
                                 }
 
-                                finalMediaType = resource.type === 'text' ? 'image' : resource.type;
+                                // Validate and normalize media type
+                                let rawType = (resource.type || '').trim().toLowerCase();
+                                if (rawType === 'text') rawType = 'image'; // Legacy: text with media_url is image
+
+                                // Allowed types in Evolution API: image, video, audio, document
+                                const allowedTypes = ['image', 'video', 'audio', 'document'];
+                                if (allowedTypes.includes(rawType)) {
+                                    finalMediaType = rawType;
+                                } else {
+                                    console.warn(`⚠️ Unknown media type '${rawType}', defaulting to 'document'`);
+                                    finalMediaType = 'document';
+                                }
+
                                 console.log(`✅ Media will be sent!`);
-                                console.log(`   Type: ${finalMediaType}`);
+                                console.log(`   Original Type: ${resource.type}`);
+                                console.log(`   Final Type: ${finalMediaType}`);
                                 console.log(`   URL: ${finalMediaUrl}`);
                             } else {
                                 console.warn(`⚠️ Resource found but media_url is empty/null`);
