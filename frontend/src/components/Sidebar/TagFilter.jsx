@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { Tag, X, Filter, ChevronDown, Calendar, Check, RotateCw, Type } from 'lucide-react';
+import { Tag, X, Filter, ChevronDown, Calendar, Check, RotateCw, Type, Plus } from 'lucide-react';
 
 /**
  * Improved Tag filter component with dropdown and date filter
@@ -17,7 +17,8 @@ const TagFilter = ({
     onRefresh,
     isLoading,
     fontSize,
-    onFontSizeChange
+    onFontSizeChange,
+    onManageTags
 }) => {
     const [showTagDropdown, setShowTagDropdown] = useState(false);
     const [showDateDropdown, setShowDateDropdown] = useState(false);
@@ -272,6 +273,36 @@ const TagFilter = ({
                             }}>
                                 Seleccionar etiquetas
                             </div>
+
+                            {onManageTags && (
+                                <button
+                                    onClick={(e) => {
+                                        e.stopPropagation();
+                                        onManageTags();
+                                        setShowTagDropdown(false);
+                                    }}
+                                    style={{
+                                        display: 'flex',
+                                        alignItems: 'center',
+                                        gap: '8px',
+                                        width: '100%',
+                                        padding: '10px 12px',
+                                        fontSize: '13px',
+                                        backgroundColor: 'transparent',
+                                        border: 'none',
+                                        borderBottom: '1px solid var(--color-gray-100)',
+                                        cursor: 'pointer',
+                                        color: 'var(--color-primary)',
+                                        fontWeight: 600,
+                                        textAlign: 'left'
+                                    }}
+                                    onMouseEnter={(e) => e.target.style.backgroundColor = 'var(--color-gray-50)'}
+                                    onMouseLeave={(e) => e.target.style.backgroundColor = 'transparent'}
+                                >
+                                    <Plus size={16} />
+                                    Crear nueva etiqueta
+                                </button>
+                            )}
 
                             {tags.length === 0 ? (
                                 <div style={{

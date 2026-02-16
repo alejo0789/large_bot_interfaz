@@ -552,6 +552,11 @@ const AuthenticatedApp = () => {
         setShowTagManager(true);
     }, []);
 
+    const handleOpenTagManagerGlobal = useCallback(() => {
+        setConversationToTag(null);
+        setShowTagManager(true);
+    }, []);
+
     const currentMessages = selectedConversation
         ? messagesByConversation[selectedConversation.contact.phone] || []
         : [];
@@ -589,7 +594,7 @@ const AuthenticatedApp = () => {
         }
     }, [isMobile]);
 
-    const [showNewChat, setShowNewChat] = useState(false);
+
 
     const handleStartNewChat = async (phone) => {
         // Build API URL
@@ -713,6 +718,7 @@ const AuthenticatedApp = () => {
                         isLoading={isLoading}
                         fontSize={fontSize}
                         onFontSizeChange={setFontSize}
+                        onManageTags={handleOpenTagManagerGlobal}
                     />
 
 
