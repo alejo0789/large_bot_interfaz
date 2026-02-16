@@ -206,10 +206,11 @@ const MessageBubble = ({ message, onForward }) => {
                     <div className="message-bubble" style={{
                         padding: media_url ? 'var(--space-1)' : undefined,
                         overflow: 'hidden',
-                        position: 'relative', // Ensure absolute positioning works if needed, standard flow otherwise
-                        minWidth: '120px' // Ensure minimum width for name
+                        position: 'relative',
+                        minWidth: '80px',
+                        maxWidth: '100%',
+                        overflowWrap: 'anywhere'
                     }}>
-                        {/* Sender Name Display */}
                         {(message.sender_name || message.agent_name) && (
                             <div style={{
                                 fontSize: '10px',
@@ -219,7 +220,9 @@ const MessageBubble = ({ message, onForward }) => {
                                 marginBottom: '4px',
                                 paddingRight: (isOutgoing && media_url) ? '4px' : '0',
                                 paddingLeft: (!isOutgoing && media_url) ? '4px' : '0',
-                                paddingTop: media_url ? '4px' : '0'
+                                paddingTop: media_url ? '4px' : '0',
+                                overflowWrap: 'anywhere',
+                                maxWidth: '100%'
                             }}>
                                 {message.sender_name || message.agent_name}
                             </div>
@@ -232,7 +235,8 @@ const MessageBubble = ({ message, onForward }) => {
                                 fontSize: media_type ? 'var(--font-size-sm)' : undefined,
                                 overflowWrap: 'anywhere',
                                 wordBreak: 'normal',
-                                whiteSpace: 'pre-wrap'
+                                whiteSpace: 'pre-wrap',
+                                maxWidth: '100%'
                             }}>
                                 {formatText(text)}
                             </p>

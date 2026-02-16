@@ -407,11 +407,15 @@ body {
 .message-bubble {
   width: fit-content;
   max-width: 100%;
+  min-width: 60px;
   padding: var(--space-2) var(--space-3);
   border-radius: var(--radius-lg);
   position: relative;
   word-wrap: break-word;
-  word-break: break-word;
+  overflow-wrap: anywhere;
+  word-break: normal;
+  display: flex;
+  flex-direction: column;
 }
 
 .message.outgoing .message-bubble {
@@ -442,8 +446,10 @@ body {
   line-height: 1.5;
   white-space: pre-wrap;
   word-wrap: break-word;
-  overflow-wrap: break-word;
+  overflow-wrap: anywhere;
   word-break: normal;
+  max-width: 100%;
+  margin: 0;
 }
 
 .message-meta {

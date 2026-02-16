@@ -56,6 +56,26 @@ router.post('/', async (req, res) => {
         const isFromAgent = msg.key.fromMe === true;
         const senderType = isFromAgent ? 'agent' : 'user';
 
+        // --- DE-DUPLICATION CHECK ---
+        // If this is a message FROM US, check if we just sent it via AI
+        if (isFromAgent) {
+            const remoteJid = msg.key.remoteJid;
+            const numeric = remoteJid.split('@')[0].replace(/\D/g, '');
+            const phone = (numeric.startsWith('57')) ? `+${numeric}` : numeric;
+
+            // Extract text for matching
+            let textToMatch = '';
+            if (msg.message?.conversation) textToMatch = msg.message.conversation;
+            else if (msg.message?.extendedTextMessage?.text) textToMatch = msg.message.extendedTextMessage.text;
+
+            const cacheKey = `${phone}:${textToMatch.trim()}`;
+            if (global.recentAiMessages && global.recentAiMessages.has(cacheKey)) {
+                console.log(`♻️ Skipping webhook for recent AI message confirmation: ${cacheKey}`);
+                // Optional: Update status in DB here if we had the original temp ID
+                return res.sendStatus(200);
+            }
+        }
+
         console.log(`📋 Message Type: ${isFromAgent ? 'FROM AGENT (your phone)' : 'FROM CLIENT'}`);
 
         const remoteJid = msg.key.remoteJid;
@@ -347,20 +367,24 @@ router.post('/', async (req, res) => {
             });
 
             if (aiResponseText) {
-                console.log(`🤖 AI Response for ${phone}: ${aiResponseText.substring(0, 50)}...`);
+                // --- DE-DUPLICATION CACHE ---
+                // We store the content to ignore the next webhook confirmation for this exact message
+                if (!global.recentAiMessages) global.recentAiMessages = new Set();
+                const cacheKey = `${phone}:${aiResponseText.trim()}`;
+                global.recentAiMessages.add(cacheKey);
+                setTimeout(() => global.recentAiMessages.delete(cacheKey), 30000); // 30 sec window
 
                 // 1. Send via WhatsApp (Evolution API)
                 await evolutionService.sendMessage(phone, aiResponseText);
 
                 // 2. Save in Database
-                // Using a temp ID for internal consistency, though Evolution might give us one later in an upsert event.
-                // Since this is OUR message, we save it as 'agent' or 'ai'.
                 const agentMessageId = `ai-${Date.now()}`;
+                const cleanAiText = aiResponseText.trim();
 
                 await messageService.create({
                     phone: phone,
-                    sender: 'ai', // Mark as 'ai' so it gets blue styling
-                    text: aiResponseText,
+                    sender: 'ai',
+                    text: cleanAiText,
                     whatsappId: agentMessageId,
                     mediaType: null,
                     mediaUrl: null,
@@ -369,18 +393,18 @@ router.post('/', async (req, res) => {
                 });
 
                 // 3. Update Conversation Last Message
-                await conversationService.updateLastMessage(phone, aiResponseText);
+                await conversationService.updateLastMessage(phone, cleanAiText);
                 await conversationService.markAsRead(phone);
 
                 // 4. Emit to Frontend
                 emitToConversation(phone, 'new-message', {
                     phone: phone,
                     contact_name: conversation?.contact_name || pushName,
-                    message: aiResponseText,
+                    message: cleanAiText,
                     whatsapp_id: agentMessageId,
-                    sender: 'ai', // Mark as 'ai' for blue styling
+                    sender: 'ai',
                     sender_name: 'Inteligencia Artificial',
-                    timestamp: new Date().toLocaleString("en-US", { timeZone: "America/Bogota" }),
+                    timestamp: new Date().toISOString(), // Use ISO for consistency
                     conversation_state: currentState,
                     ai_enabled: true
                 });
