@@ -8,6 +8,7 @@ const ContextModal = ({ isOpen, onClose, context, onSuccess }) => {
     const [content, setContent] = useState('');
     const [keywords, setKeywords] = useState('');
     const [file, setFile] = useState(null);
+    const [mediaUrl, setMediaUrl] = useState('');
     const [saving, setSaving] = useState(false);
     const [error, setError] = useState(null);
 
@@ -17,11 +18,14 @@ const ContextModal = ({ isOpen, onClose, context, onSuccess }) => {
             setContent(context.content || '');
             setKeywords(context.keywords ? context.keywords.join(', ') : '');
             setFile(null);
+            // Si media_url no empieza con /uploads, asumimos que es una URL externa
+            setMediaUrl(context.media_url && !context.media_url.startsWith('/uploads') ? context.media_url : '');
         } else {
             setTitle('');
             setContent('');
             setKeywords('');
             setFile(null);
+            setMediaUrl('');
         }
     }, [context, isOpen]);
 
@@ -41,8 +45,13 @@ const ContextModal = ({ isOpen, onClose, context, onSuccess }) => {
         formData.append('title', title);
         formData.append('content', content);
         formData.append('keywords', keywords);
+
         if (file) {
             formData.append('file', file);
+        } else if (mediaUrl) {
+            formData.append('media_url', mediaUrl);
+        } else if (context?.media_url) {
+            formData.append('media_url', context.media_url);
         }
 
         try {
@@ -73,6 +82,15 @@ const ContextModal = ({ isOpen, onClose, context, onSuccess }) => {
             setSaving(false);
         }
     };
+
+    const getPreviewUrl = () => {
+        if (file) return URL.createObjectURL(file);
+        if (mediaUrl) return mediaUrl;
+        if (context?.media_url) return context.media_url.startsWith('/') ? `${API_URL}${context.media_url}` : context.media_url;
+        return null;
+    };
+
+    const previewUrl = getPreviewUrl();
 
     return (
         <div className="modal-overlay">
@@ -121,13 +139,13 @@ const ContextModal = ({ isOpen, onClose, context, onSuccess }) => {
                     </div>
                     <div>
                         <label style={{ display: 'block', fontSize: '0.875rem', fontWeight: 600, marginBottom: '8px', color: 'var(--color-gray-700)' }}>
-                            Imagen del Contexto
+                            Imagen del Contexto (Subir o Pegar URL)
                         </label>
 
                         <div
                             style={{
                                 width: '100%',
-                                minHeight: '140px',
+                                minHeight: '130px',
                                 borderRadius: '16px',
                                 border: '2px dashed var(--color-gray-200)',
                                 backgroundColor: '#fcfcfc',
@@ -140,7 +158,8 @@ const ContextModal = ({ isOpen, onClose, context, onSuccess }) => {
                                 gap: '12px',
                                 cursor: 'pointer',
                                 padding: '20px',
-                                overflow: 'hidden'
+                                overflow: 'hidden',
+                                marginBottom: '12px'
                             }}
                             onMouseEnter={(e) => {
                                 e.currentTarget.style.borderColor = 'var(--color-primary)';
@@ -152,11 +171,11 @@ const ContextModal = ({ isOpen, onClose, context, onSuccess }) => {
                             }}
                             onClick={() => document.getElementById('context-image-upload').click()}
                         >
-                            {(file || (context?.media_url && !file)) ? (
+                            {previewUrl ? (
                                 <div style={{ width: '100%', height: '100%', display: 'flex', alignItems: 'center', gap: '16px' }}>
                                     <div style={{ position: 'relative', width: '100px', height: '100px', flexShrink: 0 }}>
                                         <img
-                                            src={file ? URL.createObjectURL(file) : `${API_URL}${context.media_url}`}
+                                            src={previewUrl}
                                             alt="Preview"
                                             style={{ width: '100%', height: '100%', objectFit: 'cover', borderRadius: '12px' }}
                                         />
@@ -175,10 +194,10 @@ const ContextModal = ({ isOpen, onClose, context, onSuccess }) => {
                                     </div>
                                     <div style={{ flex: 1 }}>
                                         <p style={{ fontSize: '0.9rem', fontWeight: 600, color: 'var(--color-gray-800)', margin: 0 }}>
-                                            {file ? file.name : 'Imagen actual'}
+                                            {file ? file.name : (mediaUrl ? 'Imagen desde URL' : 'Imagen actual')}
                                         </p>
                                         <p style={{ fontSize: '0.75rem', color: 'var(--color-gray-500)', margin: '4px 0 0 0' }}>
-                                            Haga clic aquí para cambiar la imagen
+                                            Haga clic aquí para cambiar el archivo
                                         </p>
                                     </div>
                                 </div>
@@ -194,14 +213,14 @@ const ContextModal = ({ isOpen, onClose, context, onSuccess }) => {
                                         justifyContent: 'center',
                                         color: '#9ca3af'
                                     }}>
-                                        <X className="w-6 h-6" style={{ transform: 'rotate(45deg)' }} />
+                                        <Save className="w-6 h-6" style={{ transform: 'rotate(45deg)' }} />
                                     </div>
                                     <div style={{ textAlign: 'center' }}>
                                         <p style={{ margin: 0, fontSize: '0.9rem', fontWeight: 600, color: '#4b5563' }}>
-                                            Subir imagen del producto
+                                            Subir imagen o archivo
                                         </p>
                                         <p style={{ margin: '4px 0 0 0', fontSize: '0.75rem', color: '#9ca3af' }}>
-                                            JPG, PNG o WEBP (Máx. 5MB)
+                                            JPG, PNG o WEBP
                                         </p>
                                     </div>
                                 </>
@@ -211,8 +230,37 @@ const ContextModal = ({ isOpen, onClose, context, onSuccess }) => {
                                 id="context-image-upload"
                                 type="file"
                                 accept="image/*"
-                                onChange={(e) => setFile(e.target.files[0])}
+                                onChange={(e) => {
+                                    if (e.target.files[0]) {
+                                        setFile(e.target.files[0]);
+                                        setMediaUrl(''); // Limpiar URL si se sube archivo
+                                    }
+                                }}
                                 style={{ display: 'none' }}
+                            />
+                        </div>
+
+                        {/* URL Input field as alternative */}
+                        <div style={{ position: 'relative' }}>
+                            <input
+                                type="text"
+                                value={mediaUrl}
+                                onChange={(e) => {
+                                    setMediaUrl(e.target.value);
+                                    if (e.target.value) setFile(null); // Limpiar archivo si se pone URL
+                                }}
+                                placeholder="O pega el link de una imagen (https://...)"
+                                style={{
+                                    width: '100%',
+                                    padding: '10px 14px',
+                                    borderRadius: '10px',
+                                    border: '1.5px solid var(--color-gray-200)',
+                                    outline: 'none',
+                                    fontSize: '0.85rem',
+                                    backgroundColor: '#f9fafb'
+                                }}
+                                onFocus={(e) => e.target.style.borderColor = 'var(--color-primary)'}
+                                onBlur={(e) => e.target.style.borderColor = 'var(--color-gray-200)'}
                             />
                         </div>
                     </div>

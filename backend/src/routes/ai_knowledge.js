@@ -160,17 +160,20 @@ router.post('/upload', upload.single('file'), async (req, res, next) => {
  */
 router.post('/text', upload.single('file'), async (req, res, next) => {
     try {
-        const { title, content, keywords } = req.body;
+        const { title, content, keywords, media_url } = req.body;
 
         if (!content) {
             return res.status(400).json({ error: 'El contenido es obligatorio' });
         }
 
-        // Si se subió un archivo, generamos la URL
-        let mediaUrl = null;
+        // Si se subió un archivo, generamos la URL, de lo contrario usamos la URL del body si existe
+        let finalMediaUrl = null;
         if (req.file) {
-            mediaUrl = `/uploads/ai_knowledge/${req.file.filename}`;
-            console.log(`📸 Imagen subida para contexto: ${mediaUrl}`);
+            finalMediaUrl = `/uploads/ai_knowledge/${req.file.filename}`;
+            console.log(`📸 Imagen subida para contexto: ${finalMediaUrl}`);
+        } else if (media_url) {
+            finalMediaUrl = media_url;
+            console.log(`🔗 URL de imagen recibida: ${finalMediaUrl}`);
         }
 
         const keywordArray = keywords ? (Array.isArray(keywords) ? keywords : keywords.split(',').map(k => k.trim())) : [];
@@ -186,7 +189,7 @@ router.post('/text', upload.single('file'), async (req, res, next) => {
             RETURNING *
         `;
 
-        const values = ['text', title || '', content, keywordArray, embedding, mediaUrl];
+        const values = ['text', title || '', content, keywordArray, embedding, finalMediaUrl];
         const result = await pool.query(query, values);
 
         res.status(201).json(result.rows[0]);
@@ -208,7 +211,7 @@ router.post('/text', upload.single('file'), async (req, res, next) => {
 router.put('/:id', upload.single('file'), async (req, res, next) => {
     try {
         const { id } = req.params;
-        const { title, content, keywords } = req.body;
+        const { title, content, keywords, media_url } = req.body;
 
         // Verificar si existe
         const checkResult = await pool.query('SELECT * FROM ai_knowledge WHERE id = $1', [id]);
@@ -217,18 +220,29 @@ router.put('/:id', upload.single('file'), async (req, res, next) => {
         }
 
         const oldResource = checkResult.rows[0];
-        let mediaUrl = oldResource.media_url;
+        let finalMediaUrl = oldResource.media_url;
 
-        // Si se subió un nuevo archivo
+        // Si se subió un nuevo archivo o se envió una nueva URL
         if (req.file) {
-            mediaUrl = `/uploads/ai_knowledge/${req.file.filename}`;
+            finalMediaUrl = `/uploads/ai_knowledge/${req.file.filename}`;
 
-            // Borrar archivo anterior si existía
-            if (oldResource.media_url) {
+            // Borrar archivo anterior si existía localmente
+            if (oldResource.media_url && oldResource.media_url.startsWith('/uploads')) {
                 const oldPath = path.join(__dirname, '../../', oldResource.media_url.substring(1));
                 if (fs.existsSync(oldPath)) {
                     fs.unlink(oldPath, (err) => {
                         if (err) console.error('Error borrando archivo anterior:', err);
+                    });
+                }
+            }
+        } else if (media_url) {
+            finalMediaUrl = media_url;
+            // Opcional: Si el anterior era un archivo local y ahora es una URL, borrar el archivo local
+            if (oldResource.media_url && oldResource.media_url.startsWith('/uploads')) {
+                const oldPath = path.join(__dirname, '../../', oldResource.media_url.substring(1));
+                if (fs.existsSync(oldPath)) {
+                    fs.unlink(oldPath, (err) => {
+                        if (err) console.error('Error borrando archivo local reemplazado por URL:', err);
                     });
                 }
             }
@@ -250,7 +264,7 @@ router.put('/:id', upload.single('file'), async (req, res, next) => {
             RETURNING *
         `;
 
-        const values = [title || oldResource.title, content || oldResource.content, keywordArray, mediaUrl, embedding, id];
+        const values = [title || oldResource.title, content || oldResource.content, keywordArray, finalMediaUrl, embedding, id];
         const result = await pool.query(query, values);
 
         res.json(result.rows[0]);
