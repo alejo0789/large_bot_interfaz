@@ -109,15 +109,27 @@ class N8NService {
             }
 
             const data = await response.json();
+            console.log('📥 Raw N8N AI Response:', JSON.stringify(data));
 
-            // Expected format: [{ "output": "Respuesta..." }]
-            if (Array.isArray(data) && data.length > 0 && data[0].output) {
-                return data[0].output;
+            // n8n returns an array of items
+            if (Array.isArray(data) && data.length > 0) {
+                const item = data[0];
+                return {
+                    text: item.output || item.message || item.text || null,
+                    mediaUrl: item.media_url || item.mediaUrl || item.image || null,
+                    mediaType: item.media_type || item.mediaType || 'image',
+                    raw: item
+                };
             }
 
-            // Fallback for object format: { "output": "Respuesta..." }
-            if (data && data.output) {
-                return data.output;
+            // Fallback for single object
+            if (data && (data.output || data.message || data.text)) {
+                return {
+                    text: data.output || data.message || data.text || null,
+                    mediaUrl: data.media_url || data.mediaUrl || data.image || null,
+                    mediaType: data.media_type || data.mediaType || 'image',
+                    raw: data
+                };
             }
 
             return null;

@@ -358,7 +358,7 @@ router.post('/', async (req, res) => {
             console.log(`🧠 AI is enabled for ${phone}, triggering N8N...`);
 
             // Wait for N8N response
-            const aiResponseText = await n8nService.triggerAIProcessing({
+            let aiResponseText = await n8nService.triggerAIProcessing({
                 phone: phone,
                 text: text,
                 contactName: pushName,
@@ -367,6 +367,46 @@ router.post('/', async (req, res) => {
             });
 
             if (aiResponseText) {
+                console.log(`🤖 AI Response for ${phone}: ${aiResponseText.substring(0, 50)}...`);
+
+                // --- MULTIMEDIA DETECTION ---
+                // Check if the response contains an ID reference: [ID: xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx]
+                const idMatch = aiResponseText.match(/\[ID:\s*([a-f\d-]+)\]/i);
+                let finalMediaUrl = null;
+                let finalMediaType = null;
+                let cleanAiText = aiResponseText.replace(/\[ID:\s*[a-f\d-]+\s*\]/gi, '').trim();
+
+                if (idMatch) {
+                    const resourceId = idMatch[1];
+                    console.log(`🔍 Resource ID detected in AI response: ${resourceId}. Fetching from DB...`);
+
+                    try {
+                        const { pool } = require('../config/database');
+                        const { config } = require('../config/app');
+                        const resourceResult = await pool.query('SELECT type, media_url FROM ai_knowledge WHERE id = $1', [resourceId]);
+
+                        if (resourceResult.rows.length > 0) {
+                            const resource = resourceResult.rows[0];
+                            if (resource.media_url) {
+                                finalMediaUrl = resource.media_url;
+
+                                // Convert relative URLs to absolute URLs
+                                if (finalMediaUrl.startsWith('/') && !finalMediaUrl.startsWith('http')) {
+                                    finalMediaUrl = `${config.publicUrl}${finalMediaUrl}`;
+                                    console.log(`🔄 Converted relative URL to absolute: ${finalMediaUrl}`);
+                                }
+
+                                finalMediaType = resource.type === 'text' ? 'image' : resource.type;
+                                console.log(`🎯 Resource found! Type: ${finalMediaType}, URL: ${finalMediaUrl}`);
+                            }
+                        } else {
+                            console.warn(`⚠️ Resource ID ${resourceId} not found in ai_knowledge table.`);
+                        }
+                    } catch (dbErr) {
+                        console.error('❌ Error fetching resource from DB:', dbErr.message);
+                    }
+                }
+
                 // --- DE-DUPLICATION CACHE ---
                 // We store the content to ignore the next webhook confirmation for this exact message
                 if (!global.recentAiMessages) global.recentAiMessages = new Set();
@@ -375,38 +415,46 @@ router.post('/', async (req, res) => {
                 setTimeout(() => global.recentAiMessages.delete(cacheKey), 30000); // 30 sec window
 
                 // 1. Send via WhatsApp (Evolution API)
-                await evolutionService.sendMessage(phone, aiResponseText);
+                if (finalMediaUrl) {
+                    console.log(`📤 Sending AI response as MULTIMEDIA to ${phone}`);
+                    await evolutionService.sendMedia(phone, finalMediaUrl, finalMediaType, cleanAiText);
+                } else {
+                    console.log(`📤 Sending AI response as TEXT to ${phone}`);
+                    await evolutionService.sendMessage(phone, aiResponseText);
+                }
 
                 // 2. Save in Database
                 const agentMessageId = `ai-${Date.now()}`;
-                const cleanAiText = aiResponseText.trim();
+                const dbText = cleanAiText || (finalMediaUrl ? (finalMediaType === 'image' ? '📷 Imagen' : '📎 Archivo') : '...');
 
                 await messageService.create({
                     phone: phone,
                     sender: 'ai',
-                    text: cleanAiText,
+                    text: dbText,
                     whatsappId: agentMessageId,
-                    mediaType: null,
-                    mediaUrl: null,
+                    mediaType: finalMediaType,
+                    mediaUrl: finalMediaUrl,
                     status: 'delivered',
                     senderName: 'Inteligencia Artificial'
                 });
 
                 // 3. Update Conversation Last Message
-                await conversationService.updateLastMessage(phone, cleanAiText);
+                await conversationService.updateLastMessage(phone, dbText);
                 await conversationService.markAsRead(phone);
 
                 // 4. Emit to Frontend
                 emitToConversation(phone, 'new-message', {
                     phone: phone,
                     contact_name: conversation?.contact_name || pushName,
-                    message: cleanAiText,
+                    message: dbText,
                     whatsapp_id: agentMessageId,
                     sender: 'ai',
                     sender_name: 'Inteligencia Artificial',
-                    timestamp: new Date().toISOString(), // Use ISO for consistency
+                    timestamp: new Date().toISOString(),
                     conversation_state: currentState,
-                    ai_enabled: true
+                    ai_enabled: true,
+                    media_type: finalMediaType,
+                    media_url: finalMediaUrl
                 });
 
             } else {
