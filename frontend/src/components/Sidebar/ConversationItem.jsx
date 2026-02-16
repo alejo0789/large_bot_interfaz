@@ -40,9 +40,6 @@ const ConversationItem = React.memo(({
 
     const handleSaveName = async (newName) => {
         try {
-            // Encode + sign in phone number
-            const encodedPhone = contact.phone.replace('+', '%2B');
-
             // Robust API URL detection (CRA vs Vite)
             let apiUrl = '/api';
 
@@ -72,12 +69,12 @@ const ConversationItem = React.memo(({
             // Remove trailing slash if present
             if (apiUrl.endsWith('/')) apiUrl = apiUrl.slice(0, -1);
 
-            // Construct full URL
+            // Construct full URL using safer endpoint that accepts phone in body
             let finalUrl;
             if (apiUrl.includes('/api')) {
-                finalUrl = `${apiUrl}/conversations/${encodedPhone}/name`;
+                finalUrl = `${apiUrl}/conversations/update-contact-name`;
             } else {
-                finalUrl = `${apiUrl}/api/conversations/${encodedPhone}/name`;
+                finalUrl = `${apiUrl}/api/conversations/update-contact-name`;
             }
 
             // Fix double slashes just in case
@@ -86,7 +83,10 @@ const ConversationItem = React.memo(({
             const res = await fetch(finalUrl, {
                 method: 'PUT',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ name: newName })
+                body: JSON.stringify({
+                    phone: contact.phone,
+                    name: newName
+                })
             });
 
             if (res.ok) {

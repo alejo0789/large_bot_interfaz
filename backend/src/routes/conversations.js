@@ -213,5 +213,21 @@ router.put('/:phone/name', asyncHandler(async (req, res) => {
     res.json({ success: true, conversation });
 }));
 
+// Safe endpoint URL-agnostic
+router.put('/update-contact-name', asyncHandler(async (req, res) => {
+    const { phone, name } = req.body;
+
+    if (!phone) {
+        throw new AppError('El teléfono es requerido', 400);
+    }
+    if (!name || !name.trim()) {
+        throw new AppError('El nombre es requerido', 400);
+    }
+
+    const conversation = await conversationService.updateContactName(phone, name);
+
+    res.json({ success: true, conversation });
+}));
+
 module.exports = router;
 
