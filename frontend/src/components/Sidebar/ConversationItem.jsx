@@ -69,6 +69,14 @@ const ConversationItem = React.memo(({
                 }
             }
 
+            // Fallback for local development if env var is missing
+            if ((!apiUrl || apiUrl === '/api') && window.location.hostname === 'localhost') {
+                console.warn('⚠️ REACT_APP_API_URL not found, falling back to http://localhost:4000');
+                apiUrl = 'http://localhost:4000';
+            }
+
+            console.log('🔗 Updating Name using API:', apiUrl);
+
             // Remove trailing slash if present
             if (apiUrl.endsWith('/')) apiUrl = apiUrl.slice(0, -1);
 
