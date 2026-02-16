@@ -182,10 +182,13 @@ router.post('/send-file', upload.single('file'), asyncHandler(async (req, res) =
     await conversationService.markAsRead(phone);
 
     // Send Media Logic
+    let sendResult = { sent: false };
+
     if (config.evolutionApiUrl) {
-        await evolutionService.sendMedia(phone, fileUrl, mediaType, caption || '', file.originalname);
+        const result = await evolutionService.sendMedia(phone, fileUrl, mediaType, caption || '', file.originalname);
+        sendResult = { sent: result && result.success, platform: 'evolution', ...result };
     } else {
-        await n8nService.sendMessage({
+        const result = await n8nService.sendMessage({
             phone,
             name,
             message: caption || '',
@@ -193,6 +196,7 @@ router.post('/send-file', upload.single('file'), asyncHandler(async (req, res) =
             mediaUrl: fileUrl,
             fileName: file.originalname
         });
+        sendResult = { sent: result && result.sent, platform: 'n8n', ...result };
     }
 
     // Update status in DB
