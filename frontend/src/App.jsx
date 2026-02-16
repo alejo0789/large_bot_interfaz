@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { io } from 'socket.io-client';
-import { Tag, MessageSquare, Settings, RotateCw, Menu, EyeOff } from 'lucide-react';
+import { Tag, MessageSquare, Settings, RotateCw, Menu, EyeOff, UserPlus } from 'lucide-react';
 
 // Auth
 import { AuthProvider, useAuth } from './hooks/useAuth';
