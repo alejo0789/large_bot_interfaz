@@ -69,6 +69,16 @@ router.post('/receive-message', asyncHandler(async (req, res) => {
         media_url
     } = req.body;
 
+    if (!phone) {
+        console.error('❌ Error: El webhook no incluyó un número de teléfono (phone)');
+        return res.status(400).json({ error: 'Phone number required' });
+    }
+
+    // --- NORMALIZACIÓN DE TELÉFONO (MOVIDO AL INICIO) ---
+    // Evolution ofrece el número puro (57304...). El dashboard usa +57304...
+    const purePhone = phone.replace(/\D/g, ''); // 573043821239
+    const dbPhone = purePhone.startsWith('57') ? `+${purePhone}` : purePhone; // +573043821239
+
     const isBot = sender_type === 'bot' || sender_type === 'ai';
     const isAgent = sender_type === 'agent';
 
@@ -83,38 +93,47 @@ router.post('/receive-message', asyncHandler(async (req, res) => {
             try {
                 const result = await pool.query('SELECT media_url, type FROM ai_knowledge WHERE id = $1', [contextId]);
                 if (result.rows.length > 0 && result.rows[0].media_url) {
-                    media_url = result.rows[0].media_url;
+                    const candidateUrl = result.rows[0].media_url;
 
-                    // Si encontramos el tipo en la BD, lo usamos
-                    if (result.rows[0].type && result.rows[0].type !== 'text') {
-                        media_type = result.rows[0].type;
-                    }
+                    // --- VALIDACIÓN DE DUPLICADOS EN LA CONVERSACIÓN ---
+                    // Verificar si ya enviamos esta misma URL a este usuario en las últimas 24 horas
+                    const duplicateCheck = await pool.query(
+                        `SELECT id FROM messages 
+                         WHERE phone = $1 
+                         AND media_url = $2 
+                         AND (sender = 'bot' OR sender = 'ai') 
+                         AND timestamp > NOW() - INTERVAL '24 hours'
+                         LIMIT 1`,
+                        [dbPhone, candidateUrl]
+                    );
 
-                    // Si la URL es local, construir la URL absoluta para Evolution API
-                    if (media_url.startsWith('/')) {
-                        const baseUrl = process.env.BACKEND_URL || `${req.protocol}://${req.get('host')}`;
-                        media_url = `${baseUrl}${media_url}`;
+                    if (duplicateCheck.rows.length > 0) {
+                        console.log(`🚫 Imagen ya enviada recientemente a ${dbPhone}. Omitiendo envío duplicado.`);
+                        // NO asignamos media_url, así que solo se enviará el texto
+                    } else {
+                        media_url = candidateUrl;
+
+                        // Si encontramos el tipo en la BD, lo usamos
+                        if (result.rows[0].type && result.rows[0].type !== 'text') {
+                            media_type = result.rows[0].type;
+                        }
+
+                        // Si la URL es local, construir la URL absoluta
+                        if (media_url.startsWith('/')) {
+                            const baseUrl = process.env.BACKEND_URL || `${req.protocol}://${req.get('host')}`;
+                            media_url = `${baseUrl}${media_url}`;
+                        }
+                        console.log(`🖼️ Imagen NUEVA encontrada vinculada al ID: ${media_url} (Tipo DB: ${result.rows[0].type})`);
                     }
-                    console.log(`🖼️ Imagen encontrada vinculada al ID: ${media_url} (Tipo DB: ${result.rows[0].type})`);
                 }
 
-                // Limpiar el tag del mensaje para que el usuario no vea el código técnico
+                // Limpiar el tag del mensaje SIEMPRE
                 message = message.replace(/\[ID:\s*[0-9a-fA-F-]{36}\]/i, '').trim();
             } catch (dbError) {
                 console.error('❌ Error buscando media_url por ID:', dbError);
             }
         }
     }
-
-    if (!phone) {
-        console.error('❌ Error: El webhook no incluyó un número de teléfono (phone)');
-        return res.status(400).json({ error: 'Phone number required' });
-    }
-
-    // --- NORMALIZACIÓN DE TELÉFONO ---
-    // Evolution ofrece el número puro (57304...). El dashboard usa +57304...
-    const purePhone = phone.replace(/\D/g, ''); // 573043821239
-    const dbPhone = purePhone.startsWith('57') ? `+${purePhone}` : purePhone; // +573043821239
 
     console.log(`📱 [WEBHOOK] Phone Original: ${phone} | Pure: ${purePhone} | DB: ${dbPhone}`);
     console.log(`👤 [WEBHOOK] Sender Type: ${sender_type}`);
