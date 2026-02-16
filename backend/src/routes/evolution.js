@@ -432,22 +432,35 @@ router.post('/', async (req, res) => {
                                     console.log(`   To: ${finalMediaUrl}`);
                                 }
 
-                                // Validate and normalize media type
+                                // Validate and normalize media type based on DB type AND URL extension
                                 let rawType = (resource.type || '').trim().toLowerCase();
-                                if (rawType === 'text') rawType = 'image'; // Legacy: text with media_url is image
+                                const urlLower = finalMediaUrl.toLowerCase();
 
-                                // Allowed types in Evolution API: image, video, audio, document
+                                // If type is 'text' or empty, try to infer from URL
+                                if (!rawType || rawType === 'text') {
+                                    if (urlLower.match(/\.(jpg|jpeg|png|gif|webp)$/)) rawType = 'image';
+                                    else if (urlLower.match(/\.(mp4|avi|mov)$/)) rawType = 'video';
+                                    else if (urlLower.match(/\.(mp3|ogg|wav)$/)) rawType = 'audio';
+                                    else if (urlLower.match(/\.(pdf|doc|docx|xls|xlsx)$/)) rawType = 'document';
+                                }
+
+                                // Allowed types
                                 const allowedTypes = ['image', 'video', 'audio', 'document'];
                                 if (allowedTypes.includes(rawType)) {
                                     finalMediaType = rawType;
                                 } else {
-                                    console.warn(`⚠️ Unknown media type '${rawType}', defaulting to 'document'`);
-                                    finalMediaType = 'document';
+                                    // Final check: is it an image URL?
+                                    if (urlLower.match(/\.(jpg|jpeg|png|gif|webp)$/)) {
+                                        finalMediaType = 'image';
+                                    } else {
+                                        console.warn(`⚠️ Unknown media type '${rawType}' and no extension match, defaulting to 'document'`);
+                                        finalMediaType = 'document';
+                                    }
                                 }
 
                                 console.log(`✅ Media will be sent!`);
                                 console.log(`   Original Type: ${resource.type}`);
-                                console.log(`   Final Type: ${finalMediaType}`);
+                                console.log(`   Inferred Type: ${finalMediaType}`);
                                 console.log(`   URL: ${finalMediaUrl}`);
                             } else {
                                 console.warn(`⚠️ Resource found but media_url is empty/null`);
