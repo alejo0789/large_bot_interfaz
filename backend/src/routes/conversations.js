@@ -196,5 +196,22 @@ router.delete('/:phone/tags/:tagId', asyncHandler(async (req, res) => {
     res.json({ success: true });
 }));
 
+// Update contact name
+router.put('/:phone/name', asyncHandler(async (req, res) => {
+    const { phone } = req.params;
+    const { name } = req.body;
+
+    if (!name || !name.trim()) {
+        throw new AppError('El nombre es requerido', 400);
+    }
+
+    const conversation = await conversationService.updateContactName(phone, name);
+
+    // Notificar cambio (opcional, pero buena práctica si tienes websockets)
+    const n8nService = require('../services/n8nService'); // Lazy load avoid circular dependency if any
+
+    res.json({ success: true, conversation });
+}));
+
 module.exports = router;
 

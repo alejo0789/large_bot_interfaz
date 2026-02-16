@@ -401,6 +401,18 @@ class ConversationService {
             name: row.contact_name || 'Usuario'
         }));
     }
+
+    /**
+     * Force update contact name
+     * Used when user manually edits the name from the UI
+     */
+    async updateContactName(phone, newName) {
+        const { rows } = await pool.query(
+            'UPDATE conversations SET contact_name = $1, updated_at = NOW() WHERE phone = $2 RETURNING *',
+            [newName, phone]
+        );
+        return rows[0];
+    }
 }
 
 module.exports = new ConversationService();

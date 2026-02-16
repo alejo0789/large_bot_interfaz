@@ -1108,3 +1108,31 @@ body {
 .modal-body {
   overscroll-behavior: contain;
 }
+
+/* =============================================
+   UTILITIES & COMPONENTS ADDITIONS
+   ============================================= */
+
+/* Small icon button */
+.btn-icon-small {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  border-radius: var(--radius-md);
+  border: none;
+  background-color: transparent;
+  cursor: pointer;
+  transition: background-color var(--transition-fast);
+  padding: 0;
+}
+
+.btn-icon-small:hover {
+  background-color: var(--color-gray-200);
+}
+
+/* Equivalent to tailwind hover:bg-gray-50 */
+.hover\:bg-gray-50:hover {
+  background-color: var(--color-gray-50);
+}
