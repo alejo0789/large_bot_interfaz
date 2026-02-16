@@ -156,9 +156,9 @@ router.post('/upload', upload.single('file'), async (req, res, next) => {
 
 /**
  * POST /api/ai-knowledge/text
- * Crear contexto de texto
+ * Crear contexto de texto (opcionalmente con imagen)
  */
-router.post('/text', async (req, res, next) => {
+router.post('/text', upload.single('file'), async (req, res, next) => {
     try {
         const { title, content, keywords } = req.body;
 
@@ -166,32 +166,103 @@ router.post('/text', async (req, res, next) => {
             return res.status(400).json({ error: 'El contenido es obligatorio' });
         }
 
+        // Si se subió un archivo, generamos la URL
+        let mediaUrl = null;
+        if (req.file) {
+            mediaUrl = `/uploads/ai_knowledge/${req.file.filename}`;
+            console.log(`📸 Imagen subida para contexto: ${mediaUrl}`);
+        }
+
         const keywordArray = keywords ? (Array.isArray(keywords) ? keywords : keywords.split(',').map(k => k.trim())) : [];
 
-        // Generar embedding automático
+        // Generar embedding automático (Título + Contenido)
         console.log(`🧬 Generando embedding automático para: ${title}`);
         const embedding = await getEmbedding(`${title} ${content}`);
 
         const query = `
             INSERT INTO ai_knowledge 
-            (type, title, content, keywords, embedding) 
-            VALUES ($1, $2, $3, $4, $5) 
+            (type, title, content, keywords, embedding, media_url) 
+            VALUES ($1, $2, $3, $4, $5, $6) 
             RETURNING *
         `;
 
-        const values = ['text', title || '', content, keywordArray, embedding];
+        const values = ['text', title || '', content, keywordArray, embedding, mediaUrl];
         const result = await pool.query(query, values);
 
         res.status(201).json(result.rows[0]);
     } catch (error) {
+        // Si hubo error, borrar el archivo subido si existe
+        if (req.file) {
+            fs.unlink(req.file.path, (err) => {
+                if (err) console.error('Error borrando archivo tras fallo:', err);
+            });
+        }
         next(error);
     }
 });
 
 /**
- * DELETE /api/ai-knowledge/:id
- * Eliminar recurso
+ * PUT /api/ai-knowledge/:id
+ * Actualizar recurso de conocimiento
  */
+router.put('/:id', upload.single('file'), async (req, res, next) => {
+    try {
+        const { id } = req.params;
+        const { title, content, keywords } = req.body;
+
+        // Verificar si existe
+        const checkResult = await pool.query('SELECT * FROM ai_knowledge WHERE id = $1', [id]);
+        if (checkResult.rows.length === 0) {
+            return res.status(404).json({ error: 'Recurso no encontrado' });
+        }
+
+        const oldResource = checkResult.rows[0];
+        let mediaUrl = oldResource.media_url;
+
+        // Si se subió un nuevo archivo
+        if (req.file) {
+            mediaUrl = `/uploads/ai_knowledge/${req.file.filename}`;
+
+            // Borrar archivo anterior si existía
+            if (oldResource.media_url) {
+                const oldPath = path.join(__dirname, '../../', oldResource.media_url.substring(1));
+                if (fs.existsSync(oldPath)) {
+                    fs.unlink(oldPath, (err) => {
+                        if (err) console.error('Error borrando archivo anterior:', err);
+                    });
+                }
+            }
+        }
+
+        const keywordArray = keywords ? (Array.isArray(keywords) ? keywords : keywords.split(',').map(k => k.trim())) : oldResource.keywords;
+
+        // Re-generar embedding si cambió el contenido o título
+        let embedding = oldResource.embedding;
+        if (content !== oldResource.content || title !== oldResource.title) {
+            console.log(`🧬 Re-generando embedding para actualización: ${title}`);
+            embedding = await getEmbedding(`${title || ''} ${content || ''}`);
+        }
+
+        const query = `
+            UPDATE ai_knowledge 
+            SET title = $1, content = $2, keywords = $3, media_url = $4, embedding = $5, updated_at = NOW()
+            WHERE id = $6
+            RETURNING *
+        `;
+
+        const values = [title || oldResource.title, content || oldResource.content, keywordArray, mediaUrl, embedding, id];
+        const result = await pool.query(query, values);
+
+        res.json(result.rows[0]);
+    } catch (error) {
+        if (req.file) {
+            fs.unlink(req.file.path, (err) => {
+                if (err) console.error('Error borrando archivo tras fallo:', err);
+            });
+        }
+        next(error);
+    }
+});
 router.delete('/:id', async (req, res, next) => {
     try {
         const { id } = req.params;

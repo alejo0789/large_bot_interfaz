@@ -226,6 +226,38 @@ const ContextManager = () => {
                                         Documento
                                     </span>
                                 </div>
+                                {context.media_url && (
+                                    <div style={{ marginTop: '16px', position: 'relative', width: 'fit-content' }}>
+                                        <img
+                                            src={`${API_URL}${context.media_url}`}
+                                            alt={context.title}
+                                            style={{
+                                                maxWidth: '120px',
+                                                maxHeight: '120px',
+                                                borderRadius: '12px',
+                                                border: '2px solid #f3f4f6',
+                                                boxShadow: '0 4px 6px rgba(0,0,0,0.05)',
+                                                objectFit: 'cover'
+                                            }}
+                                            onError={(e) => {
+                                                e.target.style.display = 'none';
+                                            }}
+                                        />
+                                        <span style={{
+                                            position: 'absolute',
+                                            bottom: '6px',
+                                            right: '6px',
+                                            backgroundColor: 'rgba(0,0,0,0.5)',
+                                            color: 'white',
+                                            fontSize: '0.6rem',
+                                            padding: '2px 6px',
+                                            borderRadius: '4px',
+                                            backdropFilter: 'blur(4px)'
+                                        }}>
+                                            Imagen
+                                        </span>
+                                    </div>
+                                )}
                                 <p style={{
                                     color: '#4b5563',
                                     whiteSpace: 'pre-wrap',
@@ -235,7 +267,8 @@ const ContextManager = () => {
                                     lineHeight: '1.6',
                                     display: '-webkit-box',
                                     WebkitLineClamp: 5,
-                                    WebkitBoxOrient: 'vertical'
+                                    WebkitBoxOrient: 'vertical',
+                                    marginTop: context.media_url ? '12px' : '0'
                                 }}>
                                     {context.content}
                                 </p>
@@ -296,7 +329,7 @@ const ContextManager = () => {
                 context={selectedContext}
                 onSuccess={handleSuccess}
             />
-        </div>
+        </div >
     );
 };
 

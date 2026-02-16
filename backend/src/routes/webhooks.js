@@ -127,8 +127,12 @@ router.post('/receive-message', asyncHandler(async (req, res) => {
         console.log(`📤 Remitiendo respuesta (${sender_type}) a WhatsApp via Evolution API [Num: ${purePhone}]...`);
         try {
             let result;
-            if (media_type && media_url) {
-                result = await evolutionService.sendMedia(purePhone, media_url, media_type, message);
+
+            if (media_url) {
+                // Si n8n o el sistema envían una URL, la usamos directamente
+                const type = media_type || (media_url.match(/\.(mp4|mov|avi)$/i) ? 'video' : 'image');
+                console.log(`🖼️ Enviando multimedia: ${media_url} (Tipo: ${type})`);
+                result = await evolutionService.sendMedia(purePhone, media_url, type, message);
             } else {
                 result = await evolutionService.sendText(purePhone, message);
             }
