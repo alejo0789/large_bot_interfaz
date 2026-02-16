@@ -454,7 +454,7 @@ body {
   white-space: pre-wrap !important;
   word-wrap: break-word !important;
   overflow-wrap: anywhere !important;
-  word-break: break-word !important;
+  word-break: break-all !important;
   max-width: 100% !important;
   margin: 0;
   overflow: hidden !important;
@@ -466,7 +466,7 @@ body {
 .message-text * {
   word-wrap: break-word !important;
   overflow-wrap: anywhere !important;
-  word-break: break-word !important;
+  word-break: break-all !important;
   max-width: 100% !important;
   display: inline !important;
 }

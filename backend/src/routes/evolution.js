@@ -476,13 +476,20 @@ router.post('/', async (req, res) => {
 
                     if (sendingResult.success) {
                         console.log(`   ✅ Multimedia message sent successfully`);
+                        // Keep finalMediaType and finalMediaUrl as is
                     } else {
-                        console.error(`   ❌ Failed to send multimedia message:`, sendingResult.error);
-                        console.log(`   ⚠️ Fallback: Sending as TEXT only...`);
+                        console.error(`   ❌ Failed to send multimedia message with all strategies:`, sendingResult.error);
+                        console.log(`   ⚠️ Fallback: Reverting to TEXT ONLY mode for DB and Frontend`);
 
-                        // Send text with URL appended since media failed
+                        // Fallback: Send text with URL appended
                         const fallbackText = `${cleanAiText}\n\n📷 ${finalMediaUrl}`;
                         sendingResult = await evolutionService.sendMessage(phone, fallbackText);
+
+                        // UPDATE VARIABLES FOR DB/FRONTEND TO MATCH REALITY
+                        // We failed to send media, so we shouldn't claim we did in the DB
+                        finalMediaType = null;
+                        finalMediaUrl = null;
+                        cleanAiText = fallbackText; // Update text to include the URL
 
                         if (sendingResult && sendingResult.success) {
                             console.log(`   ✅ Fallback text message sent successfully`);
