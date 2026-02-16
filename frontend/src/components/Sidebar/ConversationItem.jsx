@@ -1,5 +1,6 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { User, Bot, UserCheck, Tag, MoreVertical, Check, X, Edit2 } from 'lucide-react';
+import { User, Bot, UserCheck, Tag, MoreVertical, Edit2 } from 'lucide-react';
+import EditContactModal from './EditContactModal';
 
 /**
  * Conversation item component
@@ -17,15 +18,13 @@ const ConversationItem = React.memo(({
 
     // State for name editing
     const [isMenuOpen, setIsMenuOpen] = useState(false);
-    const [isEditing, setIsEditing] = useState(false);
+    const [isEditModalOpen, setIsEditModalOpen] = useState(false);
     const [displayName, setDisplayName] = useState(contact.name);
-    const [editValue, setEditValue] = useState(contact.name);
     const menuRef = useRef(null);
 
     // Sync state with props
     useEffect(() => {
         setDisplayName(contact.name);
-        setEditValue(contact.name);
     }, [contact.name]);
 
     // Close menu when clicking outside
@@ -39,14 +38,7 @@ const ConversationItem = React.memo(({
         return () => document.removeEventListener('mousedown', handleClickOutside);
     }, []);
 
-    const handleSaveName = async (e) => {
-        e.stopPropagation();
-        if (!editValue || !editValue.trim()) {
-            setIsEditing(false);
-            setEditValue(displayName);
-            return;
-        }
-
+    const handleSaveName = async (newName) => {
         try {
             // Encode + sign in phone number
             const encodedPhone = contact.phone.replace('+', '%2B');
@@ -81,21 +73,6 @@ const ConversationItem = React.memo(({
             if (apiUrl.endsWith('/')) apiUrl = apiUrl.slice(0, -1);
 
             // Construct full URL
-            // Note: If apiUrl already includes /api (like http://localhost:4000/api), we should be careful.
-            // But based on .env (http://localhost:4000), we probably need to append /api unless the var includes it.
-            // Let's assume the var is base URL.
-
-            // Actually, looking at .env: REACT_APP_API_URL=http://localhost:4000
-            // The routes are mounted at /api/conversations.
-            // So we need `${apiUrl}/api/conversations/...` IF apiUrl is just the host.
-            // BUT usually REACT_APP_API_URL includes /api in some setups.
-            // Let's check how other components do it. 
-            // For safety, I'll stick to the previous logic: apiUrl + endpoint.
-            // If apiUrl is http://localhost:4000, and endpoint is /conversations... wait.
-            // In App.js routes are mounted at /api/conversations.
-            // So URL should be http://localhost:4000/api/conversations/...
-
-            // Let's refine the URL construction
             let finalUrl;
             if (apiUrl.includes('/api')) {
                 finalUrl = `${apiUrl}/conversations/${encodedPhone}/name`;
@@ -109,27 +86,19 @@ const ConversationItem = React.memo(({
             const res = await fetch(finalUrl, {
                 method: 'PUT',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ name: editValue })
+                body: JSON.stringify({ name: newName })
             });
 
             if (res.ok) {
-                setDisplayName(editValue);
-                setIsEditing(false);
-                // Optionally trigger a refresh callback if provided, but local update is enough for UX
+                setDisplayName(newName);
+                return true;
             } else {
                 console.error("Failed to update name");
+                throw new Error("Failed to update name");
             }
         } catch (error) {
             console.error("Error updating name:", error);
-        }
-    };
-
-    const handleKeyDown = (e) => {
-        if (e.key === 'Enter') handleSaveName(e);
-        if (e.key === 'Escape') {
-            e.stopPropagation();
-            setIsEditing(false);
-            setEditValue(displayName);
+            throw error;
         }
     };
 
@@ -159,39 +128,14 @@ const ConversationItem = React.memo(({
 
             <div className="conversation-content">
                 <div className="conversation-header">
-                    {/* Name or Edit Input */}
-                    {isEditing ? (
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '4px', flex: 1, maxWidth: '70%' }} onClick={e => e.stopPropagation()}>
-                            <input
-                                type="text"
-                                value={editValue}
-                                onChange={(e) => setEditValue(e.target.value)}
-                                onKeyDown={handleKeyDown}
-                                autoFocus
-                                style={{
-                                    width: '100%',
-                                    padding: '2px 4px',
-                                    fontSize: '14px',
-                                    border: '1px solid var(--color-primary)',
-                                    borderRadius: '4px'
-                                }}
-                            />
-                            <button onClick={handleSaveName} className="btn-icon-small" title="Guardar">
-                                <Check size={14} color="green" />
-                            </button>
-                            <button onClick={(e) => { e.stopPropagation(); setIsEditing(false); setEditValue(displayName); }} className="btn-icon-small" title="Cancelar">
-                                <X size={14} color="red" />
-                            </button>
-                        </div>
-                    ) : (
-                        <span className="conversation-name" style={{
-                            fontWeight: hasUnread ? 700 : 600,
-                            color: hasUnread ? 'var(--color-gray-900)' : undefined,
-                            maxWidth: '60%'
-                        }}>
-                            {displayName}
-                        </span>
-                    )}
+                    {/* Name */}
+                    <span className="conversation-name" style={{
+                        fontWeight: hasUnread ? 700 : 600,
+                        color: hasUnread ? 'var(--color-gray-900)' : undefined,
+                        maxWidth: '60%'
+                    }}>
+                        {displayName}
+                    </span>
 
                     <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-2)' }}>
                         <button
@@ -240,7 +184,7 @@ const ConversationItem = React.memo(({
                                 }} onClick={e => e.stopPropagation()}>
                                     <button
                                         onClick={() => {
-                                            setIsEditing(true);
+                                            setIsEditModalOpen(true);
                                             setIsMenuOpen(false);
                                         }}
                                         style={{
@@ -339,7 +283,20 @@ const ConversationItem = React.memo(({
                     )}
                 </div>
             </div>
-        </div>
+
+            {/* Edit Contact Modal */}
+            {
+                isEditModalOpen && (
+                    <EditContactModal
+                        isOpen={isEditModalOpen}
+                        onClose={() => setIsEditModalOpen(false)}
+                        initialName={displayName}
+                        onSave={handleSaveName}
+                        contactPhone={contact.phone}
+                    />
+                )
+            }
+        </div >
     );
 });
 
