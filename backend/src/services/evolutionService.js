@@ -129,36 +129,33 @@ class EvolutionService {
 
             const attempts = [
                 {
-                    name: 'mediatype (lowercase)',
+                    name: 'standard (media + mediatype)',
                     body: {
                         number: isJID ? phone : cleanNumber,
                         mediatype: mediaType,
                         media: finalMediaUrl,
                         caption: caption || '',
-                        fileName: finalFileName,
-                        checkContact: false
+                        fileName: finalFileName
                     }
                 },
                 {
-                    name: 'mediaType (CamelCase)',
+                    name: 'alternative (url + mediatype)',
                     body: {
                         number: isJID ? phone : cleanNumber,
-                        mediaType: mediaType,
-                        media: finalMediaUrl,
+                        mediatype: mediaType,
+                        url: finalMediaUrl,
                         caption: caption || '',
-                        fileName: finalFileName,
-                        checkContact: false
+                        fileName: finalFileName
                     }
                 },
                 {
-                    name: 'type (legacy/v1)',
+                    name: 'legacy (media + type)',
                     body: {
                         number: isJID ? phone : cleanNumber,
                         type: mediaType,
                         media: finalMediaUrl,
                         caption: caption || '',
-                        fileName: finalFileName,
-                        checkContact: false
+                        fileName: finalFileName
                     }
                 }
             ];

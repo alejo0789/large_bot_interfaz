@@ -465,17 +465,40 @@ router.post('/', async (req, res) => {
 
                 // 1. Send via WhatsApp (Evolution API)
                 console.log(`\n📨 STEP 1: Sending to WhatsApp`);
+                let sendingResult = { success: false };
+
                 if (finalMediaUrl) {
                     console.log(`   Mode: MULTIMEDIA (${finalMediaType})`);
                     console.log(`   Media URL: ${finalMediaUrl}`);
                     console.log(`   Caption: ${cleanAiText.substring(0, 50)}...`);
-                    await evolutionService.sendMedia(phone, finalMediaUrl, finalMediaType, cleanAiText);
-                    console.log(`   ✅ Multimedia message sent successfully`);
+
+                    sendingResult = await evolutionService.sendMedia(phone, finalMediaUrl, finalMediaType, cleanAiText);
+
+                    if (sendingResult.success) {
+                        console.log(`   ✅ Multimedia message sent successfully`);
+                    } else {
+                        console.error(`   ❌ Failed to send multimedia message:`, sendingResult.error);
+                        console.log(`   ⚠️ Fallback: Sending as TEXT only...`);
+
+                        // Send text with URL appended since media failed
+                        const fallbackText = `${cleanAiText}\n\n📷 ${finalMediaUrl}`;
+                        sendingResult = await evolutionService.sendMessage(phone, fallbackText);
+
+                        if (sendingResult && sendingResult.success) {
+                            console.log(`   ✅ Fallback text message sent successfully`);
+                        } else {
+                            console.error(`   ❌ Failed to send fallback text message`);
+                        }
+                    }
                 } else {
                     console.log(`   Mode: TEXT ONLY`);
                     console.log(`   Text: ${aiResponseText.substring(0, 50)}...`);
-                    await evolutionService.sendMessage(phone, aiResponseText);
-                    console.log(`   ✅ Text message sent successfully`);
+                    sendingResult = await evolutionService.sendMessage(phone, aiResponseText);
+                    if (sendingResult && sendingResult.success) {
+                        console.log(`   ✅ Text message sent successfully`);
+                    } else {
+                        console.error(`   ❌ Failed to send text message`);
+                    }
                 }
 
                 // 2. Save in Database
