@@ -384,7 +384,10 @@ router.post('/', async (req, res) => {
             });
 
             if (aiResponseText) {
-                console.log(`🤖 AI Response for ${phone}: ${aiResponseText.substring(0, 50)}...`);
+                console.log(`🤖 AI Response received for ${phone}:`);
+                console.log(`   Full text length: ${aiResponseText.length} characters`);
+                console.log(`   First 100 chars: ${aiResponseText.substring(0, 100)}`);
+                console.log(`   Last 100 chars: ${aiResponseText.substring(aiResponseText.length - 100)}`);
 
                 // --- MULTIMEDIA DETECTION ---
                 // Check if the response contains an ID reference: [ID: xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx]
@@ -393,35 +396,59 @@ router.post('/', async (req, res) => {
                 let finalMediaType = null;
                 let cleanAiText = aiResponseText.replace(/\[ID:\s*[a-f\d-]+\s*\]/gi, '').trim();
 
+                console.log(`🔎 ID Match result: ${idMatch ? `Found - ${idMatch[1]}` : 'Not found'}`);
+                console.log(`✂️ Clean text (without ID): ${cleanAiText.substring(0, 50)}...`);
+
                 if (idMatch) {
                     const resourceId = idMatch[1];
-                    console.log(`🔍 Resource ID detected in AI response: ${resourceId}. Fetching from DB...`);
+                    console.log(`🔍 Resource ID detected in AI response: ${resourceId}`);
+                    console.log(`   Querying ai_knowledge table...`);
 
                     try {
                         const { pool } = require('../config/database');
                         const { config } = require('../config/app');
-                        const resourceResult = await pool.query('SELECT type, media_url FROM ai_knowledge WHERE id = $1', [resourceId]);
+                        const resourceResult = await pool.query('SELECT id, type, media_url, title FROM ai_knowledge WHERE id = $1', [resourceId]);
+
+                        console.log(`📊 Query result: ${resourceResult.rows.length} rows found`);
 
                         if (resourceResult.rows.length > 0) {
                             const resource = resourceResult.rows[0];
+                            console.log(`📦 Resource details:`, {
+                                id: resource.id,
+                                type: resource.type,
+                                title: resource.title,
+                                media_url: resource.media_url
+                            });
+
                             if (resource.media_url) {
                                 finalMediaUrl = resource.media_url;
 
                                 // Convert relative URLs to absolute URLs
                                 if (finalMediaUrl.startsWith('/') && !finalMediaUrl.startsWith('http')) {
+                                    const originalUrl = finalMediaUrl;
                                     finalMediaUrl = `${config.publicUrl}${finalMediaUrl}`;
-                                    console.log(`🔄 Converted relative URL to absolute: ${finalMediaUrl}`);
+                                    console.log(`🔄 URL conversion:`);
+                                    console.log(`   From: ${originalUrl}`);
+                                    console.log(`   To: ${finalMediaUrl}`);
                                 }
 
                                 finalMediaType = resource.type === 'text' ? 'image' : resource.type;
-                                console.log(`🎯 Resource found! Type: ${finalMediaType}, URL: ${finalMediaUrl}`);
+                                console.log(`✅ Media will be sent!`);
+                                console.log(`   Type: ${finalMediaType}`);
+                                console.log(`   URL: ${finalMediaUrl}`);
+                            } else {
+                                console.warn(`⚠️ Resource found but media_url is empty/null`);
                             }
                         } else {
-                            console.warn(`⚠️ Resource ID ${resourceId} not found in ai_knowledge table.`);
+                            console.warn(`⚠️ Resource ID ${resourceId} NOT FOUND in ai_knowledge table`);
                         }
                     } catch (dbErr) {
-                        console.error('❌ Error fetching resource from DB:', dbErr.message);
+                        console.error('❌ Error fetching resource from DB:');
+                        console.error(`   Message: ${dbErr.message}`);
+                        console.error(`   Stack: ${dbErr.stack}`);
                     }
+                } else {
+                    console.log(`ℹ️ No [ID: ...] pattern found in AI response, sending as text only`);
                 }
 
                 // --- DE-DUPLICATION CACHE ---
@@ -437,17 +464,29 @@ router.post('/', async (req, res) => {
                 setTimeout(() => global.recentAiMessages.delete(cacheKey), 30000);
 
                 // 1. Send via WhatsApp (Evolution API)
+                console.log(`\n📨 STEP 1: Sending to WhatsApp`);
                 if (finalMediaUrl) {
-                    console.log(`📤 Sending AI response as MULTIMEDIA to ${phone}`);
+                    console.log(`   Mode: MULTIMEDIA (${finalMediaType})`);
+                    console.log(`   Media URL: ${finalMediaUrl}`);
+                    console.log(`   Caption: ${cleanAiText.substring(0, 50)}...`);
                     await evolutionService.sendMedia(phone, finalMediaUrl, finalMediaType, cleanAiText);
+                    console.log(`   ✅ Multimedia message sent successfully`);
                 } else {
-                    console.log(`📤 Sending AI response as TEXT to ${phone}`);
+                    console.log(`   Mode: TEXT ONLY`);
+                    console.log(`   Text: ${aiResponseText.substring(0, 50)}...`);
                     await evolutionService.sendMessage(phone, aiResponseText);
+                    console.log(`   ✅ Text message sent successfully`);
                 }
 
                 // 2. Save in Database
+                console.log(`\n💾 STEP 2: Saving to Database`);
                 const agentMessageId = `ai-${Date.now()}`;
                 const dbText = cleanAiText || (finalMediaUrl ? (finalMediaType === 'image' ? '📷 Imagen' : '📎 Archivo') : '...');
+
+                console.log(`   Message ID: ${agentMessageId}`);
+                console.log(`   Text to save: ${dbText.substring(0, 50)}...`);
+                console.log(`   Media Type: ${finalMediaType || 'null'}`);
+                console.log(`   Media URL: ${finalMediaUrl || 'null'}`);
 
                 await messageService.create({
                     phone: phone,
@@ -459,13 +498,17 @@ router.post('/', async (req, res) => {
                     status: 'delivered',
                     senderName: 'Inteligencia Artificial'
                 });
+                console.log(`   ✅ Message saved to database`);
 
                 // 3. Update Conversation Last Message
+                console.log(`\n🔄 STEP 3: Updating conversation`);
                 await conversationService.updateLastMessage(phone, dbText);
                 await conversationService.markAsRead(phone);
+                console.log(`   ✅ Conversation updated`);
 
                 // 4. Emit to Frontend
-                emitToConversation(phone, 'new-message', {
+                console.log(`\n📡 STEP 4: Emitting to Frontend`);
+                const frontendPayload = {
                     phone: phone,
                     contact_name: conversation?.contact_name || pushName,
                     message: dbText,
@@ -477,7 +520,10 @@ router.post('/', async (req, res) => {
                     ai_enabled: true,
                     media_type: finalMediaType,
                     media_url: finalMediaUrl
-                });
+                };
+                console.log(`   Payload:`, JSON.stringify(frontendPayload, null, 2));
+                emitToConversation(phone, 'new-message', frontendPayload);
+                console.log(`   ✅ Message emitted to frontend\n`);
 
             } else {
                 console.log(`⚠️ No response from AI for ${phone}`);
