@@ -141,13 +141,30 @@ router.post('/receive-message', asyncHandler(async (req, res) => {
     const currentState = conversation?.conversation_state || 'ai_active';
     const shouldActivateAI = conversation.ai_enabled !== false;
 
+    // --- NORMALIZACIÓN DE MEDIA TYPE ---
+    // Si viene como 'text' o vacío, intentar inferir por extensión ANTES DE GUARDAR
+    let normalizedMediaType = (media_type || '').trim().toLowerCase();
+
+    if (media_url && (!normalizedMediaType || normalizedMediaType === 'text')) {
+        if (media_url.match(/\.(jpg|jpeg|png|gif|webp)$/i)) normalizedMediaType = 'image';
+        else if (media_url.match(/\.(mp4|avi|mov)$/i)) normalizedMediaType = 'video';
+        else if (media_url.match(/\.(mp3|ogg|wav)$/i)) normalizedMediaType = 'audio';
+        else if (media_url.match(/\.(pdf|doc|docx)$/i)) normalizedMediaType = 'document';
+        else normalizedMediaType = 'image'; // Default a imagen si tiene URL
+    }
+
+    // Si validamos que es imagen, actualizamos la variable principal
+    if (normalizedMediaType && normalizedMediaType !== 'text') {
+        media_type = normalizedMediaType;
+    }
+
     // Save message
     await messageService.create({
         phone: dbPhone,
         sender: sender_type,
         text: message,
         whatsappId: whatsapp_id,
-        mediaType: media_type,
+        mediaType: media_type, // Ahora guarda 'image' si detectó extensión
         mediaUrl: media_url
     });
 
