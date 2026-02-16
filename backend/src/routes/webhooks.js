@@ -11,6 +11,10 @@ const conversationService = require('../services/conversationService');
 
 const evolutionService = require('../services/evolutionService');
 
+const { pool } = require('../config/database');
+const path = require('path');
+const fs = require('fs');
+
 // Socket.IO instance
 let io = null;
 const setSocketIO = (socketIO) => { io = socketIO; };
@@ -54,7 +58,7 @@ router.post('/receive-message', asyncHandler(async (req, res) => {
     console.log('📦 Body:', JSON.stringify(req.body));
     console.log('---------------------------');
 
-    const {
+    let {
         phone,
         contact_name,
         message,
@@ -64,6 +68,38 @@ router.post('/receive-message', asyncHandler(async (req, res) => {
         media_type,
         media_url
     } = req.body;
+
+    const isBot = sender_type === 'bot' || sender_type === 'ai';
+    const isAgent = sender_type === 'agent';
+
+    // --- DETECCIÓN AUTOMÁTICA DE IMÁGENES POR ID ---
+    // Si es un mensaje del bot y tiene el tag [ID: uuid], buscamos la imagen
+    if ((isBot || isAgent) && message) {
+        const idMatch = message.match(/\[ID:\s*([0-9a-fA-F-]{36})\]/i);
+        if (idMatch) {
+            const contextId = idMatch[1];
+            console.log(`🔍 Detectado ID de contexto: ${contextId}. Buscando imagen...`);
+
+            try {
+                const result = await pool.query('SELECT media_url FROM ai_knowledge WHERE id = $1', [contextId]);
+                if (result.rows.length > 0 && result.rows[0].media_url) {
+                    media_url = result.rows[0].media_url;
+
+                    // Si la URL es local, construir la URL absoluta para Evolution API
+                    if (media_url.startsWith('/')) {
+                        const baseUrl = process.env.BACKEND_URL || `${req.protocol}://${req.get('host')}`;
+                        media_url = `${baseUrl}${media_url}`;
+                    }
+                    console.log(`🖼️ Imagen encontrada vinculada al ID: ${media_url}`);
+                }
+
+                // Limpiar el tag del mensaje para que el usuario no vea el código técnico
+                message = message.replace(/\[ID:\s*[0-9a-fA-F-]{36}\]/i, '').trim();
+            } catch (dbError) {
+                console.error('❌ Error buscando media_url por ID:', dbError);
+            }
+        }
+    }
 
     if (!phone) {
         console.error('❌ Error: El webhook no incluyó un número de teléfono (phone)');
@@ -112,10 +148,6 @@ router.post('/receive-message', asyncHandler(async (req, res) => {
 
     // Update conversation
     await conversationService.updateLastMessage(dbPhone, message);
-
-    // Only increment unread for user messages
-    const isBot = sender_type === 'bot' || sender_type === 'ai';
-    const isAgent = sender_type === 'agent';
 
     if (!isBot && !isAgent) {
         await conversationService.incrementUnread(dbPhone);
