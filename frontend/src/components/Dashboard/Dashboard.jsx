@@ -4,7 +4,7 @@ import {
     AreaChart, Area, Legend
 } from 'recharts';
 import {
-    Calendar, MessageSquare, CheckCircle, AlertCircle, TrendingUp, Users, ArrowUp, ArrowDown
+    Calendar, MessageSquare, CheckCircle, AlertCircle, TrendingUp, Users, ArrowUp, ArrowDown, Zap
 } from 'lucide-react';
 
 const API_URL = process.env.REACT_APP_API_URL ||
@@ -60,6 +60,7 @@ const Dashboard = ({ isMobile }) => {
                 if (statsRes.ok && chartRes.ok) {
                     const statsData = await statsRes.json();
                     const chartData = await chartRes.json();
+                    console.log('📊 Frontend received stats:', statsData);
                     setStats(statsData);
                     setChartData(chartData);
                 }
@@ -94,13 +95,9 @@ const Dashboard = ({ isMobile }) => {
         if (dateRange === 'week' || dateRange === 'month') {
             return date.toLocaleDateString('es-CO', { day: 'numeric', month: 'short' });
         }
-        // For today/yesterday, show time
-        // Mobile: "1pm", "2am"
-        if (isMobile) {
-            return date.toLocaleTimeString('es-CO', { hour: 'numeric', hour12: true }).replace(':00', '').replace(' ', '').toLowerCase();
-        }
-        // Desktop: "13:00"
-        return date.toLocaleTimeString('es-CO', { hour: '2-digit', minute: '2-digit' });
+        // For today/yesterday, show time in 24h format (e.g., 14:00)
+        // This is much more compact than 02:00 PM
+        return date.toLocaleTimeString('es-CO', { hour: '2-digit', minute: '2-digit', hour12: false });
     };
 
     return (
@@ -172,16 +169,23 @@ const Dashboard = ({ isMobile }) => {
                     color="blue"
                 />
                 <KPICard
-                    title="Respuestas Enviadas"
+                    title="Respuestas IA"
+                    value={stats?.aiSent || 0}
+                    icon={<Zap className="w-5 h-5 text-emerald-600" />}
+                    color="emerald"
+                    subtitle="Respuestas automáticas"
+                />
+                <KPICard
+                    title="Respuestas Agentes"
                     value={stats?.sent || 0}
-                    icon={<CheckCircle className="w-5 h-5 text-green-600" />}
-                    color="green"
+                    icon={<CheckCircle className="w-5 h-5 text-sky-600" />}
+                    color="sky"
                 />
                 <KPICard
                     title="Nuevas Conversaciones"
                     value={stats?.newConversations || 0}
                     icon={<TrendingUp className="w-5 h-5 text-indigo-600" />}
-                    color="purple"
+                    color="indigo"
                     subtitle="Iniciadas en periodo"
                 />
                 <KPICard
@@ -192,8 +196,8 @@ const Dashboard = ({ isMobile }) => {
                     subtitle="Conversaciones activas"
                 />
                 <KPICard
-                    title="Agentes Activos"
-                    value={stats?.agents?.length || 0}
+                    title="Usuarios Activos"
+                    value={stats?.agents?.filter(a => a.count > 0).length || 0}
                     icon={<Users className="w-5 h-5 text-purple-600" />}
                     color="purple"
                     subtitle="En este periodo"
@@ -227,9 +231,13 @@ const Dashboard = ({ isMobile }) => {
                                             <stop offset="5%" stopColor="#3b82f6" stopOpacity={0.1} />
                                             <stop offset="95%" stopColor="#3b82f6" stopOpacity={0} />
                                         </linearGradient>
+                                        <linearGradient id="colorAI" x1="0" y1="0" x2="0" y2="1">
+                                            <stop offset="5%" stopColor="#10b981" stopOpacity={0.1} />
+                                            <stop offset="95%" stopColor="#10b981" stopOpacity={0} />
+                                        </linearGradient>
                                         <linearGradient id="colorSent" x1="0" y1="0" x2="0" y2="1">
-                                            <stop offset="5%" stopColor="#22c55e" stopOpacity={0.1} />
-                                            <stop offset="95%" stopColor="#22c55e" stopOpacity={0} />
+                                            <stop offset="5%" stopColor="#0369a1" stopOpacity={0.1} />
+                                            <stop offset="95%" stopColor="#0369a1" stopOpacity={0} />
                                         </linearGradient>
                                     </defs>
                                     <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e2e8f0" />
@@ -240,7 +248,8 @@ const Dashboard = ({ isMobile }) => {
                                         axisLine={false}
                                         tickLine={false}
                                         dy={10}
-                                        interval={isMobile ? 'preserveStartEnd' : 0}
+                                        interval="preserveStartEnd"
+                                        minTickGap={30}
                                     />
                                     <YAxis
                                         tick={{ fill: '#64748b', fontSize: 11 }}
@@ -263,9 +272,18 @@ const Dashboard = ({ isMobile }) => {
                                     />
                                     <Area
                                         type="monotone"
+                                        dataKey="ai"
+                                        name="Resp. IA"
+                                        stroke="#10b981"
+                                        strokeWidth={2}
+                                        fillOpacity={1}
+                                        fill="url(#colorAI)"
+                                    />
+                                    <Area
+                                        type="monotone"
                                         dataKey="sent"
-                                        name="Enviados"
-                                        stroke="#22c55e"
+                                        name="Resp. Agente"
+                                        stroke="#0369a1"
                                         strokeWidth={2}
                                         fillOpacity={1}
                                         fill="url(#colorSent)"
@@ -303,7 +321,8 @@ const Dashboard = ({ isMobile }) => {
                                         axisLine={false}
                                         tickLine={false}
                                         dy={10}
-                                        interval={isMobile ? 'preserveStartEnd' : 0}
+                                        interval="preserveStartEnd"
+                                        minTickGap={30}
                                     />
                                     <YAxis
                                         tick={{ fill: '#64748b', fontSize: 11 }}
@@ -343,7 +362,7 @@ const Dashboard = ({ isMobile }) => {
                     flexDirection: 'column'
                 }}>
                     <h3 style={{ fontSize: '1.125rem', fontWeight: 600, color: '#1e293b', marginBottom: '20px' }}>
-                        Rendimiento Agentes
+                        Rendimiento Usuarios
                     </h3>
                     <div style={{ flex: 1, overflowY: 'auto' }}>
                         {stats?.agents?.length > 0 ? (
@@ -368,7 +387,7 @@ const Dashboard = ({ isMobile }) => {
                             </div>
                         ) : (
                             <div style={{ textAlign: 'center', color: '#94a3b8', padding: '20px' }}>
-                                No hay actividad de agentes
+                                No hay actividad de usuarios
                             </div>
                         )}
                     </div>
@@ -382,8 +401,11 @@ const KPICard = ({ title, value, icon, color, subtitle }) => {
     const colors = {
         blue: { bg: '#eff6ff', text: '#2563eb' },
         green: { bg: '#f0fdf4', text: '#16a34a' },
+        emerald: { bg: '#ecfdf5', text: '#059669' },
+        indigo: { bg: '#eef2ff', text: '#4f46e5' },
         orange: { bg: '#fff7ed', text: '#ea580c' },
-        purple: { bg: '#faf5ff', text: '#9333ea' }
+        purple: { bg: '#faf5ff', text: '#9333ea' },
+        sky: { bg: '#f0f9ff', text: '#0284c7' }
     };
 
     const theme = colors[color] || colors.blue;

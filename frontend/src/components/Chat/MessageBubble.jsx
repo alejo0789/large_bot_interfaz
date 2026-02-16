@@ -173,6 +173,20 @@ const MessageBubble = ({ message, onForward }) => {
         }
     };
 
+    // Simple markdown-like formatter for bold text
+    const formatText = (content) => {
+        if (!content) return content;
+
+        // Handle bold: **text**
+        const parts = content.split(/(\*\*.*?\*\*)/g);
+        return parts.map((part, i) => {
+            if (part.startsWith('**') && part.endsWith('**')) {
+                return <strong key={i}>{part.slice(2, -2)}</strong>;
+            }
+            return part;
+        });
+    };
+
     return (
         <>
             <div className={getMessageClass()}>
@@ -204,7 +218,7 @@ const MessageBubble = ({ message, onForward }) => {
                             <p className="message-text" style={{
                                 padding: media_url ? 'var(--space-1) var(--space-2)' : undefined
                             }}>
-                                {text}
+                                {formatText(text)}
                             </p>
                         )}
                         {text && media_type && (
@@ -212,7 +226,7 @@ const MessageBubble = ({ message, onForward }) => {
                                 padding: 'var(--space-1) var(--space-2)',
                                 fontSize: 'var(--font-size-sm)'
                             }}>
-                                {text}
+                                {formatText(text)}
                             </p>
                         )}
 

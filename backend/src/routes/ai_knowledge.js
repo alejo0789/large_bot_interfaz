@@ -87,6 +87,31 @@ router.get('/', async (req, res, next) => {
     }
 });
 
+const fetch = (...args) => import('node-fetch').then(({ default: fetch }) => fetch(...args));
+
+// Función para generar embeddings automáticamente
+async function getEmbedding(text) {
+    const API_KEY = process.env.GOOGLE_AI_API_KEY;
+    if (!API_KEY) return null;
+
+    try {
+        const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-embedding-001:embedContent?key=${API_KEY}`;
+        const response = await fetch(url, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                content: { parts: [{ text }] },
+                output_dimensionality: 3072
+            })
+        });
+        const data = await response.json();
+        return data.embedding ? `[${data.embedding.values.join(',')}]` : null;
+    } catch (err) {
+        console.error('❌ Error generando embedding automático:', err.message);
+        return null;
+    }
+}
+
 /**
  * POST /api/ai-knowledge/upload
  * Subir archivo (imagen, audio, video)
@@ -97,9 +122,7 @@ router.post('/upload', upload.single('file'), async (req, res, next) => {
             return res.status(400).json({ error: 'No se ha subido ningún archivo' });
         }
 
-        const { description, keywords } = req.body;
-
-        // Determinar tipo
+        const { description, keywords, title } = req.body;
         let type = 'image';
         if (req.file.mimetype.startsWith('audio/')) type = 'audio';
         if (req.file.mimetype.startsWith('video/')) type = 'video';
@@ -107,19 +130,21 @@ router.post('/upload', upload.single('file'), async (req, res, next) => {
         const mediaUrl = `/uploads/ai_knowledge/${req.file.filename}`;
         const keywordArray = keywords ? (Array.isArray(keywords) ? keywords : keywords.split(',').map(k => k.trim())) : [];
 
+        // Generar embedding automático del contenido/descripción
+        const embedding = await getEmbedding(`${title || ''} ${description || ''}`);
+
         const query = `
             INSERT INTO ai_knowledge 
-            (type, content, media_url, filename, keywords) 
-            VALUES ($1, $2, $3, $4, $5) 
+            (type, title, content, media_url, filename, keywords, embedding) 
+            VALUES ($1, $2, $3, $4, $5, $6, $7) 
             RETURNING *
         `;
 
-        const values = [type, description || '', mediaUrl, req.file.originalname, keywordArray];
+        const values = [type, title || '', description || '', mediaUrl, req.file.originalname, keywordArray, embedding];
         const result = await pool.query(query, values);
 
         res.status(201).json(result.rows[0]);
     } catch (error) {
-        // Limpiar archivo si hubo error en DB
         if (req.file && req.file.path) {
             fs.unlink(req.file.path, (err) => {
                 if (err) console.error('Error borrando archivo tras fallo:', err);
@@ -143,14 +168,18 @@ router.post('/text', async (req, res, next) => {
 
         const keywordArray = keywords ? (Array.isArray(keywords) ? keywords : keywords.split(',').map(k => k.trim())) : [];
 
+        // Generar embedding automático
+        console.log(`🧬 Generando embedding automático para: ${title}`);
+        const embedding = await getEmbedding(`${title} ${content}`);
+
         const query = `
             INSERT INTO ai_knowledge 
-            (type, title, content, keywords) 
-            VALUES ($1, $2, $3, $4) 
+            (type, title, content, keywords, embedding) 
+            VALUES ($1, $2, $3, $4, $5) 
             RETURNING *
         `;
 
-        const values = ['text', title || '', content, keywordArray];
+        const values = ['text', title || '', content, keywordArray, embedding];
         const result = await pool.query(query, values);
 
         res.status(201).json(result.rows[0]);

@@ -30,11 +30,19 @@ router.get('/stats', async (req, res) => {
             AND ${dateFilterMsg}
         `;
 
-        // 2. Mensajes Respondidos (Agentes)
+        // 2. Mensajes Respondidos (Agentes Humanos)
         const sentQuery = `
             SELECT COUNT(*) as count 
             FROM messages 
             WHERE sender IN ('agent', 'me') 
+            AND ${dateFilterMsg}
+        `;
+
+        // 2b. Mensajes Respondidos (IA)
+        const aiQuery = `
+            SELECT COUNT(*) as count 
+            FROM messages 
+            WHERE sender IN ('bot', 'ai') 
             AND ${dateFilterMsg}
         `;
 
@@ -88,9 +96,10 @@ router.get('/stats', async (req, res) => {
             WHERE ${dateFilterCreated}
         `;
 
-        const [received, sent, unreads, agents, newConversations] = await Promise.all([
+        const [received, sent, ai, unreads, agents, newConversations] = await Promise.all([
             pool.query(receivedQuery, params),
             pool.query(sentQuery, params),
+            pool.query(aiQuery, params),
             pool.query(unreadQuery, params),
             pool.query(agentQuery, params),
             pool.query(newConversationsQuery, params)
@@ -99,6 +108,7 @@ router.get('/stats', async (req, res) => {
         const stats = {
             received: parseInt(received.rows[0]?.count || 0),
             sent: parseInt(sent.rows[0]?.count || 0),
+            aiSent: parseInt(ai.rows[0]?.count || 0),
             unanswered: parseInt(unreads.rows[0]?.count || 0),
             newConversations: parseInt(newConversations.rows[0]?.count || 0),
             agents: agents.rows.map(row => ({
@@ -140,12 +150,13 @@ router.get('/charts', async (req, res) => {
 
         console.log(`📈 Fetching dashboard charts with period: ${period}`);
 
-        // Gráfica de mensajes recibidos vs enviados
+        // Gráfica de mensajes recibidos vs enviados (Agente e IA)
         const chartQuery = `
             SELECT 
                 date_trunc($${params.length + 1}, timestamp) as time_slot,
-                SUM(CASE WHEN sender NOT IN ('agent', 'me', 'system') THEN 1 ELSE 0 END) as received,
-                SUM(CASE WHEN sender IN ('agent', 'me') THEN 1 ELSE 0 END) as sent
+                SUM(CASE WHEN sender NOT IN ('agent', 'me', 'system', 'bot', 'ai') THEN 1 ELSE 0 END) as received,
+                SUM(CASE WHEN sender IN ('agent', 'me') THEN 1 ELSE 0 END) as sent,
+                SUM(CASE WHEN sender IN ('bot', 'ai') THEN 1 ELSE 0 END) as ai
             FROM messages
             WHERE ${dateFilter}
             GROUP BY time_slot
@@ -178,18 +189,19 @@ router.get('/charts', async (req, res) => {
         msgRes.rows.forEach(row => {
             const timeKey = row.time_slot.toISOString();
             if (!dataMap.has(timeKey)) {
-                dataMap.set(timeKey, { time_slot: row.time_slot, received: 0, sent: 0, created: 0 });
+                dataMap.set(timeKey, { time_slot: row.time_slot, received: 0, sent: 0, ai: 0, created: 0 });
             }
             const data = dataMap.get(timeKey);
             data.received = parseInt(row.received);
             data.sent = parseInt(row.sent);
+            data.ai = parseInt(row.ai);
         });
 
         // Process Conversations
         convRes.rows.forEach(row => {
             const timeKey = row.time_slot.toISOString();
             if (!dataMap.has(timeKey)) {
-                dataMap.set(timeKey, { time_slot: row.time_slot, received: 0, sent: 0, created: 0 });
+                dataMap.set(timeKey, { time_slot: row.time_slot, received: 0, sent: 0, ai: 0, created: 0 });
             }
             const data = dataMap.get(timeKey);
             data.created = parseInt(row.created);
@@ -204,6 +216,7 @@ router.get('/charts', async (req, res) => {
                     : new Date(row.time_slot).toLocaleDateString('es-CO', { month: 'short', day: 'numeric' }),
                 received: row.received,
                 sent: row.sent,
+                ai: row.ai,
                 created: row.created,
                 rawTime: row.time_slot
             }));

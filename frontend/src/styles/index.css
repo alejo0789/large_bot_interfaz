@@ -3,10 +3,10 @@
    ============================================= */
 
 :root {
-  /* Primary Colors - WhatsApp-inspired but refined */
-  --color-primary: #128C7E;
-  --color-primary-dark: #075E54;
-  --color-primary-light: #25D366;
+  /* Primary Colors - Refined Forest Green */
+  --color-primary: #075E54;
+  --color-primary-dark: #054c44;
+  --color-primary-light: #128C7E;
 
   /* Secondary Colors */
   --color-secondary: #34B7F1;
@@ -30,10 +30,10 @@
   --color-bubble-outgoing-text: #1F2937;
   --color-bubble-incoming: #FFFFFF;
   --color-bubble-incoming-text: #1F2937;
-  --color-bubble-agent: #128C7E;
+  --color-bubble-agent: #054c44;
   --color-bubble-agent-text: #FFFFFF;
-  --color-bubble-bot: #34B7F1;
-  --color-bubble-bot-text: #FFFFFF;
+  --color-bubble-bot: #D1FAE5;
+  --color-bubble-bot-text: #064E3B;
 
   /* Status Colors */
   --color-success: #10B981;
@@ -439,6 +439,7 @@ body {
 .message-text {
   font-size: var(--font-size-sm);
   line-height: 1.4;
+  white-space: pre-wrap;
 }
 
 .message-meta {
