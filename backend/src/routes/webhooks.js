@@ -88,6 +88,11 @@ router.post('/receive-message', asyncHandler(async (req, res) => {
         const idMatch = message.match(/\[ID:\s*([0-9a-fA-F-]{36})\]/i);
         if (idMatch) {
             const contextId = idMatch[1];
+
+            // LIMPIEZA INMEDIATA: Si detectamos un ID, lo borramos del mensaje VISIBLE
+            // Independientemente de si encontramos la imagen o no, el usuario no debe ver el código
+            message = message.replace(/\[ID:\s*[0-9a-fA-F-]{36}\s*\]/gi, '').trim();
+
             console.log(`🔍 Detectado ID de contexto: ${contextId}. Buscando imagen...`);
 
             try {
@@ -118,7 +123,7 @@ router.post('/receive-message', asyncHandler(async (req, res) => {
                             media_type = result.rows[0].type;
                         }
 
-                        // Si la URL es local, construir la URL absoluta
+                        // Si la URL es local, construir la URL absoluta para Evolution API
                         if (media_url.startsWith('/')) {
                             const baseUrl = process.env.BACKEND_URL || `${req.protocol}://${req.get('host')}`;
                             media_url = `${baseUrl}${media_url}`;
@@ -126,9 +131,6 @@ router.post('/receive-message', asyncHandler(async (req, res) => {
                         console.log(`🖼️ Imagen NUEVA encontrada vinculada al ID: ${media_url} (Tipo DB: ${result.rows[0].type})`);
                     }
                 }
-
-                // Limpiar el tag del mensaje SIEMPRE
-                message = message.replace(/\[ID:\s*[0-9a-fA-F-]{36}\]/i, '').trim();
             } catch (dbError) {
                 console.error('❌ Error buscando media_url por ID:', dbError);
             }
