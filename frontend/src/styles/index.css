@@ -384,7 +384,7 @@ body {
   margin-bottom: var(--space-2);
   width: 100%;
   max-width: 100%;
-  overflow: hidden;
+  /* overflow: hidden; Removed to allow absolute positioned elements (forward btn) to be visible outside */
 }
 
 .message.outgoing {
@@ -400,7 +400,7 @@ body {
   display: flex;
   flex-direction: column;
   align-items: flex-start;
-  overflow: hidden;
+  /* overflow: hidden; Removed to allow absolute elements (forward btn) */
   min-width: 0;
 }
 
