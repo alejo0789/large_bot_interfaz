@@ -50,7 +50,14 @@ const ConversationItem = React.memo(({
         try {
             // Encode + sign in phone number
             const encodedPhone = contact.phone.replace('+', '%2B');
-            const apiUrl = import.meta.env.VITE_API_URL || '/api'; // Fallback logic
+            let apiUrl = '/api';
+            try {
+                if (import.meta && import.meta.env && import.meta.env.VITE_API_URL) {
+                    apiUrl = import.meta.env.VITE_API_URL;
+                }
+            } catch (e) {
+                // Ignore
+            }
 
             // Use relative path if proxy is set up or absolute if VITE_API_URL is defined
             const url = `${apiUrl}/conversations/${encodedPhone}/name`;
