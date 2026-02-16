@@ -94,7 +94,8 @@ router.post('/receive-message', asyncHandler(async (req, res) => {
 
             // LIMPIEZA INMEDIATA: Si detectamos un ID, lo borramos del mensaje VISIBLE
             // Independientemente de si encontramos la imagen o no, el usuario no debe ver el código
-            message = message.replace(/\[ID:\s*[0-9a-fA-F-]{36}\s*\]/gi, '').trim();
+            // Regex match: [ID: uuid] OR ID: uuid (flexible)
+            message = message.replace(/(?:\[ID:\s*|ID:\s*)[0-9a-fA-F-]{36}(?:\])?/gi, '').trim();
 
             console.log(`🔍 Detectado ID de contexto: ${contextId}. Buscando imagen...`);
 
@@ -107,7 +108,7 @@ router.post('/receive-message', asyncHandler(async (req, res) => {
                     // Verificar si ya enviamos esta misma URL a este usuario en las últimas 24 horas
                     const duplicateCheck = await pool.query(
                         `SELECT id FROM messages 
-                         WHERE phone = $1 
+                         WHERE conversation_phone = $1 
                          AND media_url = $2 
                          AND (sender = 'bot' OR sender = 'ai') 
                          AND timestamp > NOW() - INTERVAL '1 minute'
@@ -137,6 +138,8 @@ router.post('/receive-message', asyncHandler(async (req, res) => {
             } catch (dbError) {
                 console.error('❌ Error buscando media_url por ID:', dbError);
             }
+        } else {
+            console.log('⚠️ No ID match found in message:', message.substring(0, 50) + '...');
         }
     }
 
