@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
+import { useDrag } from '@use-gesture/react';
 import { io } from 'socket.io-client';
 import { Tag, MessageSquare, Settings, RotateCw, Menu, EyeOff } from 'lucide-react';
 
@@ -128,6 +129,8 @@ const AuthenticatedApp = () => {
     }, []);
 
     // Custom hooks
+
+
     const {
         conversations,
         selectedConversation,
@@ -144,7 +147,9 @@ const AuthenticatedApp = () => {
         markConversationAsUnread,
         loadMoreConversations,
         searchConversations,
-        fetchConversations
+        fetchConversations,
+        deleteMessage,
+        reactToMessage
     } = useConversations(socket);
 
     const {
@@ -645,6 +650,41 @@ const AuthenticatedApp = () => {
         if (isMobile) setShowSidebar(false);
     };
 
+    // Swipe Back Gesture for Mobile
+    const bindSwipe = useDrag(({ movement: [mx], cancel, active }) => {
+        if (!isMobile || !selectedConversation) return;
+        // Swipe right to go back
+        if (mx > 100 && !isResizing) {
+            cancel();
+            setShowSidebar(true);
+            if (searchQuery) {
+                setSearchQuery('');
+                fetchConversations(1, '');
+            }
+            selectConversation(null); // Optional: clear selection to fully reset
+        }
+    }, {
+        axis: 'x',
+        filterTaps: true,
+        rubberband: true
+    });
+
+    const handleMessageDelete = useCallback(async (message) => {
+        if (!window.confirm('¿Estás seguro de que quieres eliminar este mensaje?')) return;
+
+        try {
+            await deleteMessage(message.id, selectedConversation?.contact.phone);
+        } catch (error) {
+            console.error('Error deleting message:', error);
+            alert('Error al eliminar mensaje');
+        }
+    }, [deleteMessage, selectedConversation]);
+
+    const handleMessageReact = useCallback((message, emoji) => {
+        // Optimistic update supported by hook
+        reactToMessage(message.id, emoji, selectedConversation?.contact.phone);
+    }, [reactToMessage, selectedConversation]);
+
     return (
         <MainLayout
             activeTab={activeTab}
@@ -816,7 +856,13 @@ const AuthenticatedApp = () => {
                                 aiEnabled={aiStatesByPhone[selectedConversation.contact.phone] ?? true}
                                 onToggleAI={toggleAI}
                                 onMarkUnread={handleMarkUnread}
-                                onBack={() => setShowSidebar(true)}
+                                onBack={() => {
+                                    setShowSidebar(true);
+                                    if (searchQuery) {
+                                        setSearchQuery('');
+                                        fetchConversations(1, ''); // Reload all
+                                    }
+                                }}
                                 isMobile={isMobile}
                             />
 
@@ -868,11 +914,16 @@ const AuthenticatedApp = () => {
                                 </button>
                             </div>
 
-                            <MessageList
-                                messages={currentMessages}
-                                isLoading={isLoadingMessages}
-                                onForward={handleForwardMessage}
-                            />
+
+                            <div {...bindSwipe()} style={{ flex: 1, display: 'flex', flexDirection: 'column', minHeight: 0, touchAction: 'none' }}>
+                                <MessageList
+                                    messages={currentMessages}
+                                    isLoading={isLoadingMessages}
+                                    onForward={handleForwardMessage}
+                                    onReact={handleMessageReact}
+                                    onDelete={handleMessageDelete}
+                                />
+                            </div>
 
                             <MessageInput
                                 onSend={handleSendMessage}

@@ -441,4 +441,124 @@ router.get('/bulk-send/:batchId', asyncHandler(async (req, res) => {
     res.json(status);
 }));
 
+
+/**
+ * Delete a message
+ * DELETE /api/messages/:id
+ */
+/**
+ * Add reaction to a message
+ * POST /api/messages/:id/reaction
+ */
+router.post('/:id/reaction', asyncHandler(async (req, res) => {
+    const { id } = req.params;
+    const { reaction, phone } = req.body; // reaction: emoji or '', phone: conversation phone
+
+    if (!phone) {
+        throw new AppError('Phone is required', 400);
+    }
+
+    // Fetch the message to know who sent it
+    const message = await messageService.getMessageById(id);
+    let fromMe = false;
+    let targetMessageId = id; // Default to provided ID
+
+    if (message) {
+        // If sender is 'agent', 'me', or 'system', then it is fromMe=true
+        // If sender is 'user', then fromMe=false
+        fromMe = (message.sender === 'agent' || message.sender === 'me' || message.sender === 'system');
+
+        // CRITICAL FIX: Use the WhatsApp ID (key.id) for the API, not our local DB UUID
+        if (message.whatsapp_id) {
+            targetMessageId = message.whatsapp_id;
+        }
+
+        console.log(`🔍 Reaction context: Found msg. Sender: ${message.sender}, fromMe=${fromMe}, whatsapp_id=${targetMessageId}`);
+    } else {
+        console.warn(`⚠️ Reaction warning: Message ${id} not found in DB. Defaulting to fromMe=false`);
+    }
+
+    // 1. Send to Evolution API
+    let apiSuccess = false;
+    if (config.evolutionApiUrl) {
+        // Pass the correct WhatsApp ID (targetMessageId)
+        const result = await evolutionService.sendReaction(phone, targetMessageId, reaction, fromMe);
+        apiSuccess = result.success;
+    } else {
+        // Fallback or skip if no API
+        console.warn('Evolution API not configured, skipping external reaction');
+    }
+
+    // 2. Persist in DB
+    const persisted = await messageService.addReaction(id, reaction);
+
+    // 3. Emit event
+    if (io) {
+        io.emit('message-reaction', {
+            id,
+            reaction,
+            phone,
+            by: 'me'
+        });
+    }
+
+    res.json({
+        success: true,
+        persisted,
+        apiSuccess,
+        message: 'Reaction processed',
+        debug: {
+            originalId: id,
+            targetMessageId,
+            fromMe,
+            sender: message ? message.sender : 'unknown',
+            evolutionUrl: config.evolutionApiUrl,
+            foundInDb: !!message
+        }
+    });
+}));
+
+router.delete('/:id', asyncHandler(async (req, res) => {
+    const { id } = req.params;
+
+    // Check if message exists and get details
+    const message = await messageService.getMessageById(id);
+
+    if (!message) {
+        throw new AppError('Mensaje no encontrado', 404);
+    }
+
+    // 1. Delete from WhatsApp (Evolution ID)
+    let apiDeleted = false;
+    if (config.evolutionApiUrl) {
+        // Only attempt to delete from WA if we have a valid whatsapp_id
+        if (message.whatsapp_id) {
+            const fromMe = (message.sender === 'agent' || message.sender === 'me' || message.sender === 'system');
+            // Phone is needed for JID construction
+            const result = await evolutionService.deleteMessage(message.conversation_phone, message.whatsapp_id, fromMe);
+            apiDeleted = result.success;
+        } else {
+            console.warn('⚠️ Cannot delete from WA: Missing whatsapp_id for message', id);
+        }
+    }
+
+    // 2. Delete from DB
+    const deleted = await messageService.deleteMessage(id);
+
+    if (deleted) {
+        // Emit deletion event to frontend
+        if (io) {
+            io.emit('message-deleted', { id });
+        }
+
+        res.json({
+            success: true,
+            message: 'Mensaje eliminado',
+            apiDeleted
+        });
+    } else {
+        throw new AppError('No se pudo eliminar el mensaje', 500);
+    }
+}));
+
 module.exports = { router, setSocketIO };

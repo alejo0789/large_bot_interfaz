@@ -58,7 +58,8 @@ class MessageService {
                 timestamp,
                 agent_id,
                 agent_name,
-                sender_name
+                sender_name,
+                reactions
             FROM messages 
             WHERE conversation_phone = $1 ${cursorCondition}
             ORDER BY timestamp ${orderDirection}
@@ -115,7 +116,8 @@ class MessageService {
                 media_url: msg.media_url || null,
                 agentId: msg.agent_id,
                 agentName: msg.agent_name,
-                sender_name: msg.sender_name
+                sender_name: msg.sender_name,
+                reactions: msg.reactions || []
             };
         });
 
@@ -243,6 +245,65 @@ class MessageService {
             WHERE timestamp < NOW() - INTERVAL '${daysOld} days'
         `);
         return rowCount;
+    }
+
+    /**
+     * Add or update a reaction to a message
+     */
+    async addReaction(messageId, reaction) {
+        // Try to handle both UUID and String (whatsapp_id)
+        // We will look up by whatsapp_id first as it is more likely what we have if we did mapped ID.
+        // But if messageId is UUID, we check that too.
+
+        // Strategy: First get current reactions
+        const { rows } = await pool.query(`
+            SELECT reactions, id 
+            FROM messages 
+            WHERE whatsapp_id = $1 OR id::text = $1
+            LIMIT 1
+        `, [messageId]);
+
+        if (rows.length === 0) return false;
+
+        let reactions = rows[0].reactions || [];
+        // Filter out any existing reaction by 'me' (agent/system)
+        // Ideally we should store WHO reacted better, but simplified for now: 'me'
+        reactions = reactions.filter(r => r.by !== 'me');
+
+        if (reaction) {
+            reactions.push({ emoji: reaction, by: 'me' });
+        }
+
+        await pool.query(`
+            UPDATE messages 
+            SET reactions = $1::jsonb 
+            WHERE id = $2
+        `, [JSON.stringify(reactions), rows[0].id]);
+
+        return true;
+    }
+
+    /**
+     * Get a single message by ID or WhatsApp ID
+     */
+    async getMessageById(messageId) {
+        const { rows } = await pool.query(`
+            SELECT * FROM messages 
+            WHERE whatsapp_id = $1 OR id::text = $1
+            LIMIT 1
+        `, [messageId]);
+        return rows[0] || null;
+    }
+
+    /**
+     * Delete a message by ID
+     */
+    async deleteMessage(messageId) {
+        const { rowCount } = await pool.query(
+            'DELETE FROM messages WHERE id = $1',
+            [messageId]
+        );
+        return rowCount > 0;
     }
 }
 

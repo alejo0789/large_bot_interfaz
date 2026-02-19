@@ -615,6 +615,66 @@ export const useConversations = (socket) => {
     }, [fetchConversations]);
     */
 
+    const deleteMessage = useCallback(async (messageId, phone) => {
+        try {
+            // Optimistic update
+            setMessagesByConversation(prev => {
+                const current = prev[phone] || [];
+                return {
+                    ...prev,
+                    [phone]: current.filter(m => m.id !== messageId)
+                };
+            });
+
+            const res = await fetch(`${API_URL}/api/messages/${messageId}`, {
+                method: 'DELETE'
+            });
+
+            if (!res.ok) {
+                // Revert if failed (would need more complex state management to revert perfectly, 
+                // for now just alerting or fetching again is safer, or simply let the error stand)
+                throw new Error('Failed to delete');
+            }
+        } catch (error) {
+            console.error(error);
+            // Optionally refresh messages to restore state
+        }
+    }, [API_URL]);
+
+    const reactToMessage = useCallback(async (messageId, emoji, phone) => {
+        // Optimistic update
+        setMessagesByConversation(prev => {
+            const current = (prev[phone] || []);
+            const updated = current.map(m => {
+                if (m.id === messageId) {
+                    // Filter out my existing reaction to toggle/replace
+                    const otherReactions = (m.reactions || []).filter(r => r.by !== 'me');
+                    const newReactions = [...otherReactions];
+                    if (emoji) {
+                        newReactions.push({ emoji, by: 'me' });
+                    }
+                    return { ...m, reactions: newReactions };
+                }
+                return m;
+            });
+            return {
+                ...prev,
+                [phone]: updated
+            };
+        });
+
+        try {
+            await fetch(`${API_URL}/api/messages/${messageId}/reaction`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ reaction: emoji, phone })
+            });
+        } catch (error) {
+            console.error('Failed to react:', error);
+            // Could revert here if needed
+        }
+    }, []);
+
     return {
         conversations,
         selectedConversation,
@@ -634,7 +694,9 @@ export const useConversations = (socket) => {
         setSelectedConversation,
         loadMoreConversations,
         searchConversations,
-        sendFile
+        sendFile,
+        deleteMessage,
+        reactToMessage
     };
 };
 

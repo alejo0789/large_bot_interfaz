@@ -1,11 +1,12 @@
-import React, { useState } from 'react';
-import { CheckCheck, Clock, Download, FileText, Image as ImageIcon, Mic, Forward } from 'lucide-react';
+import React, { useState, useEffect, useRef } from 'react';
+import { CheckCheck, Clock, Download, FileText, Image as ImageIcon, Mic, Forward, Trash2, Smile, MoreHorizontal } from 'lucide-react';
+import EmojiPicker from 'emoji-picker-react';
 
 /**
- * Message bubble component with media support
+ * Message bubble component with media support, reactions, and actions
  */
-const MessageBubble = ({ message, onForward }) => {
-    const { text, timestamp, status } = message;
+const MessageBubble = ({ message, onForward, onReact, onDelete }) => {
+    const { text, timestamp, status, id, reactions = [] } = message;
     const rawSender = message.sender || message.sender_type || 'customer';
     const sender = String(rawSender).toLowerCase().trim();
 
@@ -19,6 +20,9 @@ const MessageBubble = ({ message, onForward }) => {
 
     const [imageError, setImageError] = useState(false);
     const [showFullImage, setShowFullImage] = useState(false);
+    const [showMenu, setShowMenu] = useState(false);
+    const [menuPosition, setMenuPosition] = useState({ x: 0, y: 0 });
+    const menuRef = useRef(null);
 
     // Identify if message is outgoing (from the business/bot)
     // Be broad to catch variations in naming (agent, bot, system, me, ai, etc.)
@@ -55,6 +59,45 @@ const MessageBubble = ({ message, onForward }) => {
             default:
                 return <CheckCheck className="w-3 h-3" style={{ opacity: 0.7 }} />;
         }
+    };
+
+    // Handle Context Menu (Right Click / Long Press)
+    const handleContextMenu = (e) => {
+        e.preventDefault();
+        // Calculate position - prefer centered above/below but keep in viewport
+        const x = e.clientX;
+        const y = e.clientY;
+        setMenuPosition({ x, y });
+        setShowMenu(true);
+    };
+
+    // Close menu on outside click
+    useEffect(() => {
+        const handleClickOutside = (event) => {
+            if (menuRef.current && !menuRef.current.contains(event.target)) {
+                setShowMenu(false);
+            }
+        };
+
+        if (showMenu) {
+            document.addEventListener('mousedown', handleClickOutside);
+            document.addEventListener('touchstart', handleClickOutside); // For mobile
+        }
+
+        return () => {
+            document.removeEventListener('mousedown', handleClickOutside);
+            document.removeEventListener('touchstart', handleClickOutside);
+        };
+    }, [showMenu]);
+
+    const handleReactionClick = (emoji) => {
+        if (onReact) onReact(message, emoji);
+        setShowMenu(false);
+    };
+
+    const handleDeleteClick = () => {
+        if (onDelete) onDelete(message);
+        setShowMenu(false);
     };
 
     // Render media content based on type
@@ -201,11 +244,15 @@ const MessageBubble = ({ message, onForward }) => {
 
     return (
         <>
-            <div className={getMessageClass()}>
+            <div
+                className={getMessageClass()}
+                onContextMenu={handleContextMenu}
+                style={{ userSelect: 'none' }} // Prevent text selection on long press for better UX on mobile
+            >
                 <div className="message-container" style={{ position: 'relative' }}>
                     <div className="message-bubble" style={{
                         padding: media_url ? 'var(--space-1)' : undefined,
-                        overflow: 'hidden',
+                        overflow: 'visible', // Allow reactions to pop out
                         position: 'relative',
                         minWidth: '80px',
                         maxWidth: '100%',
@@ -236,7 +283,8 @@ const MessageBubble = ({ message, onForward }) => {
                                 overflowWrap: 'anywhere',
                                 wordBreak: 'break-word',
                                 whiteSpace: 'pre-wrap',
-                                maxWidth: '100%'
+                                maxWidth: '100%',
+                                userSelect: 'text' // Allow text selection inside bubble
                             }}>
                                 {formatText(text)}
                             </p>
@@ -252,6 +300,30 @@ const MessageBubble = ({ message, onForward }) => {
                                 </span>
                             )}
                         </div>
+
+                        {/* Reactions Display */}
+                        {reactions && reactions.length > 0 && (
+                            <div style={{
+                                position: 'absolute',
+                                bottom: '-12px',
+                                right: isOutgoing ? '10px' : 'auto',
+                                left: isOutgoing ? 'auto' : '10px',
+                                background: 'white',
+                                borderRadius: '12px',
+                                padding: '2px 4px',
+                                boxShadow: '0 1px 2px rgba(0,0,0,0.1)',
+                                fontSize: '12px',
+                                display: 'flex',
+                                alignItems: 'center',
+                                gap: '2px',
+                                zIndex: 5,
+                                border: '1px solid #e5e7eb'
+                            }}>
+                                {reactions.map((r, idx) => (
+                                    <span key={idx} title={r.by}>{r.emoji}</span>
+                                ))}
+                            </div>
+                        )}
                     </div>
 
                     {/* Forward Button */}
@@ -309,6 +381,115 @@ const MessageBubble = ({ message, onForward }) => {
                 `}</style>
             </div>
 
+            {/* Context Menu Modal */}
+            {showMenu && (
+                <div
+                    className="modal-overlay"
+                    style={{ alignItems: 'flex-start', paddingTop: '0', background: 'rgba(0,0,0,0.1)' }}
+                    onClick={() => setShowMenu(false)}
+                >
+                    <div
+                        ref={menuRef}
+                        style={{
+                            position: 'absolute',
+                            top: Math.min(window.innerHeight - 200, Math.max(10, menuPosition.y)),
+                            left: Math.min(window.innerWidth - 200, Math.max(10, menuPosition.x)),
+                            background: 'white',
+                            borderRadius: '12px',
+                            boxShadow: '0 4px 20px rgba(0,0,0,0.15)',
+                            padding: '8px',
+                            zIndex: 3000,
+                            display: 'flex',
+                            flexDirection: 'column',
+                            gap: '8px',
+                            animation: 'fadeIn 0.2s ease'
+                        }}
+                        onClick={(e) => e.stopPropagation()}
+                    >
+                        {/* Reaction Bar */}
+                        <div style={{
+                            display: 'flex',
+                            gap: '8px',
+                            padding: '4px',
+                            borderBottom: '1px solid #f3f4f6',
+                            marginBottom: '4px'
+                        }}>
+                            {['👍', '❤️', '😂', '😮', '😢', '😡'].map(emoji => (
+                                <button
+                                    key={emoji}
+                                    onClick={() => handleReactionClick(emoji)}
+                                    style={{
+                                        fontSize: '20px',
+                                        background: 'none',
+                                        border: 'none',
+                                        cursor: 'pointer',
+                                        padding: '4px',
+                                        borderRadius: '50%',
+                                        transition: 'transform 0.1s'
+                                    }}
+                                    onMouseEnter={(e) => e.currentTarget.style.transform = 'scale(1.2)'}
+                                    onMouseLeave={(e) => e.currentTarget.style.transform = 'scale(1)'}
+                                >
+                                    {emoji}
+                                </button>
+                            ))}
+                        </div>
+
+                        {/* Actions */}
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
+                            <button
+                                onClick={handleDeleteClick}
+                                style={{
+                                    display: 'flex',
+                                    alignItems: 'center',
+                                    gap: '8px',
+                                    padding: '8px 12px',
+                                    border: 'none',
+                                    background: 'none',
+                                    width: '100%',
+                                    textAlign: 'left',
+                                    fontSize: '14px',
+                                    color: '#ef4444',
+                                    cursor: 'pointer',
+                                    borderRadius: '6px'
+                                }}
+                                onMouseEnter={(e) => e.currentTarget.style.background = '#fee2e2'}
+                                onMouseLeave={(e) => e.currentTarget.style.background = 'none'}
+                            >
+                                <Trash2 className="w-4 h-4" />
+                                Eliminar mensaje
+                            </button>
+
+                            <button
+                                onClick={() => {
+                                    onForward && onForward(message);
+                                    setShowMenu(false);
+                                }}
+                                style={{
+                                    display: 'flex',
+                                    alignItems: 'center',
+                                    gap: '8px',
+                                    padding: '8px 12px',
+                                    border: 'none',
+                                    background: 'none',
+                                    width: '100%',
+                                    textAlign: 'left',
+                                    fontSize: '14px',
+                                    color: '#4b5563',
+                                    cursor: 'pointer',
+                                    borderRadius: '6px'
+                                }}
+                                onMouseEnter={(e) => e.currentTarget.style.background = '#f3f4f6'}
+                                onMouseLeave={(e) => e.currentTarget.style.background = 'none'}
+                            >
+                                <Forward className="w-4 h-4" />
+                                Reenviar
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
+
             {/* Full screen image modal */}
             {showFullImage && media_type === 'image' && (
                 <div
@@ -357,3 +538,4 @@ const MessageBubble = ({ message, onForward }) => {
 };
 
 export default MessageBubble;
+

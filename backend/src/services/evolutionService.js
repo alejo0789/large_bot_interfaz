@@ -399,6 +399,104 @@ class EvolutionService {
             return false;
         }
     }
+
+    /**
+     * Send a reaction to a message
+     * @param {string} phone - The remote JID (phone number of the contact)
+     * @param {string} messageId - The ID of the message to react to
+     * @param {string} reaction - The emoji reaction (or empty string to remove)
+     * @param {boolean} fromMe - Whether the target message was sent by me (default: false)
+     */
+    async sendReaction(phone, messageId, reaction, fromMe = false) {
+        try {
+            const cleanNumber = phone.replace(/\D/g, '');
+            const isJID = phone.includes('-') || phone.includes('@');
+            const jid = isJID ? phone : `${cleanNumber}@s.whatsapp.net`;
+
+            const url = `${this.baseUrl}/message/sendReaction/${this.instance}`;
+
+            console.log(`📡 Sending reaction '${reaction}' to message ${messageId} in chat ${jid} (Target message fromMe: ${fromMe})`);
+
+            const response = await fetch(url, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'apikey': this.apiKey
+                },
+                body: JSON.stringify({
+                    reaction: reaction,
+                    key: {
+                        remoteJid: jid,
+                        fromMe: fromMe, // Changed from hardcoded true
+                        id: messageId
+                    }
+                })
+            });
+
+            // If simple send fails, maybe we need to pass fromMe correctly.
+            // Let's assume the caller handles this logic or we need to look it up.
+            // Ideally, we passed 'message' object, not just ID.
+            // But let's stick to ID for now and maybe we can query the DB to check sender.
+
+            const data = await response.json();
+
+            if (response.ok) {
+                console.log(`✅ Reaction sent successfully`);
+                return { success: true, data };
+            }
+
+            console.warn(`⚠️ Reaction failed:`, data);
+            return { success: false, error: data };
+
+        } catch (error) {
+            console.error('❌ Error sending reaction:', error);
+            return { success: false, error: error.message };
+        }
+    }
+
+    /**
+     * Delete a message for everyone
+     * @param {string} phone - The remote JID
+     * @param {string} messageId - The WhatsApp message ID
+     * @param {boolean} fromMe - Whether the message was sent by me
+     */
+    async deleteMessage(phone, messageId, fromMe) {
+        try {
+            const cleanNumber = phone.replace(/\D/g, '');
+            const isJID = phone.includes('-') || phone.includes('@');
+            const jid = isJID ? phone : `${cleanNumber}@s.whatsapp.net`;
+
+            const url = `${this.baseUrl}/chat/deleteMessageForEveryone/${this.instance}`;
+
+            console.log(`🗑️ Deleting message ${messageId} for everyone in ${jid}`);
+
+            const response = await fetch(url, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'apikey': this.apiKey
+                },
+                body: JSON.stringify({
+                    id: messageId,
+                    remoteJid: jid,
+                    fromMe: fromMe
+                })
+            });
+
+            const data = await response.json();
+
+            if (response.ok) {
+                console.log(`✅ Message deleted successfully`);
+                return { success: true, data };
+            }
+
+            console.warn(`⚠️ Delete message failed:`, data);
+            return { success: false, error: data };
+        } catch (error) {
+            console.error('❌ Error deleting message:', error);
+            return { success: false, error: error.message };
+        }
+    }
 }
 
 module.exports = new EvolutionService();
