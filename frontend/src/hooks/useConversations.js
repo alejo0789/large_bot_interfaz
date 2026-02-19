@@ -537,7 +537,7 @@ export const useConversations = (socket) => {
                         timestamp: formattedMessage.timestamp,
                         rawTimestamp: formattedMessage.rawTimestamp,
                         unread: (selectedConversation?.contact?.phone === phone || isAgent)
-                            ? (targetConv.unread || 0)
+                            ? 0
                             : (targetConv.unread || 0) + 1
                     };
                     currentConversations.splice(index, 1);
@@ -586,8 +586,8 @@ export const useConversations = (socket) => {
                     lastMessage: data.lastMessage,
                     timestamp: timestamp,
                     rawTimestamp: data.timestamp,
-                    unread: (selectedConversation?.contact.phone === data.phone || data.sender_type === 'agent')
-                        ? (targetConv.unread || 0)
+                    unread: (selectedConversation?.contact.phone === data.phone || data.sender_type === 'agent' || data.sender_type === 'ai' || data.sender_type === 'bot')
+                        ? 0
                         : (targetConv.unread || 0) + (data.unread ?? 1)
                 };
                 currentConversations.splice(index, 1);

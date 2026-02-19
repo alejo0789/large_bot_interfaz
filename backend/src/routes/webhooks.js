@@ -79,8 +79,8 @@ router.post('/receive-message', asyncHandler(async (req, res) => {
     const purePhone = phone.replace(/\D/g, ''); // 573043821239
     const dbPhone = purePhone.startsWith('57') ? `+${purePhone}` : purePhone; // +573043821239
 
-    const isBot = sender_type === 'bot' || sender_type === 'ai';
-    const isAgent = sender_type === 'agent';
+    let isBot = sender_type === 'bot' || sender_type === 'ai';
+    let isAgent = sender_type === 'agent';
 
     // --- DETECCIÓN AUTOMÁTICA DE IMÁGENES POR ID ---
     // Si es un mensaje del bot y tiene el tag [ID: uuid], buscamos la imagen
@@ -146,6 +146,18 @@ router.post('/receive-message', asyncHandler(async (req, res) => {
     console.log(`📱 [WEBHOOK] Phone Original: ${phone} | Pure: ${purePhone} | DB: ${dbPhone}`);
     console.log(`👤 [WEBHOOK] Sender Type: ${sender_type}`);
 
+    // --- DETECCIÓN DE MENSAJES PROPIOS (ENVIADOS DESDE EL CELULAR) ---
+    // Si el webhook viene de Evolution API vía N8N, a veces trae el flag fromMe
+    const isFromMe = req.body.fromMe === true ||
+        (req.body.data && req.body.data.key && req.body.data.key.fromMe === true);
+
+    if (isFromMe) {
+        console.log(`👤 [WEBHOOK] Detectado mensaje saliente (fromMe). Marcando como enviado por Agente.`);
+        sender_type = 'agent';
+        isAgent = true;
+        isBot = false;
+    }
+
     // Check for duplicate
     if (whatsapp_id) {
         const exists = await messageService.existsByWhatsappId(whatsapp_id);
@@ -200,6 +212,9 @@ router.post('/receive-message', asyncHandler(async (req, res) => {
 
     if (!isBot && !isAgent) {
         await conversationService.incrementUnread(dbPhone);
+    } else {
+        // Si el mensaje es del bot o agente (incluyendo desde el celular), marcamos como leído
+        await conversationService.markAsRead(dbPhone);
     }
 
     // --- SEND VIA WHATSAPP (EVOLUTION API) ---
