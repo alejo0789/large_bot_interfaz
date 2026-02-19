@@ -214,6 +214,17 @@ class MessageService {
     }
 
     /**
+     * Update message WhatsApp ID and status
+     */
+    async updateWhatsappId(messageId, whatsappId, status = 'delivered') {
+        await pool.query(`
+            UPDATE messages 
+            SET whatsapp_id = $1, status = $2
+            WHERE id = $3
+        `, [whatsappId, status, messageId]);
+    }
+
+    /**
      * Check if message exists by WhatsApp ID
      */
     async existsByWhatsappId(whatsappId) {
@@ -298,14 +309,20 @@ class MessageService {
     /**
      * Delete a message by ID
      */
+    /**
+     * Delete a message by ID or WhatsApp ID
+     */
     async deleteMessage(messageId) {
-        const { rowCount } = await pool.query(
-            'DELETE FROM messages WHERE id = $1',
-            [messageId]
-        );
+        // Soft deletion: update status to 'deleted' and clear content
+        // We keep the record so it shows as "This message was deleted"
+        const { rowCount } = await pool.query(`
+            UPDATE messages 
+            SET status = 'deleted', text_content = '🚫 Mensaje eliminado', media_url = NULL, media_type = NULL
+            WHERE whatsapp_id = $1 OR id::text = $1
+        `, [messageId]);
+
         return rowCount > 0;
     }
 }
 
 module.exports = new MessageService();
-

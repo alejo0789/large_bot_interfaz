@@ -414,8 +414,17 @@ class EvolutionService {
             const jid = isJID ? phone : `${cleanNumber}@s.whatsapp.net`;
 
             const url = `${this.baseUrl}/message/sendReaction/${this.instance}`;
+            const body = {
+                reaction: reaction,
+                key: {
+                    remoteJid: jid,
+                    fromMe: fromMe,
+                    id: messageId
+                }
+            };
 
-            console.log(`📡 Sending reaction '${reaction}' to message ${messageId} in chat ${jid} (Target message fromMe: ${fromMe})`);
+            console.log(`📡 [Evolution] Sending reaction to ${url}`);
+            console.log(`   Payload:`, JSON.stringify(body));
 
             const response = await fetch(url, {
                 method: 'POST',
@@ -423,33 +432,29 @@ class EvolutionService {
                     'Content-Type': 'application/json',
                     'apikey': this.apiKey
                 },
-                body: JSON.stringify({
-                    reaction: reaction,
-                    key: {
-                        remoteJid: jid,
-                        fromMe: fromMe, // Changed from hardcoded true
-                        id: messageId
-                    }
-                })
+                body: JSON.stringify(body)
             });
 
-            // If simple send fails, maybe we need to pass fromMe correctly.
-            // Let's assume the caller handles this logic or we need to look it up.
-            // Ideally, we passed 'message' object, not just ID.
-            // But let's stick to ID for now and maybe we can query the DB to check sender.
+            const responseText = await response.text();
+            console.log(`   Response Status: ${response.status}`);
+            console.log(`   Response Body:`, responseText);
 
-            const data = await response.json();
+            let data;
+            try {
+                data = JSON.parse(responseText);
+            } catch (e) {
+                data = { error: 'Invalid JSON response', raw: responseText };
+            }
 
             if (response.ok) {
-                console.log(`✅ Reaction sent successfully`);
                 return { success: true, data };
             }
 
-            console.warn(`⚠️ Reaction failed:`, data);
+            console.warn(`⚠️ [Evolution] Reaction failed:`, data);
             return { success: false, error: data };
 
         } catch (error) {
-            console.error('❌ Error sending reaction:', error);
+            console.error('❌ [Evolution] Error sending reaction:', error);
             return { success: false, error: error.message };
         }
     }
@@ -466,34 +471,63 @@ class EvolutionService {
             const isJID = phone.includes('-') || phone.includes('@');
             const jid = isJID ? phone : `${cleanNumber}@s.whatsapp.net`;
 
-            const url = `${this.baseUrl}/chat/deleteMessageForEveryone/${this.instance}`;
-
-            console.log(`🗑️ Deleting message ${messageId} for everyone in ${jid}`);
-
-            const response = await fetch(url, {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                    'apikey': this.apiKey
+            // Try multiple strategies for deletion as endpoints vary by version
+            const strategies = [
+                // Strategy 1: Standard v2 DELETE /message/...
+                {
+                    url: `${this.baseUrl}/message/deleteMessageForEveryone/${this.instance}`,
+                    method: 'DELETE',
+                    body: { remoteJid: jid, id: messageId, fromMe: fromMe }
                 },
-                body: JSON.stringify({
-                    id: messageId,
-                    remoteJid: jid,
-                    fromMe: fromMe
-                })
-            });
+                // Strategy 2: Fallback v2 POST /message/...
+                {
+                    url: `${this.baseUrl}/message/deleteMessageForEveryone/${this.instance}`,
+                    method: 'POST',
+                    body: { remoteJid: jid, id: messageId, fromMe: fromMe }
+                },
+                // Strategy 3: Legacy DELETE /chat/...
+                {
+                    url: `${this.baseUrl}/chat/deleteMessageForEveryone/${this.instance}`,
+                    method: 'DELETE',
+                    body: { remoteJid: jid, id: messageId, fromMe: fromMe }
+                }
+            ];
 
-            const data = await response.json();
+            let lastResult = null;
 
-            if (response.ok) {
-                console.log(`✅ Message deleted successfully`);
-                return { success: true, data };
+            for (const strategy of strategies) {
+                console.log(`🗑️ [Evolution] Deleting message via ${strategy.url} [${strategy.method}]`);
+
+                try {
+                    const response = await fetch(strategy.url, {
+                        method: strategy.method,
+                        headers: {
+                            'Content-Type': 'application/json',
+                            'apikey': this.apiKey
+                        },
+                        body: JSON.stringify(strategy.body)
+                    });
+
+                    const responseText = await response.text();
+                    console.log(`   Response Status: ${response.status}`);
+                    console.log(`   Body:`, responseText);
+
+                    if (response.ok) {
+                        return { success: true, data: JSON.parse(responseText) };
+                    }
+
+                    lastResult = { status: response.status, body: responseText };
+
+                } catch (e) {
+                    console.error(`   Strategy failed:`, e.message);
+                }
             }
 
-            console.warn(`⚠️ Delete message failed:`, data);
-            return { success: false, error: data };
+            console.warn(`⚠️ [Evolution] Delete message failed on all strategies`);
+            return { success: false, error: lastResult };
+
         } catch (error) {
-            console.error('❌ Error deleting message:', error);
+            console.error('❌ [Evolution] Error deleting message:', error);
             return { success: false, error: error.message };
         }
     }

@@ -421,7 +421,7 @@ body {
   word-break: break-word !important;
   display: flex;
   flex-direction: column;
-  overflow: hidden !important;
+  /* overflow: hidden !important; Removed to allow reactions outside */
   box-sizing: border-box;
 }
 

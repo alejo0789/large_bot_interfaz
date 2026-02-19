@@ -113,13 +113,28 @@ router.post('/send-message', asyncHandler(async (req, res) => {
 
     // UPDATE STATUS IN DB after successful send
     if (sendResult.sent) {
-        await messageService.updateStatus(savedMessage.id, 'delivered');
+        // Extract WhatsApp ID if available (Evolution v2: result.data.key.id)
+        let whatsappId = null;
+        if (sendResult.platform === 'evolution' && sendResult.data) {
+            if (sendResult.data.key && sendResult.data.key.id) {
+                whatsappId = sendResult.data.key.id;
+            }
+        }
+
+        if (whatsappId) {
+            console.log(`✅ Updating message ${savedMessage.id} with WhatsApp ID: ${whatsappId}`);
+            await messageService.updateWhatsappId(savedMessage.id, whatsappId, 'delivered');
+            // Update the whatsapp_id that will be emitted to frontend
+            savedMessage.whatsapp_id = whatsappId;
+        } else {
+            await messageService.updateStatus(savedMessage.id, 'delivered');
+        }
     } else {
         await messageService.updateStatus(savedMessage.id, 'failed');
     }
 
     emitToConversation(normalizedPhone, 'agent-message', {
-        whatsapp_id: savedMessage.id, // Include the DB ID
+        whatsapp_id: savedMessage.whatsapp_id || savedMessage.id, // Use actual WA ID if available
         phone: normalizedPhone,
         message,
         sender: 'agent', // Added for consistency
@@ -134,8 +149,8 @@ router.post('/send-message', asyncHandler(async (req, res) => {
     res.json({
         success: true,
         message: 'Mensaje enviado',
-        message: 'Mensaje enviado',
-        result: sendResult
+        result: sendResult,
+        newMessage: savedMessage
     });
 }));
 
@@ -199,16 +214,30 @@ router.post('/send-file', upload.single('file'), asyncHandler(async (req, res) =
         sendResult = { sent: result && result.sent, platform: 'n8n', ...result };
     }
 
-    // Update status in DB
+    // UPDATE STATUS IN DB after successful send
     if (sendResult.sent) {
-        await messageService.updateStatus(savedMessage.id, 'delivered');
+        // Extract WhatsApp ID if available (Evolution v2: result.data.key.id)
+        let whatsappId = null;
+        if (sendResult.platform === 'evolution' && sendResult.data) {
+            if (sendResult.data.key && sendResult.data.key.id) {
+                whatsappId = sendResult.data.key.id;
+            }
+        }
+
+        if (whatsappId) {
+            console.log(`✅ Updating message ${savedMessage.id} with WhatsApp ID: ${whatsappId}`);
+            await messageService.updateWhatsappId(savedMessage.id, whatsappId, 'delivered');
+            savedMessage.whatsapp_id = whatsappId;
+        } else {
+            await messageService.updateStatus(savedMessage.id, 'delivered');
+        }
     } else {
         await messageService.updateStatus(savedMessage.id, 'failed');
     }
 
     // Emit to frontend (OPTIMIZED: uses rooms)
     emitToConversation(phone, 'agent-message', {
-        whatsapp_id: savedMessage.id,
+        whatsapp_id: savedMessage.whatsapp_id || savedMessage.id,
         phone,
         message: (mediaType === 'image' || mediaType === 'video' || mediaType === 'audio') ? (caption || null) : (caption || file.originalname),
         media_type: mediaType,
@@ -231,7 +260,8 @@ router.post('/send-file', upload.single('file'), asyncHandler(async (req, res) =
             url: fileUrl,
             type: mediaType,
             size: file.size
-        }
+        },
+        newMessage: savedMessage
     });
 }));
 
@@ -450,7 +480,8 @@ router.get('/bulk-send/:batchId', asyncHandler(async (req, res) => {
  * Add reaction to a message
  * POST /api/messages/:id/reaction
  */
-router.post('/:id/reaction', asyncHandler(async (req, res) => {
+router.post('/messages/:id/reaction', asyncHandler(async (req, res) => {
+    console.log('🚀 [Reaction Route] Request Received');
     const { id } = req.params;
     const { reaction, phone } = req.body; // reaction: emoji or '', phone: conversation phone
 
@@ -464,9 +495,10 @@ router.post('/:id/reaction', asyncHandler(async (req, res) => {
     let targetMessageId = id; // Default to provided ID
 
     if (message) {
-        // If sender is 'agent', 'me', or 'system', then it is fromMe=true
-        // If sender is 'user', then fromMe=false
-        fromMe = (message.sender === 'agent' || message.sender === 'me' || message.sender === 'system');
+        // If sender is 'agent', 'me', 'system', 'bot', or 'ai', then it is fromMe=true
+        // If sender is 'user' or 'customer', then fromMe=false
+        const outgoingSenders = ['agent', 'me', 'system', 'bot', 'ai'];
+        fromMe = outgoingSenders.includes(message.sender);
 
         // CRITICAL FIX: Use the WhatsApp ID (key.id) for the API, not our local DB UUID
         if (message.whatsapp_id) {
@@ -480,6 +512,8 @@ router.post('/:id/reaction', asyncHandler(async (req, res) => {
 
     // 1. Send to Evolution API
     let apiSuccess = false;
+    console.log(`🔌 [Reaction] Checking Evolution Config: URL=${config.evolutionApiUrl}`);
+
     if (config.evolutionApiUrl) {
         // Pass the correct WhatsApp ID (targetMessageId)
         const result = await evolutionService.sendReaction(phone, targetMessageId, reaction, fromMe);
@@ -518,7 +552,7 @@ router.post('/:id/reaction', asyncHandler(async (req, res) => {
     });
 }));
 
-router.delete('/:id', asyncHandler(async (req, res) => {
+router.delete('/messages/:id', asyncHandler(async (req, res) => {
     const { id } = req.params;
 
     // Check if message exists and get details
@@ -533,7 +567,9 @@ router.delete('/:id', asyncHandler(async (req, res) => {
     if (config.evolutionApiUrl) {
         // Only attempt to delete from WA if we have a valid whatsapp_id
         if (message.whatsapp_id) {
-            const fromMe = (message.sender === 'agent' || message.sender === 'me' || message.sender === 'system');
+            const outgoingSenders = ['agent', 'me', 'system', 'bot', 'ai'];
+            const fromMe = outgoingSenders.includes(message.sender);
+
             // Phone is needed for JID construction
             const result = await evolutionService.deleteMessage(message.conversation_phone, message.whatsapp_id, fromMe);
             apiDeleted = result.success;
@@ -548,7 +584,16 @@ router.delete('/:id', asyncHandler(async (req, res) => {
     if (deleted) {
         // Emit deletion event to frontend
         if (io) {
-            io.emit('message-deleted', { id });
+            // Emit update instead of delete so frontend shows the "deleted" placeholder
+            io.emit('message-updated', {
+                id, // DB ID
+                whatsapp_id: message.whatsapp_id, // WA ID (IMPORTANT for frontend matching)
+                status: 'deleted',
+                text: '🚫 Mensaje eliminado',
+                media_url: null,
+                media_type: null,
+                phone: message.conversation_phone
+            });
         }
 
         res.json({
