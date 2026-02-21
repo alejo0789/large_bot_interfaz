@@ -173,18 +173,21 @@ class MessageService {
      */
     async create({ phone, sender, text, whatsappId, mediaType, mediaUrl, status = 'delivered', agentId, agentName, senderName }) {
         // Verify if agent exists before inserting to avoid FK error
-        let verifiedAgentId = agentId;
-        if (agentId && !isNaN(agentId)) {
+        let verifiedAgentId = null;
+        if (agentId && !isNaN(agentId)) { // Only if it's a valid number
             try {
                 const { rows: agentRows } = await pool.query('SELECT 1 FROM agents WHERE id = $1', [agentId]);
-                if (agentRows.length === 0) {
+                if (agentRows.length > 0) {
+                    verifiedAgentId = agentId;
+                } else {
                     console.warn(`⚠️ Warning: Agent ID ${agentId} not found, saving message without agent reference`);
-                    verifiedAgentId = null;
                 }
             } catch (err) {
                 console.warn(`⚠️ Warning: Could not verify agent ID ${agentId}:`, err.message);
-                // Keep the verifiedAgentId as is for virtual agents like "system"
             }
+        } else if (agentId) {
+            console.log(`🤖 Virtual agent string received ("${agentId}"), dropping reference to avoid integer error`);
+            // verifiedAgentId stays null
         }
 
         const { rows } = await pool.query(`
