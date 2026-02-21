@@ -14,9 +14,13 @@ export const useSocket = () => {
 
     useEffect(() => {
         const socketInstance = io(SOCKET_URL, {
-            transports: ['websocket'],
-            reconnectionAttempts: 5,
+            transports: ['websocket', 'polling'],
+            reconnectionAttempts: Infinity,
             reconnectionDelay: 1000,
+            reconnectionDelayMax: 5000,
+            timeout: 20000,
+            pingInterval: 25000,
+            pingTimeout: 10000,
         });
 
         socketInstance.on('connect', () => {
@@ -24,14 +28,22 @@ export const useSocket = () => {
             setIsConnected(true);
         });
 
-        socketInstance.on('disconnect', () => {
-            console.log('🔴 Disconnected from Socket.IO');
+        socketInstance.on('disconnect', (reason) => {
+            console.log('🔴 Disconnected from Socket.IO. Reason:', reason);
             setIsConnected(false);
+            if (reason === 'io server disconnect') {
+                socketInstance.connect();
+            }
         });
 
         socketInstance.on('connect_error', (error) => {
-            console.error('❌ Socket connection error:', error);
+            console.error('❌ Socket connection error:', error.message);
             setIsConnected(false);
+        });
+
+        socketInstance.on('reconnect', () => {
+            console.log('🔄 Socket reconnected');
+            setIsConnected(true);
         });
 
         setSocket(socketInstance);

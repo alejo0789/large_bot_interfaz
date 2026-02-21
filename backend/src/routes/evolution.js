@@ -15,19 +15,30 @@ const { saveBase64AsFile } = require('../utils/fileUtils');
 let io = null;
 const setSocketIO = (socketIO) => { io = socketIO; };
 
-// Helper to emit events (Duplicate of webhooks.js logic - could be refactored to a shared service)
+// Helper to emit events - NORMALIZED phone handling
 const emitToConversation = (phone, event, data) => {
     if (!io) return;
 
-    console.log(`📡 Emitting ${event} to conversation:${phone}`);
-    io.to(`conversation:${phone}`).emit(event, data);
+    // Normalize phone to ensure delivery to both formats (+57... and 57...)
+    const purePhone = String(phone).replace(/\D/g, '');
+    const dbPhone = purePhone.startsWith('57') ? `+${purePhone}` : purePhone;
+
+    console.log(`📡 Emitting ${event} to conversation:${dbPhone} (also ${purePhone})`);
+
+    // Emit to conversation room with + (DB format)
+    io.to(`conversation:${dbPhone}`).emit(event, data);
+
+    // Emit to conversation room without + (pure format, in case frontend joined with that)
+    if (dbPhone !== purePhone) {
+        io.to(`conversation:${purePhone}`).emit(event, data);
+    }
 
     // Also emit to conversations:list to update sidebar in real-time
     io.to('conversations:list').emit('conversation-updated', {
-        phone,
+        phone: dbPhone,
         lastMessage: data.message,
         timestamp: data.timestamp || new Date().toISOString(),
-        contact_name: data.contact_name, // Added for new conversations
+        contact_name: data.contact_name,
         unread: data.unread !== undefined ? data.unread : 1,
         sender_type: data.sender_type || 'user',
         isNew: data.isNew || false
@@ -51,6 +62,10 @@ router.post('/', async (req, res) => {
         if (!msg || !msg.key) {
             return res.sendStatus(200);
         }
+
+        // ⚡ RESPOND IMMEDIATELY to Evolution API to prevent webhook timeout
+        // All processing will happen in the background after this response
+        res.json({ success: true });
 
         // Determine if this message is from the business (agent) or from client (user)
         const isFromAgent = msg.key.fromMe === true;
@@ -375,13 +390,22 @@ router.post('/', async (req, res) => {
             console.log(`🧠 AI is enabled for ${phone}, triggering N8N...`);
 
             // Wait for N8N response
-            let aiResponseText = await n8nService.triggerAIProcessing({
+            // n8nService.triggerAIProcessing returns an OBJECT: { text, mediaUrl, mediaType, raw }
+            const aiResponse = await n8nService.triggerAIProcessing({
                 phone: phone,
                 text: text,
                 contactName: pushName,
                 mediaType: mediaType,
                 mediaUrl: mediaUrl
             });
+
+            // Extract text from the response object
+            let aiResponseText = null;
+            if (aiResponse && typeof aiResponse === 'object') {
+                aiResponseText = aiResponse.text || aiResponse.message || null;
+            } else if (typeof aiResponse === 'string') {
+                aiResponseText = aiResponse;
+            }
 
             if (aiResponseText) {
                 console.log(`🤖 AI Response received for ${phone}:`);
@@ -392,8 +416,8 @@ router.post('/', async (req, res) => {
                 // --- MULTIMEDIA DETECTION ---
                 // Check if the response contains an ID reference: [ID: xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx]
                 const idMatch = aiResponseText.match(/\[ID:\s*([a-f\d-]+)\]/i);
-                let finalMediaUrl = null;
-                let finalMediaType = null;
+                let finalMediaUrl = aiResponse.mediaUrl || null;
+                let finalMediaType = aiResponse.mediaType || null;
                 let cleanAiText = aiResponseText.replace(/\[ID:\s*[a-f\d-]+\s*\]/gi, '').trim();
 
                 console.log(`🔎 ID Match result: ${idMatch ? `Found - ${idMatch[1]}` : 'Not found'}`);
@@ -592,11 +616,16 @@ router.post('/', async (req, res) => {
             console.log(`🛑 AI skipped for ${phone} (${skipReason})`);
         }
 
-        return res.json({ success: true });
+        // Response was already sent at the top (non-blocking)
+        return;
 
     } catch (error) {
         console.error('❌ Error processing Evolution webhook:', error);
-        return res.sendStatus(500);
+        // Response was already sent, so we can only log the error
+        // If res was not sent yet (early errors before the res.json), send 500
+        if (!res.headersSent) {
+            return res.sendStatus(500);
+        }
     }
 });
 

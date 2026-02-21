@@ -144,22 +144,33 @@ io.on('connection', (socket) => {
     });
 
     // Join conversation room (for viewing a specific chat)
+    // NORMALIZED: joins BOTH phone formats (+57xxx and 57xxx) to prevent mismatches
     socket.on('join-conversation', (phone) => {
         // Leave any previous conversation rooms first
         const rooms = Array.from(socket.rooms);
         rooms.forEach(room => {
-            if (room.startsWith('conversation:') && room !== `conversation:${phone}`) {
+            if (room.startsWith('conversation:')) {
                 socket.leave(room);
             }
         });
 
-        socket.join(`conversation:${phone}`);
-        console.log(`📱 Socket ${socket.id} joined conversation: ${phone}`);
+        // Normalize phone and join both formats
+        const purePhone = String(phone).replace(/\D/g, '');
+        const dbPhone = purePhone.startsWith('57') ? `+${purePhone}` : purePhone;
+
+        socket.join(`conversation:${dbPhone}`);
+        if (dbPhone !== purePhone) {
+            socket.join(`conversation:${purePhone}`);
+        }
+        console.log(`📱 Socket ${socket.id} joined conversation rooms: ${dbPhone}, ${purePhone}`);
     });
 
     // Leave conversation room
     socket.on('leave-conversation', (phone) => {
-        socket.leave(`conversation:${phone}`);
+        const purePhone = String(phone).replace(/\D/g, '');
+        const dbPhone = purePhone.startsWith('57') ? `+${purePhone}` : purePhone;
+        socket.leave(`conversation:${dbPhone}`);
+        socket.leave(`conversation:${purePhone}`);
         console.log(`📱 Socket ${socket.id} left conversation: ${phone}`);
     });
 

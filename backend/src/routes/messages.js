@@ -20,18 +20,28 @@ const setSocketIO = (socketIO) => { io = socketIO; };
 /**
  * Emit message to specific conversation room
  * Optimized for 2000+ conversations
+ * NORMALIZED: emits to both +57xxx and 57xxx formats
  */
 const emitToConversation = (phone, event, data) => {
     if (!io) return;
 
-    // Emit to specific conversation room
-    io.to(`conversation:${phone}`).emit(event, data);
+    // Normalize phone to ensure delivery to both formats
+    const purePhone = String(phone).replace(/\D/g, '');
+    const dbPhone = purePhone.startsWith('57') ? `+${purePhone}` : purePhone;
+
+    // Emit to specific conversation room (DB format with +)
+    io.to(`conversation:${dbPhone}`).emit(event, data);
+
+    // Also emit to pure format (without +) for clients that joined with that
+    if (dbPhone !== purePhone) {
+        io.to(`conversation:${purePhone}`).emit(event, data);
+    }
 
     const isAgent = (data.sender_type || data.sender) === 'agent';
 
     // Emit to global conversations list for updates
     io.to('conversations:list').emit('conversation-updated', {
-        phone,
+        phone: dbPhone,
         lastMessage: data.message,
         timestamp: data.timestamp || new Date().toISOString(),
         contact_name: data.contact_name,

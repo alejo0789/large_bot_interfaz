@@ -444,6 +444,38 @@ class ConversationService {
         newConv.tags = [];
         return newConv;
     }
+
+    /**
+     * Permanently delete a conversation and all its messages from the DB
+     * @param {string} phone - Phone number (conversation identifier)
+     * @returns {boolean} true if deleted, false if not found
+     */
+    async deleteConversation(phone) {
+        const client = await pool.connect();
+        try {
+            await client.query('BEGIN');
+
+            // 1. Delete messages
+            await client.query('DELETE FROM messages WHERE conversation_phone = $1', [phone]);
+
+            // 2. Delete tag assignments
+            await client.query('DELETE FROM conversation_tags WHERE conversation_phone = $1', [phone]);
+
+            // 3. Delete the conversation itself
+            const result = await client.query(
+                'DELETE FROM conversations WHERE phone = $1 RETURNING phone',
+                [phone]
+            );
+
+            await client.query('COMMIT');
+            return result.rowCount > 0;
+        } catch (err) {
+            await client.query('ROLLBACK');
+            throw err;
+        } finally {
+            client.release();
+        }
+    }
 }
 
 module.exports = new ConversationService();

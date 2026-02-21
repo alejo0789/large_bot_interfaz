@@ -394,6 +394,26 @@ export const useConversations = (socket) => {
         }
     }, [aiStatesByPhone]);
 
+    // Re-join conversation room on socket reconnect
+    useEffect(() => {
+        if (!socket || !selectedConversation) return;
+
+        const handleReconnect = () => {
+            const phone = selectedConversation.contact.phone;
+            console.log('🔄 Socket reconnected, re-joining conversation room:', phone);
+            socket.emit('join-conversation', phone);
+        };
+
+        socket.on('reconnect', handleReconnect);
+        // Also re-join on connect (in case this is the initial connect after the conversation was selected)
+        socket.on('connect', handleReconnect);
+
+        return () => {
+            socket.off('reconnect', handleReconnect);
+            socket.off('connect', handleReconnect);
+        };
+    }, [socket, selectedConversation]);
+
     // Handle incoming messages from socket
     useEffect(() => {
         if (!socket) return;
@@ -774,6 +794,13 @@ export const useConversations = (socket) => {
         }
     }, []);
 
+    const removeConversation = useCallback((phone) => {
+        setConversations(prev => prev.filter(c => c.contact.phone !== phone));
+        if (selectedConversation && selectedConversation.contact.phone === phone) {
+            setSelectedConversation(null);
+        }
+    }, [selectedConversation]);
+
     return {
         conversations,
         selectedConversation,
@@ -795,7 +822,8 @@ export const useConversations = (socket) => {
         searchConversations,
         sendFile,
         deleteMessage,
-        reactToMessage
+        reactToMessage,
+        removeConversation
     };
 };
 

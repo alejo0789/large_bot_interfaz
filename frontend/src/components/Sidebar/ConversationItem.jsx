@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { User, Bot, UserCheck, Tag, MoreVertical, Edit2 } from 'lucide-react';
+import { User, Bot, UserCheck, Tag, MoreVertical, Edit2, Trash2 } from 'lucide-react';
 import EditContactModal from './EditContactModal';
 
 /**
@@ -11,7 +11,8 @@ const ConversationItem = React.memo(({
     aiEnabled,
     tags = [],
     onClick,
-    onTagClick
+    onTagClick,
+    onDelete       // optional: (phone) => void — called after successful deletion
 }) => {
     const { contact, lastMessage, timestamp, unread } = conversation;
     const hasUnread = unread > 0;
@@ -20,6 +21,8 @@ const ConversationItem = React.memo(({
     const [isMenuOpen, setIsMenuOpen] = useState(false);
     const [isEditModalOpen, setIsEditModalOpen] = useState(false);
     const [displayName, setDisplayName] = useState(contact.name);
+    const [isDeleting, setIsDeleting] = useState(false);
+    const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
     const menuRef = useRef(null);
 
     // Sync state with props
@@ -105,6 +108,35 @@ const ConversationItem = React.memo(({
         } catch (error) {
             console.error("Error updating name:", error);
             throw error;
+        }
+    };
+
+    const handleDeleteConversation = async () => {
+        setIsDeleting(true);
+        try {
+            let apiUrl = typeof process !== 'undefined' && process.env?.REACT_APP_API_URL
+                ? process.env.REACT_APP_API_URL
+                : window.location.hostname !== 'localhost'
+                    ? 'https://largebotinterfaz-production-5b38.up.railway.app'
+                    : 'http://localhost:4000';
+            if (apiUrl.endsWith('/')) apiUrl = apiUrl.slice(0, -1);
+
+            const res = await fetch(`${apiUrl}/api/conversations/${encodeURIComponent(contact.phone)}`, {
+                method: 'DELETE'
+            });
+
+            if (res.ok) {
+                if (onDelete) onDelete(contact.phone);
+            } else {
+                const data = await res.json().catch(() => ({}));
+                alert('Error al borrar: ' + (data.message || res.status));
+            }
+        } catch (err) {
+            alert('Error de conexión al borrar la conversación');
+            console.error(err);
+        } finally {
+            setIsDeleting(false);
+            setShowDeleteConfirm(false);
         }
     };
 
@@ -211,6 +243,67 @@ const ConversationItem = React.memo(({
                                         <Edit2 size={12} />
                                         Editar nombre
                                     </button>
+
+                                    {/* Separator */}
+                                    <div style={{ height: '1px', backgroundColor: 'var(--color-gray-100)', margin: '2px 0' }} />
+
+                                    {/* Delete conversation */}
+                                    {!showDeleteConfirm ? (
+                                        <button
+                                            onClick={() => {
+                                                setShowDeleteConfirm(true);
+                                            }}
+                                            style={{
+                                                display: 'flex',
+                                                alignItems: 'center',
+                                                gap: '8px',
+                                                width: '100%',
+                                                padding: '8px 12px',
+                                                border: 'none',
+                                                background: 'none',
+                                                fontSize: '12px',
+                                                color: '#dc2626',
+                                                cursor: 'pointer',
+                                                textAlign: 'left'
+                                            }}
+                                        >
+                                            <Trash2 size={12} />
+                                            Borrar conversación
+                                        </button>
+                                    ) : (
+                                        <div style={{ padding: '8px 12px' }}>
+                                            <p style={{ fontSize: '11px', color: '#374151', margin: '0 0 8px', fontWeight: 600 }}>
+                                                ¿Seguro? Esto borrará todos los mensajes.
+                                            </p>
+                                            <div style={{ display: 'flex', gap: '6px' }}>
+                                                <button
+                                                    onClick={handleDeleteConversation}
+                                                    disabled={isDeleting}
+                                                    style={{
+                                                        flex: 1, padding: '5px 0',
+                                                        backgroundColor: '#dc2626', color: 'white',
+                                                        border: 'none', borderRadius: '6px',
+                                                        fontSize: '11px', fontWeight: 600,
+                                                        cursor: isDeleting ? 'not-allowed' : 'pointer',
+                                                        opacity: isDeleting ? 0.7 : 1
+                                                    }}
+                                                >
+                                                    {isDeleting ? 'Borrando...' : 'Sí, borrar'}
+                                                </button>
+                                                <button
+                                                    onClick={() => setShowDeleteConfirm(false)}
+                                                    style={{
+                                                        flex: 1, padding: '5px 0',
+                                                        backgroundColor: 'var(--color-gray-100)', color: '#374151',
+                                                        border: 'none', borderRadius: '6px',
+                                                        fontSize: '11px', fontWeight: 600, cursor: 'pointer'
+                                                    }}
+                                                >
+                                                    Cancelar
+                                                </button>
+                                            </div>
+                                        </div>
+                                    )}
                                 </div>
                             )}
                         </div>

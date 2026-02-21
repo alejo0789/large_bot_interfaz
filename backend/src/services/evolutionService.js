@@ -531,6 +531,52 @@ class EvolutionService {
             return { success: false, error: error.message };
         }
     }
+    /**
+     * Delete (clear) an entire chat in WhatsApp
+     * Uses /chat/deleteChat/{instance} — removes the conversation from WhatsApp
+     * @param {string} phone - Phone number or JID
+     */
+    async deleteChat(phone) {
+        try {
+            const cleanNumber = phone.replace(/\D/g, '');
+            const isJID = phone.includes('-') || phone.includes('@');
+            const jid = isJID ? phone : `${cleanNumber}@s.whatsapp.net`;
+
+            // Try multiple endpoint variants (Evolution v1/v2 differ)
+            const attempts = [
+                { url: `${this.baseUrl}/chat/deleteChat/${this.instance}`, method: 'DELETE', body: { jid } },
+                { url: `${this.baseUrl}/chat/deleteChat/${this.instance}`, method: 'POST', body: { jid } },
+                { url: `${this.baseUrl}/chat/delete/${this.instance}`, method: 'DELETE', body: { jid } },
+                { url: `${this.baseUrl}/chat/deleteChat/${this.instance}`, method: 'DELETE', body: { number: jid } },
+            ];
+
+            for (const attempt of attempts) {
+                console.log(`🗑️ [Evolution] deleteChat via ${attempt.method} ${attempt.url}`);
+                try {
+                    const res = await fetch(attempt.url, {
+                        method: attempt.method,
+                        headers: { 'Content-Type': 'application/json', 'apikey': this.apiKey },
+                        body: JSON.stringify(attempt.body)
+                    });
+                    const text = await res.text();
+                    console.log(`   Status: ${res.status} — ${text.substring(0, 120)}`);
+                    if (res.ok) {
+                        console.log(`✅ [Evolution] deleteChat success for ${jid}`);
+                        return { success: true };
+                    }
+                } catch (e) {
+                    console.warn(`   Attempt failed: ${e.message}`);
+                }
+            }
+
+            // Not a hard failure — log but don't block DB deletion
+            console.warn(`⚠️ [Evolution] Could not delete chat in WhatsApp for ${jid} — will still delete from DB`);
+            return { success: false, warning: 'Could not delete from WhatsApp, deleted from DB only' };
+        } catch (error) {
+            console.error('❌ [Evolution] deleteChat error:', error.message);
+            return { success: false, error: error.message };
+        }
+    }
 }
 
 module.exports = new EvolutionService();

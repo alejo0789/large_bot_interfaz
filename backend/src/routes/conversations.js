@@ -266,5 +266,80 @@ router.post('/start-new', asyncHandler(async (req, res) => {
     res.json({ success: true, conversation });
 }));
 
+/**
+ * Delete a conversation (DB + WhatsApp chat)
+ * DELETE /api/conversations/:phone
+ */
+router.delete('/:phone', asyncHandler(async (req, res) => {
+    const { phone } = req.params;
+    const evolutionService = require('../services/evolutionService');
+
+    // 1. Delete from WhatsApp (non-blocking — don't fail if Evolution can't delete)
+    const waResult = await evolutionService.deleteChat(phone).catch(err => ({
+        success: false, warning: err.message
+    }));
+
+    // 2. Delete from DB (cascade: messages + tags + conversation)
+    const deleted = await conversationService.deleteConversation(phone);
+
+    if (!deleted) {
+        return res.status(404).json({ success: false, message: 'Conversación no encontrada' });
+    }
+
+    console.log(`🗑️ Conversation deleted: ${phone} | WhatsApp: ${waResult.success ? '✅' : '⚠️ ' + (waResult.warning || waResult.error)}`);
+
+    res.json({
+        success: true,
+        phone,
+        whatsappDeleted: waResult.success,
+        whatsappWarning: waResult.warning || null
+    });
+}));
+
+/**
+ * Get recipient count for bulk send preview
+ * GET /api/conversations/recipients-count?tagId=X&startDate=ISO&endDate=ISO
+ * Returns total count without pagination limits (for bulk send preview)
+ */
+router.get('/recipients-count', asyncHandler(async (req, res) => {
+    const { tagId, startDate, endDate } = req.query;
+    const { pool } = require('../config/database');
+
+    const conditions = [`c.status = 'active'`];
+    const params = [];
+    let paramIndex = 1;
+    let joinClause = '';
+
+    if (tagId) {
+        joinClause = 'JOIN conversation_tags ct ON c.phone = ct.conversation_phone';
+        conditions.push(`ct.tag_id = $${paramIndex++}`);
+        params.push(tagId);
+    }
+
+    if (startDate) {
+        conditions.push(`COALESCE(c.last_message_timestamp, c.created_at) >= $${paramIndex++}`);
+        params.push(startDate);
+    }
+
+    if (endDate) {
+        conditions.push(`COALESCE(c.last_message_timestamp, c.created_at) <= $${paramIndex++}`);
+        params.push(endDate);
+    }
+
+    const query = `
+        SELECT COUNT(*) as total
+        FROM conversations c
+        ${joinClause}
+        WHERE ${conditions.join(' AND ')}
+    `;
+
+    const { rows } = await pool.query(query, params);
+    const total = parseInt(rows[0].total);
+
+    res.json({ total, tagId: tagId || null, startDate: startDate || null, endDate: endDate || null });
+}));
+
 module.exports = router;
+
+
 

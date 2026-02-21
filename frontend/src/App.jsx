@@ -92,33 +92,51 @@ const AuthenticatedApp = () => {
     // Initialize socket connection
     useEffect(() => {
         const socketInstance = io(SOCKET_URL, {
-            transports: ['websocket'],
-            reconnectionAttempts: 10,
+            transports: ['websocket', 'polling'], // Fallback to polling if websocket fails
+            reconnectionAttempts: Infinity, // Never stop trying to reconnect
             reconnectionDelay: 1000,
             reconnectionDelayMax: 5000,
             timeout: 20000,
             forceNew: false,
-            autoConnect: true
+            autoConnect: true,
+            pingInterval: 25000,  // Send ping every 25s
+            pingTimeout: 10000,   // Wait 10s for pong before disconnecting
         });
 
         socketInstance.on('connect', () => {
-            console.log('🟢 Connected to Socket.IO');
+            console.log('🟢 Connected to Socket.IO (id:', socketInstance.id, ')');
             setIsConnected(true);
+            // Always join the conversations list room on (re)connect
             socketInstance.emit('join-conversations-list');
         });
 
-        socketInstance.on('disconnect', () => {
-            console.log('🔴 Disconnected from Socket.IO');
+        socketInstance.on('disconnect', (reason) => {
+            console.log('🔴 Disconnected from Socket.IO. Reason:', reason);
             setIsConnected(false);
+            // If the server disconnected us, force reconnect
+            if (reason === 'io server disconnect') {
+                socketInstance.connect();
+            }
         });
 
         socketInstance.on('reconnect', (attemptNumber) => {
             console.log(`🔄 Reconnected to Socket.IO after ${attemptNumber} attempts`);
             setIsConnected(true);
+            // Re-join rooms after reconnection
+            socketInstance.emit('join-conversations-list');
         });
 
-        socketInstance.on('reconnect_attempt', () => {
-            console.log('🔌 Attempting to reconnect...');
+        socketInstance.on('reconnect_attempt', (attemptNumber) => {
+            console.log(`🔌 Reconnection attempt #${attemptNumber}...`);
+        });
+
+        socketInstance.on('reconnect_error', (error) => {
+            console.error('🔌 Reconnection error:', error.message);
+        });
+
+        socketInstance.on('connect_error', (error) => {
+            console.error('❌ Socket connection error:', error.message);
+            setIsConnected(false);
         });
 
         setSocket(socketInstance);
@@ -149,7 +167,8 @@ const AuthenticatedApp = () => {
         searchConversations,
         fetchConversations,
         deleteMessage,
-        reactToMessage
+        reactToMessage,
+        removeConversation
     } = useConversations(socket);
 
     const {
@@ -182,7 +201,7 @@ const AuthenticatedApp = () => {
         localStorage.setItem('sidebarWidth', sidebarWidth);
     }, [sidebarWidth]);
 
-    // Auto-refresh when PWA becomes visible
+    // Auto-refresh when PWA becomes visible & periodic health check
     useEffect(() => {
         const handleVisibilityChange = () => {
             if (document.visibilityState === 'visible') {
@@ -192,14 +211,29 @@ const AuthenticatedApp = () => {
                 if (socket && !socket.connected) {
                     console.log('🔌 Reconnecting socket...');
                     socket.connect();
+                } else if (socket && socket.connected) {
+                    // Re-join rooms in case they were lost
+                    socket.emit('join-conversations-list');
                 }
             }
         };
+
+        // Periodic health check: every 30 seconds, verify socket is in the right rooms
+        const healthInterval = setInterval(() => {
+            if (socket && socket.connected) {
+                // Ensure we're still in the conversations:list room
+                socket.emit('join-conversations-list');
+            } else if (socket && !socket.connected) {
+                console.log('⚠️ Health check: socket disconnected, attempting reconnect...');
+                socket.connect();
+            }
+        }, 30000);
 
         document.addEventListener('visibilitychange', handleVisibilityChange);
 
         return () => {
             document.removeEventListener('visibilitychange', handleVisibilityChange);
+            clearInterval(healthInterval);
         };
     }, [socket]);
 
@@ -780,6 +814,7 @@ const AuthenticatedApp = () => {
                             loadMoreConversations(activeTagId, dateRange.start, dateRange.end);
                         }}
                         onStartNewChat={handleStartNewChat}
+                        onDelete={removeConversation}
                     />
 
                     {/* Resize handle - Desktop only */}
@@ -864,6 +899,7 @@ const AuthenticatedApp = () => {
                                     }
                                 }}
                                 isMobile={isMobile}
+                                onNameUpdated={() => fetchConversations()}
                             />
 
                             {/* Tags bar */}

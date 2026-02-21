@@ -18,7 +18,8 @@ const ConversationList = React.memo(({
     onTagClick,
     onLoadMore,
     onRefresh,
-    onStartNewChat // New prop
+    onStartNewChat, // New prop
+    onDelete        // New prop — called when a conversation is deleted
 }) => {
     const listRef = useRef(null);
     const [refreshing, setRefreshing] = React.useState(false);
@@ -199,6 +200,7 @@ const ConversationList = React.memo(({
                     tags={conversation.tags || tagsByPhone[conversation.contact.phone] || []}
                     onClick={() => onSelect(conversation)}
                     onTagClick={onTagClick}
+                    onDelete={onDelete}
                 />
             ))}
 
