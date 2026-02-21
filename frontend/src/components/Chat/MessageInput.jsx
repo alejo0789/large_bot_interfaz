@@ -884,10 +884,17 @@ const MessageInput = ({ onSend, onSendFile, disabled, isMobile }) => {
                         e.target.style.height = 'auto';
                         e.target.style.height = Math.min(e.target.scrollHeight, 120) + 'px';
                     }}
-                    onKeyPress={(e) => {
+                    onKeyDown={(e) => {
                         if (e.key === 'Enter' && !e.shiftKey) {
                             e.preventDefault();
-                            handleSubmit();
+                            if (showQuickReplies && filteredReplies.length === 1) {
+                                handleQuickReplySelect(filteredReplies[0]);
+                            } else if (showQuickReplies && filteredReplies.length > 1) {
+                                // Do nothing, keep typing to narrow down
+                                return;
+                            } else {
+                                handleSubmit();
+                            }
                         }
                     }}
                     disabled={disabled || isUploading}

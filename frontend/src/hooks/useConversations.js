@@ -263,7 +263,10 @@ export const useConversations = (socket) => {
         try {
             const response = await fetch(`${API_URL}/api/send-message`, {
                 method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
+                headers: {
+                    'Content-Type': 'application/json',
+                    'x-api-key': process.env.REACT_APP_API_KEY || ''
+                },
                 body: JSON.stringify({
                     phone: String(phone),
                     message,
@@ -326,6 +329,9 @@ export const useConversations = (socket) => {
         try {
             const response = await fetch(`${API_URL}/api/send-file`, {
                 method: 'POST',
+                headers: {
+                    'x-api-key': process.env.REACT_APP_API_KEY || ''
+                },
                 body: formData
             });
 

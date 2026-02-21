@@ -12,6 +12,7 @@ const conversationService = require('../services/conversationService');
 const n8nService = require('../services/n8nService');
 const evolutionService = require('../services/evolutionService');
 const { config } = require('../config/app');
+const { requireApiKey } = require('../middleware/apiKeyAuth');
 
 // Socket.IO instance (will be set from app.js)
 let io = null;
@@ -54,7 +55,7 @@ const emitToConversation = (phone, event, data) => {
 };
 
 // Send text message
-router.post('/send-message', asyncHandler(async (req, res) => {
+router.post('/send-message', requireApiKey, asyncHandler(async (req, res) => {
     const { phone, name, message, temp_id, agentId, agentName, agent_id, agent_name } = req.body;
 
     // Normalize agent params (frontend might send agentId or agent_id)
@@ -167,7 +168,7 @@ router.post('/send-message', asyncHandler(async (req, res) => {
 
 
 // Send file
-router.post('/send-file', upload.single('file'), asyncHandler(async (req, res) => {
+router.post('/send-file', requireApiKey, upload.single('file'), asyncHandler(async (req, res) => {
     const { phone, name, caption, agent_id, agent_name, temp_id } = req.body;
     const file = req.file;
 
@@ -304,7 +305,7 @@ const bulkMessageService = require('../services/bulkMessageService');
  * POST /api/bulk-send
  * Body: { recipients: [{phone, name}], message, mediaUrl?, mediaType? }
  */
-router.post('/bulk-send', asyncHandler(async (req, res) => {
+router.post('/bulk-send', requireApiKey, asyncHandler(async (req, res) => {
     const { recipients, message, mediaUrl, mediaType, agentId, agentName, agent_id, agent_name } = req.body;
 
     // Normalize agent params
