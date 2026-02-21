@@ -19,7 +19,7 @@ const n8nService = require('../services/n8nService');
  *   - legacy: If true, returns flat array (backward compatibility)
  */
 router.get('/', asyncHandler(async (req, res) => {
-    const { page, limit, status, search, tagId, startDate, endDate, legacy } = req.query;
+    const { page, limit, status, search, tagId, startDate, endDate, legacy, unreadOnly } = req.query;
 
     const result = await conversationService.getAll({
         page: parseInt(page) || 1,
@@ -28,7 +28,8 @@ router.get('/', asyncHandler(async (req, res) => {
         search: search || null,
         tagId: tagId || null,
         startDate: startDate || null,
-        endDate: endDate || null
+        endDate: endDate || null,
+        unreadOnly: unreadOnly === 'true'
     });
 
     // Support legacy format for backward compatibility
@@ -169,6 +170,25 @@ router.post('/:phone/close', asyncHandler(async (req, res) => {
     await conversationService.close(phone);
     console.log(`✅ Conversation closed: ${phone}`);
     res.json({ success: true, message: 'Conversación archivada' });
+}));
+
+// Get profile picture (avatar) proxy
+router.get('/:phone/avatar', asyncHandler(async (req, res) => {
+    const { phone } = req.params;
+    const evolutionService = require('../services/evolutionService');
+
+    try {
+        const pictureUrl = await evolutionService.getProfilePicture(phone);
+
+        if (pictureUrl) {
+            // Redirect directly to the WhatsApp image URL
+            return res.redirect(pictureUrl);
+        } else {
+            return res.status(404).json({ error: 'Foto no encontrada' });
+        }
+    } catch (error) {
+        return res.status(500).json({ error: 'Error interno obteniendo la foto' });
+    }
 }));
 
 // Get conversation tags

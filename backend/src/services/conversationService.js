@@ -27,7 +27,8 @@ class ConversationService {
             search = null,
             tagId = null, // Added tagId filter
             startDate = null,
-            endDate = null
+            endDate = null,
+            unreadOnly = false
         } = options;
 
         // Sanitize pagination
@@ -65,6 +66,10 @@ class ConversationService {
         if (endDate) {
             conditions.push(`COALESCE(c.last_message_timestamp, c.created_at) <= $${paramIndex++}`);
             params.push(endDate);
+        }
+
+        if (unreadOnly) {
+            conditions.push(`c.unread_count > 0`);
         }
 
         const whereClause = conditions.length > 0

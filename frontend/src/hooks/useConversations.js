@@ -23,12 +23,12 @@ export const useConversations = (socket) => {
     const [searchQuery, setSearchQuery] = useState('');
 
     // Fetch all conversations with pagination
-    const fetchConversations = useCallback(async (page = 1, search = '', append = false, tagId = null, startDate = null, endDate = null) => {
+    const fetchConversations = useCallback(async (page = 1, search = '', append = false, tagId = null, startDate = null, endDate = null, unreadOnly = false) => {
         try {
             if (!append) setIsLoading(true);
             else setIsLoadingMore(true);
 
-            console.log(`🔄 Fetching conversations (page ${page}, search: "${search}", tag: ${tagId}, date: ${startDate} to ${endDate})...`);
+            console.log(`🔄 Fetching conversations (page ${page}, search: "${search}", tag: ${tagId}, date: ${startDate} to ${endDate}, unread: ${unreadOnly})...`);
 
             const params = new URLSearchParams({
                 page: page.toString(),
@@ -50,6 +50,10 @@ export const useConversations = (socket) => {
 
             if (endDate) {
                 params.append('endDate', endDate);
+            }
+
+            if (unreadOnly) {
+                params.append('unreadOnly', 'true');
             }
 
             const response = await fetch(`${API_URL}/api/conversations?${params}`, {
@@ -101,9 +105,9 @@ export const useConversations = (socket) => {
     }, []);
 
     // Load more conversations (for infinite scroll)
-    const loadMoreConversations = useCallback(async (tagId = null, startDate = null, endDate = null) => {
+    const loadMoreConversations = useCallback(async (tagId = null, startDate = null, endDate = null, unreadOnly = false) => {
         if (!hasMore || isLoadingMore) return;
-        await fetchConversations(currentPage + 1, searchQuery, true, tagId, startDate, endDate);
+        await fetchConversations(currentPage + 1, searchQuery, true, tagId, startDate, endDate, unreadOnly);
     }, [currentPage, hasMore, isLoadingMore, searchQuery, fetchConversations]);
 
     // Search conversations (server-side)

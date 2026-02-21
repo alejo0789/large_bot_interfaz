@@ -17,6 +17,16 @@ const ConversationItem = React.memo(({
     const { contact, lastMessage, timestamp, unread } = conversation;
     const hasUnread = unread > 0;
 
+    // Helper para la URL base (usado para fetch y para la imagen)
+    let baseApiUrl = typeof process !== 'undefined' && process.env?.REACT_APP_API_URL
+        ? process.env.REACT_APP_API_URL
+        : window.location.hostname !== 'localhost'
+            ? 'https://largebotinterfaz-production-5b38.up.railway.app'
+            : 'http://localhost:4000';
+    if (baseApiUrl.endsWith('/')) baseApiUrl = baseApiUrl.slice(0, -1);
+    const apiPrefix = baseApiUrl.includes('/api') ? '' : '/api';
+    const avatarUrl = `${baseApiUrl}${apiPrefix}/conversations/${contact.phone}/avatar`;
+
     // State for name editing
     const [isMenuOpen, setIsMenuOpen] = useState(false);
     const [isEditModalOpen, setIsEditModalOpen] = useState(false);
@@ -147,8 +157,19 @@ const ConversationItem = React.memo(({
             style={{ position: 'relative' }}
         >
             <div style={{ position: 'relative' }}>
-                <div className="conversation-avatar">
-                    <User className="w-6 h-6" />
+                <div className="conversation-avatar" style={{ padding: 0, overflow: 'hidden', display: 'flex', alignItems: 'center', justifyContent: 'center', backgroundColor: '#e2e8f0' }}>
+                    <img
+                        src={avatarUrl}
+                        alt=""
+                        style={{ width: '100%', height: '100%', objectFit: 'cover' }}
+                        onError={(e) => {
+                            e.target.onerror = null;
+                            e.target.style.display = 'none';
+                            if (e.target.nextSibling) e.target.nextSibling.style.display = 'block';
+                        }}
+                        loading="lazy"
+                    />
+                    <User className="w-6 h-6 text-gray-400" style={{ display: 'none', color: '#9ca3af' }} />
                 </div>
                 {hasUnread && (
                     <div style={{

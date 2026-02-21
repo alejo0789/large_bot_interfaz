@@ -298,11 +298,12 @@ const AuthenticatedApp = () => {
                 false,
                 activeTagId,
                 dateRange.start,
-                dateRange.end
+                dateRange.end,
+                showUnreadOnly
             );
         }, 100);
         return () => clearTimeout(timeoutId);
-    }, [fetchConversations, activeTab, selectedTagIds, dateFilter, searchQuery, dateRange]);
+    }, [fetchConversations, activeTab, selectedTagIds, dateFilter, searchQuery, dateRange, showUnreadOnly]);
 
     // Filter conversations
     const filteredConversations = useMemo(() => {
@@ -808,10 +809,10 @@ const AuthenticatedApp = () => {
                         hasMore={hasMore}
                         onSelect={handleSelectConversation}
                         onTagClick={handleOpenTagManager}
-                        onRefresh={() => fetchConversations()}
+                        onRefresh={() => fetchConversations(1, searchQuery, false, selectedTagIds[0] || null, dateRange.start, dateRange.end, showUnreadOnly)}
                         onLoadMore={() => {
                             const activeTagId = selectedTagIds.length === 1 ? selectedTagIds[0] : null;
-                            loadMoreConversations(activeTagId, dateRange.start, dateRange.end);
+                            loadMoreConversations(activeTagId, dateRange.start, dateRange.end, showUnreadOnly);
                         }}
                         onStartNewChat={handleStartNewChat}
                         onDelete={removeConversation}

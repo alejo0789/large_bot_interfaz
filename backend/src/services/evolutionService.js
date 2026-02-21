@@ -577,6 +577,60 @@ class EvolutionService {
             return { success: false, error: error.message };
         }
     }
+
+    /**
+     * Fetch profile picture URL from WhatsApp
+     * @param {string} phone - Phone number
+     * @returns {string|null} - URL of the profile picture or null
+     */
+    async getProfilePicture(phone) {
+        try {
+            const cleanNumber = phone.replace(/\D/g, '');
+            const isJID = phone.includes('-') || phone.includes('@');
+            const numberParam = isJID ? phone : cleanNumber;
+
+            // Strategy 1: GET (Common in Evolution API v1/v2 endpoints)
+            const getUrl = `${this.baseUrl}/chat/fetchProfilePictureUrl/${this.instance}?number=${numberParam}`;
+            
+            const getResponse = await fetch(getUrl, {
+                method: 'GET',
+                headers: {
+                    'apikey': this.apiKey,
+                    'Content-Type': 'application/json'
+                }
+            });
+
+            if (getResponse.ok) {
+                const data = await getResponse.json();
+                if (data && (data.picture || data.profilePictureUrl)) {
+                    return data.picture || data.profilePictureUrl;
+                }
+            }
+
+            // Strategy 2: POST Fallback (Common in some Evolution API v2 endpoints)
+            const postUrl = `${this.baseUrl}/chat/fetchProfilePictureUrl/${this.instance}`;
+            const postResponse = await fetch(postUrl, {
+                method: 'POST',
+                headers: {
+                    'apikey': this.apiKey,
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({ number: numberParam })
+            });
+
+            if (postResponse.ok) {
+                const data = await postResponse.json();
+                if (data && (data.picture || data.profilePictureUrl)) {
+                    return data.picture || data.profilePictureUrl;
+                }
+            }
+
+            return null;
+        } catch (error) {
+            console.error(`❌ Error fetching profile picture for ${phone}:`, error.message);
+            return null;
+        }
+    }
 }
 
 module.exports = new EvolutionService();
