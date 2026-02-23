@@ -27,17 +27,10 @@ const ConversationList = React.memo(({
     const touchStartRef = useRef(0);
     const isPullingRef = useRef(false);
 
-    // Filter conversations based on search (client-side for already loaded)
+    // Filter conversations based on search (handled by backend now)
     const filteredConversations = useMemo(() => {
-        if (!searchQuery) return conversations;
-
-        const query = searchQuery.toLowerCase();
-        return conversations.filter(conv =>
-            conv.contact.name?.toLowerCase().includes(query) ||
-            conv.contact.phone?.includes(query) ||
-            conv.lastMessage?.toLowerCase().includes(query)
-        );
-    }, [conversations, searchQuery]);
+        return conversations;
+    }, [conversations]);
 
     const sentinelRef = useRef(null);
 

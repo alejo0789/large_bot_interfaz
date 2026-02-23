@@ -39,6 +39,7 @@ class ConversationService {
         const conditions = [];
         const params = [];
         let paramIndex = 1;
+        let searchParamIndex = 0;
         let joinClause = '';
 
         if (status) {
@@ -47,7 +48,16 @@ class ConversationService {
         }
 
         if (search) {
-            conditions.push(`(c.contact_name ILIKE $${paramIndex} OR c.phone ILIKE $${paramIndex})`);
+            searchParamIndex = paramIndex;
+            conditions.push(`(
+                c.contact_name ILIKE $${paramIndex} 
+                OR c.phone ILIKE $${paramIndex}
+                OR EXISTS (
+                    SELECT 1 FROM messages m 
+                    WHERE m.conversation_phone = c.phone 
+                    AND m.text_content ILIKE $${paramIndex}
+                )
+            )`);
             params.push(`%${search}%`);
             paramIndex++;
         }
@@ -104,7 +114,10 @@ class ConversationService {
             FROM conversations c
             ${joinClause}
             ${whereClause}
-            ORDER BY c.last_message_timestamp DESC NULLS LAST, c.created_at DESC
+            ORDER BY 
+                ${search ? `(c.contact_name ILIKE $${searchParamIndex} OR c.phone ILIKE $${searchParamIndex}) DESC,` : ''} 
+                c.last_message_timestamp DESC NULLS LAST, 
+                c.created_at DESC
             LIMIT $${paramIndex} OFFSET $${paramIndex + 1}
         `;
         params.push(safeLimit, offset);
