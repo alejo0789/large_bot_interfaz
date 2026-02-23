@@ -283,13 +283,6 @@ export const useConversations = (socket) => {
                     rawTimestamp: newMessage.rawTimestamp
                 };
 
-                // If it's the selected conversation, DON'T move it to the top.
-                // This keeps the sidebar stable while the user is typing/replying.
-                if (selectedId === String(phone).replace(/\D/g, '')) {
-                    currentConversations[conversationIndex] = updatedConv;
-                    return currentConversations;
-                }
-
                 currentConversations.splice(conversationIndex, 1);
                 return [updatedConv, ...currentConversations];
             }
@@ -663,12 +656,6 @@ export const useConversations = (socket) => {
                             : (targetConv.unread || 0) + 1
                     };
 
-                    // If it's the selected conversation, don't move it to top to keep sidebar stable
-                    if (selectedId === cleanIncomingPhone) {
-                        currentConversations[index] = updatedConv;
-                        return currentConversations;
-                    }
-
                     currentConversations.splice(index, 1);
                     return [updatedConv, ...currentConversations];
                 }
@@ -717,12 +704,6 @@ export const useConversations = (socket) => {
                     rawTimestamp: data.timestamp,
                     unread: (selectedId === cleanPhone) ? 0 : (data.unreadCount ?? targetConv.unread)
                 };
-
-                // Keep position if selected
-                if (selectedId === cleanPhone) {
-                    currentConversations[index] = updatedConv;
-                    return currentConversations;
-                }
 
                 currentConversations.splice(index, 1);
                 return [updatedConv, ...currentConversations];

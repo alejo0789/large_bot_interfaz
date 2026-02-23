@@ -1,4 +1,4 @@
-import React, { useMemo, useRef, useEffect } from 'react';
+import React, { useMemo, useRef, useEffect, useLayoutEffect } from 'react';
 import ConversationItem from './ConversationItem';
 import { UserPlus } from 'lucide-react';
 
@@ -63,20 +63,51 @@ const ConversationList = React.memo(({
 
     const previousSelectedIdRef = useRef(null);
 
-    // Auto-scroll to selected conversation
+    // Auto-scroll to selected conversation - ONLY when selecting a NEW one
     useEffect(() => {
         if (selectedId && listRef.current && selectedId !== previousSelectedIdRef.current) {
-            // Small delay to ensure the DOM is updated
-            const timeout = setTimeout(() => {
-                const activeItem = listRef.current.querySelector('.conversation-item.active');
-                if (activeItem) {
-                    activeItem.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
-                }
-                previousSelectedIdRef.current = selectedId;
-            }, 100);
-            return () => clearTimeout(timeout);
+            const currentSelected = selectedId;
+            const prevSelected = previousSelectedIdRef.current;
+
+            // Only scroll if it's a truly different conversation being selected
+            if (currentSelected !== prevSelected) {
+                const timeout = setTimeout(() => {
+                    const activeItem = listRef.current.querySelector('.conversation-item.active');
+                    if (activeItem) {
+                        activeItem.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+                    }
+                }, 100);
+
+                previousSelectedIdRef.current = currentSelected;
+                return () => clearTimeout(timeout);
+            }
+        } else if (!selectedId) {
+            previousSelectedIdRef.current = null;
         }
     }, [selectedId]);
+
+    // Scroll Anchoring: keep the sidebar "quiet" when items move to top
+    const prevTopConversationId = useRef(conversations[0]?.id || conversations[0]?.contact?.phone);
+    const prevConversationsCount = useRef(conversations.length);
+
+    useLayoutEffect(() => {
+        if (listRef.current && conversations.length > 0 && conversations.length === prevConversationsCount.current) {
+            const currentTopId = conversations[0]?.id || conversations[0]?.contact?.phone;
+
+            // If the top item changed, but it wasn't a new fetch (same count),
+            // it means a conversation reordered to the top.
+            if (currentTopId !== prevTopConversationId.current && listRef.current.scrollTop > 20) {
+                // Get the height of the first item to compensate exactly
+                const firstItem = listRef.current.querySelector('.conversation-item-wrapper');
+                if (firstItem) {
+                    const height = firstItem.offsetHeight;
+                    listRef.current.scrollTop += height;
+                }
+            }
+        }
+        prevTopConversationId.current = conversations[0]?.id || conversations[0]?.contact?.phone;
+        prevConversationsCount.current = conversations.length;
+    }, [conversations]);
 
     if (isLoading) {
         return (
@@ -185,7 +216,7 @@ const ConversationList = React.memo(({
             onTouchStart={handleTouchStart}
             onTouchMove={handleTouchMove}
             onTouchEnd={handleTouchEnd}
-            style={{ position: 'relative' }}
+            style={{ position: 'relative', overflowAnchor: 'none' }}
         >
             {/* Pull-to-refresh indicator */}
             <div style={{
@@ -204,17 +235,18 @@ const ConversationList = React.memo(({
                 {pullDistance > 55 ? 'Suelta para actualizar' : 'Tira para actualizar'}
             </div>
             {filteredConversations.map(conversation => (
-                <ConversationItem
-                    key={conversation.id}
-                    conversation={conversation}
-                    isSelected={selectedId === conversation.id}
-                    aiEnabled={aiStatesByPhone[conversation.contact.phone] ?? globalDefaultAi}
-                    tags={conversation.tags || tagsByPhone[conversation.contact.phone] || []}
-                    onClick={() => onSelect(conversation)}
-                    onTagClick={onTagClick}
-                    onDelete={onDelete}
-                    onTogglePin={onTogglePin}
-                />
+                <div key={conversation.id} data-id={conversation.id} className="conversation-item-wrapper">
+                    <ConversationItem
+                        conversation={conversation}
+                        isSelected={selectedId === conversation.id}
+                        aiEnabled={aiStatesByPhone[conversation.contact.phone] ?? globalDefaultAi}
+                        tags={conversation.tags || tagsByPhone[conversation.contact.phone] || []}
+                        onClick={() => onSelect(conversation)}
+                        onTagClick={onTagClick}
+                        onDelete={onDelete}
+                        onTogglePin={onTogglePin}
+                    />
+                </div>
             ))}
 
             {/* Sentinel for infinite scroll */}
