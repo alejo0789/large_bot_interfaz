@@ -20,6 +20,7 @@ const ChatHeader = ({
     onMarkUnread,
     onBack,
     isMobile,
+    isSweepMode,
     onNameUpdated   // optional callback: (phone, newName) => void
 }) => {
     const [isEditOpen, setIsEditOpen] = useState(false);
@@ -50,8 +51,18 @@ const ChatHeader = ({
         <>
             <div className="chat-header">
                 <div className="chat-header-info" style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-3)', flex: 1, minWidth: 0 }}>
-                    {isMobile && (
-                        <button className="btn btn-icon" onClick={onBack}>
+                    {(isMobile || isSweepMode) && (
+                        <button
+                            className="btn btn-icon"
+                            onClick={onBack}
+                            title={isSweepMode ? "Volver y seguir con la siguiente (Escobita)" : "Volver"}
+                            style={{
+                                color: isSweepMode ? 'var(--color-primary)' : 'inherit',
+                                backgroundColor: isSweepMode ? 'rgba(7,94,84,0.1)' : 'transparent',
+                                borderRadius: '8px',
+                                padding: '6px'
+                            }}
+                        >
                             <ArrowLeft className="w-5 h-5" />
                         </button>
                     )}

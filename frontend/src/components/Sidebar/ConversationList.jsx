@@ -20,6 +20,7 @@ const ConversationList = React.memo(({
     onRefresh,
     onStartNewChat, // New prop
     onDelete,       // New prop — called when a conversation is deleted
+    onTogglePin,    // New prop
     globalDefaultAi = true // New prop
 }) => {
     const listRef = useRef(null);
@@ -59,6 +60,23 @@ const ConversationList = React.memo(({
 
         return () => observer.disconnect();
     }, [hasMore, isLoadingMore, onLoadMore, conversations.length]); // Re-observe when conversations change
+
+    const previousSelectedIdRef = useRef(null);
+
+    // Auto-scroll to selected conversation
+    useEffect(() => {
+        if (selectedId && listRef.current && selectedId !== previousSelectedIdRef.current) {
+            // Small delay to ensure the DOM is updated
+            const timeout = setTimeout(() => {
+                const activeItem = listRef.current.querySelector('.conversation-item.active');
+                if (activeItem) {
+                    activeItem.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+                }
+                previousSelectedIdRef.current = selectedId;
+            }, 100);
+            return () => clearTimeout(timeout);
+        }
+    }, [selectedId]);
 
     if (isLoading) {
         return (
@@ -195,6 +213,7 @@ const ConversationList = React.memo(({
                     onClick={() => onSelect(conversation)}
                     onTagClick={onTagClick}
                     onDelete={onDelete}
+                    onTogglePin={onTogglePin}
                 />
             ))}
 

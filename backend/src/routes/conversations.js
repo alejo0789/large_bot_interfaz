@@ -129,6 +129,21 @@ router.post('/:phone/mark-unread', asyncHandler(async (req, res) => {
     res.json({ success: true });
 }));
 
+// Pin or unpin a conversation
+router.put('/:phone/pin', asyncHandler(async (req, res) => {
+    const { phone } = req.params;
+    const { isPinned } = req.body;
+
+    const result = await conversationService.togglePin(phone, isPinned);
+
+    if (!result) {
+        return res.status(404).json({ success: false, error: 'Conversación no encontrada' });
+    }
+
+    console.log(`✅ ${isPinned ? 'Pinned' : 'Unpinned'} conversation: ${phone}`);
+    res.json({ success: true, isPinned: result.is_pinned });
+}));
+
 // Toggle AI for conversation
 router.post('/:phone/toggle-ai', asyncHandler(async (req, res) => {
     const { phone } = req.params;

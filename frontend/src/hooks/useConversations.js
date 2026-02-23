@@ -11,6 +11,7 @@ const API_URL = process.env.REACT_APP_API_URL ||
 export const useConversations = (socket) => {
     const [conversations, setConversations] = useState([]);
     const [selectedConversation, setSelectedConversation] = useState(null);
+    const selectedId = selectedConversation ? String(selectedConversation.contact.phone).replace(/\D/g, '') : null;
     const [messagesByConversation, setMessagesByConversation] = useState({});
     const [isLoading, setIsLoading] = useState(true);
     const [isLoadingMessages, setIsLoadingMessages] = useState(false);
@@ -281,6 +282,14 @@ export const useConversations = (socket) => {
                     timestamp: newMessage.timestamp,
                     rawTimestamp: newMessage.rawTimestamp
                 };
+
+                // If it's the selected conversation, DON'T move it to the top.
+                // This keeps the sidebar stable while the user is typing/replying.
+                if (selectedId === String(phone).replace(/\D/g, '')) {
+                    currentConversations[conversationIndex] = updatedConv;
+                    return currentConversations;
+                }
+
                 currentConversations.splice(conversationIndex, 1);
                 return [updatedConv, ...currentConversations];
             }
@@ -334,7 +343,7 @@ export const useConversations = (socket) => {
             }));
             return false;
         }
-    }, [aiStatesByPhone]);
+    }, [aiStatesByPhone, selectedId, globalDefaultAi]);
 
     const sendFile = useCallback(async (phone, file, caption, name, options = {}) => {
         const tempId = `temp_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
@@ -432,7 +441,58 @@ export const useConversations = (socket) => {
             console.error('❌ Error toggling AI:', error);
             setAiStatesByPhone(prev => ({ ...prev, [phone]: currentState }));
         }
-    }, [aiStatesByPhone]);
+    }, [aiStatesByPhone, globalDefaultAi]);
+
+    // Toggle Pin for a conversation
+    const togglePin = useCallback(async (phone) => {
+        const conv = conversations.find(c => c.contact.phone === phone);
+        if (!conv) return;
+
+        const currentPinnedState = Boolean(conv.isPinned);
+        const newState = !currentPinnedState;
+
+        // Optimistic update
+        setConversations(prev => {
+            const updated = prev.map(c =>
+                c.contact.phone === phone ? { ...c, isPinned: newState } : c
+            );
+            // Re-sort to reflect new pin state
+            return updated.sort((a, b) => {
+                if (a.isPinned && !b.isPinned) return -1;
+                if (!a.isPinned && b.isPinned) return 1;
+                const dateA = new Date(a.rawTimestamp || 0).getTime();
+                const dateB = new Date(b.rawTimestamp || 0).getTime();
+                return dateB - dateA;
+            });
+        });
+
+        try {
+            const response = await fetch(`${API_URL}/api/conversations/${phone}/pin`, {
+                method: 'PUT',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ isPinned: newState })
+            });
+
+            if (!response.ok) {
+                throw new Error('Error toggling pin status');
+            }
+        } catch (error) {
+            console.error('❌ Error toggling pin:', error);
+            // Revert on error
+            setConversations(prev => {
+                const updated = prev.map(c =>
+                    c.contact.phone === phone ? { ...c, isPinned: currentPinnedState } : c
+                );
+                return updated.sort((a, b) => {
+                    if (a.isPinned && !b.isPinned) return -1;
+                    if (!a.isPinned && b.isPinned) return 1;
+                    const dateA = new Date(a.rawTimestamp || 0).getTime();
+                    const dateB = new Date(b.rawTimestamp || 0).getTime();
+                    return dateB - dateA;
+                });
+            });
+        }
+    }, [conversations]);
 
     // Re-join conversation room on socket reconnect
     useEffect(() => {
@@ -598,10 +658,17 @@ export const useConversations = (socket) => {
                         lastMessage: formattedMessage.text,
                         timestamp: formattedMessage.timestamp,
                         rawTimestamp: formattedMessage.rawTimestamp,
-                        unread: (selectedConversation?.contact?.phone === phone || isAgent)
+                        unread: (selectedId === cleanIncomingPhone || isAgent)
                             ? 0
                             : (targetConv.unread || 0) + 1
                     };
+
+                    // If it's the selected conversation, don't move it to top to keep sidebar stable
+                    if (selectedId === cleanIncomingPhone) {
+                        currentConversations[index] = updatedConv;
+                        return currentConversations;
+                    }
+
                     currentConversations.splice(index, 1);
                     return [updatedConv, ...currentConversations];
                 }
@@ -635,7 +702,7 @@ export const useConversations = (socket) => {
                         lastMessage: data.lastMessage,
                         timestamp: timestamp,
                         rawTimestamp: data.timestamp,
-                        unread: (selectedConversation?.contact.phone === data.phone) ? 0 : 1,
+                        unread: (selectedId === cleanPhone) ? 0 : 1,
                         status: 'active'
                     };
                     return [newConv, ...currentConversations];
@@ -645,13 +712,18 @@ export const useConversations = (socket) => {
                 const targetConv = currentConversations[index];
                 const updatedConv = {
                     ...targetConv,
-                    lastMessage: data.lastMessage,
+                    lastMessage: data.lastMessage || targetConv.lastMessage,
                     timestamp: timestamp,
                     rawTimestamp: data.timestamp,
-                    unread: (selectedConversation?.contact.phone === data.phone || data.sender_type === 'agent' || data.sender_type === 'ai' || data.sender_type === 'bot')
-                        ? 0
-                        : (targetConv.unread || 0) + (data.unread ?? 1)
+                    unread: (selectedId === cleanPhone) ? 0 : (data.unreadCount ?? targetConv.unread)
                 };
+
+                // Keep position if selected
+                if (selectedId === cleanPhone) {
+                    currentConversations[index] = updatedConv;
+                    return currentConversations;
+                }
+
                 currentConversations.splice(index, 1);
                 return [updatedConv, ...currentConversations];
             });
@@ -730,7 +802,7 @@ export const useConversations = (socket) => {
             socket.off('conversation-state-changed');
             socket.off('message-updated');
         };
-    }, [socket, selectedConversation]);
+    }, [socket, selectedId, selectedConversation, globalDefaultAi]);
 
     // Initial fetch removed - let parent component control it
     /*
@@ -851,22 +923,25 @@ export const useConversations = (socket) => {
         isLoadingMessages,
         isLoadingMore,
         hasMore,
+        currentPage,
+        searchQuery,
         aiStatesByPhone,
+        globalDefaultAi,
         fetchConversations,
-        fetchMessages,
-        selectConversation,
-        sendMessage,
-        toggleAI,
-        markConversationAsRead,
-        markConversationAsUnread,
-        setSelectedConversation,
         loadMoreConversations,
         searchConversations,
+        fetchMessages,
+        selectConversation,
+        setSelectedConversation,
+        sendMessage,
         sendFile,
         deleteMessage,
         reactToMessage,
+        toggleAI,
+        togglePin,
         removeConversation,
-        globalDefaultAi
+        markConversationAsRead,
+        markConversationAsUnread
     };
 };
 

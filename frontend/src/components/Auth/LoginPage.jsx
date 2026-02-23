@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { useAuth } from '../../hooks/useAuth';
-import { MessageSquare, Lock, User, LogIn, AlertCircle, UserPlus } from 'lucide-react';
+import { MessageSquare, Lock, User, LogIn, AlertCircle, UserPlus, Eye, EyeOff } from 'lucide-react';
 
 const LoginPage = () => {
     const { login, register } = useAuth();
@@ -11,6 +11,8 @@ const LoginPage = () => {
     const [password, setPassword] = useState('');
     const [name, setName] = useState('');
     const [email, setEmail] = useState('');
+    const [showPassword, setShowPassword] = useState(false);
+    const [rememberMe, setRememberMe] = useState(false);
 
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState(null);
@@ -39,7 +41,7 @@ const LoginPage = () => {
                 }
             } else {
                 // Login flow
-                const result = await login(username, password);
+                const result = await login(username, password, rememberMe);
                 if (!result.success) {
                     setError(result.error);
                 }
@@ -235,14 +237,14 @@ const LoginPage = () => {
                                     <Lock size={18} />
                                 </div>
                                 <input
-                                    type="password"
+                                    type={showPassword ? 'text' : 'password'}
                                     value={password}
                                     onChange={(e) => setPassword(e.target.value)}
                                     placeholder="••••••••"
                                     required
                                     style={{
                                         width: '100%',
-                                        padding: '10px 12px 10px 40px',
+                                        padding: '10px 40px 10px 40px',
                                         border: '1px solid #d1d5db',
                                         borderRadius: '8px',
                                         fontSize: '14px',
@@ -253,8 +255,40 @@ const LoginPage = () => {
                                     onFocus={(e) => e.target.style.borderColor = '#4f46e5'}
                                     onBlur={(e) => e.target.style.borderColor = '#d1d5db'}
                                 />
+                                <button
+                                    type="button"
+                                    onClick={() => setShowPassword(!showPassword)}
+                                    style={{
+                                        position: 'absolute',
+                                        right: '12px',
+                                        top: '10px',
+                                        background: 'none',
+                                        border: 'none',
+                                        color: '#9ca3af',
+                                        cursor: 'pointer',
+                                        display: 'flex',
+                                        padding: 0
+                                    }}
+                                >
+                                    {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
+                                </button>
                             </div>
                         </div>
+
+                        {!isRegistering && (
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginTop: '4px' }}>
+                                <input
+                                    type="checkbox"
+                                    id="rememberMe"
+                                    checked={rememberMe}
+                                    onChange={(e) => setRememberMe(e.target.checked)}
+                                    style={{ cursor: 'pointer' }}
+                                />
+                                <label htmlFor="rememberMe" style={{ fontSize: '13px', color: '#4b5563', cursor: 'pointer' }}>
+                                    Recordarme (Mantener sesión iniciada)
+                                </label>
+                            </div>
+                        )}
                     </div>
 
                     <button

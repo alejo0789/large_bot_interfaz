@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { useDrag } from '@use-gesture/react';
 import { io } from 'socket.io-client';
-import { Tag, MessageSquare, Settings, RotateCw, Menu, EyeOff } from 'lucide-react';
+import { Tag, MessageSquare, Settings, RotateCw, Menu, EyeOff, Wind } from 'lucide-react';
 
 // Auth
 import { AuthProvider, useAuth } from './hooks/useAuth';
@@ -75,6 +75,11 @@ const AuthenticatedApp = () => {
     // Forward Message State
     const [forwardMessage, setForwardMessage] = useState(null);
     const [showForwardModal, setShowForwardModal] = useState(false);
+
+    // Sweep Mode (Escobita)
+    const [isSweepMode, setIsSweepMode] = useState(false);
+    const [lastSelectedPhone, setLastSelectedPhone] = useState(null);
+    const [lastSelectedTimestamp, setLastSelectedTimestamp] = useState(null);
 
     // Reply Message State
     const [replyToMessage, setReplyToMessage] = useState(null);
@@ -172,6 +177,7 @@ const AuthenticatedApp = () => {
         deleteMessage,
         reactToMessage,
         removeConversation,
+        togglePin,
         globalDefaultAi
     } = useConversations(socket);
 
@@ -346,12 +352,56 @@ const AuthenticatedApp = () => {
     }, []);
 
     const handleSelectConversation = useCallback((conversation) => {
+        if (conversation) {
+            setLastSelectedPhone(conversation.contact.phone);
+            setLastSelectedTimestamp(conversation.rawTimestamp);
+        }
         selectConversation(conversation);
         setReplyToMessage(null);
         if (isMobile) {
             setShowSidebar(false);
         }
     }, [selectConversation, isMobile]);
+
+    // Sweep mode logic: find the one that was above the last processed one
+    useEffect(() => {
+        if (isSweepMode && !selectedConversation && lastSelectedPhone && activeTab === 'chat') {
+            // Find current index of the phone we just left
+            const currentIndex = filteredConversations.findIndex(c => c.contact.phone === lastSelectedPhone);
+
+            let targetConv = null;
+
+            if (currentIndex > 0) {
+                // Normal case: pick the one right above
+                targetConv = filteredConversations[currentIndex - 1];
+            } else if (currentIndex === 0) {
+                // It's already at the top, maybe it jumped there. 
+                // We should try to find the neighbor with a timestamp just newer than our old one.
+                if (lastSelectedTimestamp) {
+                    const ts = new Date(lastSelectedTimestamp).getTime();
+                    // Find conversations with timestamp > ts, pick the one with the smallest such timestamp
+                    const candidates = filteredConversations
+                        .filter(c => new Date(c.rawTimestamp).getTime() > ts)
+                        .sort((a, b) => new Date(a.rawTimestamp).getTime() - new Date(b.rawTimestamp).getTime());
+
+                    if (candidates.length > 0) {
+                        targetConv = candidates[0];
+                    }
+                }
+            } else {
+                // Not found (maybe archived). 
+                // We can't do much without more context, but let's try to pick something at the same index?
+                // For now, let's just do nothing if not found.
+            }
+
+            if (targetConv) {
+                const timeout = setTimeout(() => {
+                    handleSelectConversation(targetConv);
+                }, 300);
+                return () => clearTimeout(timeout);
+            }
+        }
+    }, [selectedConversation, isSweepMode, lastSelectedPhone, lastSelectedTimestamp, filteredConversations, activeTab, handleSelectConversation]);
 
     const handleSendMessage = useCallback((message) => {
         console.log('👤 Sending message as user:', user);
@@ -812,6 +862,32 @@ const AuthenticatedApp = () => {
                                     {isConnected ? 'Conectado' : 'Desconectado'}
                                 </span>
                             </div>
+
+                            {/* Sweep Mode (Escobita) */}
+                            <button
+                                className={`btn btn-icon ${isSweepMode ? 'active' : ''}`}
+                                onClick={() => setIsSweepMode(!isSweepMode)}
+                                title={isSweepMode ? 'Desactivar Barrido' : 'Activar Barrido (Escobita)'}
+                                style={{
+                                    backgroundColor: isSweepMode ? 'rgba(7,94,84,0.1)' : 'transparent',
+                                    color: isSweepMode ? 'var(--color-primary)' : 'var(--color-gray-500)',
+                                    padding: '6px'
+                                }}
+                            >
+                                <Wind className="w-5 h-5" style={{ transform: isSweepMode ? 'rotate(-45deg)' : 'none', transition: 'transform 0.3s' }} />
+                                {isSweepMode && (
+                                    <span style={{
+                                        position: 'absolute',
+                                        top: '0',
+                                        right: '0',
+                                        width: '8px',
+                                        height: '8px',
+                                        backgroundColor: 'var(--color-primary)',
+                                        borderRadius: '50%',
+                                        border: '1px solid white'
+                                    }} />
+                                )}
+                            </button>
                         </div>
                     </div>
 
@@ -862,6 +938,7 @@ const AuthenticatedApp = () => {
                         }}
                         onStartNewChat={handleStartNewChat}
                         onDelete={removeConversation}
+                        onTogglePin={togglePin}
                         globalDefaultAi={globalDefaultAi}
                     />
 
@@ -940,13 +1017,19 @@ const AuthenticatedApp = () => {
                                 onToggleAI={toggleAI}
                                 onMarkUnread={handleMarkUnread}
                                 onBack={() => {
-                                    setShowSidebar(true);
+                                    if (isSweepMode) {
+                                        selectConversation(null);
+                                    } else {
+                                        setShowSidebar(true);
+                                    }
+
                                     if (searchQuery) {
                                         setSearchQuery('');
                                         fetchConversations(1, ''); // Reload all
                                     }
                                 }}
                                 isMobile={isMobile}
+                                isSweepMode={isSweepMode}
                                 onNameUpdated={() => fetchConversations()}
                             />
 

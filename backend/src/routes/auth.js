@@ -111,4 +111,34 @@ router.post('/logout', asyncHandler(async (req, res) => {
     res.json({ success: true, message: 'Sesión cerrada' });
 }));
 
+/**
+ * PUT /api/auth/profile
+ * Update current user profile / password
+ */
+router.put('/profile', asyncHandler(async (req, res) => {
+    const authHeader = req.headers.authorization;
+
+    if (!authHeader || !authHeader.startsWith('Bearer ')) {
+        throw new AppError('Token no proporcionado', 401);
+    }
+
+    const token = authHeader.substring(7);
+    const decoded = authService.verifyToken(token);
+
+    if (!decoded) {
+        throw new AppError('Token inválido o expirado', 401);
+    }
+
+    const { name, email, password } = req.body;
+    const result = await authService.updateAgent(decoded.id, { name, email, password });
+
+    if (!result.success) {
+        throw new AppError(result.error || 'Error al actualizar perfil', 400);
+    }
+
+    const updatedAgent = await authService.getAgentById(decoded.id);
+
+    res.json({ success: true, message: 'Perfil actualizado exitosamente', user: updatedAgent });
+}));
+
 module.exports = router;

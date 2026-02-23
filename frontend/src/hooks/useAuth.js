@@ -11,11 +11,13 @@ export const AuthProvider = ({ children }) => {
         (process.env.NODE_ENV === 'production' ? window.location.origin : 'http://localhost:4000');
 
     const logout = useCallback(() => {
-        const tokenToRevoke = sessionStorage.getItem('auth_token');
+        const tokenToRevoke = sessionStorage.getItem('auth_token') || localStorage.getItem('auth_token');
         setToken(null);
         setUser(null);
         sessionStorage.removeItem('auth_token');
         sessionStorage.removeItem('auth_user');
+        localStorage.removeItem('auth_token');
+        localStorage.removeItem('auth_user');
 
         // Optional: Call backend to log logout
         if (tokenToRevoke) {
@@ -28,8 +30,8 @@ export const AuthProvider = ({ children }) => {
 
     // Check for existing session on mount
     useEffect(() => {
-        const storedToken = sessionStorage.getItem('auth_token');
-        const storedUser = sessionStorage.getItem('auth_user');
+        const storedToken = sessionStorage.getItem('auth_token') || localStorage.getItem('auth_token');
+        const storedUser = sessionStorage.getItem('auth_user') || localStorage.getItem('auth_user');
 
         if (storedToken && storedUser) {
             setToken(storedToken);
@@ -43,7 +45,11 @@ export const AuthProvider = ({ children }) => {
                 .then(data => {
                     if (data.success) {
                         setUser(data.user);
-                        sessionStorage.setItem('auth_user', JSON.stringify(data.user));
+                        if (sessionStorage.getItem('auth_token')) {
+                            sessionStorage.setItem('auth_user', JSON.stringify(data.user));
+                        } else if (localStorage.getItem('auth_token')) {
+                            localStorage.setItem('auth_user', JSON.stringify(data.user));
+                        }
                     } else {
                         logout();
                     }
@@ -55,7 +61,7 @@ export const AuthProvider = ({ children }) => {
         }
     }, [API_URL, logout]);
 
-    const login = async (username, password) => {
+    const login = async (username, password, rememberMe = false) => {
         try {
             const response = await fetch(`${API_URL}/api/auth/login`, {
                 method: 'POST',
@@ -72,8 +78,13 @@ export const AuthProvider = ({ children }) => {
             setToken(data.token);
             setUser(data.user);
 
-            sessionStorage.setItem('auth_token', data.token);
-            sessionStorage.setItem('auth_user', JSON.stringify(data.user));
+            if (rememberMe) {
+                localStorage.setItem('auth_token', data.token);
+                localStorage.setItem('auth_user', JSON.stringify(data.user));
+            } else {
+                sessionStorage.setItem('auth_token', data.token);
+                sessionStorage.setItem('auth_user', JSON.stringify(data.user));
+            }
 
             return { success: true };
         } catch (error) {
@@ -103,6 +114,16 @@ export const AuthProvider = ({ children }) => {
 
 
 
+    const updateProfile = (updatedFields) => {
+        const newUser = { ...user, ...updatedFields };
+        setUser(newUser);
+        if (sessionStorage.getItem('auth_token')) {
+            sessionStorage.setItem('auth_user', JSON.stringify(newUser));
+        } else if (localStorage.getItem('auth_token')) {
+            localStorage.setItem('auth_user', JSON.stringify(newUser));
+        }
+    };
+
     return (
         <AuthContext.Provider value={{
             user,
@@ -111,7 +132,8 @@ export const AuthProvider = ({ children }) => {
             isAuthenticated: !!user,
             login,
             register,
-            logout
+            logout,
+            updateProfile
         }}>
             {children}
         </AuthContext.Provider>

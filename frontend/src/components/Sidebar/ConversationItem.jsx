@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { User, Bot, UserCheck, Tag, MoreVertical, Edit2, Trash2 } from 'lucide-react';
+import { User, Bot, UserCheck, Tag, MoreVertical, Edit2, Trash2, Pin } from 'lucide-react';
 import EditContactModal from './EditContactModal';
 
 /**
@@ -12,9 +12,10 @@ const ConversationItem = React.memo(({
     tags = [],
     onClick,
     onTagClick,
-    onDelete       // optional: (phone) => void — called after successful deletion
+    onDelete,       // optional: (phone) => void — called after successful deletion
+    onTogglePin
 }) => {
-    const { contact, lastMessage, timestamp, unread } = conversation;
+    const { contact, lastMessage, timestamp, unread, isPinned } = conversation;
     const hasUnread = unread > 0;
 
     // Helper para la URL base (usado para fetch y para la imagen)
@@ -401,6 +402,34 @@ const ConversationItem = React.memo(({
                             {unread}
                         </span>
                     )}
+
+                    <button
+                        onClick={(e) => {
+                            e.stopPropagation();
+                            if (onTogglePin) onTogglePin(contact.phone);
+                        }}
+                        style={{
+                            background: 'none',
+                            border: 'none',
+                            padding: '4px',
+                            marginLeft: '4px',
+                            cursor: 'pointer',
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            color: isPinned ? 'var(--color-gray-900)' : 'var(--color-gray-400)',
+                            opacity: isPinned ? 1 : 0.6
+                        }}
+                        title={isPinned ? 'Desanclar' : 'Anclar'}
+                    >
+                        <Pin
+                            size={14}
+                            style={{
+                                fill: isPinned ? 'currentColor' : 'none',
+                                transform: 'rotate(45deg)'
+                            }}
+                        />
+                    </button>
                 </div>
             </div>
 

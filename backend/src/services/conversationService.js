@@ -104,6 +104,7 @@ class ConversationService {
                 c.conversation_state,
                 c.created_at,
                 c.updated_at,
+                c.is_pinned,
                 COALESCE(
                     (SELECT json_agg(json_build_object('id', t.id, 'name', t.name, 'color', t.color))
                      FROM tags t
@@ -116,6 +117,7 @@ class ConversationService {
             ${whereClause}
             ORDER BY 
                 ${search ? `(c.contact_name ILIKE $${searchParamIndex} OR c.phone ILIKE $${searchParamIndex}) DESC,` : ''} 
+                c.is_pinned DESC,
                 c.last_message_timestamp DESC NULLS LAST, 
                 c.created_at DESC
             LIMIT $${paramIndex} OFFSET $${paramIndex + 1}
@@ -147,7 +149,8 @@ class ConversationService {
             status: conv.status || 'active',
             aiEnabled: conv.ai_enabled !== false,
             state: conv.conversation_state || 'ai_active',
-            tags: conv.tags || []
+            tags: conv.tags || [],
+            isPinned: conv.is_pinned || false
         }));
 
         return {
@@ -497,6 +500,19 @@ class ConversationService {
         } finally {
             client.release();
         }
+    }
+    /**
+     * Toggle conversation pin status
+     */
+    async togglePin(phone, isPinned) {
+        const { rows } = await pool.query(`
+            UPDATE conversations 
+            SET is_pinned = $1, updated_at = NOW() 
+            WHERE phone = $2
+            RETURNING is_pinned
+        `, [isPinned, phone]);
+
+        return rows[0] || null;
     }
 }
 

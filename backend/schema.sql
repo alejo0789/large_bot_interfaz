@@ -22,7 +22,8 @@ CREATE TABLE IF NOT EXISTS conversations (
     last_message_timestamp TIMESTAMP WITH TIME ZONE,
     
     created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
-    updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+    updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+    is_pinned BOOLEAN DEFAULT FALSE
 );
 
 -- 2. MESSAGES TABLE
