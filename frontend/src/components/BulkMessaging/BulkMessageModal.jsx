@@ -2,8 +2,10 @@ import React, { useState, useMemo, useRef, useEffect, useCallback } from 'react'
 import {
     X, Send, Users, Tag, CheckCircle, AlertCircle,
     Image, Video, Mic, Trash2, Loader, Search,
-    ClipboardList, FileSpreadsheet, Plus, Upload, Download
+    ClipboardList, FileSpreadsheet, Plus, Upload, Download,
+    FolderOpen, Edit2
 } from 'lucide-react';
+import { useBulkTemplates } from '../../hooks/useBulkTemplates';
 
 const API_URL = (() => {
     if (process.env.REACT_APP_API_URL) return process.env.REACT_APP_API_URL;
@@ -185,6 +187,14 @@ const BulkMessageModal = ({
     const [serverFiles, setServerFiles] = useState([]);
     const [showMediaBrowser, setShowMediaBrowser] = useState(false);
     const [isFetchingFiles, setIsFetchingFiles] = useState(false);
+
+    // Templates state
+    const { templates, fetchTemplates, createTemplate, updateTemplate, deleteTemplate } = useBulkTemplates();
+    const [showTemplateSelector, setShowTemplateSelector] = useState(false);
+    const [showTemplateEditor, setShowTemplateEditor] = useState(false);
+    const [editingTemplate, setEditingTemplate] = useState(null);
+    const [templateNameForm, setTemplateNameForm] = useState('');
+    const [templateContentForm, setTemplateContentForm] = useState('');
 
 
     // Paste mode state
@@ -1185,11 +1195,110 @@ const BulkMessageModal = ({
                         )}
                     </div>
 
-                    {/* ── Message input ── */}
+                    {/* ── Message input & Templates ── */}
                     <div style={{ marginBottom: 'var(--space-3)' }}>
-                        <h4 style={{ fontSize: 'var(--font-size-sm)', fontWeight: 600, marginBottom: 'var(--space-2)', color: 'var(--color-gray-700)' }}>
-                            Mensaje {mediaFile ? '(opcional - puede servir como caption)' : ''}
-                        </h4>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 'var(--space-2)' }}>
+                            <h4 style={{ fontSize: 'var(--font-size-sm)', fontWeight: 600, color: 'var(--color-gray-700)', margin: 0 }}>
+                                Mensaje {mediaFile ? '(opcional - puede servir como caption)' : ''}
+                            </h4>
+                            <div style={{ display: 'flex', gap: '8px' }}>
+                                <button
+                                    onClick={() => setShowTemplateSelector(!showTemplateSelector)}
+                                    style={{
+                                        display: 'flex', alignItems: 'center', gap: '4px',
+                                        padding: '4px 8px', fontSize: '11px', fontWeight: 500,
+                                        backgroundColor: 'var(--color-primary-bg)', color: 'var(--color-primary)',
+                                        border: '1px solid var(--color-primary)', borderRadius: 'var(--radius-md)', cursor: 'pointer'
+                                    }}
+                                >
+                                    <FolderOpen className="w-3 h-3" /> Mis Plantillas
+                                </button>
+                                <button
+                                    onClick={() => {
+                                        setEditingTemplate(null);
+                                        setTemplateNameForm('');
+                                        setTemplateContentForm(message);
+                                        setShowTemplateEditor(true);
+                                        setShowTemplateSelector(false);
+                                    }}
+                                    style={{
+                                        display: 'flex', alignItems: 'center', gap: '4px',
+                                        padding: '4px 8px', fontSize: '11px', fontWeight: 500,
+                                        backgroundColor: 'transparent', color: 'var(--color-gray-600)',
+                                        border: '1px dashed var(--color-gray-400)', borderRadius: 'var(--radius-md)', cursor: 'pointer'
+                                    }}
+                                >
+                                    <Plus className="w-3 h-3" /> Guardar actual
+                                </button>
+                            </div>
+                        </div>
+
+                        {/* Templates Selector */}
+                        {showTemplateSelector && (
+                            <div style={{ marginBottom: 'var(--space-2)', padding: 'var(--space-2)', backgroundColor: 'var(--color-gray-50)', borderRadius: 'var(--radius-md)', border: '1px solid var(--color-gray-200)', maxHeight: '150px', overflowY: 'auto' }}>
+                                {templates.length === 0 ? (
+                                    <div style={{ fontSize: '12px', color: 'var(--color-gray-500)', textAlign: 'center', padding: '8px' }}>
+                                        No tienes plantillas guardadas.
+                                    </div>
+                                ) : (
+                                    <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                                        {templates.map(t => (
+                                            <div key={t.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '6px 8px', backgroundColor: 'white', border: '1px solid var(--color-gray-200)', borderRadius: 'var(--radius-sm)' }}>
+                                                <div
+                                                    style={{ flex: 1, cursor: 'pointer', fontSize: '12px', fontWeight: 500, color: 'var(--color-gray-700)' }}
+                                                    onClick={() => { setMessage(t.content); setShowTemplateSelector(false); }}
+                                                >
+                                                    {t.name}
+                                                </div>
+                                                <div style={{ display: 'flex', gap: '4px' }}>
+                                                    <button onClick={() => { setEditingTemplate(t); setTemplateNameForm(t.name); setTemplateContentForm(t.content); setShowTemplateEditor(true); setShowTemplateSelector(false); }} style={{ padding: '4px', background: 'none', border: 'none', cursor: 'pointer', color: 'var(--color-gray-500)' }}><Edit2 className="w-3 h-3" /></button>
+                                                    <button onClick={() => { if (window.confirm('¿Eliminar plantilla?')) deleteTemplate(t.id); }} style={{ padding: '4px', background: 'none', border: 'none', cursor: 'pointer', color: 'var(--color-error)' }}><Trash2 className="w-3 h-3" /></button>
+                                                </div>
+                                            </div>
+                                        ))}
+                                    </div>
+                                )}
+                            </div>
+                        )}
+
+                        {/* Template Editor */}
+                        {showTemplateEditor && (
+                            <div style={{ marginBottom: 'var(--space-3)', padding: 'var(--space-3)', backgroundColor: '#f0fdf4', borderRadius: 'var(--radius-md)', border: '1px solid #bbf7d0' }}>
+                                <h5 style={{ fontSize: '12px', fontWeight: 600, color: '#166534', margin: '0 0 8px 0' }}>{editingTemplate ? 'Editar Plantilla' : 'Nueva Plantilla'}</h5>
+                                <input
+                                    type="text"
+                                    placeholder="Nombre de la plantilla"
+                                    value={templateNameForm}
+                                    onChange={(e) => setTemplateNameForm(e.target.value)}
+                                    style={{ width: '100%', padding: '6px', fontSize: '12px', borderRadius: '4px', border: '1px solid #86efac', marginBottom: '8px' }}
+                                />
+                                <textarea
+                                    placeholder="Contenido..."
+                                    value={templateContentForm}
+                                    onChange={(e) => setTemplateContentForm(e.target.value)}
+                                    rows={3}
+                                    style={{ width: '100%', padding: '6px', fontSize: '12px', borderRadius: '4px', border: '1px solid #86efac', marginBottom: '8px', resize: 'vertical' }}
+                                />
+                                <div style={{ display: 'flex', gap: '8px', justifyContent: 'flex-end' }}>
+                                    <button onClick={() => setShowTemplateEditor(false)} style={{ padding: '4px 8px', fontSize: '11px', backgroundColor: 'transparent', color: '#166534', border: '1px solid #86efac', borderRadius: '4px', cursor: 'pointer' }}>Cancelar</button>
+                                    <button
+                                        onClick={async () => {
+                                            if (!templateNameForm.trim() || !templateContentForm.trim()) return;
+                                            if (editingTemplate) {
+                                                await updateTemplate(editingTemplate.id, templateNameForm, templateContentForm);
+                                            } else {
+                                                await createTemplate(templateNameForm, templateContentForm);
+                                            }
+                                            setShowTemplateEditor(false);
+                                        }}
+                                        style={{ padding: '4px 8px', fontSize: '11px', backgroundColor: '#166534', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer' }}
+                                    >
+                                        Guardar
+                                    </button>
+                                </div>
+                            </div>
+                        )}
+
                         <textarea
                             className="message-input"
                             placeholder="Escribe el mensaje que deseas enviar..."

@@ -109,6 +109,7 @@ app.use('/webhook', webhookRoutes);
 app.use('/evolution', evolutionRoutes);
 app.use('/api/settings', settingsRoutes);
 app.use('/api/quick-replies', quickReplyRoutes);
+app.use('/api/bulk-templates', require('./src/routes/bulkTemplates'));
 app.use('/api/ai-knowledge', require('./src/routes/ai_knowledge'));
 app.use('/api/dashboard', require('./src/routes/dashboard'));
 
