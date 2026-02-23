@@ -427,7 +427,7 @@ const AuthenticatedApp = () => {
                 // Now proceed to bulk send with the URL
                 const response = await fetch(`${API_URL}/api/bulk-send`, {
                     method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
+                    headers: { 'Content-Type': 'application/json', 'x-api-key': process.env.REACT_APP_API_KEY || '' },
                     body: JSON.stringify({
                         recipients: [], // Empty recipients
                         filters, // Pass filters
@@ -457,7 +457,7 @@ const AuthenticatedApp = () => {
                 if (isUrl) {
                     const response = await fetch(`${API_URL}/api/bulk-send`, {
                         method: 'POST',
-                        headers: { 'Content-Type': 'application/json' },
+                        headers: { 'Content-Type': 'application/json', 'x-api-key': process.env.REACT_APP_API_KEY || '' },
                         body: JSON.stringify({
                             recipients, // Explicit recipients with phones
                             message,
@@ -485,7 +485,7 @@ const AuthenticatedApp = () => {
                     const { file: uploadedFile } = await uploadRes.json();
                     const response = await fetch(`${API_URL}/api/bulk-send`, {
                         method: 'POST',
-                        headers: { 'Content-Type': 'application/json' },
+                        headers: { 'Content-Type': 'application/json', 'x-api-key': process.env.REACT_APP_API_KEY || '' },
                         body: JSON.stringify({
                             recipients,
                             message,
@@ -509,7 +509,7 @@ const AuthenticatedApp = () => {
         console.log(`📤 Sending bulk message via /api/bulk-send`);
         const response = await fetch(`${API_URL}/api/bulk-send`, {
             method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
+            headers: { 'Content-Type': 'application/json', 'x-api-key': process.env.REACT_APP_API_KEY || '' },
             body: JSON.stringify({
                 recipients: filters ? [] : recipients,
                 filters: filters || undefined,
