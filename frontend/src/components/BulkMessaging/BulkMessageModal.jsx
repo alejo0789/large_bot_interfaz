@@ -218,6 +218,7 @@ const BulkMessageModal = ({
 
     const fileInputRef = useRef(null);
     const excelInputRef = useRef(null);
+    const textareaRef = useRef(null);
 
     // Update state when initial props change
     useEffect(() => {
@@ -455,6 +456,7 @@ const BulkMessageModal = ({
         setMediaPreview(file.url);
         setMediaType(file.type);
         setShowMediaBrowser(false);
+        setTimeout(() => textareaRef.current?.focus(), 0);
     };
 
     if (!isOpen) return null;
@@ -478,6 +480,7 @@ const BulkMessageModal = ({
         } else {
             setMediaPreview(file.name);
         }
+        setTimeout(() => textareaRef.current?.focus(), 0);
     };
 
     // ─── Send handler ────────────────────────────────────────────────────────
@@ -1246,7 +1249,11 @@ const BulkMessageModal = ({
                                             <div key={t.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '6px 8px', backgroundColor: 'white', border: '1px solid var(--color-gray-200)', borderRadius: 'var(--radius-sm)' }}>
                                                 <div
                                                     style={{ flex: 1, cursor: 'pointer', fontSize: '12px', fontWeight: 500, color: 'var(--color-gray-700)' }}
-                                                    onClick={() => { setMessage(t.content); setShowTemplateSelector(false); }}
+                                                    onClick={() => {
+                                                        setMessage(t.content);
+                                                        setShowTemplateSelector(false);
+                                                        setTimeout(() => textareaRef.current?.focus(), 0);
+                                                    }}
                                                 >
                                                     {t.name}
                                                 </div>
@@ -1300,6 +1307,7 @@ const BulkMessageModal = ({
                         )}
 
                         <textarea
+                            ref={textareaRef}
                             className="message-input"
                             placeholder="Escribe el mensaje que deseas enviar..."
                             value={message}

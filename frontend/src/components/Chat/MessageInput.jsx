@@ -16,6 +16,7 @@ const MessageInput = ({ onSend, onSendFile, disabled, isMobile }) => {
     const fileInputRef = useRef(null);
     const emojiPickerRef = useRef(null);
     const emojiButtonRef = useRef(null);
+    const textareaRef = useRef(null);
 
     // Close emoji picker on click outside
     useEffect(() => {
@@ -62,6 +63,9 @@ const MessageInput = ({ onSend, onSendFile, disabled, isMobile }) => {
 
         setMessage(textBeforeSlash + reply.content + ' ');
         setShowQuickReplies(false);
+
+        // Return focus to the textarea so the user can continue typing or hit enter
+        setTimeout(() => textareaRef.current?.focus(), 0);
 
         // Handle Media Attachment
         if (reply.media_url) {
@@ -344,6 +348,8 @@ const MessageInput = ({ onSend, onSendFile, disabled, isMobile }) => {
             } else {
                 setFilePreview(null);
             }
+            // Return focus to the textarea
+            setTimeout(() => textareaRef.current?.focus(), 0);
         }
     };
 
@@ -874,6 +880,7 @@ const MessageInput = ({ onSend, onSendFile, disabled, isMobile }) => {
                 </div>
 
                 <textarea
+                    ref={textareaRef}
                     className="message-input"
                     placeholder={selectedFile ? "Añade un mensaje (opcional)..." : "Escribe un mensaje..."}
                     value={message}
