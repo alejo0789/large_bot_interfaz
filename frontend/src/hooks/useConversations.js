@@ -3,6 +3,16 @@ import { useState, useEffect, useCallback } from 'react';
 const API_URL = process.env.REACT_APP_API_URL ||
     (process.env.NODE_ENV === 'production' ? window.location.origin : 'http://localhost:4000');
 
+const sortConversations = (conversations) => {
+    return [...conversations].sort((a, b) => {
+        if (a.isPinned && !b.isPinned) return -1;
+        if (!a.isPinned && b.isPinned) return 1;
+        const dateA = new Date(a.rawTimestamp || 0).getTime();
+        const dateB = new Date(b.rawTimestamp || 0).getTime();
+        return dateB - dateA;
+    });
+};
+
 /**
  * Custom hook for managing conversations
  * @param {Object} socket - Socket.IO instance
@@ -284,7 +294,7 @@ export const useConversations = (socket) => {
                 };
 
                 currentConversations.splice(conversationIndex, 1);
-                return [updatedConv, ...currentConversations];
+                return sortConversations([updatedConv, ...currentConversations]);
             }
             return currentConversations;
         });
@@ -395,7 +405,7 @@ export const useConversations = (socket) => {
                         rawTimestamp: new Date().toISOString()
                     };
                     currentConversations.splice(conversationIndex, 1);
-                    return [updatedConv, ...currentConversations];
+                    return sortConversations([updatedConv, ...currentConversations]);
                 }
                 return currentConversations;
             });
@@ -450,13 +460,7 @@ export const useConversations = (socket) => {
                 c.contact.phone === phone ? { ...c, isPinned: newState } : c
             );
             // Re-sort to reflect new pin state
-            return updated.sort((a, b) => {
-                if (a.isPinned && !b.isPinned) return -1;
-                if (!a.isPinned && b.isPinned) return 1;
-                const dateA = new Date(a.rawTimestamp || 0).getTime();
-                const dateB = new Date(b.rawTimestamp || 0).getTime();
-                return dateB - dateA;
-            });
+            return sortConversations(updated);
         });
 
         try {
@@ -476,13 +480,7 @@ export const useConversations = (socket) => {
                 const updated = prev.map(c =>
                     c.contact.phone === phone ? { ...c, isPinned: currentPinnedState } : c
                 );
-                return updated.sort((a, b) => {
-                    if (a.isPinned && !b.isPinned) return -1;
-                    if (!a.isPinned && b.isPinned) return 1;
-                    const dateA = new Date(a.rawTimestamp || 0).getTime();
-                    const dateB = new Date(b.rawTimestamp || 0).getTime();
-                    return dateB - dateA;
-                });
+                return sortConversations(updated);
             });
         }
     }, [conversations]);
@@ -657,7 +655,7 @@ export const useConversations = (socket) => {
                     };
 
                     currentConversations.splice(index, 1);
-                    return [updatedConv, ...currentConversations];
+                    return sortConversations([updatedConv, ...currentConversations]);
                 }
                 return currentConversations;
             });
@@ -692,7 +690,7 @@ export const useConversations = (socket) => {
                         unread: (selectedId === cleanPhone) ? 0 : 1,
                         status: 'active'
                     };
-                    return [newConv, ...currentConversations];
+                    return sortConversations([newConv, ...currentConversations]);
                 }
 
                 // Update existing
@@ -706,7 +704,7 @@ export const useConversations = (socket) => {
                 };
 
                 currentConversations.splice(index, 1);
-                return [updatedConv, ...currentConversations];
+                return sortConversations([updatedConv, ...currentConversations]);
             });
         };
 
