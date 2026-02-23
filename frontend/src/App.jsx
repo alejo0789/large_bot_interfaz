@@ -76,6 +76,9 @@ const AuthenticatedApp = () => {
     const [forwardMessage, setForwardMessage] = useState(null);
     const [showForwardModal, setShowForwardModal] = useState(false);
 
+    // Reply Message State
+    const [replyToMessage, setReplyToMessage] = useState(null);
+
     const [fontSize, setFontSize] = useState(() => {
         return localStorage.getItem('chat-font-size') || '16px';
     });
@@ -343,6 +346,7 @@ const AuthenticatedApp = () => {
 
     const handleSelectConversation = useCallback((conversation) => {
         selectConversation(conversation);
+        setReplyToMessage(null);
         if (isMobile) {
             setShowSidebar(false);
         }
@@ -357,11 +361,18 @@ const AuthenticatedApp = () => {
                 selectedConversation.contact.name,
                 {
                     agentId: user?.id,
-                    agentName: user?.name
+                    agentName: user?.name,
+                    replyTo: replyToMessage?.whatsapp_id || replyToMessage?.id,
+                    replyToFull: replyToMessage ? {
+                        id: replyToMessage.whatsapp_id || replyToMessage.id,
+                        text: replyToMessage.text,
+                        sender: replyToMessage.sender_name || (replyToMessage.sender === 'agent' ? user?.name : 'Cliente')
+                    } : null
                 }
             );
+            setReplyToMessage(null);
         }
-    }, [selectedConversation, sendMessage, user]);
+    }, [selectedConversation, sendMessage, user, replyToMessage]);
 
     const handleSendFile = useCallback(async (file, caption) => {
         if (!selectedConversation) return;
@@ -373,14 +384,21 @@ const AuthenticatedApp = () => {
                 selectedConversation.contact.name,
                 {
                     agentId: user?.id,
-                    agentName: user?.name
+                    agentName: user?.name,
+                    replyTo: replyToMessage?.whatsapp_id || replyToMessage?.id,
+                    replyToFull: replyToMessage ? {
+                        id: replyToMessage.whatsapp_id || replyToMessage.id,
+                        text: replyToMessage.text,
+                        sender: replyToMessage.sender_name || (replyToMessage.sender === 'agent' ? user?.name : 'Cliente')
+                    } : null
                 }
             );
+            setReplyToMessage(null);
         } catch (error) {
             console.error('Error in App handleSendFile:', error);
             alert('Error al enviar el archivo');
         }
-    }, [selectedConversation, sendFile, user]);
+    }, [selectedConversation, sendFile, user, replyToMessage]);
 
     const handleBulkSend = useCallback(async (phonesOrFilters, message, mediaFile = null, mediaOptions = null) => {
         let recipients = [];
@@ -531,6 +549,10 @@ const AuthenticatedApp = () => {
     const handleForwardMessage = useCallback((message) => {
         setForwardMessage(message);
         setShowForwardModal(true);
+    }, []);
+
+    const handleReplyMessage = useCallback((message) => {
+        setReplyToMessage(message);
     }, []);
 
     const handleCreateTag = useCallback(async (name, color) => {
@@ -979,6 +1001,7 @@ const AuthenticatedApp = () => {
                                     onForward={handleForwardMessage}
                                     onReact={handleMessageReact}
                                     onDelete={handleMessageDelete}
+                                    onReply={handleReplyMessage}
                                 />
                             </div>
 
@@ -987,6 +1010,8 @@ const AuthenticatedApp = () => {
                                 onSendFile={handleSendFile}
                                 disabled={false}
                                 isMobile={isMobile}
+                                replyToMessage={replyToMessage}
+                                onCancelReply={() => setReplyToMessage(null)}
                             />
                         </>
                     ) : (

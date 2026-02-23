@@ -7,7 +7,7 @@ import EmojiPicker from 'emoji-picker-react';
 /**
  * Message input component with file attachment and voice recording
  */
-const MessageInput = ({ onSend, onSendFile, disabled, isMobile }) => {
+const MessageInput = ({ onSend, onSendFile, disabled, isMobile, replyToMessage, onCancelReply }) => {
     const [showEmojiPicker, setShowEmojiPicker] = useState(false);
     const [message, setMessage] = useState('');
     const [selectedFile, setSelectedFile] = useState(null);
@@ -700,6 +700,48 @@ const MessageInput = ({ onSend, onSendFile, disabled, isMobile }) => {
                             <Plus className="w-4 h-4" />
                         </div>
                         Crear nueva respuesta rápida...
+                    </button>
+                </div>
+            )}
+
+            {/* Reply Preview */}
+            {replyToMessage && (
+                <div style={{
+                    padding: '8px 16px',
+                    backgroundColor: 'var(--color-gray-100)',
+                    borderBottom: '1px solid var(--color-gray-200)',
+                    borderLeft: '4px solid var(--color-primary)',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '12px',
+                    position: 'relative'
+                }}>
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                        <p style={{
+                            fontSize: '12px',
+                            fontWeight: 'bold',
+                            color: 'var(--color-primary)',
+                            marginBottom: '2px'
+                        }}>
+                            {replyToMessage.sender_name || replyToMessage.agent_name || replyToMessage.agentName || (replyToMessage.sender === 'agent' ? 'Tú' : 'Cliente')}
+                        </p>
+                        <p style={{
+                            fontSize: '13px',
+                            color: 'var(--color-gray-600)',
+                            whiteSpace: 'nowrap',
+                            overflow: 'hidden',
+                            textOverflow: 'ellipsis',
+                            margin: 0
+                        }}>
+                            {replyToMessage.text || (replyToMessage.media_type ? `[${replyToMessage.media_type}]` : 'Archivo')}
+                        </p>
+                    </div>
+                    <button
+                        onClick={onCancelReply}
+                        className="btn btn-icon"
+                        style={{ padding: '4px', color: 'var(--color-gray-400)' }}
+                    >
+                        <X className="w-4 h-4" />
                     </button>
                 </div>
             )}

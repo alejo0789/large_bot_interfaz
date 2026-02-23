@@ -16,47 +16,64 @@ class EvolutionService {
      * Send a text message
      * @param {string} phone - Phone number (573...) or JID (123@g.us)
      * @param {string} message - Text message
+     * @param {string} [replyMessageId] - ID of the message to reply to
      */
-    async sendText(phone, message) {
+    async sendText(phone, message, replyMessageId = null) {
         try {
             const cleanNumber = phone.replace(/\D/g, '');
             const isJID = phone.includes('-') || phone.includes('@');
             const url = `${this.baseUrl}/message/sendText/${this.instance}`;
 
+            const options = {
+                delay: 500,
+                presence: "composing",
+                linkPreview: false,
+                checkContact: false,
+                force: true
+            };
+
+            if (replyMessageId) {
+                const jid = isJID ? phone : `${cleanNumber}@s.whatsapp.net`;
+                options.quoted = {
+                    key: {
+                        remoteJid: jid,
+                        id: replyMessageId
+                    },
+                    message: {
+                        conversation: "..." // Placeholder text
+                    }
+                };
+            }
+
             // WE WILL TRY SEVERAL STRUCTURES AND DOMAINS UNTIL ONE SUCCEEDS
             const attempts = [
                 {
-                    name: 'Options Wrapped (LID Fix)',
+                    name: 'JID Quoted Root',
                     body: {
-                        number: isJID ? phone : cleanNumber,
+                        number: isJID ? phone : `${cleanNumber}@s.whatsapp.net`,
                         text: message,
-                        options: {
-                            delay: 500,
-                            presence: "composing",
-                            linkPreview: false,
-                            checkContact: false,   // Try inside options
-                            force: true            // Try inside options
-                        },
-                        checkContact: false        // Keep at root just in case
+                        quoted: options.quoted,
+                        ...options
                     }
                 },
                 {
-                    name: 'Hybrid (Text + Nested)',
+                    name: 'Standard Quoted Root',
                     body: {
                         number: isJID ? phone : cleanNumber,
                         text: message,
-                        textMessage: { text: message },
-                        checkContact: false,
-                        options: { checkContact: false }
+                        quoted: options.quoted,
+                        ...options
                     }
                 },
                 {
-                    name: 'Flat Minimal',
-                    body: { number: isJID ? phone : cleanNumber, text: message, checkContact: false }
-                },
-                {
-                    name: 'JID @c.us (LID Fallback)',
-                    body: { number: isJID ? phone.replace('@lid', '@c.us') : `${cleanNumber}@c.us`, text: message, checkContact: false }
+                    name: 'Options Wrapped',
+                    body: {
+                        number: isJID ? phone : cleanNumber,
+                        text: message,
+                        options: options,
+                        quoted: options.quoted,
+                        checkContact: false
+                    }
                 }
             ];
 
@@ -98,8 +115,8 @@ class EvolutionService {
     }
 
     // Alias for compatibility
-    async sendMessage(phone, message) {
-        return this.sendText(phone, message);
+    async sendMessage(phone, message, replyMessageId = null) {
+        return this.sendText(phone, message, replyMessageId);
     }
 
     /**
@@ -121,6 +138,10 @@ class EvolutionService {
             const isJID = phone.includes('-') || phone.includes('@');
             const url = `${this.baseUrl}/message/sendMedia/${this.instance}`;
 
+            // Extract replyMessageId from arguments if provided
+            const replyMessageId = arguments.length > 5 ? arguments[5] : null;
+            console.log(`💬 Reply ID for media: ${replyMessageId}`);
+
             // --- LOCALHOST FIX ---
             let finalMediaUrl = mediaUrl;
             if (finalMediaUrl.includes('localhost') && config.publicUrl && !config.publicUrl.includes('localhost')) {
@@ -137,35 +158,50 @@ class EvolutionService {
                 else if (validMediaType === 'document') finalFileName += '.pdf';
             }
 
+            const options = {
+                delay: 500,
+                presence: "composing",
+                linkPreview: false,
+                checkContact: false,
+                force: true
+            };
+
+            if (replyMessageId) {
+                const jid = isJID ? phone : `${cleanNumber}@s.whatsapp.net`;
+                options.quoted = {
+                    key: {
+                        remoteJid: jid,
+                        id: replyMessageId
+                    },
+                    message: {
+                        conversation: "..."
+                    }
+                };
+            }
+
             const attempts = [
                 {
                     name: 'standard (media + mediatype)',
                     body: {
+                        number: isJID ? phone : `${cleanNumber}@s.whatsapp.net`,
+                        mediatype: validMediaType,
+                        media: finalMediaUrl,
+                        caption: caption || '',
+                        fileName: finalFileName,
+                        quoted: options.quoted,
+                        ...options
+                    }
+                },
+                {
+                    name: 'standard (clean number)',
+                    body: {
                         number: isJID ? phone : cleanNumber,
                         mediatype: validMediaType,
                         media: finalMediaUrl,
                         caption: caption || '',
-                        fileName: finalFileName
-                    }
-                },
-                {
-                    name: 'alternative (url + mediatype)',
-                    body: {
-                        number: isJID ? phone : cleanNumber,
-                        mediatype: validMediaType,
-                        url: finalMediaUrl,
-                        caption: caption || '',
-                        fileName: finalFileName
-                    }
-                },
-                {
-                    name: 'legacy (media + type)',
-                    body: {
-                        number: isJID ? phone : cleanNumber,
-                        type: validMediaType,
-                        media: finalMediaUrl,
-                        caption: caption || '',
-                        fileName: finalFileName
+                        fileName: finalFileName,
+                        quoted: options.quoted,
+                        ...options
                     }
                 }
             ];
@@ -591,7 +627,7 @@ class EvolutionService {
 
             // Strategy 1: GET (Common in Evolution API v1/v2 endpoints)
             const getUrl = `${this.baseUrl}/chat/fetchProfilePictureUrl/${this.instance}?number=${numberParam}`;
-            
+
             const getResponse = await fetch(getUrl, {
                 method: 'GET',
                 headers: {

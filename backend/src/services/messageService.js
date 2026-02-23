@@ -59,7 +59,10 @@ class MessageService {
                 agent_id,
                 agent_name,
                 sender_name,
-                reactions
+                reactions,
+                reply_to_id,
+                reply_to_text,
+                reply_to_sender
             FROM messages 
             WHERE conversation_phone = $1 ${cursorCondition}
             ORDER BY timestamp ${orderDirection}
@@ -117,7 +120,12 @@ class MessageService {
                 agentId: msg.agent_id,
                 agentName: msg.agent_name,
                 sender_name: msg.sender_name,
-                reactions: msg.reactions || []
+                reactions: msg.reactions || [],
+                replyTo: msg.reply_to_id ? {
+                    id: msg.reply_to_id,
+                    text: msg.reply_to_text,
+                    sender: msg.reply_to_sender
+                } : null
             };
         });
 
@@ -171,7 +179,7 @@ class MessageService {
     /**
      * Create a new message
      */
-    async create({ phone, sender, text, whatsappId, mediaType, mediaUrl, status = 'delivered', agentId, agentName, senderName }) {
+    async create({ phone, sender, text, whatsappId, mediaType, mediaUrl, status = 'delivered', agentId, agentName, senderName, replyToId, replyToText, replyToSender }) {
         // Verify if agent exists before inserting to avoid FK error
         let verifiedAgentId = null;
         if (agentId && !isNaN(agentId)) { // Only if it's a valid number
@@ -202,10 +210,27 @@ class MessageService {
                 timestamp,
                 agent_id,
                 agent_name,
-                sender_name
-            ) VALUES ($1, $2, $3, $4, $5, $6, $7, NOW(), $8, $9, $10)
+                sender_name,
+                reply_to_id,
+                reply_to_text,
+                reply_to_sender
+            ) VALUES ($1, $2, $3, $4, $5, $6, $7, NOW(), $8, $9, $10, $11, $12, $13)
             RETURNING id, timestamp
-        `, [phone, sender, text, whatsappId, mediaType, mediaUrl, status, verifiedAgentId, agentName, senderName]);
+        `, [
+            phone,
+            sender,
+            text,
+            whatsappId,
+            mediaType,
+            mediaUrl,
+            status,
+            verifiedAgentId,
+            agentName,
+            senderName,
+            replyToId,
+            replyToText,
+            replyToSender
+        ]);
 
         return rows[0];
     }
@@ -241,6 +266,18 @@ class MessageService {
             [whatsappId]
         );
         return rows.length > 0;
+    }
+
+    /**
+     * Get message by WhatsApp ID or internal ID
+     */
+    async getById(id) {
+        const { rows } = await pool.query(`
+            SELECT * FROM messages 
+            WHERE id::text = $1 OR whatsapp_id = $1
+            LIMIT 1
+        `, [id]);
+        return rows[0];
     }
 
     /**

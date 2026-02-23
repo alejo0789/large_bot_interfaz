@@ -56,7 +56,7 @@ const emitToConversation = (phone, event, data) => {
 
 // Send text message
 router.post('/send-message', requireApiKey, asyncHandler(async (req, res) => {
-    const { phone, name, message, temp_id, agentId, agentName, agent_id, agent_name } = req.body;
+    const { phone, name, message, temp_id, agentId, agentName, agent_id, agent_name, reply_to } = req.body;
 
     // Normalize agent params (frontend might send agentId or agent_id)
     const finalAgentId = agentId || agent_id;
@@ -88,6 +88,19 @@ router.post('/send-message', requireApiKey, asyncHandler(async (req, res) => {
     // Ensure conversation exists to avoid FK error
     await conversationService.upsert(normalizedPhone, name);
 
+    // Fetch quoted message data if reply_to is present
+    let replyToData = null;
+    if (reply_to) {
+        const quotedMsg = await messageService.getById(reply_to);
+        if (quotedMsg) {
+            replyToData = {
+                id: quotedMsg.whatsapp_id || quotedMsg.id,
+                text: quotedMsg.text_content,
+                sender: quotedMsg.sender_name || (quotedMsg.sender === 'agent' ? finalAgentName : 'Cliente')
+            };
+        }
+    }
+
     // Save message to database using normalized phone
     const savedMessage = await messageService.create({
         phone: normalizedPhone,
@@ -98,7 +111,10 @@ router.post('/send-message', requireApiKey, asyncHandler(async (req, res) => {
         timestamp: new Date().toISOString(),
         agentId: finalAgentId,
         agentName: finalAgentName,
-        senderName: finalAgentName
+        senderName: finalAgentName,
+        replyToId: replyToData?.id,
+        replyToText: replyToData?.text,
+        replyToSender: replyToData?.sender
     });
 
     // Update conversation
@@ -108,7 +124,7 @@ router.post('/send-message', requireApiKey, asyncHandler(async (req, res) => {
     // Send Message Logic (Evolution > N8N)
     let sendResult;
     if (config.evolutionApiUrl) {
-        const result = await evolutionService.sendText(normalizedPhone, message);
+        const result = await evolutionService.sendText(normalizedPhone, message, reply_to);
         sendResult = { sent: result.success, platform: 'evolution', ...result };
     } else {
         const result = await n8nService.sendMessage({
@@ -154,7 +170,8 @@ router.post('/send-message', requireApiKey, asyncHandler(async (req, res) => {
         agent_id: finalAgentId,
         agent_name: finalAgentName,
         sender_name: finalAgentName,
-        status: sendResult.sent ? 'delivered' : 'failed'
+        status: sendResult.sent ? 'delivered' : 'failed',
+        replyTo: replyToData
     });
 
     res.json({
@@ -169,7 +186,7 @@ router.post('/send-message', requireApiKey, asyncHandler(async (req, res) => {
 
 // Send file
 router.post('/send-file', requireApiKey, upload.single('file'), asyncHandler(async (req, res) => {
-    const { phone, name, caption, agent_id, agent_name, temp_id } = req.body;
+    const { phone, name, caption, agent_id, agent_name, temp_id, reply_to } = req.body;
     const file = req.file;
 
     if (!file) {
@@ -189,6 +206,19 @@ router.post('/send-file', requireApiKey, upload.single('file'), asyncHandler(asy
     // Ensure conversation exists to avoid FK error
     await conversationService.upsert(phone, name);
 
+    // Fetch quoted message data if reply_to is present
+    let replyToData = null;
+    if (reply_to) {
+        const quotedMsg = await messageService.getById(reply_to);
+        if (quotedMsg) {
+            replyToData = {
+                id: quotedMsg.whatsapp_id || quotedMsg.id,
+                text: quotedMsg.text_content,
+                sender: quotedMsg.sender_name || (quotedMsg.sender === 'agent' ? agent_name : 'Cliente')
+            };
+        }
+    }
+
     // Save message to database
     const savedMessage = await messageService.create({
         phone,
@@ -200,7 +230,10 @@ router.post('/send-file', requireApiKey, upload.single('file'), asyncHandler(asy
         agentId: agent_id,     // Note: FormData sends strings
         agentName: agent_name,
         senderName: agent_name,
-        timestamp: new Date().toISOString()
+        timestamp: new Date().toISOString(),
+        replyToId: replyToData?.id,
+        replyToText: replyToData?.text,
+        replyToSender: replyToData?.sender
     });
 
     // Update conversation
@@ -211,7 +244,7 @@ router.post('/send-file', requireApiKey, upload.single('file'), asyncHandler(asy
     let sendResult = { sent: false };
 
     if (config.evolutionApiUrl) {
-        const result = await evolutionService.sendMedia(phone, fileUrl, mediaType, caption || '', file.originalname);
+        const result = await evolutionService.sendMedia(phone, fileUrl, mediaType, caption || '', file.originalname, reply_to);
         sendResult = { sent: result && result.success, platform: 'evolution', ...result };
     } else {
         const result = await n8nService.sendMessage({
@@ -260,7 +293,8 @@ router.post('/send-file', requireApiKey, upload.single('file'), asyncHandler(asy
         agent_name,
         sender_name: agent_name,
         status: sendResult.sent ? 'delivered' : 'failed',
-        temp_id: temp_id // Emitting back the temp_id so frontend can match
+        temp_id: temp_id, // Emitting back the temp_id so frontend can match
+        replyTo: replyToData
     });
 
     res.json({

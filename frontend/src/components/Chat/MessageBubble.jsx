@@ -1,11 +1,11 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { CheckCheck, Clock, Download, FileText, Image as ImageIcon, Mic, Forward, Trash2, Smile, MoreHorizontal, ChevronDown } from 'lucide-react';
+import { CheckCheck, Clock, Download, FileText, Image as ImageIcon, Mic, Forward, Reply, Trash2, Smile, MoreHorizontal, ChevronDown } from 'lucide-react';
 import EmojiPicker from 'emoji-picker-react';
 
 /**
  * Message bubble component with media support, reactions, and actions
  */
-const MessageBubble = ({ message, onForward, onReact, onDelete }) => {
+const MessageBubble = ({ message, onForward, onReact, onDelete, onReply }) => {
     const { text, timestamp, status, id, reactions = [] } = message;
     const rawSender = message.sender || message.sender_type || 'customer';
     const sender = String(rawSender).toLowerCase().trim();
@@ -357,6 +357,35 @@ const MessageBubble = ({ message, onForward, onReact, onDelete }) => {
                             </div>
                         )}
 
+                        {/* Reply Preview in Bubble */}
+                        {message.replyTo && (
+                            <div style={{
+                                backgroundColor: 'rgba(0,0,0,0.05)',
+                                borderLeft: '3px solid var(--color-primary)',
+                                borderRadius: '4px',
+                                padding: '4px 8px',
+                                marginBottom: '6px',
+                                fontSize: '11px',
+                                color: 'var(--color-gray-600)',
+                                overflow: 'hidden',
+                                textOverflow: 'ellipsis',
+                                whiteSpace: 'nowrap',
+                                cursor: 'default'
+                            }}>
+                                <p style={{
+                                    fontWeight: 'bold',
+                                    color: 'var(--color-primary)',
+                                    marginBottom: '1px',
+                                    fontSize: '10px'
+                                }}>
+                                    {message.replyTo.sender}
+                                </p>
+                                <p style={{ margin: 0, textOverflow: 'ellipsis', overflow: 'hidden' }}>
+                                    {message.replyTo.text}
+                                </p>
+                            </div>
+                        )}
+
                         {renderMedia()}
                         {
                             text && (
@@ -574,6 +603,32 @@ const MessageBubble = ({ message, onForward, onReact, onDelete }) => {
                                 >
                                     <Forward className="w-4 h-4" />
                                     Reenviar
+                                </button>
+
+                                <button
+                                    onClick={() => {
+                                        onReply && onReply(message);
+                                        setShowMenu(false);
+                                    }}
+                                    style={{
+                                        display: 'flex',
+                                        alignItems: 'center',
+                                        gap: '8px',
+                                        padding: '8px 12px',
+                                        border: 'none',
+                                        background: 'none',
+                                        width: '100%',
+                                        textAlign: 'left',
+                                        fontSize: '14px',
+                                        color: '#4b5563',
+                                        cursor: 'pointer',
+                                        borderRadius: '6px'
+                                    }}
+                                    onMouseEnter={(e) => e.currentTarget.style.background = '#f3f4f6'}
+                                    onMouseLeave={(e) => e.currentTarget.style.background = 'none'}
+                                >
+                                    <Reply className="w-4 h-4" />
+                                    Responder
                                 </button>
                             </div>
                         </div>

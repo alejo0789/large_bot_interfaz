@@ -215,6 +215,33 @@ router.post('/', async (req, res) => {
             mimetype = msg.message.documentMessage.mimetype || 'application/octet-stream';
         }
 
+        // --- REPLY / QUOTED MESSAGE EXTRACTION ---
+        let replyToData = null;
+        const contextInfo = msg.message?.extendedTextMessage?.contextInfo ||
+            msg.message?.imageMessage?.contextInfo ||
+            msg.message?.videoMessage?.contextInfo ||
+            msg.message?.audioMessage?.contextInfo ||
+            msg.message?.documentMessage?.contextInfo;
+
+        if (contextInfo?.quotedMessage) {
+            const quotedMsg = contextInfo.quotedMessage;
+            const quotedId = contextInfo.stanzaId;
+            const quotedText = quotedMsg.conversation ||
+                quotedMsg.extendedTextMessage?.text ||
+                quotedMsg.imageMessage?.caption ||
+                quotedMsg.videoMessage?.caption ||
+                (quotedMsg.audioMessage ? '🎤 Nota de voz' : null) ||
+                (quotedMsg.documentMessage ? '📄 Documento' : null) ||
+                'Archivo';
+
+            replyToData = {
+                id: quotedId,
+                text: quotedText,
+                sender: contextInfo.participant?.split('@')[0] || 'Alguien'
+            };
+            console.log(`💬 Webhook detected REPLY to: ${quotedId} from ${replyToData.sender}`);
+        }
+
         // --- MEDIA HANDLING: BASE64 PRIORITY ---
         // Try to find base64 in common locations (Evolution v1 vs v2)
         let finalBase64 = msg.base64 ||
@@ -343,7 +370,10 @@ router.post('/', async (req, res) => {
                 whatsappId: msg.key.id,
                 mediaType: mediaType,
                 mediaUrl: mediaUrl,
-                senderName: msg.pushName || (isFromAgent ? 'Tú' : 'Cliente')
+                senderName: msg.pushName || (isFromAgent ? 'Tú' : 'Cliente'),
+                replyToId: replyToData?.id,
+                replyToText: replyToData?.text,
+                replyToSender: replyToData?.sender
             });
             console.log(`💾 Saved message as '${senderType}' from ${isFromAgent ? 'your phone' : 'client'}`);
         }
@@ -381,7 +411,8 @@ router.post('/', async (req, res) => {
             ai_enabled: shouldActivateAI,
             media_type: mediaType,
             media_url: mediaUrl,
-            isNew: isNewConversation
+            isNew: isNewConversation,
+            replyTo: replyToData
         });
 
         // 5. AUTO-TRIGGER N8N IF AI IS ENABLED

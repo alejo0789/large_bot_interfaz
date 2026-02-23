@@ -216,7 +216,7 @@ export const useConversations = (socket) => {
     const sendMessage = useCallback(async (phone, message, name, options = {}) => {
         const tempId = Date.now();
         const currentAIState = Boolean(aiStatesByPhone[phone] ?? true);
-        const { agentId, agentName } = options;
+        const { agentId, agentName, replyTo } = options;
 
         const newMessage = {
             id: tempId,
@@ -228,7 +228,8 @@ export const useConversations = (socket) => {
                 minute: '2-digit'
             }),
             rawTimestamp: new Date().toISOString(),
-            status: 'sending'
+            status: 'sending',
+            replyTo: options.replyToFull || (replyTo ? { id: replyTo } : null)
         };
 
         // Optimistic update
@@ -274,7 +275,8 @@ export const useConversations = (socket) => {
                     temp_id: tempId,
                     ai_enabled: currentAIState,
                     agent_id: agentId,
-                    agent_name: agentName
+                    agent_name: agentName,
+                    reply_to: replyTo
                 })
             });
 
@@ -289,7 +291,8 @@ export const useConversations = (socket) => {
                         ...msg,
                         status: 'delivered',
                         id: data.newMessage?.id || msg.id,
-                        whatsapp_id: data.newMessage?.whatsapp_id || msg.whatsapp_id
+                        whatsapp_id: data.newMessage?.whatsapp_id || msg.whatsapp_id,
+                        replyTo: data.newMessage?.replyTo || msg.replyTo
                     } : msg
                 )
             }));
@@ -309,7 +312,7 @@ export const useConversations = (socket) => {
 
     const sendFile = useCallback(async (phone, file, caption, name, options = {}) => {
         const tempId = `temp_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
-        const { agentId, agentName } = options;
+        const { agentId, agentName, replyTo } = options;
         const media_type = file.type.startsWith('image/') ? 'image' :
             file.type.startsWith('video/') ? 'video' :
                 file.type.startsWith('audio/') ? 'audio' : 'document';
@@ -325,6 +328,7 @@ export const useConversations = (socket) => {
         if (caption) formData.append('caption', caption);
         if (agentId) formData.append('agent_id', agentId);
         if (agentName) formData.append('agent_name', agentName);
+        if (replyTo) formData.append('reply_to', replyTo);
 
         try {
             const response = await fetch(`${API_URL}/api/send-file`, {
@@ -460,7 +464,8 @@ export const useConversations = (socket) => {
                 media_url: messageData.media_url || messageData.mediaUrl || null,
                 agent_name: messageData.agent_name || null,
                 sender_name: messageData.sender_name || messageData.pushName || messageData.contact_name || null,
-                temp_id: messageData.temp_id // Crucial for duplicate matching
+                temp_id: messageData.temp_id, // Crucial for duplicate matching
+                replyTo: messageData.replyTo || null
             };
 
             // Check for duplicates before adding
@@ -506,7 +511,8 @@ export const useConversations = (socket) => {
                                         id: formattedMessage.id,
                                         media_url: formattedMessage.media_url, // Update URL (e.g. from blob: to http:)
                                         media_type: formattedMessage.media_type,
-                                        agent_name: formattedMessage.agent_name
+                                        agent_name: formattedMessage.agent_name,
+                                        replyTo: formattedMessage.replyTo || msg.replyTo
                                     };
                                 }
 
