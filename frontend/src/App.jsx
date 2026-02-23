@@ -417,7 +417,7 @@ const AuthenticatedApp = () => {
                     // We need to upload the file first.
                     const formData = new FormData();
                     formData.append('file', mediaFile);
-                    const uploadRes = await fetch(`${API_URL}/api/upload`, { method: 'POST', body: formData });
+                    const uploadRes = await fetch(`${API_URL}/api/upload?folder=bulk`, { method: 'POST', body: formData });
                     if (!uploadRes.ok) throw new Error('Error subiendo archivo para envío masivo');
                     const { file: uploadedFile } = await uploadRes.json();
                     mediaUrlToSend = uploadedFile.url;
@@ -479,7 +479,7 @@ const AuthenticatedApp = () => {
 
                 const formData = new FormData();
                 formData.append('file', mediaFile);
-                const uploadRes = await fetch(`${API_URL}/api/upload`, { method: 'POST', body: formData });
+                const uploadRes = await fetch(`${API_URL}/api/upload?folder=bulk`, { method: 'POST', body: formData });
 
                 if (uploadRes.ok) {
                     const { file: uploadedFile } = await uploadRes.json();

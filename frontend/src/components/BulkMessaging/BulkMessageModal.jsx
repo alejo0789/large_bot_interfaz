@@ -180,6 +180,13 @@ const BulkMessageModal = ({
     const [mediaPreview, setMediaPreview] = useState(initialMediaUrl);
     const [mediaType, setMediaType] = useState(initialMediaType);
 
+    // Media browser state
+    const [serverMediaUrl, setServerMediaUrl] = useState(null);
+    const [serverFiles, setServerFiles] = useState([]);
+    const [showMediaBrowser, setShowMediaBrowser] = useState(false);
+    const [isFetchingFiles, setIsFetchingFiles] = useState(false);
+
+
     // Paste mode state
     const [pasteInput, setPasteInput] = useState('');
     const [pastePreview, setPastePreview] = useState({ valid: [], invalid: [] });
@@ -389,7 +396,55 @@ const BulkMessageModal = ({
         setMediaFile(null);
         setMediaPreview(null);
         setMediaType(null);
+        setServerMediaUrl(null);
         if (fileInputRef.current) fileInputRef.current.value = '';
+    };
+
+    const fetchServerFiles = async () => {
+        setIsFetchingFiles(true);
+        try {
+            const res = await fetch(`${API_URL}/api/upload/files?folder=bulk`, {
+                headers: { 'x-api-key': process.env.REACT_APP_API_KEY || '' }
+            });
+            const data = await res.json();
+            if (data.success) {
+                setServerFiles(data.files);
+            }
+        } catch (e) {
+            console.error('Error fetching files:', e);
+        } finally {
+            setIsFetchingFiles(false);
+        }
+    };
+
+    const handleOpenMediaBrowser = () => {
+        setShowMediaBrowser(true);
+        fetchServerFiles();
+    };
+
+    const handleDeleteServerFile = async (filename, e) => {
+        e.stopPropagation();
+        if (!window.confirm(`¿Seguro que deseas eliminar "${filename}" del servidor?\nEsta acción no se puede deshacer.`)) return;
+        try {
+            const res = await fetch(`${API_URL}/api/upload/files/${filename}?folder=bulk`, {
+                method: 'DELETE',
+                headers: { 'x-api-key': process.env.REACT_APP_API_KEY || '' }
+            });
+            if (res.ok) {
+                setServerFiles(prev => prev.filter(f => f.name !== filename));
+                if (mediaPreview && mediaPreview.includes(filename)) clearMedia();
+            }
+        } catch (e) {
+            console.error('Error deleting file:', e);
+        }
+    };
+
+    const handleSelectServerFile = (file) => {
+        setMediaFile(null);
+        setServerMediaUrl(file.url);
+        setMediaPreview(file.url);
+        setMediaType(file.type);
+        setShowMediaBrowser(false);
     };
 
     if (!isOpen) return null;
@@ -417,7 +472,7 @@ const BulkMessageModal = ({
 
     // ─── Send handler ────────────────────────────────────────────────────────
     const handleSend = async () => {
-        if (!message.trim() && !mediaFile && !initialMediaUrl) return;
+        if (!message.trim() && !mediaFile && !initialMediaUrl && !serverMediaUrl) return;
         // 'all' mode always uses server-side filters (no local recipients needed)
         if (selectionMode !== 'all' && selectionMode !== 'tag' && recipients.length === 0) return;
         if (selectionMode === 'tag' && selectedTagIds.length === 0) return;
@@ -450,7 +505,10 @@ const BulkMessageModal = ({
                 payload = filters;
             }
 
-            const result = await onSend(payload, message, mediaFile, { mediaUrl: initialMediaUrl, mediaType: initialMediaType });
+            const sendMediaUrl = serverMediaUrl || initialMediaUrl;
+            const sendMediaType = mediaType || initialMediaType;
+
+            const result = await onSend(payload, message, mediaFile, { mediaUrl: sendMediaUrl, mediaType: sendMediaType });
 
             if (result.batchId) {
                 setBatchId(result.batchId);
@@ -505,7 +563,7 @@ const BulkMessageModal = ({
         whiteSpace: 'nowrap'
     });
 
-    const canSend = (message.trim() || mediaFile || initialMediaUrl) &&
+    const canSend = (message.trim() || mediaFile || initialMediaUrl || serverMediaUrl) &&
         (
             selectionMode === 'all' ? true :          // 'all' → always valid, backend fetches all
                 selectionMode === 'tag' ? selectedTagIds.length > 0 :
@@ -1037,12 +1095,12 @@ const BulkMessageModal = ({
                             style={{ display: 'none' }}
                         />
 
-                        {!mediaFile && !initialMediaUrl ? (
+                        {!mediaFile && !initialMediaUrl && !serverMediaUrl ? (
                             <div style={{ display: 'flex', gap: 'var(--space-2)', flexWrap: 'wrap' }}>
-                                <button onClick={() => { fileInputRef.current.accept = 'image/*'; fileInputRef.current.click(); }}
+                                <button onClick={handleOpenMediaBrowser}
                                     className="media-btn"
                                     style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-1)', padding: 'var(--space-2) var(--space-3)', backgroundColor: 'var(--color-gray-100)', border: '1px dashed var(--color-gray-300)', borderRadius: 'var(--radius-lg)', cursor: 'pointer', color: 'var(--color-gray-600)', fontSize: 'var(--font-size-sm)', transition: 'all 0.2s' }}>
-                                    <Image className="w-4 h-4" />Imagen
+                                    <Image className="w-4 h-4" />Galería / Imagen
                                 </button>
                                 <button onClick={() => { fileInputRef.current.accept = 'video/*'; fileInputRef.current.click(); }}
                                     style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-1)', padding: 'var(--space-2) var(--space-3)', backgroundColor: 'var(--color-gray-100)', border: '1px dashed var(--color-gray-300)', borderRadius: 'var(--radius-lg)', cursor: 'pointer', color: 'var(--color-gray-600)', fontSize: 'var(--font-size-sm)', transition: 'all 0.2s' }}>
@@ -1072,7 +1130,7 @@ const BulkMessageModal = ({
                                 )}
                                 <div style={{ flex: 1 }}>
                                     <div style={{ fontSize: 'var(--font-size-sm)', fontWeight: 500, color: 'var(--color-gray-700)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                                        {mediaFile ? mediaFile.name : (initialMediaUrl ? 'Archivo reenviado' : 'Archivo adjunto')}
+                                        {mediaFile ? mediaFile.name : (serverMediaUrl ? serverMediaUrl.split('/').pop() : 'Archivo reenviado')}
                                     </div>
                                     <div style={{ fontSize: 'var(--font-size-xs)', color: 'var(--color-gray-500)' }}>
                                         {mediaFile ? `${(mediaFile.size / 1024 / 1024).toFixed(2)} MB • ` : ''}{mediaType}
@@ -1081,6 +1139,48 @@ const BulkMessageModal = ({
                                 <button onClick={clearMedia} style={{ padding: 'var(--space-2)', backgroundColor: 'var(--color-error)', color: 'white', border: 'none', borderRadius: 'var(--radius-md)', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                                     <Trash2 className="w-4 h-4" />
                                 </button>
+                            </div>
+                        )}
+
+                        {/* ── Media Browser UI ── */}
+                        {showMediaBrowser && !mediaFile && !initialMediaUrl && !serverMediaUrl && (
+                            <div style={{ marginTop: 'var(--space-3)', padding: 'var(--space-3)', backgroundColor: 'var(--color-gray-50)', borderRadius: 'var(--radius-lg)', border: '1px solid var(--color-gray-200)' }}>
+                                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 'var(--space-3)' }}>
+                                    <h5 style={{ fontSize: 'var(--font-size-sm)', fontWeight: 600, color: 'var(--color-gray-700)', margin: 0 }}>Galería de Archivos</h5>
+                                    <div>
+                                        <button className="btn" onClick={() => { fileInputRef.current.accept = 'image/*,video/*,document/*'; fileInputRef.current.click(); setShowMediaBrowser(false); }} style={{ padding: '4px 8px', fontSize: 'var(--font-size-xs)', backgroundColor: 'var(--color-primary)', color: 'white', border: 'none', borderRadius: 'var(--radius-md)', marginRight: '8px', cursor: 'pointer' }}>+ Subir Nuevo</button>
+                                        <button onClick={() => setShowMediaBrowser(false)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--color-gray-500)' }}><X className="w-4 h-4" /></button>
+                                    </div>
+                                </div>
+                                {isFetchingFiles ? (
+                                    <div style={{ display: 'flex', justifyContent: 'center', padding: 'var(--space-4)' }}><Loader className="w-6 h-6" style={{ animation: 'spin 1s linear infinite', color: 'var(--color-primary)' }} /></div>
+                                ) : serverFiles.length === 0 ? (
+                                    <div style={{ textAlign: 'center', color: 'var(--color-gray-500)', fontSize: 'var(--font-size-sm)', padding: 'var(--space-4)' }}>No hay archivos subidos previamente. Usa el botón "Subir Nuevo".</div>
+                                ) : (
+                                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(100px, 1fr))', gap: 'var(--space-2)', maxHeight: '240px', overflowY: 'auto' }}>
+                                        {serverFiles.map(file => (
+                                            <div key={file.name} style={{ position: 'relative', borderRadius: 'var(--radius-md)', overflow: 'hidden', border: '1px solid var(--color-gray-200)', cursor: 'pointer', backgroundColor: 'white', aspectRatio: '1', transition: 'box-shadow 0.2s' }}
+                                                onClick={() => handleSelectServerFile(file)}
+                                                onMouseEnter={(e) => e.currentTarget.style.boxShadow = '0 0 0 2px var(--color-primary)'}
+                                                onMouseLeave={(e) => e.currentTarget.style.boxShadow = 'none'}
+                                            >
+                                                {file.type === 'image' ? (
+                                                    <img src={file.url.includes('localhost') && window.location.hostname !== 'localhost' ? file.url.replace('localhost', window.location.hostname) : file.url} alt={file.name} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                                                ) : (
+                                                    <div style={{ width: '100%', height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', backgroundColor: '#f3f4f6' }}>
+                                                        {file.type === 'video' ? <Video className="w-8 h-8" style={{ color: 'var(--color-gray-400)' }} /> : <Mic className="w-8 h-8" style={{ color: 'var(--color-gray-400)' }} />}
+                                                    </div>
+                                                )}
+                                                <div style={{ position: 'absolute', bottom: 0, left: 0, right: 0, backgroundColor: 'rgba(0,0,0,0.6)', color: 'white', fontSize: '10px', padding: '2px 4px', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                                                    {file.name}
+                                                </div>
+                                                <button onClick={(e) => handleDeleteServerFile(file.name, e)} style={{ position: 'absolute', top: 4, right: 4, backgroundColor: 'rgba(239,68,68,0.9)', color: 'white', border: 'none', borderRadius: '50%', width: '24px', height: '24px', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', padding: 0 }}>
+                                                    <Trash2 className="w-3 h-3" />
+                                                </button>
+                                            </div>
+                                        ))}
+                                    </div>
+                                )}
                             </div>
                         )}
                     </div>

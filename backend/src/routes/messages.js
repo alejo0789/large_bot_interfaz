@@ -281,7 +281,23 @@ router.post('/upload', upload.single('file'), asyncHandler(async (req, res) => {
     const file = req.file;
     if (!file) throw new AppError('No se recibió ningún archivo', 400);
 
-    const fileUrl = `${config.publicUrl}/uploads/${file.filename}`;
+    let fileUrl = `${config.publicUrl}/uploads/${file.filename}`;
+
+    // Si se especifica un folder en el query (ej: folder=bulk)
+    if (req.query.folder === 'bulk') {
+        const fs = require('fs');
+        const path = require('path');
+        const bulkDir = path.join(config.uploadDir, 'bulk');
+
+        if (!fs.existsSync(bulkDir)) {
+            fs.mkdirSync(bulkDir, { recursive: true });
+        }
+
+        const newPath = path.join(bulkDir, file.filename);
+        fs.renameSync(file.path, newPath);
+        fileUrl = `${config.publicUrl}/uploads/bulk/${file.filename}`;
+    }
+
     const mediaType = getMediaType(file.mimetype);
 
     res.json({
@@ -294,6 +310,71 @@ router.post('/upload', upload.single('file'), asyncHandler(async (req, res) => {
         }
     });
 }));
+
+const fs = require('fs');
+const path = require('path');
+
+// Get all uploaded files
+router.get('/upload/files', requireApiKey, asyncHandler(async (req, res) => {
+    let uploadDir = config.uploadDir;
+
+    if (req.query.folder === 'bulk') {
+        uploadDir = path.join(config.uploadDir, 'bulk');
+    }
+
+    if (!fs.existsSync(uploadDir)) {
+        return res.json({ success: true, files: [] });
+    }
+
+    const files = fs.readdirSync(uploadDir);
+    const fileList = files.map(filename => {
+        const filePath = path.join(uploadDir, filename);
+        const stats = fs.statSync(filePath);
+
+        // Skip directories
+        if (stats.isDirectory()) return null;
+
+        let fileType = 'document';
+        const ext = path.extname(filename).toLowerCase();
+        if (['.jpg', '.jpeg', '.png', '.gif', '.webp'].includes(ext)) fileType = 'image';
+        else if (['.mp4', '.webm', '.ogg'].includes(ext)) fileType = 'video';
+        else if (['.mp3', '.wav', '.ogg'].includes(ext)) fileType = 'audio';
+
+        const fileUrlPath = req.query.folder === 'bulk' ? `uploads/bulk/${filename}` : `uploads/${filename}`;
+
+        return {
+            name: filename,
+            url: `${config.publicUrl}/${fileUrlPath}`,
+            type: fileType,
+            size: stats.size,
+            createdAt: stats.birthtime
+        };
+    }).filter(f => f !== null).sort((a, b) => b.createdAt - a.createdAt); // Newest first
+
+    res.json({ success: true, files: fileList });
+}));
+
+// Delete an uploaded file
+router.delete('/upload/files/:filename', requireApiKey, asyncHandler(async (req, res) => {
+    const filename = req.params.filename;
+    // Basic security to avoid directory traversal
+    if (filename.includes('..') || filename.includes('/')) {
+        throw new AppError('Nombre de archivo inválido', 400);
+    }
+
+    let filePath = path.join(config.uploadDir, filename);
+    if (req.query.folder === 'bulk') {
+        filePath = path.join(config.uploadDir, 'bulk', filename);
+    }
+
+    if (fs.existsSync(filePath)) {
+        fs.unlinkSync(filePath);
+        res.json({ success: true, message: 'Archivo eliminado' });
+    } else {
+        throw new AppError('Archivo no encontrado', 404);
+    }
+}));
+
 
 // ==========================================
 // BULK MESSAGE ENDPOINT - SCALABLE
@@ -463,7 +544,9 @@ router.post('/bulk-send', requireApiKey, asyncHandler(async (req, res) => {
             io.to('conversations:list').emit('conversation-updated', {
                 phone: normalizedPhone,
                 lastMessage: media ? '📎 Media' : msg,
-                timestamp: new Date().toLocaleString("en-US", { timeZone: "America/Bogota" })
+                timestamp: new Date().toLocaleString("en-US", { timeZone: "America/Bogota" }),
+                unread: 0,
+                sender_type: 'agent'
             });
         }
     };
