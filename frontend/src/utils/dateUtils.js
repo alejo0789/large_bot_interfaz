@@ -152,3 +152,41 @@ export const getRelativeTime = (timestamp) => {
         return '';
     }
 };
+
+/**
+ * Get short date string (e.g., "Ayer", "12/10/23", or "" if today)
+ * @param {string|number|Date} timestamp - The timestamp
+ * @returns {string} Short date string
+ */
+export const getShortDate = (timestamp) => {
+    if (!timestamp) return '';
+
+    try {
+        const date = new Date(timestamp);
+        if (isNaN(date.getTime())) return '';
+
+        const today = new Date();
+        const yesterday = new Date(today);
+        yesterday.setDate(yesterday.getDate() - 1);
+
+        const dateOnly = new Date(date.getFullYear(), date.getMonth(), date.getDate());
+        const todayOnly = new Date(today.getFullYear(), today.getMonth(), today.getDate());
+        const yesterdayOnly = new Date(yesterday.getFullYear(), yesterday.getMonth(), yesterday.getDate());
+
+        if (dateOnly.getTime() === todayOnly.getTime()) {
+            return ''; // Hoy, no mostramos fecha extra
+        }
+
+        if (dateOnly.getTime() === yesterdayOnly.getTime()) {
+            return 'Ayer';
+        }
+
+        return date.toLocaleDateString('es-CO', {
+            day: '2-digit',
+            month: '2-digit',
+            year: '2-digit'
+        });
+    } catch (error) {
+        return '';
+    }
+};

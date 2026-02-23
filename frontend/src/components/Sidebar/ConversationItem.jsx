@@ -1,6 +1,7 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { User, Bot, UserCheck, Tag, MoreVertical, Edit2, Trash2, Pin } from 'lucide-react';
 import EditContactModal from './EditContactModal';
+import { getShortDate } from '../../utils/dateUtils';
 
 /**
  * Conversation item component
@@ -15,8 +16,9 @@ const ConversationItem = React.memo(({
     onDelete,       // optional: (phone) => void — called after successful deletion
     onTogglePin
 }) => {
-    const { contact, lastMessage, timestamp, unread, isPinned } = conversation;
+    const { contact, lastMessage, timestamp, rawTimestamp, unread, isPinned } = conversation;
     const hasUnread = unread > 0;
+    const shortDate = getShortDate(rawTimestamp);
 
     // Helper para la URL base (usado para fetch y para la imagen)
     let baseApiUrl = typeof process !== 'undefined' && process.env?.REACT_APP_API_URL
@@ -344,12 +346,27 @@ const ConversationItem = React.memo(({
                                 </>
                             )}
                         </div>
-                        <span className="conversation-time" style={{
-                            color: hasUnread ? 'var(--color-primary)' : undefined,
-                            fontWeight: hasUnread ? 600 : undefined
-                        }}>
-                            {timestamp}
-                        </span>
+                        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', minWidth: '50px' }}>
+                            <span className="conversation-time" style={{
+                                color: hasUnread ? 'var(--color-primary)' : undefined,
+                                fontWeight: hasUnread ? 600 : undefined,
+                                lineHeight: '1.2'
+                            }}>
+                                {timestamp}
+                            </span>
+                            {shortDate && (
+                                <span style={{
+                                    fontSize: '9px',
+                                    color: hasUnread ? 'var(--color-primary)' : 'var(--color-gray-500)',
+                                    fontWeight: hasUnread ? 600 : 500,
+                                    marginTop: '2px',
+                                    lineHeight: '1.2',
+                                    paddingBottom: '2px'
+                                }}>
+                                    {shortDate}
+                                </span>
+                            )}
+                        </div>
                     </div>
                 </div>
 
