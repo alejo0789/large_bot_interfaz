@@ -8,7 +8,7 @@ const { pool } = require('../config/database');
 
 // JWT secret (should be in environment variable in production)
 const JWT_SECRET = process.env.JWT_SECRET || 'chatbot_secret_key_change_in_production';
-const JWT_EXPIRES_IN = '7d'; // Token expires in 7 days
+const JWT_EXPIRES_IN = '2h'; // Token expires in 2 hours
 const SALT_ROUNDS = 10;
 
 class AuthService {

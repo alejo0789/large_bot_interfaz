@@ -11,11 +11,11 @@ export const AuthProvider = ({ children }) => {
         (process.env.NODE_ENV === 'production' ? window.location.origin : 'http://localhost:4000');
 
     const logout = useCallback(() => {
-        const tokenToRevoke = localStorage.getItem('auth_token');
+        const tokenToRevoke = sessionStorage.getItem('auth_token');
         setToken(null);
         setUser(null);
-        localStorage.removeItem('auth_token');
-        localStorage.removeItem('auth_user');
+        sessionStorage.removeItem('auth_token');
+        sessionStorage.removeItem('auth_user');
 
         // Optional: Call backend to log logout
         if (tokenToRevoke) {
@@ -28,8 +28,8 @@ export const AuthProvider = ({ children }) => {
 
     // Check for existing session on mount
     useEffect(() => {
-        const storedToken = localStorage.getItem('auth_token');
-        const storedUser = localStorage.getItem('auth_user');
+        const storedToken = sessionStorage.getItem('auth_token');
+        const storedUser = sessionStorage.getItem('auth_user');
 
         if (storedToken && storedUser) {
             setToken(storedToken);
@@ -43,7 +43,7 @@ export const AuthProvider = ({ children }) => {
                 .then(data => {
                     if (data.success) {
                         setUser(data.user);
-                        localStorage.setItem('auth_user', JSON.stringify(data.user));
+                        sessionStorage.setItem('auth_user', JSON.stringify(data.user));
                     } else {
                         logout();
                     }
@@ -72,8 +72,8 @@ export const AuthProvider = ({ children }) => {
             setToken(data.token);
             setUser(data.user);
 
-            localStorage.setItem('auth_token', data.token);
-            localStorage.setItem('auth_user', JSON.stringify(data.user));
+            sessionStorage.setItem('auth_token', data.token);
+            sessionStorage.setItem('auth_user', JSON.stringify(data.user));
 
             return { success: true };
         } catch (error) {
