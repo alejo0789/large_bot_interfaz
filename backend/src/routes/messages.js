@@ -7,6 +7,7 @@ const router = express.Router();
 const { asyncHandler, AppError } = require('../middleware/errorHandler');
 const { upload, getMediaType } = require('../middleware/upload');
 const messageService = require('../services/messageService');
+const optimizeMedia = require('../middleware/optimizeMedia');
 const conversationService = require('../services/conversationService');
 
 const n8nService = require('../services/n8nService');
@@ -185,7 +186,7 @@ router.post('/send-message', requireApiKey, asyncHandler(async (req, res) => {
 
 
 // Send file
-router.post('/send-file', requireApiKey, upload.single('file'), asyncHandler(async (req, res) => {
+router.post('/send-file', requireApiKey, upload.single('file'), optimizeMedia, asyncHandler(async (req, res) => {
     const { phone, name, caption, agent_id, agent_name, temp_id, reply_to } = req.body;
     const file = req.file;
 
@@ -311,7 +312,7 @@ router.post('/send-file', requireApiKey, upload.single('file'), asyncHandler(asy
 }));
 
 // Basic upload endpoint (just saves file and returns URL)
-router.post('/upload', upload.single('file'), asyncHandler(async (req, res) => {
+router.post('/upload', upload.single('file'), optimizeMedia, asyncHandler(async (req, res) => {
     const file = req.file;
     if (!file) throw new AppError('No se recibió ningún archivo', 400);
 
