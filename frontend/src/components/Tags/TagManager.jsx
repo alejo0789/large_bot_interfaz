@@ -170,7 +170,7 @@ const TagManager = ({
                                     autoFocus
                                 />
 
-                                <div style={{ display: 'flex', gap: 'var(--space-2)', flexWrap: 'wrap' }}>
+                                <div style={{ display: 'flex', gap: 'var(--space-2)', flexWrap: 'wrap', alignItems: 'center' }}>
                                     {TAG_COLORS.map(color => (
                                         <button
                                             key={color.value}
@@ -188,6 +188,23 @@ const TagManager = ({
                                             title={color.name}
                                         />
                                     ))}
+                                    <div style={{ display: 'flex', alignItems: 'center', gap: '4px', marginLeft: 'auto' }}>
+                                        <span style={{ fontSize: '11px', color: 'var(--color-gray-500)' }}>Personalizado:</span>
+                                        <input
+                                            type="color"
+                                            value={newTagColor}
+                                            onChange={(e) => setNewTagColor(e.target.value)}
+                                            style={{
+                                                width: '28px',
+                                                height: '28px',
+                                                padding: '0',
+                                                border: 'none',
+                                                borderRadius: 'var(--radius-full)',
+                                                cursor: 'pointer',
+                                                overflow: 'hidden'
+                                            }}
+                                        />
+                                    </div>
                                 </div>
 
                                 <div style={{ display: 'flex', gap: 'var(--space-2)', justifyContent: 'flex-end' }}>
