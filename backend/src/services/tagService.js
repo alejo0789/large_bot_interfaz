@@ -66,6 +66,20 @@ class TagService {
         await pool.query('DELETE FROM conversation_tags WHERE tag_id = $1', [tagId]);
         await pool.query('DELETE FROM tags WHERE id = $1', [tagId]);
     }
+
+    /**
+     * Update a tag
+     */
+    async update(tagId, name, color) {
+        const { rows } = await pool.query(`
+            UPDATE tags 
+            SET name = COALESCE($2, name), 
+                color = COALESCE($3, color)
+            WHERE id = $1
+            RETURNING *
+        `, [tagId, name, color]);
+        return rows[0];
+    }
 }
 
 module.exports = new TagService();

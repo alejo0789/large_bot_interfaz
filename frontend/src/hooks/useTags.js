@@ -51,6 +51,26 @@ export const useTags = () => {
         }
     }, []);
 
+    // Update an existing tag
+    const updateTag = useCallback(async (tagId, name, color) => {
+        try {
+            const response = await fetch(`${API_URL}/api/tags/${tagId}`, {
+                method: 'PUT',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ name, color })
+            });
+
+            if (!response.ok) throw new Error('Error updating tag');
+
+            const updatedTag = await response.json();
+            setTags(prev => prev.map(t => t.id === tagId ? updatedTag : t));
+            return updatedTag;
+        } catch (err) {
+            console.error('Error updating tag:', err);
+            throw err;
+        }
+    }, []);
+
     // Get tags for a specific conversation
     const getConversationTags = useCallback(async (phone) => {
         try {
@@ -106,6 +126,7 @@ export const useTags = () => {
         error,
         fetchTags,
         createTag,
+        updateTag,
         getConversationTags,
         assignTag,
         removeTag

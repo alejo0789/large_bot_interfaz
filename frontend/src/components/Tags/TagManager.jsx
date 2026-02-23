@@ -25,7 +25,8 @@ const TagManager = ({
     onCreateTag,
     onAssignTag,
     onRemoveTag,
-    onMarkUnread
+    onMarkUnread,
+    onUpdateTag
 }) => {
     const [newTagName, setNewTagName] = useState('');
     const [newTagColor, setNewTagColor] = useState(TAG_COLORS[0].value);

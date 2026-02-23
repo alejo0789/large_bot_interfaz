@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { Tag, X, Filter, ChevronDown, Calendar, Check, RotateCw, Type, Plus } from 'lucide-react';
+import { Tag, X, Filter, ChevronDown, Calendar, Check, RotateCw, Type, Plus, Edit2 } from 'lucide-react';
 
 /**
  * Improved Tag filter component with dropdown and date filter
@@ -18,11 +18,18 @@ const TagFilter = ({
     isLoading,
     fontSize,
     onFontSizeChange,
-    onManageTags
+    onManageTags,
+    onUpdateTag
 }) => {
     const [showTagDropdown, setShowTagDropdown] = useState(false);
     const [showDateDropdown, setShowDateDropdown] = useState(false);
     const [showFontSizeDropdown, setShowFontSizeDropdown] = useState(false);
+
+    // Inline edit state
+    const [editingTagId, setEditingTagId] = useState(null);
+    const [editTagName, setEditTagName] = useState('');
+    const [editTagColor, setEditTagColor] = useState('#808080');
+
     const tagDropdownRef = useRef(null);
     const dateDropdownRef = useRef(null);
     const fontSizeDropdownRef = useRef(null);
@@ -317,53 +324,124 @@ const TagFilter = ({
                             ) : (
                                 tags.map(tag => {
                                     const isSelected = selectedTagIds.includes(tag.id);
-                                    return (
-                                        <button
-                                            key={tag.id}
-                                            onClick={() => onToggleTag(tag.id)}
-                                            style={{
-                                                display: 'flex',
-                                                alignItems: 'center',
-                                                gap: '10px',
-                                                width: '100%',
-                                                padding: '10px 12px',
-                                                fontSize: '13px',
-                                                backgroundColor: isSelected ? 'var(--color-gray-50)' : 'transparent',
-                                                border: 'none',
-                                                cursor: 'pointer',
-                                                transition: 'background-color 0.15s',
-                                                textAlign: 'left'
-                                            }}
-                                            onMouseEnter={(e) => e.target.style.backgroundColor = 'var(--color-gray-50)'}
-                                            onMouseLeave={(e) => e.target.style.backgroundColor = isSelected ? 'var(--color-gray-50)' : 'transparent'}
-                                        >
-                                            {/* Color indicator */}
-                                            <span style={{
-                                                width: '14px',
-                                                height: '14px',
-                                                borderRadius: '4px',
-                                                backgroundColor: tag.color,
-                                                flexShrink: 0,
-                                                boxShadow: '0 1px 2px rgba(0,0,0,0.1)'
-                                            }} />
-
-                                            {/* Tag name */}
-                                            <span style={{
-                                                flex: 1,
-                                                color: 'var(--color-gray-700)',
-                                                fontWeight: isSelected ? 600 : 400
-                                            }}>
-                                                {tag.name}
-                                            </span>
-
-                                            {/* Check icon if selected */}
-                                            {isSelected && (
-                                                <Check
-                                                    className="w-4 h-4"
-                                                    style={{ color: 'var(--color-primary)' }}
+                                    if (editingTagId === tag.id) {
+                                        return (
+                                            <div key={tag.id} style={{ display: 'flex', alignItems: 'center', gap: '4px', padding: '6px 12px', borderBottom: '1px solid var(--color-gray-100)', backgroundColor: 'var(--color-gray-50)' }}>
+                                                <input
+                                                    type="color"
+                                                    value={editTagColor}
+                                                    onChange={e => setEditTagColor(e.target.value)}
+                                                    style={{ width: '20px', height: '20px', padding: 0, border: 'none', borderRadius: '50%', cursor: 'pointer', flexShrink: 0, overflow: 'hidden' }}
                                                 />
-                                            )}
-                                        </button>
+                                                <input
+                                                    type="text"
+                                                    value={editTagName}
+                                                    onChange={e => setEditTagName(e.target.value)}
+                                                    style={{ flex: 1, padding: '2px 6px', fontSize: '12px', border: '1px solid var(--color-gray-300)', borderRadius: '4px', minWidth: '0' }}
+                                                    autoFocus
+                                                />
+                                                <div style={{ display: 'flex', gap: '2px', flexShrink: 0 }}>
+                                                    <button
+                                                        onClick={async (e) => {
+                                                            e.stopPropagation();
+                                                            if (editTagName.trim() && onUpdateTag) {
+                                                                await onUpdateTag(tag.id, editTagName.trim(), editTagColor);
+                                                                setEditingTagId(null);
+                                                            }
+                                                        }}
+                                                        style={{ background: 'var(--color-success)', color: 'white', border: 'none', borderRadius: '4px', padding: '4px', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+                                                    >
+                                                        <Check className="w-3 h-3" />
+                                                    </button>
+                                                    <button
+                                                        onClick={(e) => {
+                                                            e.stopPropagation();
+                                                            setEditingTagId(null);
+                                                        }}
+                                                        style={{ background: 'var(--color-gray-300)', color: 'white', border: 'none', borderRadius: '4px', padding: '4px', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+                                                    >
+                                                        <X className="w-3 h-3" />
+                                                    </button>
+                                                </div>
+                                            </div>
+                                        );
+                                    }
+                                    return (
+                                        <div key={tag.id} style={{ display: 'flex', alignItems: 'center', borderBottom: '1px solid var(--color-gray-100)' }}>
+                                            <button
+                                                onClick={() => onToggleTag(tag.id)}
+                                                style={{
+                                                    flex: 1,
+                                                    display: 'flex',
+                                                    alignItems: 'center',
+                                                    gap: '10px',
+                                                    padding: '10px 12px',
+                                                    fontSize: '13px',
+                                                    backgroundColor: isSelected ? 'var(--color-gray-50)' : 'transparent',
+                                                    border: 'none',
+                                                    cursor: 'pointer',
+                                                    transition: 'background-color 0.15s',
+                                                    textAlign: 'left',
+                                                    overflow: 'hidden'
+                                                }}
+                                                onMouseEnter={(e) => e.target.style.backgroundColor = 'var(--color-gray-50)'}
+                                                onMouseLeave={(e) => e.target.style.backgroundColor = isSelected ? 'var(--color-gray-50)' : 'transparent'}
+                                            >
+                                                {/* Color indicator */}
+                                                <span style={{
+                                                    width: '14px',
+                                                    height: '14px',
+                                                    borderRadius: '4px',
+                                                    backgroundColor: tag.color,
+                                                    flexShrink: 0,
+                                                    boxShadow: '0 1px 2px rgba(0,0,0,0.1)'
+                                                }} />
+
+                                                {/* Tag name */}
+                                                <span style={{
+                                                    flex: 1,
+                                                    color: 'var(--color-gray-700)',
+                                                    fontWeight: isSelected ? 600 : 400,
+                                                    whiteSpace: 'nowrap',
+                                                    overflow: 'hidden',
+                                                    textOverflow: 'ellipsis'
+                                                }}>
+                                                    {tag.name}
+                                                </span>
+
+                                                {/* Check icon if selected */}
+                                                {isSelected && (
+                                                    <Check
+                                                        className="w-4 h-4"
+                                                        style={{ color: 'var(--color-primary)' }}
+                                                    />
+                                                )}
+                                            </button>
+                                            <button
+                                                onClick={(e) => {
+                                                    e.stopPropagation();
+                                                    setEditingTagId(tag.id);
+                                                    setEditTagName(tag.name);
+                                                    setEditTagColor(tag.color);
+                                                }}
+                                                style={{
+                                                    backgroundColor: 'transparent',
+                                                    color: 'var(--color-gray-500)',
+                                                    border: 'none',
+                                                    cursor: 'pointer',
+                                                    padding: '10px',
+                                                    flexShrink: 0,
+                                                    display: 'flex',
+                                                    alignItems: 'center',
+                                                    justifyContent: 'center'
+                                                }}
+                                                onMouseEnter={(e) => { e.currentTarget.style.color = 'var(--color-primary)'; e.currentTarget.style.backgroundColor = 'var(--color-gray-50)'; }}
+                                                onMouseLeave={(e) => { e.currentTarget.style.color = 'var(--color-gray-500)'; e.currentTarget.style.backgroundColor = 'transparent'; }}
+                                                title="Editar etiqueta"
+                                            >
+                                                <Edit2 className="w-3 h-3" />
+                                            </button>
+                                        </div>
                                     );
                                 })
                             )}

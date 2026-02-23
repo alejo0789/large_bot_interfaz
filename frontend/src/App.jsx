@@ -174,6 +174,7 @@ const AuthenticatedApp = () => {
     const {
         tags,
         createTag,
+        updateTag,
         getConversationTags,
         assignTag,
         removeTag
@@ -537,6 +538,24 @@ const AuthenticatedApp = () => {
         return newTag;
     }, [createTag]);
 
+    const handleUpdateTag = useCallback(async (tagId, name, color) => {
+        const updatedTag = await updateTag(tagId, name, color);
+
+        // Also update local copy in tagsByPhone if we have it
+        setTagsByPhone(prev => {
+            const next = { ...prev };
+            Object.keys(next).forEach(phone => {
+                const tags = next[phone];
+                if (tags.some(t => t.id === tagId)) {
+                    next[phone] = tags.map(t => t.id === tagId ? updatedTag : t);
+                }
+            });
+            return next;
+        });
+
+        return updatedTag;
+    }, [updateTag]);
+
     const handleAssignTag = useCallback(async (phone, tagId) => {
         await assignTag(phone, tagId);
         const updatedTags = await getConversationTags(phone);
@@ -794,6 +813,7 @@ const AuthenticatedApp = () => {
                         fontSize={fontSize}
                         onFontSizeChange={setFontSize}
                         onManageTags={handleOpenTagManagerGlobal}
+                        onUpdateTag={handleUpdateTag}
                     />
 
 
@@ -1003,6 +1023,7 @@ const AuthenticatedApp = () => {
                 conversationPhone={targetConversation?.contact.phone}
                 conversationTags={currentConversationTags}
                 onCreateTag={handleCreateTag}
+                onUpdateTag={handleUpdateTag}
                 onAssignTag={handleAssignTag}
                 onRemoveTag={handleRemoveTag}
                 onMarkUnread={handleMarkUnread}

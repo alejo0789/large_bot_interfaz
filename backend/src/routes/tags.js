@@ -26,4 +26,12 @@ router.delete('/:id', asyncHandler(async (req, res) => {
     res.json({ success: true });
 }));
 
+// Update a tag
+router.put('/:id', asyncHandler(async (req, res) => {
+    const { id } = req.params;
+    const { name, color } = req.body;
+    const tag = await tagService.update(id, name, color);
+    res.json(tag);
+}));
+
 module.exports = router;
