@@ -5,7 +5,8 @@
   box-sizing: border-box;
 }
 
-html, body {
+html,
+body {
   margin: 0;
   padding: 0;
   width: 100%;
@@ -31,7 +32,7 @@ html, body {
 /* PASO 3: Touch events - SOLO LO NECESARIO */
 .touchable {
   touch-action: manipulation !important;
-  -webkit-tap-highlight-color: rgba(0,0,0,0.1) !important;
+  -webkit-tap-highlight-color: rgba(0, 0, 0, 0.1) !important;
   cursor: pointer !important;
 }
 
@@ -89,22 +90,25 @@ html, body {
 
 /* PASO 9: Responsive queries SIMPLES */
 @media screen and (max-width: 768px) {
+
   /* Prevenir zoom en inputs */
-  input, textarea, select {
+  input,
+  textarea,
+  select {
     font-size: 16px !important;
   }
-  
+
   /* Ocultar elementos no esenciales */
   .desktop-only {
     display: none !important;
   }
-  
+
   /* Forzar altura completa */
   .mobile-full {
     height: 100vh !important;
     width: 100vw !important;
   }
-  
+
   /* Scroll natural */
   .mobile-scroll {
     overflow-y: auto !important;
@@ -116,12 +120,12 @@ html, body {
 /* PASO 10: Debug styles - Quitar después */
 .debug-scroll {
   border: 2px solid red !important;
-  background: rgba(255,0,0,0.1) !important;
+  background: rgba(255, 0, 0, 0.1) !important;
 }
 
 .debug-touch {
   border: 2px solid blue !important;
-  background: rgba(0,0,255,0.1) !important;
+  background: rgba(0, 0, 255, 0.1) !important;
 }
 
 /* PASO 11: Conversaciones list */
@@ -156,6 +160,8 @@ html, body {
   margin-bottom: 1rem !important;
   max-width: 80% !important;
   word-wrap: break-word !important;
+  word-break: break-word !important;
+  overflow-wrap: break-word !important;
 }
 
 /* PASO 13: Orientación - SIMPLE */
@@ -163,7 +169,7 @@ html, body {
   .mobile-header {
     height: 60px !important;
   }
-  
+
   .mobile-content {
     margin-top: 60px !important;
     height: calc(100vh - 60px) !important;
@@ -176,12 +182,12 @@ html, body {
     padding-top: max(env(safe-area-inset-top), 0px) !important;
     height: calc(70px + max(env(safe-area-inset-top), 0px)) !important;
   }
-  
+
   .mobile-content {
     margin-top: calc(70px + max(env(safe-area-inset-top), 0px)) !important;
     height: calc(100vh - 70px - max(env(safe-area-inset-top), 0px)) !important;
   }
-  
+
   .mobile-input-area {
     padding-bottom: max(env(safe-area-inset-bottom), 2rem) !important;
   }

@@ -171,7 +171,8 @@ const AuthenticatedApp = () => {
         fetchConversations,
         deleteMessage,
         reactToMessage,
-        removeConversation
+        removeConversation,
+        globalDefaultAi
     } = useConversations(socket);
 
     const {
@@ -861,6 +862,7 @@ const AuthenticatedApp = () => {
                         }}
                         onStartNewChat={handleStartNewChat}
                         onDelete={removeConversation}
+                        globalDefaultAi={globalDefaultAi}
                     />
 
                     {/* Resize handle - Desktop only */}
@@ -934,7 +936,7 @@ const AuthenticatedApp = () => {
                         <>
                             <ChatHeader
                                 conversation={selectedConversation}
-                                aiEnabled={aiStatesByPhone[selectedConversation.contact.phone] ?? true}
+                                aiEnabled={aiStatesByPhone[selectedConversation.contact.phone] ?? globalDefaultAi}
                                 onToggleAI={toggleAI}
                                 onMarkUnread={handleMarkUnread}
                                 onBack={() => {

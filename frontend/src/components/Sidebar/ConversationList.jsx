@@ -19,7 +19,8 @@ const ConversationList = React.memo(({
     onLoadMore,
     onRefresh,
     onStartNewChat, // New prop
-    onDelete        // New prop — called when a conversation is deleted
+    onDelete,       // New prop — called when a conversation is deleted
+    globalDefaultAi = true // New prop
 }) => {
     const listRef = useRef(null);
     const [refreshing, setRefreshing] = React.useState(false);
@@ -189,7 +190,7 @@ const ConversationList = React.memo(({
                     key={conversation.id}
                     conversation={conversation}
                     isSelected={selectedId === conversation.id}
-                    aiEnabled={aiStatesByPhone[conversation.contact.phone] ?? true}
+                    aiEnabled={aiStatesByPhone[conversation.contact.phone] ?? globalDefaultAi}
                     tags={conversation.tags || tagsByPhone[conversation.contact.phone] || []}
                     onClick={() => onSelect(conversation)}
                     onTagClick={onTagClick}

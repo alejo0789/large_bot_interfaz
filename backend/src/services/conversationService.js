@@ -451,13 +451,17 @@ class ConversationService {
             return rows[0];
         }
 
+        // Fetch user default AI setting instead of hardcoding 'true'
+        const defaultAiEnabledStr = await settingsService.get('default_ai_enabled', 'true');
+        const defaultAiEnabled = String(defaultAiEnabledStr) === 'true';
+
         // Create new
         const insertQuery = `
             INSERT INTO conversations (phone, contact_name, status, created_at, updated_at, ai_enabled, unread_count, conversation_state)
-            VALUES ($1, $1, 'active', NOW(), NOW(), true, 0, 'ai_active')
+            VALUES ($1, $1, 'active', NOW(), NOW(), $2, 0, $3)
             RETURNING *
         `;
-        const result = await pool.query(insertQuery, [phone]);
+        const result = await pool.query(insertQuery, [phone, defaultAiEnabled, defaultAiEnabled ? 'ai_active' : 'agent_active']);
         const newConv = result.rows[0];
         newConv.tags = [];
         return newConv;

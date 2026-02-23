@@ -15,12 +15,33 @@ export const useConversations = (socket) => {
     const [isLoading, setIsLoading] = useState(true);
     const [isLoadingMessages, setIsLoadingMessages] = useState(false);
     const [aiStatesByPhone, setAiStatesByPhone] = useState({});
+    const [globalDefaultAi, setGlobalDefaultAi] = useState(true);
 
     // Pagination state
     const [currentPage, setCurrentPage] = useState(1);
     const [hasMore, setHasMore] = useState(true);
     const [isLoadingMore, setIsLoadingMore] = useState(false);
     const [searchQuery, setSearchQuery] = useState('');
+
+    // Fetch global settings
+    useEffect(() => {
+        const fetchGlobalSettings = async () => {
+            try {
+                const response = await fetch(`${API_URL}/api/settings`);
+                if (response.ok) {
+                    const data = await response.json();
+                    if (data.settings && data.settings.default_ai_enabled !== undefined) {
+                        const isEnabled = String(data.settings.default_ai_enabled) === 'true';
+                        setGlobalDefaultAi(isEnabled);
+                        console.log('⚙️ Global default AI setting:', isEnabled);
+                    }
+                }
+            } catch (error) {
+                console.error('❌ Error fetching global settings:', error);
+            }
+        };
+        fetchGlobalSettings();
+    }, []);
 
     // Fetch all conversations with pagination
     const fetchConversations = useCallback(async (page = 1, search = '', append = false, tagId = null, startDate = null, endDate = null, unreadOnly = false) => {
@@ -192,6 +213,11 @@ export const useConversations = (socket) => {
         const phone = conversation.contact.phone;
         console.log('🎯 Selecting conversation:', phone);
 
+        // Ensure AI state is tracked for this conversation
+        if (aiStatesByPhone[phone] === undefined && conversation.aiEnabled !== undefined) {
+            setAiStatesByPhone(prev => ({ ...prev, [phone]: conversation.aiEnabled }));
+        }
+
         // Leave previous room if any
         if (selectedConversation && socket) {
             socket.emit('leave-conversation', selectedConversation.contact.phone);
@@ -215,7 +241,7 @@ export const useConversations = (socket) => {
     // Send a message
     const sendMessage = useCallback(async (phone, message, name, options = {}) => {
         const tempId = Date.now();
-        const currentAIState = Boolean(aiStatesByPhone[phone] ?? true);
+        const currentAIState = Boolean(aiStatesByPhone[phone] ?? globalDefaultAi);
         const { agentId, agentName, replyTo } = options;
 
         const newMessage = {
@@ -382,7 +408,7 @@ export const useConversations = (socket) => {
 
     // Toggle AI for a conversation
     const toggleAI = useCallback(async (phone) => {
-        const currentState = Boolean(aiStatesByPhone[phone] ?? true);
+        const currentState = Boolean(aiStatesByPhone[phone] ?? globalDefaultAi);
         const newState = !currentState;
 
         // Optimistic update
@@ -839,7 +865,8 @@ export const useConversations = (socket) => {
         sendFile,
         deleteMessage,
         reactToMessage,
-        removeConversation
+        removeConversation,
+        globalDefaultAi
     };
 };
 

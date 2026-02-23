@@ -358,7 +358,7 @@ const MessageBubble = ({ message, onForward, onReact, onDelete, onReply, onPhone
                         minWidth: '80px',
                         maxWidth: '100%',
                         overflowWrap: 'break-word',
-                        wordBreak: 'normal'
+                        wordBreak: 'break-word'
                     }}>
                         {/* Menu Chevron - Visible on bubble hover or swipe */}
                         <button
