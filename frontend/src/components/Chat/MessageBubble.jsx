@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { CheckCheck, Clock, Download, FileText, Image as ImageIcon, Mic, Forward, Reply, Trash2, Smile, MoreHorizontal, ChevronDown } from 'lucide-react';
+import { CheckCheck, Clock, Download, FileText, Image as ImageIcon, Mic, Forward, Reply, Trash2, Smile, MoreHorizontal, ChevronDown, Copy } from 'lucide-react';
 import EmojiPicker from 'emoji-picker-react';
 
 /**
@@ -556,6 +556,33 @@ const MessageBubble = ({ message, onForward, onReact, onDelete, onReply }) => {
 
                             {/* Actions */}
                             <div style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
+                                {text && (
+                                    <button
+                                        onClick={() => {
+                                            navigator.clipboard.writeText(text);
+                                            setShowMenu(false);
+                                        }}
+                                        style={{
+                                            display: 'flex',
+                                            alignItems: 'center',
+                                            gap: '8px',
+                                            padding: '8px 12px',
+                                            border: 'none',
+                                            background: 'none',
+                                            width: '100%',
+                                            textAlign: 'left',
+                                            fontSize: '14px',
+                                            color: '#4b5563',
+                                            cursor: 'pointer',
+                                            borderRadius: '6px'
+                                        }}
+                                        onMouseEnter={(e) => e.currentTarget.style.background = '#f3f4f6'}
+                                        onMouseLeave={(e) => e.currentTarget.style.background = 'none'}
+                                    >
+                                        <Copy className="w-4 h-4" />
+                                        Copiar texto
+                                    </button>
+                                )}
                                 <button
                                     onClick={handleDeleteClick}
                                     style={{
