@@ -1002,6 +1002,7 @@ const AuthenticatedApp = () => {
                                     onReact={handleMessageReact}
                                     onDelete={handleMessageDelete}
                                     onReply={handleReplyMessage}
+                                    onPhoneClick={handleStartNewChat}
                                 />
                             </div>
 

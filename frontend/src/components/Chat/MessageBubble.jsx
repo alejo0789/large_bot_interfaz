@@ -5,7 +5,7 @@ import EmojiPicker from 'emoji-picker-react';
 /**
  * Message bubble component with media support, reactions, and actions
  */
-const MessageBubble = ({ message, onForward, onReact, onDelete, onReply }) => {
+const MessageBubble = ({ message, onForward, onReact, onDelete, onReply, onPhoneClick }) => {
     const { text, timestamp, status, id, reactions = [] } = message;
     const rawSender = message.sender || message.sender_type || 'customer';
     const sender = String(rawSender).toLowerCase().trim();
@@ -226,7 +226,7 @@ const MessageBubble = ({ message, onForward, onReact, onDelete, onReply }) => {
         }
     };
 
-    // Updated formatter to handle bold and newlines explicitly
+    // Updated formatter to handle bold, newlines, URLs, and phone numbers explicitly
     const formatText = (content) => {
         if (!content) return content;
 
@@ -236,19 +236,78 @@ const MessageBubble = ({ message, onForward, onReact, onDelete, onReply }) => {
         // Handle bold: **text**
         const boldParts = textStr.split(/(\*\*.*?\*\*)/g);
 
+        // Regex for URLs, wa.me links, or 10-15 digit phone numbers with optional + and spaces/dashes
+        const urlAndPhoneRegex = /((?:https?:\/\/[^\s]+)|(?:wa\.me\/[^\s]+)|(?:(?:(?:\+|00)?\d{1,3}[\s-]?)?(?:\d[\s-]*){8,14}\d))/g;
+
         return boldParts.map((part, i) => {
             if (part.startsWith('**') && part.endsWith('**')) {
                 return <strong key={`b-${i}`}>{part.slice(2, -2)}</strong>;
             }
 
-            // For non-bold parts, handle newlines
+            // For non-bold parts, handle newlines, urls, and phones
             const lineParts = part.split('\n');
-            return lineParts.map((line, j) => (
-                <React.Fragment key={`l-${i}-${j}`}>
-                    {line}
-                    {j < lineParts.length - 1 && <br />}
-                </React.Fragment>
-            ));
+            return lineParts.map((line, j) => {
+                const chunks = line.split(urlAndPhoneRegex);
+
+                const processedChunks = chunks.map((chunk, k) => {
+                    if (!chunk) return null;
+
+                    if (chunk.match(/^(https?:\/\/|wa\.me)/)) {
+                        const href = chunk.startsWith('wa.me') ? `https://${chunk}` : chunk;
+                        return (
+                            <a
+                                key={`link-${k}`}
+                                href={href}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                style={{ color: 'var(--color-primary)', textDecoration: 'underline' }}
+                                onClick={(e) => e.stopPropagation()}
+                            >
+                                {chunk}
+                            </a>
+                        );
+                    }
+
+                    if (chunk.match(/^(?:(?:\+|00)?\d{1,3}[\s-]?)?(?:\d[\s-]*){8,14}\d$/)) {
+                        // Extract just the numbers
+                        const cleanNum = chunk.replace(/\D/g, '');
+                        // Check if it looks like a valid phone number length (10 to 15 digits)
+                        if (cleanNum.length >= 10 && cleanNum.length <= 15) {
+                            return (
+                                <a
+                                    key={`wa-${k}`}
+                                    href={`https://wa.me/${cleanNum}`}
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                    style={{ color: 'var(--color-primary)', textDecoration: 'underline', cursor: 'pointer' }}
+                                    onClick={(e) => {
+                                        e.preventDefault();
+                                        e.stopPropagation();
+                                        if (onPhoneClick) {
+                                            // Call internal logic handler
+                                            onPhoneClick(`+${cleanNum}`);
+                                        } else {
+                                            // Fallback to wa.me external tab
+                                            window.open(`https://wa.me/${cleanNum}`, '_blank');
+                                        }
+                                    }}
+                                >
+                                    {chunk}
+                                </a>
+                            );
+                        }
+                    }
+
+                    return chunk;
+                });
+
+                return (
+                    <React.Fragment key={`l-${i}-${j}`}>
+                        {processedChunks}
+                        {j < lineParts.length - 1 && <br />}
+                    </React.Fragment>
+                );
+            });
         });
     };
 

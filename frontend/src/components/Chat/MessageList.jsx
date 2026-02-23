@@ -6,7 +6,7 @@ import { groupMessagesByDate } from '../../utils/dateUtils';
 /**
  * Message list component with date grouping
  */
-const MessageList = ({ messages, isLoading, onForward, onReact, onDelete, onReply }) => {
+const MessageList = ({ messages, isLoading, onForward, onReact, onDelete, onReply, onPhoneClick }) => {
     const messagesEndRef = useRef(null);
 
     // Group messages by date
@@ -77,6 +77,7 @@ const MessageList = ({ messages, isLoading, onForward, onReact, onDelete, onRepl
                                 onReact={onReact}
                                 onDelete={onDelete}
                                 onReply={onReply}
+                                onPhoneClick={onPhoneClick}
                             />
                         ))}
                     </div>
