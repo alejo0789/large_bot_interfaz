@@ -1068,17 +1068,32 @@ const AuthenticatedApp = () => {
                                     <span style={{ marginLeft: '4px' }}>Etiquetas</span>
                                 </button>
 
-                                <button
-                                    className="btn btn-icon"
-                                    onClick={() => handleMarkUnread(selectedConversation.contact.phone)}
-                                    title="Marcar como no leído"
-                                    style={{
-                                        color: 'var(--color-primary)',
-                                        marginLeft: 'auto' // Push to the right
-                                    }}
-                                >
-                                    <EyeOff className="w-5 h-5" />
-                                </button>
+                                <div style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                                    {isSweepMode && (
+                                        <button
+                                            className="btn btn-icon"
+                                            onClick={() => setIsSweepMode(false)}
+                                            title="Desactivar Barrido"
+                                            style={{
+                                                color: 'var(--color-primary)',
+                                                backgroundColor: 'rgba(7,94,84,0.1)',
+                                                borderRadius: '8px',
+                                            }}
+                                        >
+                                            <BroomIcon className="w-5 h-5" />
+                                        </button>
+                                    )}
+                                    <button
+                                        className="btn btn-icon"
+                                        onClick={() => handleMarkUnread(selectedConversation.contact.phone)}
+                                        title="Marcar como no leído"
+                                        style={{
+                                            color: 'var(--color-primary)',
+                                        }}
+                                    >
+                                        <EyeOff className="w-5 h-5" />
+                                    </button>
+                                </div>
                             </div>
 
 
