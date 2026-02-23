@@ -298,7 +298,8 @@ const MessageBubble = ({ message, onForward, onReact, onDelete }) => {
                         position: 'relative',
                         minWidth: '80px',
                         maxWidth: '100%',
-                        overflowWrap: 'anywhere'
+                        overflowWrap: 'break-word',
+                        wordBreak: 'normal'
                     }}>
                         {/* Menu Chevron - Visible on bubble hover or swipe */}
                         <button
@@ -343,7 +344,7 @@ const MessageBubble = ({ message, onForward, onReact, onDelete }) => {
                             <div style={{
                                 fontSize: '10px',
                                 fontWeight: '700',
-                                color: isOutgoing ? 'rgba(255, 255, 255, 0.85)' : 'var(--color-primary)',
+                                color: isOutgoing ? 'var(--color-info)' : 'var(--color-primary)',
                                 textAlign: isOutgoing ? 'right' : 'left',
                                 marginBottom: '4px',
                                 paddingRight: (isOutgoing && media_url) ? '4px' : '0',
@@ -362,8 +363,8 @@ const MessageBubble = ({ message, onForward, onReact, onDelete }) => {
                                 <p className="message-text" style={{
                                     padding: media_url ? 'var(--space-1) var(--space-2)' : undefined,
                                     fontSize: media_type ? 'var(--font-size-sm)' : undefined,
-                                    overflowWrap: 'anywhere',
-                                    wordBreak: 'break-word',
+                                    overflowWrap: 'break-word',
+                                    wordWrap: 'break-word',
                                     whiteSpace: 'pre-wrap',
                                     maxWidth: '100%',
                                     userSelect: 'text' // Allow text selection inside bubble

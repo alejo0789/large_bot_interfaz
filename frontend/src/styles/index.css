@@ -26,14 +26,14 @@
   --color-gray-900: #0F172A;
 
   /* Message Bubble Colors */
-  --color-bubble-outgoing: #DCF8C6;
-  --color-bubble-outgoing-text: #1F2937;
+  --color-bubble-outgoing: #E0F2FE;
+  --color-bubble-outgoing-text: #0F172A;
   --color-bubble-incoming: #FFFFFF;
-  --color-bubble-incoming-text: #1F2937;
-  --color-bubble-agent: #054c44;
-  --color-bubble-agent-text: #FFFFFF;
-  --color-bubble-bot: #D1FAE5;
-  --color-bubble-bot-text: #064E3B;
+  --color-bubble-incoming-text: #0F172A;
+  --color-bubble-agent: #E0F2FE;
+  --color-bubble-agent-text: #0F172A;
+  --color-bubble-bot: #F3E8FF;
+  --color-bubble-bot-text: #4C1D95;
 
   /* Status Colors */
   --color-success: #10B981;
@@ -417,8 +417,8 @@ body {
   border-radius: var(--radius-lg);
   position: relative;
   word-wrap: break-word !important;
-  overflow-wrap: anywhere !important;
-  word-break: break-word !important;
+  overflow-wrap: break-word !important;
+  word-break: normal !important;
   display: flex;
   flex-direction: column;
   /* overflow: hidden !important; Removed to allow reactions outside */
@@ -453,8 +453,7 @@ body {
   line-height: 1.5;
   white-space: pre-wrap !important;
   word-wrap: break-word !important;
-  overflow-wrap: anywhere !important;
-  word-break: break-all !important;
+  overflow-wrap: break-word !important;
   max-width: 100% !important;
   margin: 0;
   overflow: hidden !important;
@@ -465,8 +464,7 @@ body {
 .message-text span,
 .message-text * {
   word-wrap: break-word !important;
-  overflow-wrap: anywhere !important;
-  word-break: break-all !important;
+  overflow-wrap: break-word !important;
   max-width: 100% !important;
   display: inline !important;
 }
