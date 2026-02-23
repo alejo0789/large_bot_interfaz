@@ -678,52 +678,55 @@ const AuthenticatedApp = () => {
 
 
     const handleStartNewChat = async (phone) => {
-        // Build API URL
-        let apiUrl = '/api';
-        if (process.env.REACT_APP_API_URL) apiUrl = process.env.REACT_APP_API_URL;
-        else if (window.location.hostname !== 'localhost') apiUrl = 'https://largebotinterfaz-production-5b38.up.railway.app';
+        try {
+            // Build API URL
+            let apiUrl = '/api';
+            if (process.env.REACT_APP_API_URL) apiUrl = process.env.REACT_APP_API_URL;
+            else if (window.location.hostname !== 'localhost') apiUrl = 'https://largebotinterfaz-production-5b38.up.railway.app';
 
-        if (apiUrl.endsWith('/')) apiUrl = apiUrl.slice(0, -1);
+            if (apiUrl.endsWith('/')) apiUrl = apiUrl.slice(0, -1);
 
-        // Fix double /api if present in base URL or constructed URL
-        const finalUrl = apiUrl.includes('/api') ? `${apiUrl}/conversations/start-new` : `${apiUrl}/api/conversations/start-new`;
-        const cleanUrl = finalUrl.replace(/([^:]\/)\/+/g, "$1");
+            // Fix double /api if present in base URL or constructed URL
+            const finalUrl = apiUrl.includes('/api') ? `${apiUrl}/conversations/start-new` : `${apiUrl}/api/conversations/start-new`;
+            const cleanUrl = finalUrl.replace(/([^:]\/)\/+/g, "$1");
 
-        const res = await fetch(cleanUrl, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ phone })
-        });
+            const res = await fetch(cleanUrl, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ phone })
+            });
 
-        const data = await res.json();
-        console.log("StartNewChat Response:", data);
+            const data = await res.json();
+            console.log("StartNewChat Response:", data);
 
-        if (!res.ok) {
-            throw new Error(data.message || 'Error al verificar número');
-        }
-
-        const rawConv = data.conversation;
-        if (!rawConv) {
-            throw new Error('La API no devolvió los datos de la conversación.');
-        }
-
-        // Normalize structure for useConversations (needs contact object)
-        const newConv = {
-            ...rawConv,
-            contact: {
-                phone: rawConv.phone,
-                name: rawConv.contact_name || rawConv.phone
+            if (!res.ok) {
+                throw new Error(data.error || data.message || 'El número no se encuentra registrado en WhatsApp o la API falló.');
             }
-        };
 
-        // Select conversation (will trigger open chat)
-        // If it's not in the list, we might need to refresh or manually add it
-        // Ideally fetchConversations should pick it up if we refresh, or we optimistically add it.
-        // Let's reload conversations to be safe and ensure consistent state
-        await fetchConversations();
+            const rawConv = data.conversation;
+            if (!rawConv) {
+                throw new Error('La API no devolvió los datos de la conversación.');
+            }
 
-        selectConversation(newConv);
-        if (isMobile) setShowSidebar(false);
+            // Normalize structure for useConversations (needs contact object)
+            const newConv = {
+                ...rawConv,
+                contact: {
+                    phone: rawConv.phone,
+                    name: rawConv.contact_name || rawConv.phone
+                }
+            };
+
+            // Select conversation (will trigger open chat)
+            await fetchConversations();
+
+            selectConversation(newConv);
+            if (isMobile) setShowSidebar(false);
+
+        } catch (error) {
+            console.error('Error starting new chat:', error);
+            alert(`No se pudo iniciar la conversación con este número.\n\nMotivo: ${error.message}`);
+        }
     };
 
     // Swipe Back Gesture for Mobile
