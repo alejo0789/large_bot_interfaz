@@ -17,6 +17,29 @@ const LoginPage = () => {
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState(null);
 
+    // Combine logic: Load credentials only from LATEST keys to ensure a clean start
+    React.useEffect(() => {
+        // 1. Total Reset ONE TIME to clear persistent bad state
+        const resetKey = 'purge_auth_v5';
+        if (!localStorage.getItem(resetKey)) {
+            const keysToClear = ['rem_u', 'rem_p', 'last_user', 'last_pass', 'auth_token', 'auth_user'];
+            keysToClear.forEach(k => localStorage.removeItem(k));
+            localStorage.setItem(resetKey, 'true');
+            console.log('💥 Emergency Total Auth Purge Performed');
+            return;
+        }
+
+        // 2. Load only if user previously checked "Remember Me" in this NEW system
+        const remUser = localStorage.getItem('rem_u');
+        const remPass = localStorage.getItem('rem_p');
+
+        if (remUser) {
+            setUsername(remUser);
+            if (remPass) setPassword(remPass);
+            setRememberMe(true);
+        }
+    }, []);
+
     const handleSubmit = async (e) => {
         e.preventDefault();
         setError(null);
@@ -42,7 +65,15 @@ const LoginPage = () => {
             } else {
                 // Login flow
                 const result = await login(username, password, rememberMe);
-                if (!result.success) {
+                if (result.success) {
+                    if (rememberMe) {
+                        localStorage.setItem('rem_u', username);
+                        localStorage.setItem('rem_p', password);
+                    } else {
+                        localStorage.removeItem('rem_u');
+                        localStorage.removeItem('rem_p');
+                    }
+                } else {
                     setError(result.error);
                 }
             }
@@ -114,6 +145,11 @@ const LoginPage = () => {
 
                 {/* Form */}
                 <form onSubmit={handleSubmit} style={{ padding: '20px' }}>
+                    {/* DECOY FIELDS for Browser Autofill - Hidden */}
+                    <div style={{ position: 'absolute', opacity: 0, height: 0, width: 0, overflow: 'hidden', zIndex: -1 }}>
+                        <input type="text" name="username" tabIndex="-1" />
+                        <input type="password" name="password" tabIndex="-1" />
+                    </div>
                     {error && (
                         <div style={{
                             marginBottom: '16px',
@@ -176,6 +212,14 @@ const LoginPage = () => {
                                 </div>
                                 <input
                                     type="text"
+                                    name="user_login_v8"
+                                    autoComplete="off"
+                                    readOnly={!username}
+                                    onFocus={(e) => {
+                                        e.target.removeAttribute('readonly');
+                                        e.target.style.borderColor = '#4f46e5';
+                                    }}
+                                    onBlur={(e) => e.target.style.borderColor = '#d1d5db'}
                                     value={username}
                                     onChange={(e) => setUsername(e.target.value)}
                                     placeholder="Usuario"
@@ -190,8 +234,6 @@ const LoginPage = () => {
                                         outline: 'none',
                                         boxSizing: 'border-box'
                                     }}
-                                    onFocus={(e) => e.target.style.borderColor = '#4f46e5'}
-                                    onBlur={(e) => e.target.style.borderColor = '#d1d5db'}
                                 />
                             </div>
                         </div>
@@ -208,6 +250,8 @@ const LoginPage = () => {
                                     </div>
                                     <input
                                         type="email"
+                                        name="email_register"
+                                        autoComplete="off"
                                         value={email}
                                         onChange={(e) => setEmail(e.target.value)}
                                         placeholder="correo@ejemplo.com"
@@ -238,6 +282,14 @@ const LoginPage = () => {
                                 </div>
                                 <input
                                     type={showPassword ? 'text' : 'password'}
+                                    name="pass_login_v8"
+                                    autoComplete="new-password"
+                                    readOnly={!password}
+                                    onFocus={(e) => {
+                                        e.target.removeAttribute('readonly');
+                                        e.target.style.borderColor = '#4f46e5';
+                                    }}
+                                    onBlur={(e) => e.target.style.borderColor = '#d1d5db'}
                                     value={password}
                                     onChange={(e) => setPassword(e.target.value)}
                                     placeholder="••••••••"
@@ -252,8 +304,6 @@ const LoginPage = () => {
                                         outline: 'none',
                                         boxSizing: 'border-box'
                                     }}
-                                    onFocus={(e) => e.target.style.borderColor = '#4f46e5'}
-                                    onBlur={(e) => e.target.style.borderColor = '#d1d5db'}
                                 />
                                 <button
                                     type="button"
