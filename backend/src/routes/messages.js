@@ -770,7 +770,73 @@ router.delete('/messages/:id', asyncHandler(async (req, res) => {
             apiDeleted
         });
     } else {
-        throw new AppError('No se pudo eliminar el mensaje', 500);
+        throw new AppError('Error al eliminar mensaje de la base de datos', 500);
+    }
+}));
+
+// Edit message (only outgoing typically)
+router.put('/messages/:id', asyncHandler(async (req, res) => {
+    const { id } = req.params;
+    const { text } = req.body;
+
+    if (!text) {
+        throw new AppError('El texto es requerido para editar', 400);
+    }
+
+    // Check if message exists and get details
+    const message = await messageService.getMessageById(id);
+
+    if (!message) {
+        throw new AppError('Mensaje no encontrado', 404);
+    }
+
+    const outgoingSenders = ['agent', 'me', 'system', 'bot', 'ai'];
+    const fromMe = outgoingSenders.includes(message.sender);
+
+    if (!fromMe) {
+        throw new AppError('Solo puedes editar mensajes enviados por ti', 403);
+    }
+
+    // 1. Update in WhatsApp (Evolution ID)
+    let apiEdited = false;
+    if (config.evolutionApiUrl) {
+        if (message.whatsapp_id) {
+            const result = await evolutionService.updateMessage(message.conversation_phone, message.whatsapp_id, text, fromMe);
+            if (!result.success) {
+                const errorMsg = result.error?.response?.message || result.error?.message || 'Error desconocido';
+                throw new AppError('No se pudo editar el mensaje en WhatsApp: ' + errorMsg, 400);
+            }
+            apiEdited = true;
+        } else {
+            console.warn('⚠️ Cannot edit in WA: Missing whatsapp_id for message', id);
+        }
+    }
+
+    // 2. Update in DB
+    const edited = await messageService.updateMessageText(id, text);
+
+    if (edited) {
+        // Emit update event to frontend
+        if (io) {
+            io.emit('message-updated', {
+                id, // DB ID
+                whatsapp_id: message.whatsapp_id, // WA ID
+                status: message.status,
+                text: text,
+                media_url: message.media_url,
+                media_type: message.media_type,
+                phone: message.conversation_phone,
+                edited: true
+            });
+        }
+
+        res.json({
+            success: true,
+            message: 'Mensaje editado correctamente',
+            apiEdited
+        });
+    } else {
+        throw new AppError('Error al editar el mensaje en base de datos', 500);
     }
 }));
 

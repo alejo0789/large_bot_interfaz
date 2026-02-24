@@ -7,7 +7,7 @@ import EmojiPicker from 'emoji-picker-react';
 /**
  * Message input component with file attachment and voice recording
  */
-const MessageInput = ({ onSend, onSendFile, disabled, isMobile, replyToMessage, onCancelReply }) => {
+const MessageInput = ({ onSend, onSendFile, disabled, isMobile, replyToMessage, onCancelReply, editingMessage, onCancelEdit }) => {
     const [showEmojiPicker, setShowEmojiPicker] = useState(false);
     const [message, setMessage] = useState('');
     const [selectedFile, setSelectedFile] = useState(null);
@@ -141,6 +141,23 @@ const MessageInput = ({ onSend, onSendFile, disabled, isMobile, replyToMessage, 
             textarea.setSelectionRange(newPos, newPos);
         }, 0);
     };
+
+    // Handle editing message
+    useEffect(() => {
+        if (editingMessage && editingMessage.text) {
+            setMessage(editingMessage.text);
+            setTimeout(() => {
+                if (textareaRef.current) {
+                    textareaRef.current.focus();
+                    const length = editingMessage.text.length;
+                    textareaRef.current.setSelectionRange(length, length);
+                }
+            }, 0);
+        } else if (!editingMessage && !replyToMessage && message !== '') {
+            // Only clear message if we are not editing or quick replying maybe? Wait, cancelling edit should probably clear or revert?
+            // Actually let editing cancel just leave the draft or clear if it matches exactly. Let's just not clear it unless it's sent.
+        }
+    }, [editingMessage]);
 
     const mediaRecorderRef = useRef(null);
     const audioChunksRef = useRef([]);
@@ -738,6 +755,54 @@ const MessageInput = ({ onSend, onSendFile, disabled, isMobile, replyToMessage, 
                     </div>
                     <button
                         onClick={onCancelReply}
+                        className="btn btn-icon"
+                        style={{ padding: '4px', color: 'var(--color-gray-400)' }}
+                    >
+                        <X className="w-4 h-4" />
+                    </button>
+                </div>
+            )}
+
+            {/* Editing Preview */}
+            {editingMessage && (
+                <div style={{
+                    padding: '8px 16px',
+                    backgroundColor: 'var(--color-blue-50)',
+                    borderBottom: '1px solid var(--color-blue-200)',
+                    borderLeft: '4px solid var(--color-blue-500)',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '12px',
+                    position: 'relative'
+                }}>
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                        <p style={{
+                            fontSize: '12px',
+                            fontWeight: 'bold',
+                            color: 'var(--color-blue-600)',
+                            marginBottom: '2px',
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: '4px'
+                        }}>
+                            <Edit2 className="w-3 h-3" /> Editando mensaje
+                        </p>
+                        <p style={{
+                            fontSize: '13px',
+                            color: 'var(--color-gray-600)',
+                            whiteSpace: 'nowrap',
+                            overflow: 'hidden',
+                            textOverflow: 'ellipsis',
+                            margin: 0
+                        }}>
+                            {editingMessage.text}
+                        </p>
+                    </div>
+                    <button
+                        onClick={() => {
+                            onCancelEdit();
+                            setMessage(''); // Clear box on cancel edit
+                        }}
                         className="btn btn-icon"
                         style={{ padding: '4px', color: 'var(--color-gray-400)' }}
                     >

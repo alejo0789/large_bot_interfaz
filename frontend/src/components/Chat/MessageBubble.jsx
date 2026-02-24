@@ -1,11 +1,11 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { CheckCheck, Clock, Download, FileText, Image as ImageIcon, Mic, Forward, Reply, Trash2, Smile, MoreHorizontal, ChevronDown, Copy } from 'lucide-react';
+import { CheckCheck, Clock, Download, FileText, Image as ImageIcon, Mic, Forward, Reply, Trash2, Smile, MoreHorizontal, ChevronDown, Copy, Edit2 } from 'lucide-react';
 import EmojiPicker from 'emoji-picker-react';
 
 /**
  * Message bubble component with media support, reactions, and actions
  */
-const MessageBubble = ({ message, onForward, onReact, onDelete, onReply, onPhoneClick }) => {
+const MessageBubble = ({ message, onForward, onReact, onDelete, onReply, onEdit, onPhoneClick }) => {
     const { text, timestamp, status, id, reactions = [] } = message;
     const rawSender = message.sender || message.sender_type || 'customer';
     const sender = String(rawSender).toLowerCase().trim();
@@ -106,7 +106,16 @@ const MessageBubble = ({ message, onForward, onReact, onDelete, onReply, onPhone
     };
 
     const handleDeleteClick = () => {
-        if (onDelete) onDelete(message);
+        if (onDelete) {
+            onDelete(message);
+        }
+        setShowMenu(false);
+    };
+
+    const handleEditClick = () => {
+        if (onEdit) {
+            onEdit(message);
+        }
         setShowMenu(false);
     };
 
@@ -640,6 +649,30 @@ const MessageBubble = ({ message, onForward, onReact, onDelete, onReply, onPhone
                                     >
                                         <Copy className="w-4 h-4" />
                                         Copiar texto
+                                    </button>
+                                )}
+                                {isOutgoing && !isDeleted && text && !media_url && (
+                                    <button
+                                        onClick={handleEditClick}
+                                        style={{
+                                            display: 'flex',
+                                            alignItems: 'center',
+                                            gap: '8px',
+                                            padding: '8px 12px',
+                                            border: 'none',
+                                            background: 'none',
+                                            width: '100%',
+                                            textAlign: 'left',
+                                            fontSize: '14px',
+                                            color: '#4b5563',
+                                            cursor: 'pointer',
+                                            borderRadius: '6px'
+                                        }}
+                                        onMouseEnter={(e) => e.currentTarget.style.background = '#f3f4f6'}
+                                        onMouseLeave={(e) => e.currentTarget.style.background = 'none'}
+                                    >
+                                        <Edit2 className="w-4 h-4" />
+                                        Editar mensaje
                                     </button>
                                 )}
                                 <button

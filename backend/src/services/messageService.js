@@ -368,6 +368,19 @@ class MessageService {
 
         return rowCount > 0;
     }
+
+    /**
+     * Edit a message by ID or WhatsApp ID
+     */
+    async updateMessageText(messageId, newText) {
+        const { rowCount } = await pool.query(`
+            UPDATE messages 
+            SET text_content = $2
+            WHERE whatsapp_id = $1 OR id::text = $1
+        `, [messageId, newText]);
+
+        return rowCount > 0;
+    }
 }
 
 module.exports = new MessageService();

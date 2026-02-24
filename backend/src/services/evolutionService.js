@@ -496,6 +496,63 @@ class EvolutionService {
     }
 
     /**
+     * Update (edit) a sent message
+     * @param {string} phone - The remote phone number or JID
+     * @param {string} messageId - The ID of the message to update
+     * @param {string} newText - The new text content
+     * @param {boolean} fromMe - Was the message sent by me (usually true for edits)
+     */
+    async updateMessage(phone, messageId, newText, fromMe = true) {
+        try {
+            const cleanNumber = phone.replace(/\D/g, '');
+            const isJID = phone.includes('-') || phone.includes('@');
+            const jid = isJID ? phone : `${cleanNumber}@s.whatsapp.net`;
+
+            const url = `${this.baseUrl}/chat/updateMessage/${this.instance}`;
+            const body = {
+                number: jid,
+                key: {
+                    remoteJid: jid,
+                    fromMe: fromMe,
+                    id: messageId
+                },
+                text: newText
+            };
+
+            console.log(`📡 [Evolution] Updating message via POST ${url}`);
+
+            const response = await fetch(url, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'apikey': this.apiKey
+                },
+                body: JSON.stringify(body)
+            });
+
+            const responseText = await response.text();
+
+            let data;
+            try {
+                data = JSON.parse(responseText);
+            } catch (e) {
+                data = { error: 'Invalid JSON response', raw: responseText };
+            }
+
+            if (response.ok) {
+                return { success: true, data };
+            }
+
+            console.warn(`⚠️ [Evolution] Update message failed:`, data);
+            return { success: false, error: data };
+
+        } catch (error) {
+            console.error('❌ [Evolution] Error updating message:', error);
+            return { success: false, error: error.message };
+        }
+    }
+
+    /**
      * Delete a message for everyone
      * @param {string} phone - The remote JID
      * @param {string} messageId - The WhatsApp message ID

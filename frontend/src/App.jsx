@@ -84,6 +84,9 @@ const AuthenticatedApp = () => {
     // Reply Message State
     const [replyToMessage, setReplyToMessage] = useState(null);
 
+    // Editing Message State
+    const [editingMessage, setEditingMessage] = useState(null);
+
     const [fontSize, setFontSize] = useState(() => {
         return localStorage.getItem('chat-font-size') || '16px';
     });
@@ -403,9 +406,33 @@ const AuthenticatedApp = () => {
         }
     }, [selectedConversation, isSweepMode, lastSelectedPhone, lastSelectedTimestamp, filteredConversations, activeTab, handleSelectConversation]);
 
-    const handleSendMessage = useCallback((message) => {
+    const handleSendMessage = useCallback(async (message) => {
         console.log('👤 Sending message as user:', user);
         if (selectedConversation) {
+            if (editingMessage) {
+                try {
+                    const response = await fetch(`${API_URL}/api/messages/${editingMessage.whatsapp_id || editingMessage.id}`, {
+                        method: 'PUT',
+                        headers: {
+                            'Content-Type': 'application/json',
+                            'x-api-key': process.env.REACT_APP_API_KEY || ''
+                        },
+                        body: JSON.stringify({ text: message })
+                    });
+
+                    if (!response.ok) {
+                        const errorData = await response.json();
+                        throw new Error(errorData.error || 'Error al editar mensaje');
+                    }
+
+                    setEditingMessage(null);
+                } catch (error) {
+                    console.error('Error editing message:', error);
+                    alert(`Error al editar: ${error.message}`);
+                }
+                return;
+            }
+
             sendMessage(
                 selectedConversation.contact.phone,
                 message,
@@ -1105,6 +1132,7 @@ const AuthenticatedApp = () => {
                                     onReact={handleMessageReact}
                                     onDelete={handleMessageDelete}
                                     onReply={handleReplyMessage}
+                                    onEdit={setEditingMessage}
                                     onPhoneClick={handleStartNewChat}
                                 />
                             </div>
@@ -1116,6 +1144,8 @@ const AuthenticatedApp = () => {
                                 isMobile={isMobile}
                                 replyToMessage={replyToMessage}
                                 onCancelReply={() => setReplyToMessage(null)}
+                                editingMessage={editingMessage}
+                                onCancelEdit={() => setEditingMessage(null)}
                             />
                         </>
                     ) : (
