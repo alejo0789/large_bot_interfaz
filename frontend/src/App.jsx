@@ -181,7 +181,8 @@ const AuthenticatedApp = () => {
         reactToMessage,
         removeConversation,
         togglePin,
-        globalDefaultAi
+        globalDefaultAi,
+        updateConversationLocal
     } = useConversations(socket);
 
     const {
@@ -660,13 +661,15 @@ const AuthenticatedApp = () => {
         await assignTag(phone, tagId);
         const updatedTags = await getConversationTags(phone);
         setTagsByPhone(prev => ({ ...prev, [phone]: updatedTags }));
-    }, [assignTag, getConversationTags]);
+        updateConversationLocal(phone, { tags: updatedTags });
+    }, [assignTag, getConversationTags, updateConversationLocal]);
 
     const handleRemoveTag = useCallback(async (phone, tagId) => {
         await removeTag(phone, tagId);
         const updatedTags = await getConversationTags(phone);
         setTagsByPhone(prev => ({ ...prev, [phone]: updatedTags }));
-    }, [removeTag, getConversationTags]);
+        updateConversationLocal(phone, { tags: updatedTags });
+    }, [removeTag, getConversationTags, updateConversationLocal]);
 
     const [conversationToTag, setConversationToTag] = useState(null);
 
@@ -1057,7 +1060,7 @@ const AuthenticatedApp = () => {
                                 }}
                                 isMobile={isMobile}
                                 isSweepMode={isSweepMode}
-                                onNameUpdated={() => fetchConversations()}
+                                onNameUpdated={(phone, newName) => updateConversationLocal(phone, { contact: { name: newName } })}
                             />
 
                             {/* Tags bar */}

@@ -55,10 +55,10 @@ export const useConversations = (socket) => {
     }, []);
 
     // Fetch all conversations with pagination
-    const fetchConversations = useCallback(async (page = 1, search = '', append = false, tagId = null, startDate = null, endDate = null, unreadOnly = false) => {
+    const fetchConversations = useCallback(async (page = 1, search = '', append = false, tagId = null, startDate = null, endDate = null, unreadOnly = false, silent = false) => {
         try {
-            if (!append) setIsLoading(true);
-            else setIsLoadingMore(true);
+            if (!append && !silent) setIsLoading(true);
+            else if (append) setIsLoadingMore(true);
 
             console.log(`🔄 Fetching conversations (page ${page}, search: "${search}", tag: ${tagId}, date: ${startDate} to ${endDate}, unread: ${unreadOnly})...`);
 
@@ -777,6 +777,14 @@ export const useConversations = (socket) => {
         };
     }, [socket, selectedId, selectedConversation, globalDefaultAi]);
 
+    const updateConversationLocal = useCallback((phone, updates) => {
+        setConversations(prev => prev.map(conv =>
+            String(conv.contact.phone).replace(/\D/g, '') === String(phone).replace(/\D/g, '')
+                ? { ...conv, ...updates, contact: { ...conv.contact, ...(updates.contact || {}) } }
+                : conv
+        ));
+    }, []);
+
     // Initial fetch removed - let parent component control it
     /*
     useEffect(() => {
@@ -914,7 +922,8 @@ export const useConversations = (socket) => {
         togglePin,
         removeConversation,
         markConversationAsRead,
-        markConversationAsUnread
+        markConversationAsUnread,
+        updateConversationLocal
     };
 };
 
