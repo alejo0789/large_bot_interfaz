@@ -589,7 +589,7 @@ const MessageBubble = ({ message, onForward, onReact, onDelete, onReply, onEdit,
                             ref={menuRef}
                             style={{
                                 position: 'absolute',
-                                top: Math.min(window.innerHeight - 220, Math.max(10, menuPosition.y)),
+                                top: Math.min(window.innerHeight - 320, Math.max(10, menuPosition.y)),
                                 left: Math.min(window.innerWidth - 300, Math.max(10, menuPosition.x)),
                                 background: 'white',
                                 borderRadius: '12px',
@@ -685,8 +685,12 @@ const MessageBubble = ({ message, onForward, onReact, onDelete, onReply, onEdit,
                                         Editar mensaje
                                     </button>
                                 )}
+
                                 <button
-                                    onClick={handleDeleteClick}
+                                    onClick={() => {
+                                        onReply && onReply(message);
+                                        setShowMenu(false);
+                                    }}
                                     style={{
                                         display: 'flex',
                                         alignItems: 'center',
@@ -697,15 +701,15 @@ const MessageBubble = ({ message, onForward, onReact, onDelete, onReply, onEdit,
                                         width: '100%',
                                         textAlign: 'left',
                                         fontSize: '14px',
-                                        color: '#ef4444',
+                                        color: '#4b5563',
                                         cursor: 'pointer',
                                         borderRadius: '6px'
                                     }}
-                                    onMouseEnter={(e) => e.currentTarget.style.background = '#fee2e2'}
+                                    onMouseEnter={(e) => e.currentTarget.style.background = '#f3f4f6'}
                                     onMouseLeave={(e) => e.currentTarget.style.background = 'none'}
                                 >
-                                    <Trash2 className="w-4 h-4" />
-                                    Eliminar mensaje
+                                    <Reply className="w-4 h-4" />
+                                    Responder
                                 </button>
 
                                 <button
@@ -735,10 +739,7 @@ const MessageBubble = ({ message, onForward, onReact, onDelete, onReply, onEdit,
                                 </button>
 
                                 <button
-                                    onClick={() => {
-                                        onReply && onReply(message);
-                                        setShowMenu(false);
-                                    }}
+                                    onClick={handleDeleteClick}
                                     style={{
                                         display: 'flex',
                                         alignItems: 'center',
@@ -749,15 +750,15 @@ const MessageBubble = ({ message, onForward, onReact, onDelete, onReply, onEdit,
                                         width: '100%',
                                         textAlign: 'left',
                                         fontSize: '14px',
-                                        color: '#4b5563',
+                                        color: '#ef4444',
                                         cursor: 'pointer',
                                         borderRadius: '6px'
                                     }}
-                                    onMouseEnter={(e) => e.currentTarget.style.background = '#f3f4f6'}
+                                    onMouseEnter={(e) => e.currentTarget.style.background = '#fee2e2'}
                                     onMouseLeave={(e) => e.currentTarget.style.background = 'none'}
                                 >
-                                    <Reply className="w-4 h-4" />
-                                    Responder
+                                    <Trash2 className="w-4 h-4" />
+                                    Eliminar mensaje
                                 </button>
                             </div>
                         </div>
