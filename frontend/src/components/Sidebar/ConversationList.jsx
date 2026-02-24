@@ -72,9 +72,11 @@ const ConversationList = React.memo(({
             // Only scroll if it's a truly different conversation being selected
             if (currentSelected !== prevSelected) {
                 const timeout = setTimeout(() => {
-                    const activeItem = listRef.current.querySelector('.conversation-item.active');
-                    if (activeItem) {
-                        activeItem.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+                    if (listRef.current) {
+                        const activeItem = listRef.current.querySelector('.conversation-item.active');
+                        if (activeItem) {
+                            activeItem.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+                        }
                     }
                 }, 100);
 
@@ -98,10 +100,12 @@ const ConversationList = React.memo(({
             // it means a conversation reordered to the top.
             if (currentTopId !== prevTopConversationId.current && listRef.current.scrollTop > 20) {
                 // Get the height of the first item to compensate exactly
-                const firstItem = listRef.current.querySelector('.conversation-item-wrapper');
-                if (firstItem) {
-                    const height = firstItem.offsetHeight;
-                    listRef.current.scrollTop += height;
+                if (listRef.current) {
+                    const firstItem = listRef.current.querySelector('.conversation-item-wrapper');
+                    if (firstItem) {
+                        const height = firstItem.offsetHeight;
+                        listRef.current.scrollTop += height;
+                    }
                 }
             }
         }

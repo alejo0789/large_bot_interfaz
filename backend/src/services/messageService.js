@@ -115,6 +115,7 @@ class MessageService {
                 // Raw timestamp in ISO format for grouping
                 rawTimestamp: isValidDate ? msgTimestamp.toISOString() : null,
                 status: msg.status || 'delivered',
+                whatsapp_id: msg.whatsapp_id || null,
                 media_type: msg.media_type || null,
                 media_url: msg.media_url || null,
                 agentId: msg.agent_id,

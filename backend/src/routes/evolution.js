@@ -213,6 +213,32 @@ router.post('/', async (req, res) => {
             mediaType = 'document';
             mediaUrl = msg.message.documentMessage.url;
             mimetype = msg.message.documentMessage.mimetype || 'application/octet-stream';
+        } else if (msg.message.protocolMessage && msg.message.protocolMessage.type === "MESSAGE_EDIT") {
+            console.log("✏️ [WEBHOOK] Received MESSAGE_EDIT protocol message.");
+            const editedMsg = msg.message.protocolMessage;
+            const targetId = editedMsg.key.id;
+            const newText = editedMsg.editedMessage?.extendedTextMessage?.text || editedMsg.editedMessage?.conversation || "";
+
+            if (newText && targetId) {
+                const existingMsg = await messageService.getMessageById(targetId);
+                if (existingMsg) {
+                    await messageService.updateMessageText(existingMsg.id, newText);
+                    if (io) {
+                        io.emit('message-updated', {
+                            id: existingMsg.id,
+                            whatsapp_id: targetId,
+                            status: existingMsg.status,
+                            text: newText,
+                            media_url: existingMsg.media_url,
+                            media_type: existingMsg.media_type,
+                            phone: phone,
+                            edited: true
+                        });
+                    }
+                }
+            }
+            // Protocol messages (like edit) should NOT be saved as new messages
+            return res.sendStatus(200);
         }
 
         // --- REPLY / QUOTED MESSAGE EXTRACTION ---
