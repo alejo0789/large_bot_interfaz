@@ -18,8 +18,6 @@ export const AuthProvider = ({ children }) => {
         sessionStorage.removeItem('auth_user');
         localStorage.removeItem('auth_token');
         localStorage.removeItem('auth_user');
-        localStorage.removeItem('rem_u'); // Clear new remembered user on logout
-        localStorage.removeItem('rem_p'); // Clear new remembered password on logout
 
         // Optional: Call backend to log logout
         if (tokenToRevoke) {

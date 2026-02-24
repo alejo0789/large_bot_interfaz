@@ -214,9 +214,7 @@ const LoginPage = () => {
                                     type="text"
                                     name="user_login_v8"
                                     autoComplete="off"
-                                    readOnly={!username}
                                     onFocus={(e) => {
-                                        e.target.removeAttribute('readonly');
                                         e.target.style.borderColor = '#4f46e5';
                                     }}
                                     onBlur={(e) => e.target.style.borderColor = '#d1d5db'}
@@ -284,9 +282,7 @@ const LoginPage = () => {
                                     type={showPassword ? 'text' : 'password'}
                                     name="pass_login_v8"
                                     autoComplete="new-password"
-                                    readOnly={!password}
                                     onFocus={(e) => {
-                                        e.target.removeAttribute('readonly');
                                         e.target.style.borderColor = '#4f46e5';
                                     }}
                                     onBlur={(e) => e.target.style.borderColor = '#d1d5db'}
