@@ -450,7 +450,7 @@ const AuthenticatedApp = () => {
             );
             setReplyToMessage(null);
         }
-    }, [selectedConversation, sendMessage, user, replyToMessage]);
+    }, [selectedConversation, sendMessage, user, replyToMessage, editingMessage]);
 
     const handleSendFile = useCallback(async (file, caption) => {
         if (!selectedConversation) return;

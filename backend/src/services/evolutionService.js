@@ -520,6 +520,7 @@ class EvolutionService {
             };
 
             console.log(`📡 [Evolution] Updating message via POST ${url}`);
+            console.log(`   Payload:`, JSON.stringify(body));
 
             const response = await fetch(url, {
                 method: 'POST',
@@ -529,6 +530,8 @@ class EvolutionService {
                 },
                 body: JSON.stringify(body)
             });
+
+            console.log(`   Response Status: ${response.status}`);
 
             const responseText = await response.text();
 

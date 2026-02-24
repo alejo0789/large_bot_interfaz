@@ -801,14 +801,19 @@ router.put('/messages/:id', asyncHandler(async (req, res) => {
     let apiEdited = false;
     if (config.evolutionApiUrl) {
         if (message.whatsapp_id) {
+            console.log(`📝 [Edit] Attempting to edit WhatsApp message ${message.whatsapp_id} for ${message.conversation_phone}`);
+            console.log(`   New text: "${text.substring(0, 50)}${text.length > 50 ? '...' : ''}"`);
+
             const result = await evolutionService.updateMessage(message.conversation_phone, message.whatsapp_id, text, fromMe);
             if (!result.success) {
                 const errorMsg = result.error?.response?.message || result.error?.message || 'Error desconocido';
+                console.error(`❌ [Edit] Evolution API update failed:`, result.error);
                 throw new AppError('No se pudo editar el mensaje en WhatsApp: ' + errorMsg, 400);
             }
+            console.log(`✅ [Edit] WhatsApp message ${message.whatsapp_id} updated successfully`);
             apiEdited = true;
         } else {
-            console.warn('⚠️ Cannot edit in WA: Missing whatsapp_id for message', id);
+            console.warn('⚠️ [Edit] Cannot edit in WA: Missing whatsapp_id for message', id);
         }
     }
 
