@@ -6,7 +6,7 @@ import EmojiPicker from 'emoji-picker-react';
  * Message bubble component with media support, reactions, and actions
  */
 const MessageBubble = ({ message, onForward, onReact, onDelete, onReply, onEdit, onPhoneClick }) => {
-    const { text, timestamp, status, id, reactions = [] } = message;
+    const { text, timestamp, status, id, reactions = [], edited } = message;
     const rawSender = message.sender || message.sender_type || 'customer';
     const sender = String(rawSender).toLowerCase().trim();
 
@@ -474,6 +474,16 @@ const MessageBubble = ({ message, onForward, onReact, onDelete, onReply, onEdit,
                         <div className="message-meta" style={{
                             padding: media_url ? '0 var(--space-2) var(--space-1)' : undefined
                         }}>
+                            {edited && (
+                                <span className="message-edited" style={{
+                                    fontSize: '9px',
+                                    fontStyle: 'italic',
+                                    opacity: 0.7,
+                                    marginRight: '4px'
+                                }}>
+                                    Editado
+                                </span>
+                            )}
                             <span className="message-time">{timestamp}</span>
                             {isOutgoing && (
                                 <span className="message-status">

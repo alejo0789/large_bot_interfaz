@@ -717,14 +717,15 @@ export const useConversations = (socket) => {
 
         const handleMessageUpdated = (data) => {
             console.log('🔄 Message updated:', data);
-            const { id, phone } = data;
+            const { id, phone, edited } = data;
 
             // formatting for consistency
             const updates = {
                 status: data.status,
-                text: data.text, // "🚫 Mensaje eliminado"
+                text: data.text,
                 media_url: data.media_url,
-                media_type: data.media_type
+                media_type: data.media_type,
+                edited: data.edited || false
             };
 
             setMessagesByConversation(prev => {
@@ -739,30 +740,23 @@ export const useConversations = (socket) => {
                 };
             });
 
-            // Also update conversation preview if last message
-            // Wait, we can't easily check if it's the last message without list context, 
-            // but we can try to find the conversation and check match.
-            // Or just check if the updated message timestamp matches the conversation's timestamp? Hard.
-            // Simplified: If the updated text is "🚫 Mensaje eliminado", we should check if the conversation's lastMessage is the OLD text.
-            // But we don't have the old text here easily.
-            // However, we can just update the conversation state if we find the conversation 
-            // and maybe force a refresh or just leave it for the 'conversation-updated' event which usually fires separately?
-            // The backend does NOT emit 'conversation-updated' on delete message currently in the route itself, 
-            // unless `messageService.deleteMessage` triggers something? No.
-            // But `conversationService.updateLastMessage` is called when SENDING, not deleting.
-            // So we should handle updating the sidebar here too.
-
+            // Also update conversation preview if it's the last message
             setConversations(prev => {
                 const currentConversations = [...prev];
-                const index = currentConversations.findIndex(c => c.contact.phone === phone);
+                const index = currentConversations.findIndex(c =>
+                    String(c.contact.phone).replace(/\D/g, '') === String(phone).replace(/\D/g, '')
+                );
+
                 if (index !== -1) {
-                    // We assume that if a message is deleted and it was the last one, we might want to show that.
-                    // But we don't know for sure.
-                    // Let's rely on the optimistic update we did on the initiator side, 
-                    // this handler is for OTHER clients (or confirmation).
-                    // If we want consistency, we can update here too.
-                    // For now, let's just update the message list which is the primary goal.
-                    return prev;
+                    const targetConv = currentConversations[index];
+                    // If the updated message is the last one (or just update always to be safe)
+                    // We typically want to show the new text in the sidebar
+                    const updatedConv = {
+                        ...targetConv,
+                        lastMessage: updates.text
+                    };
+                    currentConversations[index] = updatedConv;
+                    return currentConversations;
                 }
                 return prev;
             });
