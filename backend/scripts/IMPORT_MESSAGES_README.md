@@ -7,7 +7,7 @@ Este script importa mensajes históricos desde Evolution API a la base de datos 
 1. Asegúrate de tener las variables de entorno configuradas en `.env`:
    - `EVOLUTION_API_URL`
    - `EVOLUTION_API_KEY`
-   - `EVOLUTION_INSTANCE`
+   - `EVOLUTION_INSTANCE l`
 
 2. La base de datos debe tener conversaciones ya creadas (tabla `conversations`)
 
