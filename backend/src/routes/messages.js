@@ -620,7 +620,7 @@ router.post('/bulk-send', requireApiKey, asyncHandler(async (req, res) => {
         success: true,
         batchId,
         message: `Iniciando envío masivo de ${finalRecipients.length} mensajes`,
-        estimatedTime: Math.ceil(finalRecipients.length * 0.15) // ~0.15s per message
+        estimatedTime: Math.ceil(finalRecipients.length * 12.5) // Average of 5-20s per message
     });
 }));
 

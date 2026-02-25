@@ -3,9 +3,10 @@
  * Handles mass message sending with rate limiting and progress tracking
  */
 
-const BATCH_SIZE = 50; // Messages per batch
-const DELAY_BETWEEN_BATCHES = 2000; // 2 seconds between batches
-const DELAY_BETWEEN_MESSAGES = 100; // 100ms between individual messages
+const BATCH_SIZE = 20; // Reduced batch size for safety
+const DELAY_BETWEEN_BATCHES = 5000; // 5 seconds between batches
+const MIN_MESSAGE_DELAY = 5000; // 5 seconds minimum between messages
+const MAX_MESSAGE_DELAY = 20000; // 20 seconds maximum between messages
 
 class BulkMessageService {
     constructor() {
@@ -101,9 +102,11 @@ class BulkMessageService {
                     startTime
                 });
 
-                // Small delay between messages
+                // Random delay between messages to avoid detection/ban
                 if (sent + failed < total) {
-                    await this.delay(DELAY_BETWEEN_MESSAGES);
+                    const delayMs = this.getRandomDelay(MIN_MESSAGE_DELAY, MAX_MESSAGE_DELAY);
+                    console.log(`⏳ Waiting ${Math.round(delayMs / 1000)}s before next message...`);
+                    await this.delay(delayMs);
                 }
             }
 
@@ -174,6 +177,13 @@ class BulkMessageService {
             chunks.push(array.slice(i, i + size));
         }
         return chunks;
+    }
+
+    /**
+     * Get a random delay between min and max milliseconds
+     */
+    getRandomDelay(min, max) {
+        return Math.floor(Math.random() * (max - min + 1)) + min;
     }
 
     /**
