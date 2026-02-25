@@ -26,7 +26,9 @@ const TagManager = ({
     onAssignTag,
     onRemoveTag,
     onMarkUnread,
-    onUpdateTag
+    onUpdateTag,
+    isBulk = false,
+    bulkPhones = []
 }) => {
     const [newTagName, setNewTagName] = useState('');
     const [newTagColor, setNewTagColor] = useState(TAG_COLORS[0].value);
@@ -36,7 +38,13 @@ const TagManager = ({
 
     const handleMarkUnread = async () => {
         if (onMarkUnread) {
-            await onMarkUnread(conversationPhone);
+            if (isBulk && bulkPhones.length > 0) {
+                for (const phone of bulkPhones) {
+                    await onMarkUnread(phone);
+                }
+            } else {
+                await onMarkUnread(conversationPhone);
+            }
             onClose();
         }
     };
@@ -55,7 +63,14 @@ const TagManager = ({
 
     const handleAssignTag = async (tagId) => {
         try {
-            await onAssignTag(conversationPhone, tagId);
+            if (isBulk && bulkPhones.length > 0) {
+                // Bulk assign
+                for (const phone of bulkPhones) {
+                    await onAssignTag(phone, tagId);
+                }
+            } else {
+                await onAssignTag(conversationPhone, tagId);
+            }
         } catch (error) {
             console.error('Error assigning tag:', error);
         }
@@ -63,7 +78,13 @@ const TagManager = ({
 
     const handleRemoveTag = async (tagId) => {
         try {
-            await onRemoveTag(conversationPhone, tagId);
+            if (isBulk && bulkPhones.length > 0) {
+                for (const phone of bulkPhones) {
+                    await onRemoveTag(phone, tagId);
+                }
+            } else {
+                await onRemoveTag(conversationPhone, tagId);
+            }
         } catch (error) {
             console.error('Error removing tag:', error);
         }
@@ -78,7 +99,7 @@ const TagManager = ({
                 <div className="modal-header">
                     <h3 className="modal-title">
                         <Tag className="w-5 h-5" style={{ marginRight: 'var(--space-2)', display: 'inline' }} />
-                        Gestionar Etiquetas
+                        {isBulk ? `Etiquetar ${bulkPhones.length} chats` : 'Gestionar Etiquetas'}
                     </h3>
                     <button className="btn btn-icon" onClick={onClose}>
                         <X className="w-5 h-5" />

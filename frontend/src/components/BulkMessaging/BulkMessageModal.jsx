@@ -157,14 +157,18 @@ const BulkMessageModal = ({
     initialMessage = '',
     initialMediaUrl = null,
     initialMediaType = null,
+    initialSelectedPhones = [],
+    initialSelectionMode = null,
     title = 'Envío Masivo de Mensajes',
     disableSelectionModeChange = false
 }) => {
     const [message, setMessage] = useState(initialMessage);
     // Modes: 'all', 'tag', 'manual', 'paste', 'excel'
-    const [selectionMode, setSelectionMode] = useState(disableSelectionModeChange ? 'manual' : 'all');
+    const [selectionMode, setSelectionMode] = useState(
+        initialSelectionMode || (disableSelectionModeChange ? 'manual' : 'all')
+    );
     const [selectedTagIds, setSelectedTagIds] = useState([]);
-    const [selectedPhones, setSelectedPhones] = useState([]);
+    const [selectedPhones, setSelectedPhones] = useState(initialSelectedPhones);
     const [isSending, setIsSending] = useState(false);
     const [sendResult, setSendResult] = useState(null);
     const [manualSearch, setManualSearch] = useState('');
@@ -223,14 +227,20 @@ const BulkMessageModal = ({
     // Update state when initial props change
     useEffect(() => {
         if (initialMessage) setMessage(initialMessage);
-        if (initialMediaUrl) {
-            setMediaPreview(initialMediaUrl);
+        if (initialMediaType) {
             setMediaType(initialMediaType);
         }
         if (disableSelectionModeChange) {
             setSelectionMode('manual');
         }
-    }, [initialMessage, initialMediaUrl, initialMediaType, disableSelectionModeChange]);
+        if (initialSelectedPhones && initialSelectedPhones.length > 0) {
+            setSelectedPhones(initialSelectedPhones);
+            if (!initialSelectionMode) setSelectionMode('manual');
+        }
+        if (initialSelectionMode) {
+            setSelectionMode(initialSelectionMode);
+        }
+    }, [initialMessage, initialMediaUrl, initialMediaType, disableSelectionModeChange, initialSelectedPhones, initialSelectionMode]);
 
     // Helper: build date params string from month filter
     const buildDateParams = useCallback(() => {

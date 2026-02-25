@@ -5,6 +5,8 @@
  */
 const { pool } = require('../config/database');
 const settingsService = require('./settingsService');
+const { normalizePhone } = require('../utils/phoneUtils');
+
 
 // Default pagination settings
 const DEFAULT_PAGE_SIZE = 50;
@@ -179,9 +181,10 @@ class ConversationService {
      * Get conversation by phone
      */
     async getByPhone(phone) {
+        const normalizedPhone = normalizePhone(phone);
         const { rows } = await pool.query(
             'SELECT * FROM conversations WHERE phone = $1',
-            [phone]
+            [normalizedPhone]
         );
         return rows[0] || null;
     }
@@ -190,6 +193,7 @@ class ConversationService {
      * Create or update conversation
      */
     async upsert(phone, contactName) {
+        const normalizedPhone = normalizePhone(phone);
         // Fetch default AI setting
         const defaultAiEnabledStr = await settingsService.get('default_ai_enabled', 'true');
         const defaultAiEnabled = String(defaultAiEnabledStr) === 'true';
@@ -209,11 +213,11 @@ class ConversationService {
                     updated_at = NOW()
                 WHERE phone = $2
                 RETURNING *
-            `, [contactName, phone]);
+            `, [contactName, normalizedPhone]);
             return rows[0];
         } else {
             // Use placeholder if no name provided for new conversation
-            const finalName = contactName || `Usuario ${phone.slice(-4)}`;
+            const finalName = contactName || `Usuario ${normalizedPhone.slice(-4)}`;
 
             // Insert new with default setting
             const { rows } = await pool.query(`
@@ -221,7 +225,7 @@ class ConversationService {
                 VALUES ($1, $2, $3, $4, NOW(), NOW())
                 ON CONFLICT (phone) DO UPDATE SET updated_at = NOW()
                 RETURNING *
-            `, [phone, finalName, defaultAiEnabled, defaultAiEnabled ? 'ai_active' : 'agent_active']);
+            `, [normalizedPhone, finalName, defaultAiEnabled, defaultAiEnabled ? 'ai_active' : 'agent_active']);
             return rows[0];
         }
     }
@@ -438,8 +442,9 @@ class ConversationService {
      * Get or create a conversation
      */
     async getOrCreate(phone) {
+        const normalizedPhone = normalizePhone(phone);
         // Try to get existing
-        const { rows } = await pool.query('SELECT * FROM conversations WHERE phone = $1', [phone]);
+        const { rows } = await pool.query('SELECT * FROM conversations WHERE phone = $1', [normalizedPhone]);
 
         if (rows.length > 0) {
             // Fetch tags for consistency
@@ -464,7 +469,7 @@ class ConversationService {
             VALUES ($1, $1, 'active', NOW(), NOW(), $2, 0, $3)
             RETURNING *
         `;
-        const result = await pool.query(insertQuery, [phone, defaultAiEnabled, defaultAiEnabled ? 'ai_active' : 'agent_active']);
+        const result = await pool.query(insertQuery, [normalizedPhone, defaultAiEnabled, defaultAiEnabled ? 'ai_active' : 'agent_active']);
         const newConv = result.rows[0];
         newConv.tags = [];
         return newConv;

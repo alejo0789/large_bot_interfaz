@@ -12,7 +12,9 @@ const conversationService = require('../services/conversationService');
 
 const n8nService = require('../services/n8nService');
 const evolutionService = require('../services/evolutionService');
+const { normalizePhone, getPureDigits } = require('../utils/phoneUtils');
 const { config } = require('../config/app');
+
 const { requireApiKey } = require('../middleware/apiKeyAuth');
 
 // Socket.IO instance (will be set from app.js)
@@ -28,8 +30,9 @@ const emitToConversation = (phone, event, data) => {
     if (!io) return;
 
     // Normalize phone to ensure delivery to both formats
-    const purePhone = String(phone).replace(/\D/g, '');
-    const dbPhone = purePhone.startsWith('57') ? `+${purePhone}` : purePhone;
+    const dbPhone = normalizePhone(phone);
+    const purePhone = getPureDigits(phone);
+
 
     // Emit to specific conversation room (DB format with +)
     io.to(`conversation:${dbPhone}`).emit(event, data);
@@ -65,24 +68,8 @@ router.post('/send-message', requireApiKey, asyncHandler(async (req, res) => {
 
     console.log('📥 RAW BODY received:', JSON.stringify(req.body, null, 2));
 
-    // Normalize phone: 
-    // If it has a domain (@), it's a JID or a special ID, KEEP IT AS IS.
-    // Otherwise, clean it as a standard number.
-    // Customize phone normalization to match webhook (Evolution) logic
-    // 1. Strip non-digits
-    const cleanPhone = String(phone).replace(/\D/g, '');
-    // 2. If it's a special ID (groups, etc), use original. Else, format.
-    const isSpecialId = String(phone).includes('@') || String(phone).includes('-');
+    const normalizedPhone = normalizePhone(phone);
 
-    let normalizedPhone = cleanPhone;
-    if (!isSpecialId) {
-        // Match evolution.js: Add '+' for Colombia numbers (57) for consistency
-        if (cleanPhone.startsWith('57')) {
-            normalizedPhone = `+${cleanPhone}`;
-        }
-    } else {
-        normalizedPhone = String(phone);
-    }
 
     console.log(`📤 Processed phone for sending: ${normalizedPhone} (was: ${phone})`);
 
@@ -125,7 +112,7 @@ router.post('/send-message', requireApiKey, asyncHandler(async (req, res) => {
     // Send Message Logic (Evolution > N8N)
     let sendResult;
     if (config.evolutionApiUrl) {
-        const result = await evolutionService.sendText(normalizedPhone, message, reply_to);
+        const result = await evolutionService.sendText(getPureDigits(normalizedPhone), message, reply_to);
         sendResult = { sent: result.success, platform: 'evolution', ...result };
     } else {
         const result = await n8nService.sendMessage({
@@ -138,6 +125,7 @@ router.post('/send-message', requireApiKey, asyncHandler(async (req, res) => {
         });
         sendResult = { sent: result.sent, platform: 'n8n', ...result };
     }
+
 
     // UPDATE STATUS IN DB after successful send
     if (sendResult.sent) {
@@ -205,7 +193,9 @@ router.post('/send-file', requireApiKey, upload.single('file'), optimizeMedia, a
     const mediaType = getMediaType(file.mimetype);
 
     // Ensure conversation exists to avoid FK error
-    await conversationService.upsert(phone, name);
+    const normalizedPhone = normalizePhone(phone);
+    await conversationService.upsert(normalizedPhone, name);
+
 
     // Fetch quoted message data if reply_to is present
     let replyToData = null;
@@ -245,8 +235,9 @@ router.post('/send-file', requireApiKey, upload.single('file'), optimizeMedia, a
     let sendResult = { sent: false };
 
     if (config.evolutionApiUrl) {
-        const result = await evolutionService.sendMedia(phone, fileUrl, mediaType, caption || '', file.originalname, reply_to);
+        const result = await evolutionService.sendMedia(getPureDigits(normalizedPhone), fileUrl, mediaType, caption || '', file.originalname, reply_to);
         sendResult = { sent: result && result.success, platform: 'evolution', ...result };
+
     } else {
         const result = await n8nService.sendMessage({
             phone,
@@ -281,9 +272,10 @@ router.post('/send-file', requireApiKey, upload.single('file'), optimizeMedia, a
     }
 
     // Emit to frontend (OPTIMIZED: uses rooms)
-    emitToConversation(phone, 'agent-message', {
+    emitToConversation(normalizedPhone, 'agent-message', {
         whatsapp_id: savedMessage.whatsapp_id || savedMessage.id,
-        phone,
+        phone: normalizedPhone,
+
         message: (mediaType === 'image' || mediaType === 'video' || mediaType === 'audio') ? (caption || null) : (caption || file.originalname),
         media_type: mediaType,
         media_url: fileUrl,
@@ -459,18 +451,8 @@ router.post('/bulk-send', requireApiKey, asyncHandler(async (req, res) => {
     // Send function for each recipient
     const sendFn = async ({ phone, name, message: msg, mediaUrl: media, mediaType: mType }) => {
         // Normalize phone to match webhook logic (evolution.js)
-        const cleanPhone = String(phone).replace(/\D/g, '');
-        const isSpecialId = String(phone).includes('@') || String(phone).includes('-');
-        let normalizedPhone = cleanPhone;
+        const normalizedPhone = normalizePhone(phone);
 
-        if (!isSpecialId) {
-            // Match evolution.js: Add '+' for Colombia numbers (57) for consistency
-            if (cleanPhone.startsWith('57')) {
-                normalizedPhone = `+${cleanPhone}`;
-            }
-        } else {
-            normalizedPhone = String(phone);
-        }
 
         // Determinar los mensajes a enviar
         const messagesToSend = [];
@@ -513,10 +495,11 @@ router.post('/bulk-send', requireApiKey, asyncHandler(async (req, res) => {
                 const m = messagesToSend[i];
                 let result;
                 if (m.isMedia) {
-                    result = await evolutionService.sendMedia(normalizedPhone, m.mediaUrl, m.mediaType, m.text, 'file');
+                    result = await evolutionService.sendMedia(getPureDigits(normalizedPhone), m.mediaUrl, m.mediaType, m.text, 'file');
                 } else {
-                    result = await evolutionService.sendText(normalizedPhone, m.text);
+                    result = await evolutionService.sendText(getPureDigits(normalizedPhone), m.text);
                 }
+
 
                 if (!result.success) {
                     throw new Error(result.error?.message || 'Error en Evolution API');

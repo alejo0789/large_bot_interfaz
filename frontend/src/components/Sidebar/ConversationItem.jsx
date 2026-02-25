@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { User, Bot, UserCheck, Tag, MoreVertical, Edit2, Trash2, Pin } from 'lucide-react';
+import { User, Bot, UserCheck, Tag, MoreVertical, Edit2, Trash2, Pin, CheckSquare } from 'lucide-react';
 import EditContactModal from './EditContactModal';
 import { getShortDate } from '../../utils/dateUtils';
 
@@ -13,8 +13,13 @@ const ConversationItem = React.memo(({
     tags = [],
     onClick,
     onTagClick,
-    onDelete,       // optional: (phone) => void — called after successful deletion
-    onTogglePin
+    onDelete,
+    onTogglePin,
+    // Multi-selection
+    isMultiSelected = false,
+    isSelectionMode = false,
+    onToggleSelection,
+    onEnterSelectionMode
 }) => {
     const { contact, lastMessage, timestamp, rawTimestamp, unread, isPinned } = conversation;
     const hasUnread = unread > 0;
@@ -155,10 +160,24 @@ const ConversationItem = React.memo(({
 
     return (
         <div
-            className={`conversation-item ${isSelected ? 'active' : ''} ${hasUnread ? 'unread' : ''}`}
+            className={`conversation-item ${isSelected ? 'active' : ''} ${hasUnread ? 'unread' : ''} ${isMultiSelected ? 'multi-selected' : ''}`}
             onClick={onClick}
             style={{ position: 'relative' }}
         >
+            {/* Selection Checkbox */}
+            {(isSelectionMode || isMultiSelected) && (
+                <div
+                    className="selection-checkbox-container"
+                    onClick={(e) => {
+                        e.stopPropagation();
+                        onToggleSelection(conversation.id);
+                    }}
+                >
+                    <div className={`selection-checkbox ${isMultiSelected ? 'checked' : ''}`}>
+                        {isMultiSelected && <div className="inner-check" />}
+                    </div>
+                </div>
+            )}
             <div style={{ position: 'relative' }}>
                 <div className="conversation-avatar" style={{ padding: 0, overflow: 'hidden', display: 'flex', alignItems: 'center', justifyContent: 'center', backgroundColor: '#e2e8f0' }}>
                     <img
@@ -266,6 +285,30 @@ const ConversationItem = React.memo(({
                                     >
                                         <Edit2 size={12} />
                                         Editar nombre
+                                    </button>
+
+                                    <button
+                                        onClick={() => {
+                                            if (onEnterSelectionMode) onEnterSelectionMode(conversation.id);
+                                            setIsMenuOpen(false);
+                                        }}
+                                        style={{
+                                            display: 'flex',
+                                            alignItems: 'center',
+                                            gap: '8px',
+                                            width: '100%',
+                                            padding: '8px 12px',
+                                            border: 'none',
+                                            background: 'none',
+                                            fontSize: '12px',
+                                            color: 'var(--color-gray-700)',
+                                            cursor: 'pointer',
+                                            textAlign: 'left'
+                                        }}
+                                        className="hover:bg-gray-50"
+                                    >
+                                        <CheckSquare size={12} />
+                                        Seleccionar
                                     </button>
 
                                     {/* Separator */}

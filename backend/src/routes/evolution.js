@@ -11,6 +11,8 @@ const evolutionService = require('../services/evolutionService');
 const n8nService = require('../services/n8nService');
 const settingsService = require('../services/settingsService');
 const { saveBase64AsFile } = require('../utils/fileUtils');
+const { normalizePhone, getPureDigits } = require('../utils/phoneUtils');
+
 
 let io = null;
 const setSocketIO = (socketIO) => { io = socketIO; };
@@ -20,8 +22,8 @@ const emitToConversation = (phone, event, data) => {
     if (!io) return;
 
     // Normalize phone to ensure delivery to both formats (+57... and 57...)
-    const purePhone = String(phone).replace(/\D/g, '');
-    const dbPhone = purePhone.startsWith('57') ? `+${purePhone}` : purePhone;
+    const dbPhone = normalizePhone(phone);
+    const purePhone = getPureDigits(phone);
 
     console.log(`📡 Emitting ${event} to conversation:${dbPhone} (also ${purePhone})`);
 
@@ -75,8 +77,7 @@ router.post('/', async (req, res) => {
         // If this is a message FROM US, check if we just sent it via AI
         if (isFromAgent) {
             const remoteJid = msg.key.remoteJid;
-            const numeric = remoteJid.split('@')[0].replace(/\D/g, '');
-            const phone = (numeric.startsWith('57')) ? `+${numeric}` : numeric;
+            const phone = normalizePhone(remoteJid);
 
             // Extract text for matching (support both text and multimedia)
             let textToMatch = '';
@@ -123,10 +124,7 @@ router.post('/', async (req, res) => {
         if (isGroup) {
             phone = remoteJid;
         } else {
-            // Normalize standard numbers (strip domain, strip non-numeric)
-            const numeric = remoteJid.split('@')[0].replace(/\D/g, '');
-            // For Colombia numbers (starting with 57), add the '+' prefix for consistency with DB
-            phone = (numeric.startsWith('57')) ? `+${numeric}` : numeric;
+            phone = normalizePhone(remoteJid);
 
             if (!remoteJid.endsWith('@s.whatsapp.net')) {
                 console.log(`⚠️ Non-standard JID domain detected, but using normalized phone: ${phone}`);
@@ -579,7 +577,7 @@ router.post('/', async (req, res) => {
                     console.log(`   Media URL: ${finalMediaUrl}`);
                     console.log(`   Caption: ${cleanAiText.substring(0, 50)}...`);
 
-                    sendingResult = await evolutionService.sendMedia(phone, finalMediaUrl, finalMediaType, cleanAiText);
+                    sendingResult = await evolutionService.sendMedia(getPureDigits(phone), finalMediaUrl, finalMediaType, cleanAiText);
 
                     if (sendingResult.success) {
                         console.log(`   ✅ Multimedia message sent successfully`);
@@ -590,7 +588,7 @@ router.post('/', async (req, res) => {
 
                         // Fallback: Send text with URL appended
                         const fallbackText = `${cleanAiText}\n\n📷 ${finalMediaUrl}`;
-                        sendingResult = await evolutionService.sendMessage(phone, fallbackText);
+                        sendingResult = await evolutionService.sendMessage(getPureDigits(phone), fallbackText);
 
                         // UPDATE VARIABLES FOR DB/FRONTEND TO MATCH REALITY
                         // We failed to send media, so we shouldn't claim we did in the DB
@@ -607,7 +605,7 @@ router.post('/', async (req, res) => {
                 } else {
                     console.log(`   Mode: TEXT ONLY`);
                     console.log(`   Text: ${aiResponseText.substring(0, 50)}...`);
-                    sendingResult = await evolutionService.sendMessage(phone, aiResponseText);
+                    sendingResult = await evolutionService.sendMessage(getPureDigits(phone), aiResponseText);
                     if (sendingResult && sendingResult.success) {
                         console.log(`   ✅ Text message sent successfully`);
                     } else {

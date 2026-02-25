@@ -18,10 +18,15 @@ const ConversationList = React.memo(({
     onTagClick,
     onLoadMore,
     onRefresh,
-    onStartNewChat, // New prop
-    onDelete,       // New prop — called when a conversation is deleted
-    onTogglePin,    // New prop
-    globalDefaultAi = true // New prop
+    onStartNewChat,
+    onDelete,
+    onTogglePin,
+    globalDefaultAi = true,
+    // Multi-selection props
+    isSelectionMode = false,
+    selectedIds = [],
+    onToggleSelection,
+    onEnterSelectionMode
 }) => {
     const listRef = useRef(null);
     const [refreshing, setRefreshing] = React.useState(false);
@@ -243,9 +248,13 @@ const ConversationList = React.memo(({
                     <ConversationItem
                         conversation={conversation}
                         isSelected={selectedId === conversation.id}
+                        isMultiSelected={selectedIds.includes(conversation.id)}
+                        isSelectionMode={isSelectionMode}
+                        onToggleSelection={onToggleSelection}
+                        onEnterSelectionMode={onEnterSelectionMode}
                         aiEnabled={aiStatesByPhone[conversation.contact.phone] ?? globalDefaultAi}
                         tags={conversation.tags || tagsByPhone[conversation.contact.phone] || []}
-                        onClick={() => onSelect(conversation)}
+                        onClick={() => isSelectionMode ? onToggleSelection(conversation.id) : onSelect(conversation)}
                         onTagClick={onTagClick}
                         onDelete={onDelete}
                         onTogglePin={onTogglePin}

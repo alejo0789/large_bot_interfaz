@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { useDrag } from '@use-gesture/react';
 import { io } from 'socket.io-client';
-import { Tag, MessageSquare, Settings, RotateCw, Menu, EyeOff } from 'lucide-react';
+import { Tag, MessageSquare, Settings, RotateCw, Menu, EyeOff, CheckSquare } from 'lucide-react';
 
 // Auth
 import { AuthProvider, useAuth } from './hooks/useAuth';
@@ -22,6 +22,7 @@ import SettingsModal from './components/Settings/SettingsModal';
 import MainLayout from './components/MainLayout';
 import AIArea from './components/AI/AIArea';
 import Dashboard from './components/Dashboard/Dashboard';
+import BulkActionsBar from './components/Sidebar/BulkActionsBar';
 
 // Hooks
 import { useConversations } from './hooks/useConversations';
@@ -90,6 +91,12 @@ const AuthenticatedApp = () => {
     const [fontSize, setFontSize] = useState(() => {
         return localStorage.getItem('chat-font-size') || '16px';
     });
+
+    // Multi-selection state
+    const [selectedConversationIds, setSelectedConversationIds] = useState([]);
+    const [isSelectionMode, setIsSelectionMode] = useState(false);
+    const [bulkMessageInitialPhones, setBulkMessageInitialPhones] = useState([]);
+    const [bulkMessageInitialMode, setBulkMessageInitialMode] = useState(null);
 
     // Apply font size to document root
     useEffect(() => {
@@ -741,6 +748,93 @@ const AuthenticatedApp = () => {
         window.fetchConversations = fetchConversations;
     }, [fetchConversations]);
 
+    // Multi-selection handlers
+    const enterSelectionMode = useCallback((id) => {
+        setSelectedConversationIds([id]);
+        setIsSelectionMode(true);
+    }, []);
+
+    const toggleConversationSelection = useCallback((id) => {
+        setSelectedConversationIds(prev => {
+            if (prev.includes(id)) {
+                const next = prev.filter(i => i !== id);
+                if (next.length === 0) setIsSelectionMode(false);
+                return next;
+            } else {
+                return [...prev, id];
+            }
+        });
+    }, []);
+
+    const clearSelection = useCallback(() => {
+        setSelectedConversationIds([]);
+        setIsSelectionMode(false);
+    }, []);
+
+    const selectAllConversations = useCallback(() => {
+        const allIds = filteredConversations.map(c => c.id);
+        setSelectedConversationIds(allIds);
+    }, [filteredConversations]);
+
+    const handleBulkDelete = useCallback(async () => {
+        if (!window.confirm(`¿Estás seguro de eliminar ${selectedConversationIds.length} conversaciones?`)) return;
+
+        // Note: For a real bulk operation, we should have a backend /bulk-delete
+        // For now, we'll loop or use the existing removeConversation correctly
+        let successCount = 0;
+        for (const id of selectedConversationIds) {
+            const conv = filteredConversations.find(c => c.id === id);
+            if (conv) {
+                try {
+                    const phone = conv.contact.phone;
+                    // Existing logic for single delete
+                    let apiUrl = typeof process !== 'undefined' && process.env?.REACT_APP_API_URL
+                        ? process.env.REACT_APP_API_URL
+                        : window.location.hostname !== 'localhost'
+                            ? 'https://largebotinterfaz-production-5b38.up.railway.app'
+                            : 'http://localhost:4000';
+                    if (apiUrl.endsWith('/')) apiUrl = apiUrl.slice(0, -1);
+
+                    const res = await fetch(`${apiUrl}/api/conversations/${encodeURIComponent(phone)}`, {
+                        method: 'DELETE'
+                    });
+
+                    if (res.ok) {
+                        removeConversation(phone);
+                        successCount++;
+                    }
+                } catch (err) {
+                    console.error(`Error deleting ${id}:`, err);
+                }
+            }
+        }
+        alert(`Se eliminaron ${successCount} conversaciones.`);
+        clearSelection();
+    }, [selectedConversationIds, filteredConversations, removeConversation, clearSelection]);
+
+    const handleBulkTag = useCallback(() => {
+        // Find a representative conversation (or just use null) to open manager
+        // We'll modify TagManager to handle multiple phones later if needed
+        // For now, let's just use the first selected one to pick tags
+        const firstId = selectedConversationIds[0];
+        const conv = filteredConversations.find(c => c.id === firstId);
+        if (conv) {
+            setConversationToTag({
+                ...conv,
+                isBulk: true,
+                phones: selectedConversationIds.map(id => filteredConversations.find(c => c.id === id)?.contact.phone).filter(Boolean)
+            });
+            setShowTagManager(true);
+        }
+    }, [selectedConversationIds, filteredConversations]);
+
+    const handleBulkMessage = useCallback(() => {
+        const phones = selectedConversationIds.map(id => filteredConversations.find(c => c.id === id)?.contact.phone).filter(Boolean);
+        setBulkMessageInitialPhones(phones);
+        setBulkMessageInitialMode('manual');
+        setShowBulkMessage(true);
+    }, [selectedConversationIds, filteredConversations]);
+
     const handleTabChange = useCallback((tab) => {
         if (tab === 'settings') {
             setShowSettings(true);
@@ -970,6 +1064,19 @@ const AuthenticatedApp = () => {
                         onDelete={removeConversation}
                         onTogglePin={togglePin}
                         globalDefaultAi={globalDefaultAi}
+                        isSelectionMode={isSelectionMode}
+                        selectedIds={selectedConversationIds}
+                        onToggleSelection={toggleConversationSelection}
+                        onEnterSelectionMode={enterSelectionMode}
+                    />
+
+                    <BulkActionsBar
+                        selectedCount={selectedConversationIds.length}
+                        onClear={clearSelection}
+                        onDelete={handleBulkDelete}
+                        onTag={handleBulkTag}
+                        onMessage={handleBulkMessage}
+                        onSelectAll={selectAllConversations}
                     />
 
                     {/* Resize handle - Desktop only */}
@@ -1189,16 +1296,24 @@ const AuthenticatedApp = () => {
                 onAssignTag={handleAssignTag}
                 onRemoveTag={handleRemoveTag}
                 onMarkUnread={handleMarkUnread}
+                isBulk={targetConversation?.isBulk}
+                bulkPhones={targetConversation?.phones}
             />
 
             <BulkMessageModal
                 isOpen={showBulkMessage}
-                onClose={() => setShowBulkMessage(false)}
+                onClose={() => {
+                    setShowBulkMessage(false);
+                    setBulkMessageInitialPhones([]);
+                    setBulkMessageInitialMode(null);
+                }}
                 conversations={conversations}
                 tags={tags}
                 tagsByPhone={tagsByPhone}
                 onSend={handleBulkSend}
                 socket={socket}
+                initialSelectedPhones={bulkMessageInitialPhones}
+                initialSelectionMode={bulkMessageInitialMode}
             />
 
             {/* Forward Message Modal (Reuses BulkMessageModal) */}
@@ -1234,6 +1349,7 @@ const AuthenticatedApp = () => {
 
             {activeTab === 'dashboard' && <Dashboard isMobile={isMobile} />}
             {activeTab === 'ai' && <AIArea isMobile={isMobile} />}
+
         </MainLayout>
     );
 };

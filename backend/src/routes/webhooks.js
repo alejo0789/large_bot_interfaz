@@ -10,6 +10,8 @@ const messageService = require('../services/messageService');
 const conversationService = require('../services/conversationService');
 
 const evolutionService = require('../services/evolutionService');
+const { normalizePhone, getPureDigits } = require('../utils/phoneUtils');
+
 
 const { pool } = require('../config/database');
 const path = require('path');
@@ -27,8 +29,8 @@ const emitToConversation = (phone, event, data) => {
     if (!io) return;
 
     // Normalizar para asegurar entrega a ambos tipos de salas
-    const purePhone = phone.replace(/\D/g, '');
-    const dbPhone = purePhone.startsWith('57') ? `+${purePhone}` : purePhone;
+    const dbPhone = normalizePhone(phone);
+    const purePhone = getPureDigits(phone);
 
     // Emitir a la sala con + (formato DB)
     io.to(`conversation:${dbPhone}`).emit(event, data);
@@ -74,10 +76,9 @@ router.post('/receive-message', asyncHandler(async (req, res) => {
         return res.status(400).json({ error: 'Phone number required' });
     }
 
-    // --- NORMALIZACIÓN DE TELÉFONO (MOVIDO AL INICIO) ---
     // Evolution ofrece el número puro (57304...). El dashboard usa +57304...
-    const purePhone = phone.replace(/\D/g, ''); // 573043821239
-    const dbPhone = purePhone.startsWith('57') ? `+${purePhone}` : purePhone; // +573043821239
+    const dbPhone = normalizePhone(phone);
+    const purePhone = getPureDigits(phone);
 
     let isBot = sender_type === 'bot' || sender_type === 'ai';
     let isAgent = sender_type === 'agent';
