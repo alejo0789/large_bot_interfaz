@@ -83,11 +83,16 @@ class EvolutionService {
                 console.log(`📡 Trying strategy [${attempt.name}] for [${attempt.body.number}]...`);
 
                 try {
+                    const controller = new AbortController();
+                    const timeout = setTimeout(() => controller.abort(), 30000); // 30s timeout
+
                     const response = await fetch(url, {
                         method: 'POST',
                         headers: { 'Content-Type': 'application/json', 'apikey': this.apiKey },
-                        body: JSON.stringify(attempt.body)
+                        body: JSON.stringify(attempt.body),
+                        signal: controller.signal
                     });
+                    clearTimeout(timeout);
 
                     const data = await response.json();
 
@@ -214,11 +219,16 @@ class EvolutionService {
                 console.log(`📡 Trying sendMedia strategy [${attempt.name}] to ${attempt.body.number}...`);
 
                 try {
+                    const controller = new AbortController();
+                    const timeout = setTimeout(() => controller.abort(), 60000); // 60s timeout for media
+
                     const response = await fetch(url, {
                         method: 'POST',
                         headers: { 'Content-Type': 'application/json', 'apikey': this.apiKey },
-                        body: JSON.stringify(attempt.body)
+                        body: JSON.stringify(attempt.body),
+                        signal: controller.signal
                     });
+                    clearTimeout(timeout);
 
                     const data = await response.json();
 

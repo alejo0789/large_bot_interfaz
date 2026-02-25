@@ -3,14 +3,24 @@
  * Handles mass message sending with rate limiting and progress tracking
  */
 
-const BATCH_SIZE = 20; // Reduced batch size for safety
-const DELAY_BETWEEN_BATCHES = 5000; // 5 seconds between batches
-const MIN_MESSAGE_DELAY = 5000; // 5 seconds minimum between messages
-const MAX_MESSAGE_DELAY = 20000; // 20 seconds maximum between messages
+const BATCH_SIZE = 50; // Increased batch size
+const DELAY_BETWEEN_BATCHES = 3000; // 3 seconds between batches
+const MIN_MESSAGE_DELAY = 1500; // 1.5 seconds minimum between messages
+const MAX_MESSAGE_DELAY = 5000; // 5 seconds maximum between messages
 
 class BulkMessageService {
     constructor() {
         this.activeBatches = new Map(); // Track active bulk sends
+
+        // Periodic cleanup of old batches (keep last 1 hour)
+        setInterval(() => {
+            const now = Date.now();
+            this.activeBatches.forEach((value, key) => {
+                if (value.startTime && (now - value.startTime > 3600000) && value.status !== 'processing') {
+                    this.activeBatches.delete(key);
+                }
+            });
+        }, 600000); // Every 10 min
     }
 
     /**
@@ -56,11 +66,25 @@ class BulkMessageService {
         const batches = this.chunkArray(recipients, BATCH_SIZE);
 
         for (let batchIndex = 0; batchIndex < batches.length; batchIndex++) {
+            // Check if batch was cancelled before starting a new batch
+            const batchStatus = this.activeBatches.get(batchId);
+            if (batchStatus && batchStatus.status === 'cancelled') {
+                console.log(`🛑 Bulk send ${batchId} was cancelled between batches. Stopping.`);
+                return { ...batchStatus, processed: sent + failed };
+            }
+
             const batch = batches[batchIndex];
             console.log(`📦 Processing batch ${batchIndex + 1}/${batches.length} (${batch.length} messages)`);
 
             // Process each message in the batch
             for (const recipient of batch) {
+                // Check if batch was cancelled
+                const currentStatus = this.activeBatches.get(batchId);
+                if (currentStatus && currentStatus.status === 'cancelled') {
+                    console.log(`🛑 Bulk send ${batchId} was cancelled. Stopping.`);
+                    return { ...currentStatus, processed: sent + failed };
+                }
+
                 try {
                     await sendFn({
                         phone: recipient.phone,
@@ -89,31 +113,62 @@ class BulkMessageService {
                         total,
                         progress: Math.round(((sent + failed) / total) * 100),
                         currentBatch: batchIndex + 1,
-                        totalBatches: batches.length
+                        totalBatches: batches.length,
+                        status: 'processing'
                     });
                 }
 
                 // Update stored batch info
                 this.activeBatches.set(batchId, {
+                    batchId,
                     status: 'processing',
                     total,
                     sent,
                     failed,
-                    startTime
+                    failedRecipients: [...failedRecipients], // Clone
+                    startTime,
+                    currentBatch: batchIndex + 1,
+                    totalBatches: batches.length
                 });
 
                 // Random delay between messages to avoid detection/ban
                 if (sent + failed < total) {
                     const delayMs = this.getRandomDelay(MIN_MESSAGE_DELAY, MAX_MESSAGE_DELAY);
                     console.log(`⏳ Waiting ${Math.round(delayMs / 1000)}s before next message...`);
-                    await this.delay(delayMs);
+
+                    // Allow break during delay if cancelled
+                    const waitTime = delayMs;
+                    const checkInterval = 1000;
+                    let waited = 0;
+                    while (waited < waitTime) {
+                        const checkStatus = this.activeBatches.get(batchId);
+                        if (checkStatus && checkStatus.status === 'cancelled') {
+                            console.log(`🛑 Bulk send ${batchId} was cancelled during delay. Stopping.`);
+                            return { ...checkStatus, processed: sent + failed };
+                        }
+                        await this.delay(Math.min(checkInterval, waitTime - waited));
+                        waited += checkInterval;
+                    }
                 }
             }
 
             // Delay between batches (except for the last one)
             if (batchIndex < batches.length - 1) {
                 console.log(`⏳ Waiting ${DELAY_BETWEEN_BATCHES}ms before next batch...`);
-                await this.delay(DELAY_BETWEEN_BATCHES);
+
+                // Breakable delay between batches
+                const waitTime = DELAY_BETWEEN_BATCHES;
+                const checkInterval = 1000;
+                let waited = 0;
+                while (waited < waitTime) {
+                    const checkStatus = this.activeBatches.get(batchId);
+                    if (checkStatus && checkStatus.status === 'cancelled') {
+                        console.log(`🛑 Bulk send ${batchId} was cancelled during inter-batch delay. Stopping.`);
+                        return { ...checkStatus, processed: sent + failed };
+                    }
+                    await this.delay(Math.min(checkInterval, waitTime - waited));
+                    waited += checkInterval;
+                }
             }
         }
 
@@ -166,6 +221,20 @@ class BulkMessageService {
             return true;
         }
         return false;
+    }
+
+    /**
+     * Get information about all active/recent batches
+     */
+    getActiveBatches() {
+        const result = {};
+        this.activeBatches.forEach((value, key) => {
+            // Include processing batches or recently completed ones (last 5 min)
+            if (value.status === 'processing' || value.status === 'pending') {
+                result[key] = value;
+            }
+        });
+        return result;
     }
 
     /**

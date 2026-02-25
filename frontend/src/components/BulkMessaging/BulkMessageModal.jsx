@@ -224,6 +224,38 @@ const BulkMessageModal = ({
     const excelInputRef = useRef(null);
     const textareaRef = useRef(null);
 
+    // Check for active batches on mount
+    useEffect(() => {
+        if (isOpen) {
+            const checkActiveBatches = async () => {
+                try {
+                    const res = await fetch(`${API_URL}/api/bulk-send/active`, {
+                        headers: { 'x-api-key': process.env.REACT_APP_API_KEY || '' }
+                    });
+                    if (res.ok) {
+                        const batches = await res.json();
+                        const batchIds = Object.keys(batches);
+                        if (batchIds.length > 0) {
+                            // Take the first active batch (usually only one)
+                            const activeBatchId = batchIds[0];
+                            const batchData = batches[activeBatchId];
+                            setBatchId(activeBatchId);
+                            setProgress({
+                                batchId: activeBatchId,
+                                ...batchData,
+                                progress: Math.round(((batchData.sent + batchData.failed) / batchData.total) * 100)
+                            });
+                            setIsSending(true);
+                        }
+                    }
+                } catch (e) {
+                    console.error('Error checking active batches:', e);
+                }
+            };
+            checkActiveBatches();
+        }
+    }, [isOpen]);
+
     // Update state when initial props change
     useEffect(() => {
         if (initialMessage) setMessage(initialMessage);
@@ -295,6 +327,9 @@ const BulkMessageModal = ({
 
         const handleProgress = (data) => {
             setProgress(data);
+            if (data.status === 'processing') {
+                setIsSending(true);
+            }
         };
 
         const handleComplete = (data) => {
@@ -322,16 +357,41 @@ const BulkMessageModal = ({
             setSendResult({ success: false, error: data.error });
         };
 
+        const handleCancelled = (data) => {
+            setProgress(null);
+            setIsSending(false);
+            setSendResult({ success: false, error: 'Envío masivo cancelado' });
+            setTimeout(() => setSendResult(null), 3000);
+        };
+
         socket.on('bulk-send-progress', handleProgress);
         socket.on('bulk-send-complete', handleComplete);
         socket.on('bulk-send-error', handleError);
+        socket.on('bulk-send-cancelled', handleCancelled);
 
         return () => {
             socket.off('bulk-send-progress', handleProgress);
             socket.off('bulk-send-complete', handleComplete);
             socket.off('bulk-send-error', handleError);
+            socket.off('bulk-send-cancelled', handleCancelled);
         };
     }, [socket, onClose]);
+
+    const handleCancelBulk = async () => {
+        if (!progress?.batchId) return;
+        try {
+            const res = await fetch(`${API_URL}/api/bulk-send/${progress.batchId}/cancel`, {
+                method: 'POST',
+                headers: { 'x-api-key': process.env.REACT_APP_API_KEY || '' }
+            });
+            if (res.ok) {
+                setIsSending(false);
+                setProgress(null);
+            }
+        } catch (e) {
+            console.error('Error cancelling bulk send:', e);
+        }
+    };
 
     // ─── Paste mode handlers ─────────────────────────────────────────────────
     const handlePasteInputChange = useCallback((value) => {
@@ -632,7 +692,19 @@ const BulkMessageModal = ({
                                     <Loader className="w-4 h-4" style={{ animation: 'spin 1s linear infinite' }} />
                                     Enviando mensajes...
                                 </span>
-                                <span style={{ fontWeight: 600, color: '#6366f1' }}>{progress.progress}%</span>
+                                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                                    <button
+                                        onClick={handleCancelBulk}
+                                        style={{
+                                            padding: '2px 8px', fontSize: '10px',
+                                            backgroundColor: '#fee2e2', color: '#dc2626',
+                                            border: '1px solid #fecaca', borderRadius: '4px', cursor: 'pointer'
+                                        }}
+                                    >
+                                        Detener Envío
+                                    </button>
+                                    <span style={{ fontWeight: 600, color: '#6366f1' }}>{progress.progress}%</span>
+                                </div>
                             </div>
                             <div style={{ height: '8px', backgroundColor: 'var(--color-gray-200)', borderRadius: 'var(--radius-full)', overflow: 'hidden', marginBottom: 'var(--space-2)' }}>
                                 <div style={{ height: '100%', width: `${progress.progress}%`, backgroundColor: '#6366f1', borderRadius: 'var(--radius-full)', transition: 'width 0.3s ease' }} />

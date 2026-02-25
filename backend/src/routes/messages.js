@@ -603,8 +603,17 @@ router.post('/bulk-send', requireApiKey, asyncHandler(async (req, res) => {
         success: true,
         batchId,
         message: `Iniciando envío masivo de ${finalRecipients.length} mensajes`,
-        estimatedTime: Math.ceil(finalRecipients.length * 12.5) // Average of 5-20s per message
+        estimatedTime: Math.ceil(finalRecipients.length * 3.25) // Average of 1.5-5s per message
     });
+}));
+
+/**
+ * Get active bulk sends
+ * GET /api/bulk-send/active
+ */
+router.get('/bulk-send/active', requireApiKey, asyncHandler(async (req, res) => {
+    const batches = bulkMessageService.getActiveBatches();
+    res.json(batches);
 }));
 
 /**
@@ -620,6 +629,26 @@ router.get('/bulk-send/:batchId', asyncHandler(async (req, res) => {
     }
 
     res.json(status);
+}));
+
+/**
+ * Cancel bulk send
+ * POST /api/bulk-send/:batchId/cancel
+ */
+router.post('/bulk-send/:batchId/cancel', requireApiKey, asyncHandler(async (req, res) => {
+    const { batchId } = req.params;
+    const cancelled = bulkMessageService.cancelBatch(batchId);
+
+    if (!cancelled) {
+        throw new AppError('Batch no encontrado o ya finalizado', 404);
+    }
+
+    // Emit cancellation to frontend
+    if (io) {
+        io.emit('bulk-send-cancelled', { batchId });
+    }
+
+    res.json({ success: true, message: 'Envío masivo cancelado' });
 }));
 
 
