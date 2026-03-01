@@ -1,7 +1,7 @@
 const express = require('express');
 const router = express.Router();
 const quickReplyService = require('../services/quickReplyService');
-const { upload } = require('../middleware/upload');
+const { upload, getUploadUrl } = require('../middleware/upload');
 const { config } = require('../config/app');
 
 /**
@@ -16,7 +16,7 @@ router.post('/upload', upload.single('file'), (req, res) => {
 
         // Use the configured public URL (derived from WEBHOOK_URL in production)
         // This ensures proper HTTPS and domain usage when behind a proxy
-        const fileUrl = `${config.publicUrl}/uploads/${req.file.filename}`;
+        const fileUrl = getUploadUrl(req.file.filename);
 
         res.json({
             url: fileUrl,

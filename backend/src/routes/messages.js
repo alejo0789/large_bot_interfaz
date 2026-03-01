@@ -5,7 +5,7 @@
 const express = require('express');
 const router = express.Router();
 const { asyncHandler, AppError } = require('../middleware/errorHandler');
-const { upload, getMediaType } = require('../middleware/upload');
+const { upload, getMediaType, getUploadUrl } = require('../middleware/upload');
 const messageService = require('../services/messageService');
 const optimizeMedia = require('../middleware/optimizeMedia');
 const conversationService = require('../services/conversationService');
@@ -191,7 +191,7 @@ router.post('/send-file', requireApiKey, upload.single('file'), optimizeMedia, a
     console.log(`📎 File received: ${file.originalname} for ${phone} by ${agent_name}`);
 
     // Final URL (Public or Local)
-    const fileUrl = `${config.publicUrl}/uploads/${file.filename}`;
+    const fileUrl = getUploadUrl(file.filename);
     const mediaType = getMediaType(file.mimetype);
 
     // Ensure conversation exists to avoid FK error
@@ -310,13 +310,15 @@ router.post('/upload', upload.single('file'), optimizeMedia, asyncHandler(async 
     const file = req.file;
     if (!file) throw new AppError('No se recibió ningún archivo', 400);
 
-    let fileUrl = `${config.publicUrl}/uploads/${file.filename}`;
+    let fileUrl = getUploadUrl(file.filename);
 
     // Si se especifica un folder en el query (ej: folder=bulk)
     if (req.query.folder === 'bulk') {
-        const fs = require('fs');
-        const path = require('path');
-        const bulkDir = path.join(config.uploadDir, 'bulk');
+        const { tenantContext: ctx } = require('../utils/tenantContext');
+        const tenantSlug = ctx.getStore()?.tenant?.slug;
+        const bulkDir = tenantSlug
+            ? path.join(config.uploadDir, tenantSlug, 'bulk')
+            : path.join(config.uploadDir, 'bulk');
 
         if (!fs.existsSync(bulkDir)) {
             fs.mkdirSync(bulkDir, { recursive: true });
@@ -324,7 +326,9 @@ router.post('/upload', upload.single('file'), optimizeMedia, asyncHandler(async 
 
         const newPath = path.join(bulkDir, file.filename);
         fs.renameSync(file.path, newPath);
-        fileUrl = `${config.publicUrl}/uploads/bulk/${file.filename}`;
+        fileUrl = tenantSlug
+            ? `${config.publicUrl}/uploads/${tenantSlug}/bulk/${file.filename}`
+            : `${config.publicUrl}/uploads/bulk/${file.filename}`;
     }
 
     const mediaType = getMediaType(file.mimetype);

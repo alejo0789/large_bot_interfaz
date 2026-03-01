@@ -1,21 +1,52 @@
 /**
  * File Upload Middleware
  * Multer configuration for handling file uploads
+ * MULTI-TENANT AWARE: saves to subfolder per tenant slug
  */
 const multer = require('multer');
 const path = require('path');
 const fs = require('fs');
 const { config } = require('../config/app');
+const { tenantContext } = require('../utils/tenantContext');
 
-// Ensure upload directory exists
+// Ensure base upload directory exists
 if (!fs.existsSync(config.uploadDir)) {
     fs.mkdirSync(config.uploadDir, { recursive: true });
 }
 
-// Storage configuration
+/**
+ * Get the upload directory for the current tenant.
+ * If no tenant context is active (e.g. public route), use base uploadDir.
+ */
+const getTenantUploadDir = () => {
+    const context = tenantContext.getStore();
+    const slug = context?.tenant?.slug;
+    if (slug) {
+        const tenantDir = path.join(config.uploadDir, slug);
+        if (!fs.existsSync(tenantDir)) {
+            fs.mkdirSync(tenantDir, { recursive: true });
+        }
+        return { dir: tenantDir, subPath: slug };
+    }
+    return { dir: config.uploadDir, subPath: null };
+};
+
+/**
+ * Get the public URL for an uploaded file, including tenant subfolder if applicable.
+ */
+const getUploadUrl = (filename) => {
+    const { subPath } = getTenantUploadDir();
+    if (subPath) {
+        return `${config.publicUrl}/uploads/${subPath}/${filename}`;
+    }
+    return `${config.publicUrl}/uploads/${filename}`;
+};
+
+// Storage configuration — tenant-aware directory
 const storage = multer.diskStorage({
     destination: (req, file, cb) => {
-        cb(null, config.uploadDir);
+        const { dir } = getTenantUploadDir();
+        cb(null, dir);
     },
     filename: (req, file, cb) => {
         const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1E9);
@@ -48,4 +79,4 @@ const getMediaType = (mimetype) => {
     return 'document';
 };
 
-module.exports = { upload, getMediaType };
+module.exports = { upload, getMediaType, getUploadUrl };

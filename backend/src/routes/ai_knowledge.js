@@ -4,21 +4,36 @@ const multer = require('multer');
 const path = require('path');
 const fs = require('fs');
 const { pool } = require('../config/database');
+const { config } = require('../config/app');
+const { tenantContext } = require('../utils/tenantContext');
 
-// Configurar multer para subida de archivos
-const uploadDir = path.join(__dirname, '../../uploads/ai_knowledge');
+// Helper to get tenant-specific knowledge upload directory
+const getKnowledgeDir = () => {
+    const context = tenantContext.getStore();
+    const slug = context?.tenant?.slug;
 
-// Asegurar que el directorio existe
-if (!fs.existsSync(uploadDir)) {
-    fs.mkdirSync(uploadDir, { recursive: true });
-}
+    // Base dir: e.g., uploads/
+    // Tenant dir: e.g., uploads/cali/
+    // Knowledge dir: e.g., uploads/cali/ai_knowledge/
+
+    let baseDir = config.uploadDir;
+    if (slug) {
+        baseDir = path.join(config.uploadDir, slug);
+    }
+
+    const kDir = path.join(baseDir, 'ai_knowledge');
+    if (!fs.existsSync(kDir)) {
+        fs.mkdirSync(kDir, { recursive: true });
+    }
+    return { dir: kDir, slug };
+};
 
 const storage = multer.diskStorage({
     destination: function (req, file, cb) {
-        cb(null, uploadDir);
+        const { dir } = getKnowledgeDir();
+        cb(null, dir);
     },
     filename: function (req, file, cb) {
-        // Nombre único: timestamp-random.ext
         const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1E9);
         cb(null, uniqueSuffix + path.extname(file.originalname));
     }
@@ -70,11 +85,16 @@ router.get('/', async (req, res, next) => {
         const result = await pool.query(query, params);
 
         // Mapear resultados para incluir URL completa si es necesario
-        const resources = result.rows.map(row => ({
-            ...row,
-            full_url: row.media_url ?
-                `${process.env.API_URL || 'http://localhost:4000'}${row.media_url}` : null
-        }));
+        const resources = result.rows.map(row => {
+            let fullUrl = row.media_url;
+            if (fullUrl && fullUrl.startsWith('/uploads')) {
+                fullUrl = `${config.publicUrl}${fullUrl}`;
+            }
+            return {
+                ...row,
+                full_url: fullUrl
+            };
+        });
 
         res.json(resources);
     } catch (error) {
@@ -143,7 +163,10 @@ router.post('/upload', upload.single('file'), async (req, res, next) => {
         if (req.file.mimetype.startsWith('audio/')) type = 'audio';
         if (req.file.mimetype.startsWith('video/')) type = 'video';
 
-        const mediaUrl = `/uploads/ai_knowledge/${req.file.filename}`;
+        const { slug } = getKnowledgeDir();
+        const mediaUrl = slug
+            ? `/uploads/${slug}/ai_knowledge/${req.file.filename}`
+            : `/uploads/ai_knowledge/${req.file.filename}`;
         const keywordArray = keywords ? (Array.isArray(keywords) ? keywords : keywords.split(',').map(k => k.trim())) : [];
 
         // Generar embedding automático del contenido/descripción
@@ -186,7 +209,10 @@ router.post('/text', upload.single('file'), async (req, res, next) => {
         // Si se subió un archivo, generamos la URL, de lo contrario usamos la URL del body si existe
         let finalMediaUrl = null;
         if (req.file) {
-            finalMediaUrl = `/uploads/ai_knowledge/${req.file.filename}`;
+            const { slug } = getKnowledgeDir();
+            finalMediaUrl = slug
+                ? `/uploads/${slug}/ai_knowledge/${req.file.filename}`
+                : `/uploads/ai_knowledge/${req.file.filename}`;
             console.log(`📸 Imagen subida para contexto: ${finalMediaUrl}`);
         } else if (media_url) {
             finalMediaUrl = media_url;
@@ -242,7 +268,10 @@ router.put('/:id', upload.single('file'), async (req, res, next) => {
 
         // Si se subió un nuevo archivo o se envió una nueva URL
         if (req.file) {
-            finalMediaUrl = `/uploads/ai_knowledge/${req.file.filename}`;
+            const { slug } = getKnowledgeDir();
+            finalMediaUrl = slug
+                ? `/uploads/${slug}/ai_knowledge/${req.file.filename}`
+                : `/uploads/ai_knowledge/${req.file.filename}`;
 
             // Borrar archivo anterior si existía localmente
             if (oldResource.media_url && oldResource.media_url.startsWith('/uploads')) {
@@ -319,7 +348,7 @@ router.delete('/:id', async (req, res, next) => {
             // convertir a ruta absoluta del sistema
             // media_url empieza con /, quitamos el primer caracter
             const relativePath = resource.media_url.substring(1);
-            const filePath = path.join(__dirname, '../../', relativePath);
+            const filePath = path.join(config.uploadDir, '../', relativePath);
 
             if (fs.existsSync(filePath)) {
                 fs.unlink(filePath, (err) => {
