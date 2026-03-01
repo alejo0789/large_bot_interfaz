@@ -76,12 +76,15 @@ app.use(cors({
 // JSON parsing
 app.use(express.json({ limit: '10mb' }));
 
-// Static files (uploads)
+// 1. Static files (uploads) - MUST BE FIRST to avoid tenant middleware interference
 app.use('/uploads', express.static(config.uploadDir));
 
-// Request logging
+// 2. Request logging
 app.use((req, res, next) => {
-    console.log(`${new Date().toISOString()} - ${req.method} ${req.path}`);
+    // Skip logging for static files to keep logs clean
+    if (!req.path.startsWith('/uploads')) {
+        console.log(`${new Date().toISOString()} - ${req.method} ${req.path}`);
+    }
     res.charset = 'utf-8';
     next();
 });

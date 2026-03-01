@@ -79,7 +79,11 @@ const optimizeMedia = async (req, res, next) => {
             return; // Esperamos asícronamente a ffmpeg
         }
     } catch (error) {
-        console.error('❌ Error general al optimizar archivo:', error);
+        console.error('â Œ Error general al optimizar archivo:', {
+            filename: req.file.filename,
+            path: req.file.path,
+            error: error.message
+        });
     }
 
     // Default para documentos, videos sin soporte (o fallos)

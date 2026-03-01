@@ -315,20 +315,27 @@ router.post('/upload', upload.single('file'), optimizeMedia, asyncHandler(async 
     // Si se especifica un folder en el query (ej: folder=bulk)
     if (req.query.folder === 'bulk') {
         const { tenantContext: ctx } = require('../utils/tenantContext');
-        const tenantSlug = ctx.getStore()?.tenant?.slug;
-        const bulkDir = tenantSlug
-            ? path.join(config.uploadDir, tenantSlug, 'bulk')
-            : path.join(config.uploadDir, 'bulk');
+        const context = ctx.getStore();
+        const tenantSlug = context?.tenant?.slug;
+
+        // Use an absolute path for bulk within the current upload directory
+        const currentDir = path.dirname(file.path);
+        const bulkDir = path.join(currentDir, 'bulk');
 
         if (!fs.existsSync(bulkDir)) {
             fs.mkdirSync(bulkDir, { recursive: true });
         }
 
         const newPath = path.join(bulkDir, file.filename);
-        fs.renameSync(file.path, newPath);
-        fileUrl = tenantSlug
-            ? `${config.publicUrl}/uploads/${tenantSlug}/bulk/${file.filename}`
-            : `${config.publicUrl}/uploads/bulk/${file.filename}`;
+        try {
+            fs.renameSync(file.path, newPath);
+            fileUrl = tenantSlug
+                ? `${config.publicUrl}/uploads/${tenantSlug}/bulk/${file.filename}`
+                : `${config.publicUrl}/uploads/bulk/${file.filename}`;
+        } catch (renameErr) {
+            console.error('â Œ Error renaming to bulk:', renameErr.message);
+            // Fallback to original URL if rename fails
+        }
     }
 
     const mediaType = getMediaType(file.mimetype);
