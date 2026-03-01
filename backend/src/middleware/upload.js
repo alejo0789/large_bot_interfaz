@@ -16,11 +16,20 @@ if (!fs.existsSync(config.uploadDir)) {
 
 /**
  * Get the upload directory for the current tenant.
- * If no tenant context is active (e.g. public route), use base uploadDir.
+ * If no tenant context is active (e.g. public route), try to get it from request or use base uploadDir.
  */
-const getTenantUploadDir = () => {
+const getTenantUploadDir = (req) => {
     const context = tenantContext.getStore();
-    const slug = context?.tenant?.slug;
+    let slug = context?.tenant?.slug;
+
+    // Fallback: If context is not yet established (common during multer execution),
+    // try to get slug directly from request headers, query or body
+    if (!slug && req) {
+        slug = req.headers['x-sede-slug'] ||
+            (req.query && req.query.sede) ||
+            (req.body && (req.body.sede || req.body.instance));
+    }
+
     if (slug) {
         const tenantDir = path.join(config.uploadDir, slug);
         if (!fs.existsSync(tenantDir)) {
@@ -34,8 +43,8 @@ const getTenantUploadDir = () => {
 /**
  * Get the public URL for an uploaded file, including tenant subfolder if applicable.
  */
-const getUploadUrl = (filename) => {
-    const { subPath } = getTenantUploadDir();
+const getUploadUrl = (filename, req) => {
+    const { subPath } = getTenantUploadDir(req);
     if (subPath) {
         return `${config.publicUrl}/uploads/${subPath}/${filename}`;
     }
@@ -45,7 +54,7 @@ const getUploadUrl = (filename) => {
 // Storage configuration — tenant-aware directory
 const storage = multer.diskStorage({
     destination: (req, file, cb) => {
-        const { dir } = getTenantUploadDir();
+        const { dir } = getTenantUploadDir(req);
         cb(null, dir);
     },
     filename: (req, file, cb) => {

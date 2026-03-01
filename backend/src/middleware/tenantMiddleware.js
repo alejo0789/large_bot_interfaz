@@ -16,6 +16,7 @@ const tenantMiddleware = async (req, res, next) => {
             const isPublicRoute =
                 req.path.startsWith('/api/auth') ||
                 req.path.startsWith('/auth') ||
+                req.path.startsWith('/uploads') ||
                 req.path === '/health' ||
                 req.path === '/api/health' ||
                 req.method === 'OPTIONS';
