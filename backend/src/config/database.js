@@ -105,8 +105,18 @@ const poolProxy = new Proxy({}, {
     get: (target, prop) => {
         // Try to get the pool from the current request context
         const context = tenantContext.getStore();
-        const activePool = (context && context.db) ? context.db : dbManager.masterPool;
 
+        if (!context || !context.db) {
+            // Only log if it's not a generic property check or internal node thing
+            if (typeof prop === 'string' && !['then', 'inspect', 'toString', 'valueOf'].includes(prop)) {
+                // If we are in a request where we expected a tenant but context is missing
+                // This is a sign of AsyncLocalStorage losing context
+                // console.warn(`⚠️ [DB PROXY] No tenant context found for property: ${prop}. Falling back to Master DB.`);
+            }
+            return dbManager.masterPool[prop];
+        }
+
+        const activePool = context.db;
         const value = activePool[prop];
         if (typeof value === 'function') {
             return value.bind(activePool);
