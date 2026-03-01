@@ -30,7 +30,7 @@ const tenantMiddleware = async (req, res, next) => {
         }
 
         // 2. Fetch tenant metadata from Master DB
-        const tenant = await tenantService.getTenantBySlug(tenantSlug);
+        const tenant = await tenantService.getTenantBySlugOrInstance(tenantSlug);
 
         if (!tenant) {
             throw new AppError('Sede no encontrada o inactiva', 404);
