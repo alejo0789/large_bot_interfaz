@@ -1,15 +1,30 @@
-const sharp = require('sharp');
 const path = require('path');
 const fs = require('fs');
-const ffmpeg = require('fluent-ffmpeg');
-const ffmpegStatic = require('ffmpeg-static');
 
-// Configurar ffmpeg para usar el binario descargado
-ffmpeg.setFfmpegPath(ffmpegStatic);
+// Lazy-load sharp and ffmpeg safely — native binaries may not be available in all environments
+let sharp = null;
+let ffmpeg = null;
+
+try {
+    sharp = require('sharp');
+} catch (e) {
+    console.warn('⚠️ sharp not available — image optimization disabled:', e.message);
+}
+
+try {
+    const ffmpegLib = require('fluent-ffmpeg');
+    const ffmpegStatic = require('ffmpeg-static');
+    if (ffmpegStatic) {
+        ffmpegLib.setFfmpegPath(ffmpegStatic);
+        ffmpeg = ffmpegLib;
+    }
+} catch (e) {
+    console.warn('⚠️ ffmpeg not available — audio optimization disabled:', e.message);
+}
 
 /**
- * Express middleware to optimize uploaded media before processing
- * Soporta compresión de imágenes con sharp y audios con ffmpeg.
+ * Express middleware to optimize uploaded media before processing.
+ * If optimization tools are unavailable, the original file passes through unmodified.
  */
 const optimizeMedia = async (req, res, next) => {
     if (!req.file) return next();
@@ -18,7 +33,7 @@ const optimizeMedia = async (req, res, next) => {
 
     try {
         // Optimización de imágenes (excepto GIFs para no perder animación)
-        if (mimetype.startsWith('image/') && mimetype !== 'image/gif') {
+        if (sharp && mimetype.startsWith('image/') && mimetype !== 'image/gif') {
             const ext = path.extname(filename);
             const optimizedPath = filePath.replace(ext, `_opt${ext}`);
 
@@ -44,7 +59,7 @@ const optimizeMedia = async (req, res, next) => {
             return next();
         }
         // Optimización de audios (Notas de voz / Canciones)
-        else if (mimetype.startsWith('audio/')) {
+        else if (ffmpeg && mimetype.startsWith('audio/')) {
             const ext = path.extname(filename);
             const optimizedPath = filePath.replace(ext, `_opt.mp3`);
 
@@ -79,11 +94,13 @@ const optimizeMedia = async (req, res, next) => {
             return; // Esperamos asícronamente a ffmpeg
         }
     } catch (error) {
-        console.error('â Œ Error general al optimizar archivo:', {
-            filename: req.file.filename,
-            path: req.file.path,
+        console.error('❌ Error general al optimizar archivo:', {
+            filename: req.file ? req.file.filename : 'unknown',
+            path: req.file ? req.file.path : 'unknown',
             error: error.message
         });
+        // IMPORTANT: Always call next() even on error to prevent hanging requests
+        return next();
     }
 
     // Default para documentos, videos sin soporte (o fallos)

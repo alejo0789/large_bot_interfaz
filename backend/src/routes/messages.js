@@ -5,7 +5,7 @@
 const express = require('express');
 const router = express.Router();
 const { asyncHandler, AppError } = require('../middleware/errorHandler');
-const { upload, getMediaType, getUploadUrl } = require('../middleware/upload');
+const { upload, getMediaType, getUploadUrl, getUploadUrlFromFile } = require('../middleware/upload');
 const messageService = require('../services/messageService');
 const optimizeMedia = require('../middleware/optimizeMedia');
 const conversationService = require('../services/conversationService');
@@ -190,8 +190,8 @@ router.post('/send-file', requireApiKey, upload.single('file'), optimizeMedia, a
 
     console.log(`📎 File received: ${file.originalname} for ${phone} by ${agent_name}`);
 
-    // Final URL (Public or Local)
-    const fileUrl = getUploadUrl(file.filename, req);
+    // Final URL — derived from actual path where Multer saved the file (reliable for multi-tenant)
+    const fileUrl = getUploadUrlFromFile(file) || getUploadUrl(file.filename, req);
     const mediaType = getMediaType(file.mimetype);
 
     // Ensure conversation exists to avoid FK error

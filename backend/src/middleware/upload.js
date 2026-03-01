@@ -41,7 +41,22 @@ const getTenantUploadDir = (req) => {
 };
 
 /**
+ * Get the public URL for an uploaded file by deriving it from the actual file path on disk.
+ * This is the RELIABLE method — it uses where Multer ACTUALLY saved the file.
+ * @param {Object} file - The multer file object (req.file)
+ */
+const getUploadUrlFromFile = (file) => {
+    if (!file || !file.path) return null;
+
+    // Get the path relative to the upload base directory
+    // e.g., file.path = "/app/uploads/cali/12345.jpg" → subPath = "cali/12345.jpg"
+    const relativePath = path.relative(config.uploadDir, file.path).replace(/\\/g, '/');
+    return `${config.publicUrl}/uploads/${relativePath}`;
+};
+
+/**
  * Get the public URL for an uploaded file, including tenant subfolder if applicable.
+ * @deprecated Use getUploadUrlFromFile(file) instead for reliable results.
  */
 const getUploadUrl = (filename, req) => {
     const { subPath } = getTenantUploadDir(req);
@@ -88,4 +103,4 @@ const getMediaType = (mimetype) => {
     return 'document';
 };
 
-module.exports = { upload, getMediaType, getUploadUrl };
+module.exports = { upload, getMediaType, getUploadUrl, getUploadUrlFromFile };
