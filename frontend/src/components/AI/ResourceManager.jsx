@@ -1,9 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Upload, Trash2, Search, Filter } from 'lucide-react';
 import UploadModal from './UploadModal';
-
-const API_URL = process.env.REACT_APP_API_URL ||
-    (process.env.NODE_ENV === 'production' ? window.location.origin : 'http://localhost:4000');
+import apiFetch, { API_URL } from '../../utils/api';
 
 const ResourceManager = ({ type, title }) => {
     const [resources, setResources] = useState([]);
@@ -14,7 +12,7 @@ const ResourceManager = ({ type, title }) => {
     const fetchResources = async () => {
         setLoading(true);
         try {
-            let queryUrl = `${API_URL}/api/ai-knowledge`;
+            let queryUrl = `/api/ai-knowledge`;
             // Si el tipo es 'image', filtramos por ese. Si es 'media', el backend 
             // no tiene un filtro 'media' pero filtramos audio/video en el cliente
             // para este componente específico.
@@ -22,7 +20,7 @@ const ResourceManager = ({ type, title }) => {
                 queryUrl += `?type=image`;
             }
 
-            const res = await fetch(queryUrl);
+            const res = await apiFetch(queryUrl);
             const data = await res.json();
 
             // Safeguard: Ensure data is an array
@@ -49,7 +47,7 @@ const ResourceManager = ({ type, title }) => {
     const handleDelete = async (id) => {
         if (!window.confirm('¿Estás seguro de eliminar este recurso?')) return;
         try {
-            await fetch(`${API_URL}/api/ai-knowledge/${id}`, { method: 'DELETE' });
+            await apiFetch(`/api/ai-knowledge/${id}`, { method: 'DELETE' });
             setResources(prev => prev.filter(r => r.id !== id));
         } catch (error) {
             console.error('Error deleting resource:', error);

@@ -1,7 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { X, Save, FileText } from 'lucide-react';
-
-const API_URL = process.env.REACT_APP_API_URL || 'http://localhost:4000';
+import apiFetch, { API_URL } from '../../utils/api';
 
 const ContextModal = ({ isOpen, onClose, context, onSuccess }) => {
     const [title, setTitle] = useState('');
@@ -56,12 +55,12 @@ const ContextModal = ({ isOpen, onClose, context, onSuccess }) => {
 
         try {
             const url = context
-                ? `${API_URL}/api/ai-knowledge/${context.id}`
-                : `${API_URL}/api/ai-knowledge/text`;
+                ? `/api/ai-knowledge/${context.id}`
+                : `/api/ai-knowledge/text`;
 
             const method = context ? 'PUT' : 'POST';
 
-            const response = await fetch(url, {
+            const response = await apiFetch(url, {
                 method: method,
                 // Quitar 'Content-Type' permite al navegador establecerlo automáticamente con el boundary
                 body: formData,

@@ -2,6 +2,8 @@ import React, { useState, useEffect } from 'react';
 import { ArrowLeft, Phone, MoreVertical, User, Bot, UserCheck, Edit2 } from 'lucide-react';
 import EditContactModal from '../Sidebar/EditContactModal';
 
+import apiFetch from '../../utils/api';
+
 const API_URL = (() => {
     if (typeof process !== 'undefined' && process.env && process.env.REACT_APP_API_URL)
         return process.env.REACT_APP_API_URL;
@@ -35,9 +37,8 @@ const ChatHeader = ({
     const { contact } = conversation;
 
     const handleSaveName = async (newName) => {
-        const res = await fetch(`${API_URL}/api/conversations/update-contact-name`, {
+        const res = await apiFetch('/api/conversations/update-contact-name', {
             method: 'PUT',
-            headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ phone: contact.phone, name: newName })
         });
 
@@ -68,17 +69,27 @@ const ChatHeader = ({
                     )}
 
                     <div className="conversation-avatar" style={{ width: '40px', height: '40px', padding: 0, overflow: 'hidden', display: 'flex', alignItems: 'center', justifyContent: 'center', backgroundColor: '#e2e8f0', flexShrink: 0 }}>
-                        <img
-                            src={`${API_URL}/api/conversations/${contact.phone}/avatar`}
-                            alt=""
-                            style={{ width: '100%', height: '100%', objectFit: 'cover' }}
-                            onError={(e) => {
-                                e.target.onerror = null;
-                                e.target.style.display = 'none';
-                                if (e.target.nextSibling) e.target.nextSibling.style.display = 'block';
-                            }}
-                            loading="lazy"
-                        />
+                        {(() => {
+                            const tenantStr = localStorage.getItem('current_tenant');
+                            let tenantSlug = '';
+                            try {
+                                if (tenantStr) tenantSlug = JSON.parse(tenantStr)?.slug;
+                            } catch (e) { }
+                            const avatarUrl = `${API_URL}/api/conversations/${contact.phone}/avatar${tenantSlug ? `?sede=${tenantSlug}` : ''}`;
+                            return (
+                                <img
+                                    src={avatarUrl}
+                                    alt=""
+                                    style={{ width: '100%', height: '100%', objectFit: 'cover' }}
+                                    onError={(e) => {
+                                        e.target.onerror = null;
+                                        e.target.style.display = 'none';
+                                        if (e.target.nextSibling) e.target.nextSibling.style.display = 'block';
+                                    }}
+                                    loading="lazy"
+                                />
+                            );
+                        })()}
                         <User className="w-5 h-5" style={{ display: 'none', color: '#9ca3af' }} />
                     </div>
 

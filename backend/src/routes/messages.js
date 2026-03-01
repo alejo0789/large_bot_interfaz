@@ -17,6 +17,8 @@ const { config } = require('../config/app');
 
 const { requireApiKey } = require('../middleware/apiKeyAuth');
 
+const { tenantContext } = require('../utils/tenantContext');
+
 // Socket.IO instance (will be set from app.js)
 let io = null;
 const setSocketIO = (socketIO) => { io = socketIO; };
@@ -24,28 +26,31 @@ const setSocketIO = (socketIO) => { io = socketIO; };
 /**
  * Emit message to specific conversation room
  * Optimized for 2000+ conversations
- * NORMALIZED: emits to both +57xxx and 57xxx formats
+ * MT-AWARE: Uses tenant-scoped rooms
  */
 const emitToConversation = (phone, event, data) => {
     if (!io) return;
+
+    // Get tenant from context
+    const context = tenantContext.getStore();
+    const tenantSlug = context?.tenant?.slug;
+
+    if (!tenantSlug) {
+        console.warn('⚠️ emitToConversation called without tenant context');
+        return;
+    }
 
     // Normalize phone to ensure delivery to both formats
     const dbPhone = normalizePhone(phone);
     const purePhone = getPureDigits(phone);
 
-
-    // Emit to specific conversation room (DB format with +)
-    io.to(`conversation:${dbPhone}`).emit(event, data);
-
-    // Also emit to pure format (without +) for clients that joined with that
-    if (dbPhone !== purePhone) {
-        io.to(`conversation:${purePhone}`).emit(event, data);
-    }
+    // Emit to specific conversation room (tenant-scoped)
+    io.to(`tenant:${tenantSlug}:conversation:${purePhone}`).emit(event, data);
 
     const isAgent = (data.sender_type || data.sender) === 'agent';
 
-    // Emit to global conversations list for updates
-    io.to('conversations:list').emit('conversation-updated', {
+    // Emit to tenant-specific conversations list room
+    io.to(`tenant:${tenantSlug}:conversations:list`).emit('conversation-updated', {
         phone: dbPhone,
         lastMessage: data.message,
         timestamp: data.timestamp || new Date().toISOString(),
@@ -53,9 +58,6 @@ const emitToConversation = (phone, event, data) => {
         unread: isAgent ? 0 : 1,
         sender_type: data.sender_type || 'agent'
     });
-
-    // Also emit globally for backward compatibility
-    io.emit('new-message', data);
 };
 
 // Send text message

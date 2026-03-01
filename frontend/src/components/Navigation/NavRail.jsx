@@ -1,8 +1,8 @@
 import React from 'react';
-import { MessageSquare, Brain, Settings, X, LogOut, Send, LayoutDashboard } from 'lucide-react';
+import { MessageSquare, Brain, Settings, X, LogOut, Send, LayoutDashboard, Menu, ShieldCheck } from 'lucide-react';
 
-const NavRail = ({ activeTab, onTabChange, isMobile, isOpen, onClose, onOpen, onLogout, onBulkMessage }) => {
-    const [isCollapsed, setIsCollapsed] = React.useState(true);
+const NavRail = ({ activeTab, onTabChange, isMobile, isOpen, onClose, onOpen, onLogout, onBulkMessage, isCollapsed, onToggleCollapse, user }) => {
+    const isAdmin = user?.role === 'SUPER_ADMIN' || user?.role === 'SEDE_ADMIN';
 
     // Mobile Drawer Style
     if (isMobile) {
@@ -37,13 +37,13 @@ const NavRail = ({ activeTab, onTabChange, isMobile, isOpen, onClose, onOpen, on
                         width: '300px',
                         zIndex: 5000,
                         backgroundColor: 'white',
-                        display: isOpen ? 'flex' : 'none', // Changed from transform to display
+                        display: isOpen ? 'flex' : 'none',
                         flexDirection: 'column',
                         overflow: 'hidden',
                         boxShadow: '15px 0 35px rgba(0,0,0,0.15)'
                     }}
                 >
-                    {/* Drawer Header - Clean & Compact */}
+                    {/* Drawer Header */}
                     <div style={{
                         padding: '24px 20px',
                         background: 'var(--gradient-premium)',
@@ -138,7 +138,23 @@ const NavRail = ({ activeTab, onTabChange, isMobile, isOpen, onClose, onOpen, on
                             fullWidth
                         />
 
-                        <div style={{ marginTop: '24px', padding: '0 12px 12px 12px', fontSize: '0.75rem', fontWeight: 700, color: 'var(--color-gray-400)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+                        {isAdmin && (
+                            <>
+                                <div style={{ marginTop: '24px', padding: '0 12px 12px 12px', fontSize: '0.75rem', fontWeight: 700, color: 'var(--color-gray-400)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+                                    Administración
+                                </div>
+                                <NavButton
+                                    icon={<ShieldCheck />}
+                                    label="Usuarios"
+                                    active={activeTab === 'admin'}
+                                    onClick={() => { onTabChange('admin'); onClose(); }}
+                                    fullWidth
+                                    adminStyle
+                                />
+                            </>
+                        )}
+
+                        <div style={{ marginTop: isAdmin ? '8px' : '24px', padding: '0 12px 12px 12px', fontSize: '0.75rem', fontWeight: 700, color: 'var(--color-gray-400)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
                             Ajustes
                         </div>
                         <NavButton
@@ -193,46 +209,13 @@ const NavRail = ({ activeTab, onTabChange, isMobile, isOpen, onClose, onOpen, on
             backgroundColor: 'white',
             borderRight: isCollapsed ? 'none' : '1px solid #e5e7eb',
             display: 'flex',
+            transition: 'width 0.3s ease, border-right 0.3s ease',
             flexDirection: 'column',
             alignItems: 'center',
             paddingTop: '24px',
-            gap: '16px',
             zIndex: 100,
             position: 'relative',
         }}>
-            <button
-                onClick={() => setIsCollapsed(!isCollapsed)}
-                style={{
-                    position: 'absolute',
-                    top: '24px',
-                    left: isCollapsed ? '0px' : '60px',
-                    width: '32px',
-                    height: '32px',
-                    borderRadius: '50%',
-                    backgroundColor: 'white',
-                    border: '1px solid #e5e7eb',
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    cursor: 'pointer',
-                    zIndex: 110,
-                    boxShadow: '0 2px 4px rgba(0,0,0,0.1)',
-                    transition: 'all 0.3s ease',
-                    color: '#6b7280',
-                    padding: 0
-                }}
-            >
-                <div style={{
-                    transform: isCollapsed ? 'rotate(180deg)' : 'rotate(0deg)',
-                    transition: 'transform 0.3s ease',
-                    display: 'flex'
-                }}>
-                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round">
-                        <polyline points="15 18 9 12 15 6"></polyline>
-                    </svg>
-                </div>
-            </button>
-
             <div style={{
                 opacity: isCollapsed ? 0 : 1,
                 visibility: isCollapsed ? 'hidden' : 'visible',
@@ -269,6 +252,16 @@ const NavRail = ({ activeTab, onTabChange, isMobile, isOpen, onClose, onOpen, on
                     onClick={() => onTabChange('bulk')}
                 />
 
+                {isAdmin && (
+                    <NavButton
+                        icon={<ShieldCheck />}
+                        label="Admin"
+                        active={activeTab === 'admin'}
+                        onClick={() => onTabChange('admin')}
+                        adminStyle
+                    />
+                )}
+
                 <div style={{ marginTop: 'auto', display: 'flex', flexDirection: 'column', gap: '16px', marginBottom: '24px' }}>
                     <NavButton
                         icon={<Settings />}
@@ -288,46 +281,57 @@ const NavRail = ({ activeTab, onTabChange, isMobile, isOpen, onClose, onOpen, on
     );
 };
 
-const NavButton = ({ icon, label, active, onClick, fullWidth }) => (
-    <button
-        onClick={onClick}
-        title={label}
-        style={{
-            display: 'flex',
-            flexDirection: fullWidth ? 'row' : 'column',
-            alignItems: 'center',
-            justifyContent: fullWidth ? 'flex-start' : 'center',
-            gap: fullWidth ? 'var(--space-3)' : '4px',
-            padding: fullWidth ? '12px 16px' : '10px 0',
-            width: fullWidth ? '100%' : '56px',
-            borderRadius: 'var(--radius-md)',
-            border: 'none',
-            backgroundColor: active ? 'var(--color-primary-light)' : 'transparent',
-            color: active ? 'var(--color-primary-dark)' : 'var(--color-gray-500)',
-            cursor: 'pointer',
-            transition: 'all 0.2s',
-            fontSize: '0.75rem',
-            fontWeight: 500
-        }}
-        onMouseEnter={(e) => {
-            if (!active) {
-                e.currentTarget.style.backgroundColor = 'var(--color-gray-100)';
-                e.currentTarget.style.color = 'var(--color-gray-900)';
-            }
-        }}
-        onMouseLeave={(e) => {
-            if (!active) {
-                e.currentTarget.style.backgroundColor = 'transparent';
-                e.currentTarget.style.color = 'var(--color-gray-500)';
-            }
-        }}
-    >
-        {React.cloneElement(icon, {
-            className: fullWidth ? 'w-5 h-5' : 'w-6 h-6',
-            strokeWidth: active ? 2.5 : 2
-        })}
-        {(!fullWidth || label) && <span>{label}</span>}
-    </button>
-);
+const NavButton = ({ icon, label, active, onClick, fullWidth, adminStyle }) => {
+    const adminActiveColor = '#4f46e5';
+    const adminBg = '#ede9fe';
+    const bgColor = active
+        ? (adminStyle ? adminBg : 'var(--color-primary-light)')
+        : 'transparent';
+    const textColor = active
+        ? (adminStyle ? adminActiveColor : 'var(--color-primary-dark)')
+        : 'var(--color-gray-500)';
+
+    return (
+        <button
+            onClick={onClick}
+            title={label}
+            style={{
+                display: 'flex',
+                flexDirection: fullWidth ? 'row' : 'column',
+                alignItems: 'center',
+                justifyContent: fullWidth ? 'flex-start' : 'center',
+                gap: fullWidth ? 'var(--space-3)' : '4px',
+                padding: fullWidth ? '12px 16px' : '10px 0',
+                width: fullWidth ? '100%' : '56px',
+                borderRadius: 'var(--radius-md)',
+                border: 'none',
+                backgroundColor: bgColor,
+                color: textColor,
+                cursor: 'pointer',
+                transition: 'all 0.2s',
+                fontSize: '0.75rem',
+                fontWeight: 500
+            }}
+            onMouseEnter={(e) => {
+                if (!active) {
+                    e.currentTarget.style.backgroundColor = adminStyle ? '#f5f3ff' : 'var(--color-gray-100)';
+                    e.currentTarget.style.color = adminStyle ? adminActiveColor : 'var(--color-gray-900)';
+                }
+            }}
+            onMouseLeave={(e) => {
+                if (!active) {
+                    e.currentTarget.style.backgroundColor = 'transparent';
+                    e.currentTarget.style.color = 'var(--color-gray-500)';
+                }
+            }}
+        >
+            {React.cloneElement(icon, {
+                className: fullWidth ? 'w-5 h-5' : 'w-6 h-6',
+                strokeWidth: active ? 2.5 : 2
+            })}
+            {(!fullWidth || label) && <span>{label}</span>}
+        </button>
+    );
+};
 
 export default NavRail;

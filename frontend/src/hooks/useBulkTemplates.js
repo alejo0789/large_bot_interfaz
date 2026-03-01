@@ -1,25 +1,17 @@
 import { useState, useEffect, useCallback } from 'react';
-
-// Use same config import if possible, or relative constant
-const API_URL = process.env.REACT_APP_API_URL || 'http://localhost:3000';
+import apiFetch from '../utils/api';
 
 export const useBulkTemplates = () => {
     const [templates, setTemplates] = useState([]);
     const [isLoading, setIsLoading] = useState(false);
     const [error, setError] = useState(null);
 
-    const getAuthHeaders = () => ({
-        'Content-Type': 'application/json',
-        'x-api-key': process.env.REACT_APP_API_KEY || ''
-    });
 
     const fetchTemplates = useCallback(async () => {
         setIsLoading(true);
         setError(null);
         try {
-            const res = await fetch(`${API_URL}/api/bulk-templates`, {
-                headers: getAuthHeaders()
-            });
+            const res = await apiFetch('/api/bulk-templates');
             if (!res.ok) throw new Error('Error al cargar plantillas');
             const data = await res.json();
             if (data.success) {
@@ -34,9 +26,8 @@ export const useBulkTemplates = () => {
 
     const createTemplate = async (name, content) => {
         try {
-            const res = await fetch(`${API_URL}/api/bulk-templates`, {
+            const res = await apiFetch('/api/bulk-templates', {
                 method: 'POST',
-                headers: getAuthHeaders(),
                 body: JSON.stringify({ name, content })
             });
             if (!res.ok) throw new Error('Error al crear plantilla');
@@ -52,9 +43,8 @@ export const useBulkTemplates = () => {
 
     const updateTemplate = async (id, name, content) => {
         try {
-            const res = await fetch(`${API_URL}/api/bulk-templates/${id}`, {
+            const res = await apiFetch(`/api/bulk-templates/${id}`, {
                 method: 'PUT',
-                headers: getAuthHeaders(),
                 body: JSON.stringify({ name, content })
             });
             if (!res.ok) throw new Error('Error al actualizar plantilla');
@@ -70,9 +60,8 @@ export const useBulkTemplates = () => {
 
     const deleteTemplate = async (id) => {
         try {
-            const res = await fetch(`${API_URL}/api/bulk-templates/${id}`, {
-                method: 'DELETE',
-                headers: getAuthHeaders()
+            const res = await apiFetch(`/api/bulk-templates/${id}`, {
+                method: 'DELETE'
             });
             if (!res.ok) throw new Error('Error al eliminar plantilla');
             const data = await res.json();

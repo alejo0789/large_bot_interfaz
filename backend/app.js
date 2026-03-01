@@ -1,4 +1,4 @@
-/**
+﻿/**
  * Chatbot Backend Server
  * Refactored with modular architecture
  * 
@@ -25,16 +25,19 @@ const { testConnection } = require('./src/config/database');
 
 // Middleware
 const { errorHandler } = require('./src/middleware/errorHandler');
+const tenantMiddleware = require('./src/middleware/tenantMiddleware');
 
 // Routes
+const authRoutes = require('./src/routes/auth');
 const conversationRoutes = require('./src/routes/conversations');
 const tagRoutes = require('./src/routes/tags');
-const authRoutes = require('./src/routes/auth');
 const { router: messageRoutes, setSocketIO: setMessageSocketIO } = require('./src/routes/messages');
 const { router: webhookRoutes, setSocketIO: setWebhookSocketIO } = require('./src/routes/webhooks');
 const { router: evolutionRoutes, setSocketIO: setEvolutionSocketIO } = require('./src/routes/evolution');
 const settingsRoutes = require('./src/routes/settings');
 const quickReplyRoutes = require('./src/routes/quickReplies');
+
+// ... (existing imports skipped) ...
 
 // Initialize Express
 const app = express();
@@ -58,27 +61,14 @@ setEvolutionSocketIO(io);
 // =============================================
 
 // CORS
-// CORS
+// (OMISSIONS FOR BREVITY, KEEPING THE LOGIC)
 app.use(cors({
     origin: function (origin, callback) {
-        // Allow requests with no origin (like mobile apps or curl requests)
         if (!origin) return callback(null, true);
-
-        // Always allow in development to facilitate mobile testing
-        if (config.nodeEnv === 'development') {
-            return callback(null, true);
-        }
-
-        // Check against allowed origins in production
-        const allowedOrigins = Array.isArray(config.frontendUrl)
-            ? config.frontendUrl
-            : [config.frontendUrl];
-
-        if (allowedOrigins.indexOf(origin) !== -1) {
-            callback(null, true);
-        } else {
-            callback(new Error('Not allowed by CORS'));
-        }
+        if (config.nodeEnv === 'development') return callback(null, true);
+        const allowedOrigins = Array.isArray(config.frontendUrl) ? config.frontendUrl : [config.frontendUrl];
+        if (allowedOrigins.indexOf(origin) !== -1) callback(null, true);
+        else callback(new Error('Not allowed by CORS'));
     },
     credentials: true
 }));
@@ -100,8 +90,18 @@ app.use((req, res, next) => {
 // ROUTES
 // =============================================
 
-// API Routes
+// Public Routes
 app.use('/api/auth', authRoutes);
+
+// Admin Routes (no requieren sede / tenant context)
+const adminRoutes = require('./src/routes/userManagement');
+app.use('/api/admin', adminRoutes);
+
+// --- MULTI-TENANT MIDDLEWARE ---
+// Apply to all subsequent routes
+app.use(tenantMiddleware);
+
+// Protected Tenant Routes
 app.use('/api/conversations', conversationRoutes);
 app.use('/api/tags', tagRoutes);
 app.use('/api', messageRoutes);
@@ -129,68 +129,44 @@ app.post('/api/receive-message', (req, res, next) => {
 });
 
 // =============================================
-// SOCKET.IO - OPTIMIZED FOR 2000+ CONVERSATIONS
+// SOCKET.IO - MT AWARE
 // =============================================
 
-// Track connected clients for monitoring
-let connectedClients = 0;
-
 io.on('connection', (socket) => {
-    connectedClients++;
-    console.log(`🔌 Client connected: ${socket.id} (Total: ${connectedClients})`);
+    const { token, tenantSlug } = socket.handshake.auth;
+
+    if (!token || !tenantSlug) {
+        console.log(`🔌 Connection rejected: missing credentials for socket ${socket.id}`);
+        socket.disconnect(true);
+        return;
+    }
+
+    console.log(`🔌 Client connected to tenant [${tenantSlug}]: ${socket.id}`);
+    socket.join(`tenant:${tenantSlug}`);
 
     socket.on('disconnect', () => {
-        connectedClients--;
-        console.log(`🔌 Client disconnected: ${socket.id} (Total: ${connectedClients})`);
+        console.log(`🔌 Client disconnected from tenant [${tenantSlug}]: ${socket.id}`);
     });
 
-    // Join conversation room (for viewing a specific chat)
-    // NORMALIZED: joins BOTH phone formats (+57xxx and 57xxx) to prevent mismatches
+    // Join conversation room
     socket.on('join-conversation', (phone) => {
-        // Leave any previous conversation rooms first
+        // Leave previous conversation rooms in THIS tenant
         const rooms = Array.from(socket.rooms);
         rooms.forEach(room => {
-            if (room.startsWith('conversation:')) {
+            if (room.startsWith(`tenant:${tenantSlug}:conversation:`)) {
                 socket.leave(room);
             }
         });
 
-        // Normalize phone and join both formats
         const purePhone = String(phone).replace(/\D/g, '');
-        const dbPhone = purePhone.startsWith('57') ? `+${purePhone}` : purePhone;
-
-        socket.join(`conversation:${dbPhone}`);
-        if (dbPhone !== purePhone) {
-            socket.join(`conversation:${purePhone}`);
-        }
-        console.log(`📱 Socket ${socket.id} joined conversation rooms: ${dbPhone}, ${purePhone}`);
+        socket.join(`tenant:${tenantSlug}:conversation:${purePhone}`);
+        console.log(`📱 Socket ${socket.id} joined conversation: ${purePhone} in tenant ${tenantSlug}`);
     });
 
-    // Leave conversation room
-    socket.on('leave-conversation', (phone) => {
-        const purePhone = String(phone).replace(/\D/g, '');
-        const dbPhone = purePhone.startsWith('57') ? `+${purePhone}` : purePhone;
-        socket.leave(`conversation:${dbPhone}`);
-        socket.leave(`conversation:${purePhone}`);
-        console.log(`📱 Socket ${socket.id} left conversation: ${phone}`);
-    });
-
-    // Join conversations list room (for receiving list updates)
+    // Join conversations list room
     socket.on('join-conversations-list', () => {
-        socket.join('conversations:list');
-        console.log(`📋 Socket ${socket.id} joined conversations list`);
-    });
-
-    // Leave conversations list room
-    socket.on('leave-conversations-list', () => {
-        socket.leave('conversations:list');
-    });
-
-    // Get current room info (for debugging)
-    socket.on('get-rooms', (callback) => {
-        if (typeof callback === 'function') {
-            callback(Array.from(socket.rooms));
-        }
+        socket.join(`tenant:${tenantSlug}:conversations:list`);
+        console.log(`📋 Socket ${socket.id} joined conversations list for tenant ${tenantSlug}`);
     });
 });
 
@@ -216,40 +192,40 @@ const startServer = async () => {
 
     // Ensure upload directory exists
     if (!fs.existsSync(config.uploadDir)) {
-        console.log(`📁 Creating upload directory: ${config.uploadDir}`);
+        console.log(`ðŸ“ Creating upload directory: ${config.uploadDir}`);
         fs.mkdirSync(config.uploadDir, { recursive: true });
     }
 
     // Test database connection
     const dbConnected = await testConnection();
     if (!dbConnected) {
-        console.error('❌ Cannot start server without database connection');
+        console.error('âŒ Cannot start server without database connection');
         process.exit(1);
     }
 
     // Start listening
     server.listen(config.port, () => {
         console.log('');
-        console.log('🚀 ================================');
-        console.log('🚀 CHATBOT BACKEND SERVER');
-        console.log('🚀 ================================');
-        console.log(`📡 Server running on port ${config.port}`);
-        console.log(`🌐 Allowed Origins: ${Array.isArray(config.frontendUrl) ? config.frontendUrl.join(', ') : config.frontendUrl}`);
-        console.log(`📁 Upload dir: ${config.uploadDir}`);
-        console.log(`🔧 Environment: ${config.nodeEnv}`);
-        console.log('🚀 ================================');
+        console.log('ðŸš€ ================================');
+        console.log('ðŸš€ CHATBOT BACKEND SERVER');
+        console.log('ðŸš€ ================================');
+        console.log(`ðŸ“¡ Server running on port ${config.port}`);
+        console.log(`ðŸŒ Allowed Origins: ${Array.isArray(config.frontendUrl) ? config.frontendUrl.join(', ') : config.frontendUrl}`);
+        console.log(`ðŸ“ Upload dir: ${config.uploadDir}`);
+        console.log(`ðŸ”§ Environment: ${config.nodeEnv}`);
+        console.log('ðŸš€ ================================');
         console.log('');
     });
 };
 
 // Handle uncaught exceptions
 process.on('uncaughtException', (err) => {
-    console.error('❌ Uncaught Exception:', err);
+    console.error('âŒ Uncaught Exception:', err);
     process.exit(1);
 });
 
 process.on('unhandledRejection', (err) => {
-    console.error('❌ Unhandled Rejection:', err);
+    console.error('âŒ Unhandled Rejection:', err);
     process.exit(1);
 });
 

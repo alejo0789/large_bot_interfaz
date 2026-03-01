@@ -2,6 +2,7 @@
  * Tag Service
  * Business logic for tags
  */
+
 const { pool } = require('../config/database');
 
 class TagService {

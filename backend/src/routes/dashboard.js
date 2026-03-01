@@ -65,20 +65,21 @@ router.get('/stats', async (req, res) => {
         // 4. Rendimiento por Agente (Incluyendo agentes con 0 mensajes)
         const agentQuery = `
             WITH active_agents AS (
-                SELECT name FROM agents WHERE is_active = true
+                SELECT id, name FROM agents WHERE is_active = true
             ),
             message_stats AS (
-                SELECT COALESCE(agent_name, 'Número Sede') as name, COUNT(*) as count 
+                SELECT agent_id, COALESCE(agent_name, 'Sede/Sistema') as name, COUNT(*) as count 
                 FROM messages 
                 WHERE sender IN ('agent', 'me') 
                 AND ${dateFilterMsg}
-                GROUP BY agent_name
+                GROUP BY agent_id, agent_name
             )
             SELECT 
-                COALESCE(s.name, a.name) as agent_name,
-                COALESCE(s.count, 0) as count
+                COALESCE(a.name, s.name) as agent_name,
+                SUM(COALESCE(s.count, 0)) as count
             FROM active_agents a
-            FULL OUTER JOIN message_stats s ON a.name = s.name
+            FULL OUTER JOIN message_stats s ON a.id = s.agent_id
+            GROUP BY COALESCE(a.name, s.name)
             ORDER BY count DESC
         `;
 

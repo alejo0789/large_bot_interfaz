@@ -4,12 +4,27 @@
  */
 const { config } = require('../config/app');
 const fetch = (...args) => import('node-fetch').then(({ default: fetch }) => fetch(...args));
+const { tenantContext } = require('../utils/tenantContext');
 
 class EvolutionService {
     constructor() {
         this.baseUrl = config.evolutionApiUrl;
-        this.apiKey = config.evolutionApiKey;
-        this.instance = config.evolutionInstance;
+        this.globalApiKey = config.evolutionApiKey;
+        this.globalInstance = config.evolutionInstance;
+    }
+
+    /**
+     * Resolves the current Evolution config (instance and key) 
+     * based on the tenant context
+     */
+    getConfig() {
+        const context = tenantContext.getStore();
+        const tenant = context?.tenant;
+
+        return {
+            instance: tenant?.evolution_instance || this.globalInstance,
+            apiKey: tenant?.evolution_api_key || this.globalApiKey // Added support for per-tenant keys
+        };
     }
 
     /**
@@ -20,9 +35,10 @@ class EvolutionService {
      */
     async sendText(phone, message, replyMessageId = null) {
         try {
+            const { instance, apiKey } = this.getConfig();
             const cleanNumber = phone.replace(/\D/g, '');
             const isJID = phone.includes('-') || phone.includes('@');
-            const url = `${this.baseUrl}/message/sendText/${this.instance}`;
+            const url = `${this.baseUrl}/message/sendText/${instance}`;
 
             const options = {
                 delay: 500,
@@ -88,7 +104,7 @@ class EvolutionService {
 
                     const response = await fetch(url, {
                         method: 'POST',
-                        headers: { 'Content-Type': 'application/json', 'apikey': this.apiKey },
+                        headers: { 'Content-Type': 'application/json', 'apikey': apiKey },
                         body: JSON.stringify(attempt.body),
                         signal: controller.signal
                     });
@@ -129,7 +145,8 @@ class EvolutionService {
      */
     async sendMedia(phone, mediaUrl, mediaType, caption, fileName) {
         try {
-            console.log(`📡 sendMedia called with:`, { phone, mediaUrl, mediaType, caption, fileName });
+            const { instance, apiKey } = this.getConfig();
+            console.log(`📡 [${instance}] sendMedia called with:`, { phone, mediaUrl, mediaType, caption, fileName });
 
             // Force valid mediaType locally just in case
             let validMediaType = (mediaType || '').trim().toLowerCase();
@@ -141,7 +158,7 @@ class EvolutionService {
 
             const cleanNumber = phone.replace(/\D/g, '');
             const isJID = phone.includes('-') || phone.includes('@');
-            const url = `${this.baseUrl}/message/sendMedia/${this.instance}`;
+            const url = `${this.baseUrl}/message/sendMedia/${instance}`;
 
             // Extract replyMessageId from arguments if provided
             const replyMessageId = arguments.length > 5 ? arguments[5] : null;
@@ -224,7 +241,7 @@ class EvolutionService {
 
                     const response = await fetch(url, {
                         method: 'POST',
-                        headers: { 'Content-Type': 'application/json', 'apikey': this.apiKey },
+                        headers: { 'Content-Type': 'application/json', 'apikey': apiKey },
                         body: JSON.stringify(attempt.body),
                         signal: controller.signal
                     });
@@ -260,9 +277,10 @@ class EvolutionService {
      */
     async checkInstance() {
         try {
-            const url = `${this.baseUrl}/instance/connectionState/${this.instance}`;
+            const { instance, apiKey } = this.getConfig();
+            const url = `${this.baseUrl}/instance/connectionState/${instance}`;
             const response = await fetch(url, {
-                headers: { 'apikey': this.apiKey }
+                headers: { 'apikey': apiKey }
             });
             return await response.json();
         } catch (error) {
@@ -276,20 +294,21 @@ class EvolutionService {
      */
     async fetchGroupInfo(groupJid) {
         try {
+            const { instance, apiKey } = this.getConfig();
             // Probaremos varios endpoints comunes en Evolution API v2/v1
             const endpoints = [
-                `/group/findGroup/${this.instance}?groupJid=${groupJid}`,
-                `/group/info/${this.instance}?groupJid=${groupJid}`,
-                `/group/findGroup?instance=${this.instance}&groupJid=${groupJid}`
+                `/group/findGroup/${instance}?groupJid=${groupJid}`,
+                `/group/info/${instance}?groupJid=${groupJid}`,
+                `/group/findGroup?instance=${instance}&groupJid=${groupJid}`
             ];
 
             for (const endpoint of endpoints) {
                 const url = `${this.baseUrl}${endpoint}`;
-                console.log(`📡 Trying Group Info Endpoint: ${url}`);
+                console.log(`📡 [${instance}] Trying Group Info Endpoint: ${url}`);
 
                 try {
                     const response = await fetch(url, {
-                        headers: { 'apikey': this.apiKey }
+                        headers: { 'apikey': apiKey }
                     });
 
                     const data = await response.json();
@@ -315,14 +334,15 @@ class EvolutionService {
      */
     async markAsRead(phone) {
         try {
+            const { instance, apiKey } = this.getConfig();
             const cleanNumber = phone.replace(/\D/g, '');
             const isJID = phone.includes('-') || phone.includes('@');
             const jid = isJID ? phone : `${cleanNumber}@c.us`;
 
-            const url = `${this.baseUrl}/chat/markMessageAsRead/${this.instance}`;
+            const url = `${this.baseUrl}/chat/markMessageAsRead/${instance}`;
             const response = await fetch(url, {
                 method: 'POST',
-                headers: { 'Content-Type': 'application/json', 'apikey': this.apiKey },
+                headers: { 'Content-Type': 'application/json', 'apikey': apiKey },
                 body: JSON.stringify({
                     number: jid,
                     read: true
@@ -341,6 +361,7 @@ class EvolutionService {
      */
     async markAsUnread(phone) {
         try {
+            const { instance, apiKey } = this.getConfig();
             const cleanNumber = phone.replace(/\D/g, '');
             const isJID = phone.includes('-') || phone.includes('@');
             const jid = isJID ? phone : `${cleanNumber}@c.us`;
@@ -348,10 +369,10 @@ class EvolutionService {
             // En Evolution API v2, marcar como NO leído suele ser el mismo endpoint con read: false
             // o un endpoint específico dependiendo de la versión. 
             // Intentaremos markMessageAsRead con read: false
-            const url = `${this.baseUrl}/chat/markMessageAsRead/${this.instance}`;
+            const url = `${this.baseUrl}/chat/markMessageAsRead/${instance}`;
             const response = await fetch(url, {
                 method: 'POST',
-                headers: { 'Content-Type': 'application/json', 'apikey': this.apiKey },
+                headers: { 'Content-Type': 'application/json', 'apikey': apiKey },
                 body: JSON.stringify({
                     number: jid,
                     read: false
@@ -371,14 +392,15 @@ class EvolutionService {
      */
     async fetchBase64(msg) {
         try {
-            const url = `${this.baseUrl}/chat/getBase64FromMessage/${this.instance}`;
+            const { instance, apiKey } = this.getConfig();
+            const url = `${this.baseUrl}/chat/getBase64FromMessage/${instance}`;
 
             // Evolution v2 expects the message object that contains 'key' and 'message'
             const response = await fetch(url, {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
-                    'apikey': this.apiKey
+                    'apikey': apiKey
                 },
                 body: JSON.stringify({
                     message: {
@@ -409,16 +431,17 @@ class EvolutionService {
      */
     async checkNumber(phone) {
         try {
+            const { instance, apiKey } = this.getConfig();
             // Clean number (only digits)
             const cleanNumber = phone.replace(/\D/g, '');
-            const url = `${this.baseUrl}/chat/whatsappNumbers/${this.instance}`;
+            const url = `${this.baseUrl}/chat/whatsappNumbers/${instance}`;
 
-            console.log(`🔍 Checking WhatsApp number in Evolution: ${url} -> ${cleanNumber}`);
+            console.log(`🔍 [${instance}] Checking WhatsApp number in Evolution: ${url} -> ${cleanNumber}`);
 
             const response = await fetch(url, {
                 method: 'POST',
                 headers: {
-                    'apikey': this.apiKey,
+                    'apikey': apiKey,
                     'Content-Type': 'application/json'
                 },
                 body: JSON.stringify({
@@ -455,11 +478,12 @@ class EvolutionService {
      */
     async sendReaction(phone, messageId, reaction, fromMe = false) {
         try {
+            const { instance, apiKey } = this.getConfig();
             const cleanNumber = phone.replace(/\D/g, '');
             const isJID = phone.includes('-') || phone.includes('@');
             const jid = isJID ? phone : `${cleanNumber}@s.whatsapp.net`;
 
-            const url = `${this.baseUrl}/message/sendReaction/${this.instance}`;
+            const url = `${this.baseUrl}/message/sendReaction/${instance}`;
             const body = {
                 reaction: reaction,
                 key: {
@@ -469,14 +493,14 @@ class EvolutionService {
                 }
             };
 
-            console.log(`📡 [Evolution] Sending reaction to ${url}`);
+            console.log(`📡 [Evolution:${instance}] Sending reaction to ${url}`);
             console.log(`   Payload:`, JSON.stringify(body));
 
             const response = await fetch(url, {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
-                    'apikey': this.apiKey
+                    'apikey': apiKey
                 },
                 body: JSON.stringify(body)
             });
@@ -514,11 +538,12 @@ class EvolutionService {
      */
     async updateMessage(phone, messageId, newText, fromMe = true) {
         try {
+            const { instance, apiKey } = this.getConfig();
             const cleanNumber = phone.replace(/\D/g, '');
             const isJID = phone.includes('-') || phone.includes('@');
             const jid = isJID ? phone : `${cleanNumber}@s.whatsapp.net`;
 
-            const url = `${this.baseUrl}/chat/updateMessage/${this.instance}`;
+            const url = `${this.baseUrl}/chat/updateMessage/${instance}`;
             const body = {
                 number: jid,
                 key: {
@@ -529,14 +554,14 @@ class EvolutionService {
                 text: newText
             };
 
-            console.log(`📡 [Evolution] Updating message via POST ${url}`);
+            console.log(`📡 [Evolution:${instance}] Updating message via POST ${url}`);
             console.log(`   Payload:`, JSON.stringify(body));
 
             const response = await fetch(url, {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
-                    'apikey': this.apiKey
+                    'apikey': apiKey
                 },
                 body: JSON.stringify(body)
             });
@@ -573,6 +598,7 @@ class EvolutionService {
      */
     async deleteMessage(phone, messageId, fromMe) {
         try {
+            const { instance, apiKey } = this.getConfig();
             const cleanNumber = phone.replace(/\D/g, '');
             const isJID = phone.includes('-') || phone.includes('@');
             const jid = isJID ? phone : `${cleanNumber}@s.whatsapp.net`;
@@ -581,19 +607,19 @@ class EvolutionService {
             const strategies = [
                 // Strategy 1: Standard v2 DELETE /message/...
                 {
-                    url: `${this.baseUrl}/message/deleteMessageForEveryone/${this.instance}`,
+                    url: `${this.baseUrl}/message/deleteMessageForEveryone/${instance}`,
                     method: 'DELETE',
                     body: { remoteJid: jid, id: messageId, fromMe: fromMe }
                 },
                 // Strategy 2: Fallback v2 POST /message/...
                 {
-                    url: `${this.baseUrl}/message/deleteMessageForEveryone/${this.instance}`,
+                    url: `${this.baseUrl}/message/deleteMessageForEveryone/${instance}`,
                     method: 'POST',
                     body: { remoteJid: jid, id: messageId, fromMe: fromMe }
                 },
                 // Strategy 3: Legacy DELETE /chat/...
                 {
-                    url: `${this.baseUrl}/chat/deleteMessageForEveryone/${this.instance}`,
+                    url: `${this.baseUrl}/chat/deleteMessageForEveryone/${instance}`,
                     method: 'DELETE',
                     body: { remoteJid: jid, id: messageId, fromMe: fromMe }
                 }
@@ -602,14 +628,14 @@ class EvolutionService {
             let lastResult = null;
 
             for (const strategy of strategies) {
-                console.log(`🗑️ [Evolution] Deleting message via ${strategy.url} [${strategy.method}]`);
+                console.log(`🗑️ [Evolution:${instance}] Deleting message via ${strategy.url} [${strategy.method}]`);
 
                 try {
                     const response = await fetch(strategy.url, {
                         method: strategy.method,
                         headers: {
                             'Content-Type': 'application/json',
-                            'apikey': this.apiKey
+                            'apikey': apiKey
                         },
                         body: JSON.stringify(strategy.body)
                     });
@@ -644,24 +670,25 @@ class EvolutionService {
      */
     async deleteChat(phone) {
         try {
+            const { instance, apiKey } = this.getConfig();
             const cleanNumber = phone.replace(/\D/g, '');
             const isJID = phone.includes('-') || phone.includes('@');
             const jid = isJID ? phone : `${cleanNumber}@s.whatsapp.net`;
 
             // Try multiple endpoint variants (Evolution v1/v2 differ)
             const attempts = [
-                { url: `${this.baseUrl}/chat/deleteChat/${this.instance}`, method: 'DELETE', body: { jid } },
-                { url: `${this.baseUrl}/chat/deleteChat/${this.instance}`, method: 'POST', body: { jid } },
-                { url: `${this.baseUrl}/chat/delete/${this.instance}`, method: 'DELETE', body: { jid } },
-                { url: `${this.baseUrl}/chat/deleteChat/${this.instance}`, method: 'DELETE', body: { number: jid } },
+                { url: `${this.baseUrl}/chat/deleteChat/${instance}`, method: 'DELETE', body: { jid } },
+                { url: `${this.baseUrl}/chat/deleteChat/${instance}`, method: 'POST', body: { jid } },
+                { url: `${this.baseUrl}/chat/delete/${instance}`, method: 'DELETE', body: { jid } },
+                { url: `${this.baseUrl}/chat/deleteChat/${instance}`, method: 'DELETE', body: { number: jid } },
             ];
 
             for (const attempt of attempts) {
-                console.log(`🗑️ [Evolution] deleteChat via ${attempt.method} ${attempt.url}`);
+                console.log(`🗑️ [Evolution:${instance}] deleteChat via ${attempt.method} ${attempt.url}`);
                 try {
                     const res = await fetch(attempt.url, {
                         method: attempt.method,
-                        headers: { 'Content-Type': 'application/json', 'apikey': this.apiKey },
+                        headers: { 'Content-Type': 'application/json', 'apikey': apiKey },
                         body: JSON.stringify(attempt.body)
                     });
                     const text = await res.text();
@@ -691,17 +718,18 @@ class EvolutionService {
      */
     async getProfilePicture(phone) {
         try {
+            const { instance, apiKey } = this.getConfig();
             const cleanNumber = phone.replace(/\D/g, '');
             const isJID = phone.includes('-') || phone.includes('@');
             const numberParam = isJID ? phone : cleanNumber;
 
             // Strategy 1: GET (Common in Evolution API v1/v2 endpoints)
-            const getUrl = `${this.baseUrl}/chat/fetchProfilePictureUrl/${this.instance}?number=${numberParam}`;
+            const getUrl = `${this.baseUrl}/chat/fetchProfilePictureUrl/${instance}?number=${numberParam}`;
 
             const getResponse = await fetch(getUrl, {
                 method: 'GET',
                 headers: {
-                    'apikey': this.apiKey,
+                    'apikey': apiKey,
                     'Content-Type': 'application/json'
                 }
             });
@@ -714,11 +742,11 @@ class EvolutionService {
             }
 
             // Strategy 2: POST Fallback (Common in some Evolution API v2 endpoints)
-            const postUrl = `${this.baseUrl}/chat/fetchProfilePictureUrl/${this.instance}`;
+            const postUrl = `${this.baseUrl}/chat/fetchProfilePictureUrl/${instance}`;
             const postResponse = await fetch(postUrl, {
                 method: 'POST',
                 headers: {
-                    'apikey': this.apiKey,
+                    'apikey': apiKey,
                     'Content-Type': 'application/json'
                 },
                 body: JSON.stringify({ number: numberParam })
@@ -735,6 +763,74 @@ class EvolutionService {
         } catch (error) {
             console.error(`❌ Error fetching profile picture for ${phone}:`, error.message);
             return null;
+        }
+    }
+
+    /**
+     * Create a new instance in Evolution API
+     * @param {string} instanceName 
+     */
+    async createInstance(instanceName) {
+        try {
+            const url = `${this.baseUrl}/instance/create`;
+            // Simplified body, Evolution v2 often fails if token is "" but expected format
+            const body = {
+                instanceName: instanceName,
+                integration: "WHATSAPP-BAILEYS",
+                qrcode: true
+            };
+
+            console.log(`📡 Creating Evolution instance: ${instanceName} at ${url}`);
+
+            const response = await fetch(url, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'apikey': this.globalApiKey
+                },
+                body: JSON.stringify(body)
+            });
+
+            const data = await response.json();
+
+            if (!response.ok) {
+                console.error('❌ Evolution API Error:', JSON.stringify(data, null, 2));
+                // Extract message from various possible Evolution v2 response formats
+                const errorMsg = data.message ||
+                    (data.response && data.response.message) ||
+                    (Array.isArray(data.error) ? data.error[0] : data.error) ||
+                    'Error creating Evolution instance';
+
+                throw new Error(errorMsg);
+            }
+
+            return { success: true, instance: data.instance };
+        } catch (error) {
+            console.error('❌ createInstance Error:', error);
+            return { success: false, error: error.message };
+        }
+    }
+
+    /**
+     * Get QR code for an instance
+     * @param {string} instanceName 
+     */
+    async getQR(instanceName) {
+        try {
+            const url = `${this.baseUrl}/instance/connect/${instanceName}`;
+            const response = await fetch(url, {
+                headers: { 'apikey': this.globalApiKey }
+            });
+
+            const data = await response.json();
+            if (!response.ok) {
+                throw new Error(data.message || 'Error fetching QR code');
+            }
+
+            return { success: true, qr: data }; // Should contain base64 or code
+        } catch (error) {
+            console.error('❌ getQR Error:', error);
+            return { success: false, error: error.message };
         }
     }
 }

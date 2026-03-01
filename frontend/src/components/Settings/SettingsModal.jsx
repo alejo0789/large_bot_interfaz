@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { X, Save, Settings, User, Lock, Mail, ShieldAlert } from 'lucide-react';
 import { useAuth } from '../../hooks/useAuth';
 
-const API_URL = process.env.REACT_APP_API_URL || 'http://localhost:4000';
+import apiFetch from '../../utils/api';
 
 const SettingsModal = ({ isOpen, onClose }) => {
     const { user, token, login, updateProfile } = useAuth();
@@ -35,7 +35,7 @@ const SettingsModal = ({ isOpen, onClose }) => {
     const fetchSettings = async () => {
         setIsLoading(true);
         try {
-            const res = await fetch(`${API_URL}/api/settings`);
+            const res = await apiFetch('/api/settings');
             if (res.ok) {
                 const data = await res.json();
                 if (data.settings && data.settings.default_ai_enabled !== undefined) {
@@ -52,9 +52,8 @@ const SettingsModal = ({ isOpen, onClose }) => {
     const handleSaveGeneral = async () => {
         setIsLoading(true);
         try {
-            const res = await fetch(`${API_URL}/api/settings`, {
+            const res = await apiFetch('/api/settings', {
                 method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
                     key: 'default_ai_enabled',
                     value: String(defaultAiEnabled),
@@ -87,12 +86,8 @@ const SettingsModal = ({ isOpen, onClose }) => {
                 body.password = profilePassword;
             }
 
-            const res = await fetch(`${API_URL}/api/auth/profile`, {
+            const res = await apiFetch('/api/auth/profile', {
                 method: 'PUT',
-                headers: {
-                    'Content-Type': 'application/json',
-                    'Authorization': `Bearer ${token}`
-                },
                 body: JSON.stringify(body)
             });
 

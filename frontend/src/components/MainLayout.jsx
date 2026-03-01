@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import NavRail from './Navigation/NavRail';
-import { Menu, MessageSquare, Send } from 'lucide-react';
+import { Menu, Send } from 'lucide-react';
 
 const MainLayout = ({
     children,
@@ -12,16 +12,17 @@ const MainLayout = ({
     hideHeader = false,
     isMenuOpen,
     onMenuOpen,
-    onMenuClose
+    onMenuClose,
+    isCollapsed,
+    onToggleCollapse,
+    user
 }) => {
-    // Internal state purely as fallback if not provided (though we plan to provide it)
     const [internalIsMenuOpen, setInternalIsMenuOpen] = useState(false);
 
     const menuOpen = isMenuOpen !== undefined ? isMenuOpen : internalIsMenuOpen;
     const handleMenuOpen = onMenuOpen || (() => setInternalIsMenuOpen(true));
     const handleMenuClose = onMenuClose || (() => setInternalIsMenuOpen(false));
 
-    // Render Navigation Rail/Drawer logic
     const renderNavigation = () => (
         <NavRail
             activeTab={activeTab}
@@ -35,6 +36,9 @@ const MainLayout = ({
             onOpen={handleMenuOpen}
             onLogout={onLogout}
             onBulkMessage={onBulkMessage}
+            isCollapsed={isCollapsed}
+            onToggleCollapse={onToggleCollapse}
+            user={user}
         />
     );
 
@@ -64,7 +68,7 @@ const MainLayout = ({
                 maxWidth: isMobile ? '100vw' : 'none'
             }}>
 
-                {/* Mobile Header (Only visible on mobile AND if not hidden) */}
+                {/* Mobile Header */}
                 {isMobile && !hideHeader && (
                     <div style={{
                         height: '56px',
@@ -94,6 +98,7 @@ const MainLayout = ({
                                 {activeTab === 'ai' && 'IA'}
                                 {activeTab === 'dashboard' && 'Dashboard'}
                                 {activeTab === 'settings' && 'Config'}
+                                {activeTab === 'admin' && 'Administración'}
                             </h1>
                         </div>
                         <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>

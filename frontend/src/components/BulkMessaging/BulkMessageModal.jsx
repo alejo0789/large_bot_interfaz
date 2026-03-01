@@ -6,12 +6,7 @@ import {
     FolderOpen, Edit2
 } from 'lucide-react';
 import { useBulkTemplates } from '../../hooks/useBulkTemplates';
-
-const API_URL = (() => {
-    if (process.env.REACT_APP_API_URL) return process.env.REACT_APP_API_URL;
-    if (window.location.hostname !== 'localhost') return 'https://largebotinterfaz-production-5b38.up.railway.app';
-    return '';
-})();
+import apiFetch from '../../utils/api';
 
 /**
  * Parse bulk number input (comma/semicolon/newline separated)
@@ -229,9 +224,7 @@ const BulkMessageModal = ({
         if (isOpen) {
             const checkActiveBatches = async () => {
                 try {
-                    const res = await fetch(`${API_URL}/api/bulk-send/active`, {
-                        headers: { 'x-api-key': process.env.REACT_APP_API_KEY || '' }
-                    });
+                    const res = await apiFetch('/api/bulk-send/active');
                     if (res.ok) {
                         const batches = await res.json();
                         const batchIds = Object.keys(batches);
@@ -291,7 +284,7 @@ const BulkMessageModal = ({
         setAllDbCount(null);
 
         const dateParams = buildDateParams();
-        fetch(`${API_URL}/api/conversations/recipients-count?${dateParams}`)
+        apiFetch(`/api/conversations/recipients-count?${dateParams}`)
             .then(res => res.json())
             .then(data => { if (!cancelled) setAllDbCount(data.total ?? null); })
             .catch(() => { if (!cancelled) setAllDbCount(null); })
@@ -312,7 +305,7 @@ const BulkMessageModal = ({
 
         const tagId = selectedTagIds[0];
         const dateParams = buildDateParams();
-        fetch(`${API_URL}/api/conversations/recipients-count?tagId=${encodeURIComponent(tagId)}${dateParams}`)
+        apiFetch(`/api/conversations/recipients-count?tagId=${encodeURIComponent(tagId)}${dateParams}`)
             .then(res => res.json())
             .then(data => { if (!cancelled) setTagContactCount(data.total ?? null); })
             .catch(() => { if (!cancelled) setTagContactCount(null); })
@@ -380,9 +373,8 @@ const BulkMessageModal = ({
     const handleCancelBulk = async () => {
         if (!progress?.batchId) return;
         try {
-            const res = await fetch(`${API_URL}/api/bulk-send/${progress.batchId}/cancel`, {
-                method: 'POST',
-                headers: { 'x-api-key': process.env.REACT_APP_API_KEY || '' }
+            const res = await apiFetch(`/api/bulk-send/${progress.batchId}/cancel`, {
+                method: 'POST'
             });
             if (res.ok) {
                 setIsSending(false);
@@ -484,9 +476,7 @@ const BulkMessageModal = ({
     const fetchServerFiles = async () => {
         setIsFetchingFiles(true);
         try {
-            const res = await fetch(`${API_URL}/api/upload/files?folder=bulk`, {
-                headers: { 'x-api-key': process.env.REACT_APP_API_KEY || '' }
-            });
+            const res = await apiFetch('/api/upload/files?folder=bulk');
             const data = await res.json();
             if (data.success) {
                 setServerFiles(data.files);
@@ -507,9 +497,8 @@ const BulkMessageModal = ({
         e.stopPropagation();
         if (!window.confirm(`¿Seguro que deseas eliminar "${filename}" del servidor?\nEsta acción no se puede deshacer.`)) return;
         try {
-            const res = await fetch(`${API_URL}/api/upload/files/${filename}?folder=bulk`, {
-                method: 'DELETE',
-                headers: { 'x-api-key': process.env.REACT_APP_API_KEY || '' }
+            const res = await apiFetch(`/api/upload/files/${filename}?folder=bulk`, {
+                method: 'DELETE'
             });
             if (res.ok) {
                 setServerFiles(prev => prev.filter(f => f.name !== filename));
@@ -1365,8 +1354,8 @@ const BulkMessageModal = ({
                                     placeholder="Contenido..."
                                     value={templateContentForm}
                                     onChange={(e) => setTemplateContentForm(e.target.value)}
-                                    rows={3}
-                                    style={{ width: '100%', padding: '6px', fontSize: '12px', borderRadius: '4px', border: '1px solid #86efac', marginBottom: '8px', resize: 'vertical' }}
+                                    rows={8}
+                                    style={{ width: '100%', padding: '12px', fontSize: '14px', borderRadius: '8px', border: '1px solid #86efac', marginBottom: '8px', resize: 'vertical', minHeight: '120px' }}
                                 />
                                 <div style={{ display: 'flex', gap: '8px', justifyContent: 'flex-end' }}>
                                     <button onClick={() => setShowTemplateEditor(false)} style={{ padding: '4px 8px', fontSize: '11px', backgroundColor: 'transparent', color: '#166534', border: '1px solid #86efac', borderRadius: '4px', cursor: 'pointer' }}>Cancelar</button>

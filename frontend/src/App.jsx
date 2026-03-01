@@ -1,14 +1,18 @@
-import React, { useState, useEffect, useCallback, useMemo } from 'react';
+﻿import React, { useState, useEffect, useCallback, useMemo } from 'react';
+import apiFetch from './utils/api';
 import { useDrag } from '@use-gesture/react';
 import { io } from 'socket.io-client';
 import { Tag, MessageSquare, Settings, RotateCw, Menu, EyeOff, CheckSquare } from 'lucide-react';
 
 // Auth
 import { AuthProvider, useAuth } from './hooks/useAuth';
+import { TenantProvider, useTenant } from './hooks/useTenant';
 import LoginPage from './components/Auth/LoginPage';
+import TenantSelectorPage from './components/Navigation/TenantSelectorPage';
 
 // Components
 import SearchBar from './components/Sidebar/SearchBar';
+import SedeSelector from './components/Navigation/SedeSelector';
 import ConversationList from './components/Sidebar/ConversationList';
 import TagFilter from './components/Sidebar/TagFilter';
 import ChatHeader from './components/Chat/ChatHeader';
@@ -23,10 +27,12 @@ import MainLayout from './components/MainLayout';
 import AIArea from './components/AI/AIArea';
 import Dashboard from './components/Dashboard/Dashboard';
 import BulkActionsBar from './components/Sidebar/BulkActionsBar';
+import AdminPanel from './components/Admin/AdminPanel';
 
 // Hooks
 import { useConversations } from './hooks/useConversations';
 import { useTags } from './hooks/useTags';
+import { useSocket } from './hooks/useSocket';
 
 // Styles
 import './styles/index.css';
@@ -37,15 +43,12 @@ const SOCKET_URL = process.env.REACT_APP_SOCKET_URL ||
 const API_URL = process.env.REACT_APP_API_URL ||
     (process.env.NODE_ENV === 'production' ? window.location.origin : 'http://localhost:4000');
 
-console.log('🌐 Configured API_URL:', API_URL);
-console.log('🔌 Configured SOCKET_URL:', SOCKET_URL);
+console.log('ðŸŒ Configured API_URL:', API_URL);
+console.log('ðŸ”Œ Configured SOCKET_URL:', SOCKET_URL);
 
 const AuthenticatedApp = () => {
     const { user, logout } = useAuth();
 
-    // Socket connection
-    const [socket, setSocket] = useState(null);
-    const [isConnected, setIsConnected] = useState(false);
 
     // Navigation state
     const [activeTab, setActiveTab] = useState('chat');
@@ -55,6 +58,10 @@ const AuthenticatedApp = () => {
     // UI state
     const [isMobile, setIsMobile] = useState(false);
     const [showSidebar, setShowSidebar] = useState(true);
+    const [isRailCollapsed, setIsRailCollapsed] = useState(() => {
+        const saved = localStorage.getItem('isRailCollapsed');
+        return saved !== null ? JSON.parse(saved) : false;
+    });
     const [searchQuery, setSearchQuery] = useState('');
     const [sidebarWidth, setSidebarWidth] = useState(() => {
         const saved = localStorage.getItem('sidebarWidth');
@@ -107,62 +114,15 @@ const AuthenticatedApp = () => {
     // Tags by conversation
     const [tagsByPhone, setTagsByPhone] = useState({});
 
-    // Initialize socket connection
+    // Socket connection
+    const { socket, isConnected } = useSocket();
+
+    // Re-join general room on connect/reconnect
     useEffect(() => {
-        const socketInstance = io(SOCKET_URL, {
-            transports: ['websocket', 'polling'], // Fallback to polling if websocket fails
-            reconnectionAttempts: Infinity, // Never stop trying to reconnect
-            reconnectionDelay: 1000,
-            reconnectionDelayMax: 5000,
-            timeout: 20000,
-            forceNew: false,
-            autoConnect: true,
-            pingInterval: 25000,  // Send ping every 25s
-            pingTimeout: 10000,   // Wait 10s for pong before disconnecting
-        });
-
-        socketInstance.on('connect', () => {
-            console.log('🟢 Connected to Socket.IO (id:', socketInstance.id, ')');
-            setIsConnected(true);
-            // Always join the conversations list room on (re)connect
-            socketInstance.emit('join-conversations-list');
-        });
-
-        socketInstance.on('disconnect', (reason) => {
-            console.log('🔴 Disconnected from Socket.IO. Reason:', reason);
-            setIsConnected(false);
-            // If the server disconnected us, force reconnect
-            if (reason === 'io server disconnect') {
-                socketInstance.connect();
-            }
-        });
-
-        socketInstance.on('reconnect', (attemptNumber) => {
-            console.log(`🔄 Reconnected to Socket.IO after ${attemptNumber} attempts`);
-            setIsConnected(true);
-            // Re-join rooms after reconnection
-            socketInstance.emit('join-conversations-list');
-        });
-
-        socketInstance.on('reconnect_attempt', (attemptNumber) => {
-            console.log(`🔌 Reconnection attempt #${attemptNumber}...`);
-        });
-
-        socketInstance.on('reconnect_error', (error) => {
-            console.error('🔌 Reconnection error:', error.message);
-        });
-
-        socketInstance.on('connect_error', (error) => {
-            console.error('❌ Socket connection error:', error.message);
-            setIsConnected(false);
-        });
-
-        setSocket(socketInstance);
-
-        return () => {
-            socketInstance.disconnect();
-        };
-    }, []);
+        if (socket && isConnected) {
+            socket.emit('join-conversations-list');
+        }
+    }, [socket, isConnected]);
 
     // Custom hooks
 
@@ -206,7 +166,7 @@ const AuthenticatedApp = () => {
         const checkMobile = () => {
             const mobile = window.innerWidth <= 768;
             setIsMobile(mobile);
-            // En móvil, mostrar sidebar por defecto (se oculta al seleccionar conversación)
+            // En mÃ³vil, mostrar sidebar por defecto (se oculta al seleccionar conversaciÃ³n)
             // En desktop, siempre mostrar sidebar
             if (!mobile) {
                 setShowSidebar(true);
@@ -222,6 +182,10 @@ const AuthenticatedApp = () => {
     useEffect(() => {
         localStorage.setItem('sidebarWidth', sidebarWidth);
     }, [sidebarWidth]);
+
+    useEffect(() => {
+        localStorage.setItem('isRailCollapsed', JSON.stringify(isRailCollapsed));
+    }, [isRailCollapsed]);
 
     // Auto-refresh when PWA becomes visible & periodic health check
     useEffect(() => {
@@ -246,7 +210,7 @@ const AuthenticatedApp = () => {
                 // Ensure we're still in the conversations:list room
                 socket.emit('join-conversations-list');
             } else if (socket && !socket.connected) {
-                console.log('⚠️ Health check: socket disconnected, attempting reconnect...');
+                console.log('âš ï¸ Health check: socket disconnected, attempting reconnect...');
                 socket.connect();
             }
         }, 30000);
@@ -415,16 +379,12 @@ const AuthenticatedApp = () => {
     }, [selectedConversation, isSweepMode, lastSelectedPhone, lastSelectedTimestamp, filteredConversations, activeTab, handleSelectConversation]);
 
     const handleSendMessage = useCallback(async (message) => {
-        console.log('👤 Sending message as user:', user);
+        console.log('ðŸ‘¤ Sending message as user:', user);
         if (selectedConversation) {
             if (editingMessage) {
                 try {
-                    const response = await fetch(`${API_URL}/api/messages/${editingMessage.whatsapp_id || editingMessage.id}`, {
+                    const response = await apiFetch(`/api/messages/${editingMessage.whatsapp_id || editingMessage.id}`, {
                         method: 'PUT',
-                        headers: {
-                            'Content-Type': 'application/json',
-                            'x-api-key': process.env.REACT_APP_API_KEY || ''
-                        },
                         body: JSON.stringify({ text: message })
                     });
 
@@ -522,17 +482,16 @@ const AuthenticatedApp = () => {
                     // We need to upload the file first.
                     const formData = new FormData();
                     formData.append('file', mediaFile);
-                    const uploadRes = await fetch(`${API_URL}/api/upload?folder=bulk`, { method: 'POST', body: formData });
-                    if (!uploadRes.ok) throw new Error('Error subiendo archivo para envío masivo');
+                    const uploadRes = await apiFetch('/api/upload?folder=bulk', { method: 'POST', body: formData });
+                    if (!uploadRes.ok) throw new Error('Error subiendo archivo para envÃ­o masivo');
                     const { file: uploadedFile } = await uploadRes.json();
                     mediaUrlToSend = uploadedFile.url;
                     mediaTypeToSend = uploadedFile.type;
                 }
 
                 // Now proceed to bulk send with the URL
-                const response = await fetch(`${API_URL}/api/bulk-send`, {
+                const response = await apiFetch('/api/bulk-send', {
                     method: 'POST',
-                    headers: { 'Content-Type': 'application/json', 'x-api-key': process.env.REACT_APP_API_KEY || '' },
                     body: JSON.stringify({
                         recipients: [], // Empty recipients
                         filters, // Pass filters
@@ -546,12 +505,12 @@ const AuthenticatedApp = () => {
                     })
                 });
 
-                if (!response.ok) throw new Error('Error al iniciar envío masivo con archivo');
+                if (!response.ok) throw new Error('Error al iniciar envÃ­o masivo con archivo');
                 const result = await response.json();
                 return result;
 
             } else {
-                console.warn('⚠️ Bulk send with media uses sequential sending for explicit list');
+                console.warn('âš ï¸ Bulk send with media uses sequential sending for explicit list');
 
                 // If forwarding via URL to explicit list, we can use /bulk-send directly or replicate /send-file logic
                 // But /send-file endpoint handles file upload.
@@ -560,9 +519,8 @@ const AuthenticatedApp = () => {
                 // Backend /bulk-send DOES handle recipients + mediaUrl.
 
                 if (isUrl) {
-                    const response = await fetch(`${API_URL}/api/bulk-send`, {
+                    const response = await apiFetch('/api/bulk-send', {
                         method: 'POST',
-                        headers: { 'Content-Type': 'application/json', 'x-api-key': process.env.REACT_APP_API_KEY || '' },
                         body: JSON.stringify({
                             recipients, // Explicit recipients with phones
                             message,
@@ -574,7 +532,7 @@ const AuthenticatedApp = () => {
                             agent_name: user?.name
                         })
                     });
-                    if (!response.ok) throw new Error('Error al reenviar medios a lista explícita');
+                    if (!response.ok) throw new Error('Error al reenviar medios a lista explÃ­cita');
                     return await response.json();
                 }
 
@@ -584,13 +542,12 @@ const AuthenticatedApp = () => {
 
                 const formData = new FormData();
                 formData.append('file', mediaFile);
-                const uploadRes = await fetch(`${API_URL}/api/upload?folder=bulk`, { method: 'POST', body: formData });
+                const uploadRes = await apiFetch('/api/upload?folder=bulk', { method: 'POST', body: formData });
 
                 if (uploadRes.ok) {
                     const { file: uploadedFile } = await uploadRes.json();
-                    const response = await fetch(`${API_URL}/api/bulk-send`, {
+                    const response = await apiFetch('/api/bulk-send', {
                         method: 'POST',
-                        headers: { 'Content-Type': 'application/json', 'x-api-key': process.env.REACT_APP_API_KEY || '' },
                         body: JSON.stringify({
                             recipients,
                             message,
@@ -602,19 +559,18 @@ const AuthenticatedApp = () => {
                             agent_name: user?.name
                         })
                     });
-                    if (!response.ok) throw new Error('Error al iniciar envío masivo con archivo');
+                    if (!response.ok) throw new Error('Error al iniciar envÃ­o masivo con archivo');
                     return await response.json();
                 }
 
                 // Fallback to sequential if upload fails? No, just throw.
-                throw new Error('Error subiendo archivo para envío masivo');
+                throw new Error('Error subiendo archivo para envÃ­o masivo');
             }
         }
 
-        console.log(`📤 Sending bulk message via /api/bulk-send`);
-        const response = await fetch(`${API_URL}/api/bulk-send`, {
+        console.log(`ðŸ“¤ Sending bulk message via /api/bulk-send`);
+        const response = await apiFetch('/api/bulk-send', {
             method: 'POST',
-            headers: { 'Content-Type': 'application/json', 'x-api-key': process.env.REACT_APP_API_KEY || '' },
             body: JSON.stringify({
                 recipients: filters ? [] : recipients,
                 filters: filters || undefined,
@@ -626,9 +582,9 @@ const AuthenticatedApp = () => {
             })
         });
 
-        if (!response.ok) throw new Error('Error al iniciar envío masivo');
+        if (!response.ok) throw new Error('Error al iniciar envÃ­o masivo');
         const result = await response.json();
-        console.log('✅ Bulk send initiated:', result);
+        console.log('âœ… Bulk send initiated:', result);
         return result;
     }, [conversations, user]);
 
@@ -777,7 +733,7 @@ const AuthenticatedApp = () => {
     }, [filteredConversations]);
 
     const handleBulkDelete = useCallback(async () => {
-        if (!window.confirm(`¿Estás seguro de eliminar ${selectedConversationIds.length} conversaciones?`)) return;
+        if (!window.confirm(`Â¿EstÃ¡s seguro de eliminar ${selectedConversationIds.length} conversaciones?`)) return;
 
         // Note: For a real bulk operation, we should have a backend /bulk-delete
         // For now, we'll loop or use the existing removeConversation correctly
@@ -795,7 +751,7 @@ const AuthenticatedApp = () => {
                             : 'http://localhost:4000';
                     if (apiUrl.endsWith('/')) apiUrl = apiUrl.slice(0, -1);
 
-                    const res = await fetch(`${apiUrl}/api/conversations/${encodeURIComponent(phone)}`, {
+                    const res = await apiFetch(`/api/conversations/${encodeURIComponent(phone)}`, {
                         method: 'DELETE'
                     });
 
@@ -854,20 +810,8 @@ const AuthenticatedApp = () => {
 
     const handleStartNewChat = async (phone) => {
         try {
-            // Build API URL
-            let apiUrl = '/api';
-            if (process.env.REACT_APP_API_URL) apiUrl = process.env.REACT_APP_API_URL;
-            else if (window.location.hostname !== 'localhost') apiUrl = 'https://largebotinterfaz-production-5b38.up.railway.app';
-
-            if (apiUrl.endsWith('/')) apiUrl = apiUrl.slice(0, -1);
-
-            // Fix double /api if present in base URL or constructed URL
-            const finalUrl = apiUrl.includes('/api') ? `${apiUrl}/conversations/start-new` : `${apiUrl}/api/conversations/start-new`;
-            const cleanUrl = finalUrl.replace(/([^:]\/)\/+/g, "$1");
-
-            const res = await fetch(cleanUrl, {
+            const res = await apiFetch('/api/conversations/start-new', {
                 method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ phone })
             });
 
@@ -875,12 +819,12 @@ const AuthenticatedApp = () => {
             console.log("StartNewChat Response:", data);
 
             if (!res.ok) {
-                throw new Error(data.error || data.message || 'El número no se encuentra registrado en WhatsApp o la API falló.');
+                throw new Error(data.error || data.message || 'El nÃºmero no se encuentra registrado en WhatsApp o la API fallÃ³.');
             }
 
             const rawConv = data.conversation;
             if (!rawConv) {
-                throw new Error('La API no devolvió los datos de la conversación.');
+                throw new Error('La API no devolviÃ³ los datos de la conversaciÃ³n.');
             }
 
             // Normalize structure for useConversations (needs contact object)
@@ -900,7 +844,7 @@ const AuthenticatedApp = () => {
 
         } catch (error) {
             console.error('Error starting new chat:', error);
-            alert(`No se pudo iniciar la conversación con este número.\n\nMotivo: ${error.message}`);
+            alert(`No se pudo iniciar la conversaciÃ³n con este nÃºmero.\n\nMotivo: ${error.message}`);
         }
     };
 
@@ -924,7 +868,7 @@ const AuthenticatedApp = () => {
     });
 
     const handleMessageDelete = useCallback(async (message) => {
-        if (!window.confirm('¿Estás seguro de que quieres eliminar este mensaje?')) return;
+        if (!window.confirm('Â¿EstÃ¡s seguro de que quieres eliminar este mensaje?')) return;
 
         try {
             await deleteMessage(message.id, selectedConversation?.contact.phone);
@@ -949,6 +893,9 @@ const AuthenticatedApp = () => {
             isMenuOpen={isMobileMenuOpen}
             onMenuOpen={() => setIsMobileMenuOpen(true)}
             onMenuClose={() => setIsMobileMenuOpen(false)}
+            isCollapsed={isRailCollapsed}
+            onToggleCollapse={() => setIsRailCollapsed(!isRailCollapsed)}
+            user={user}
         >
             <div className="app-container" style={{
                 display: activeTab === 'chat' ? 'flex' : 'none',
@@ -964,18 +911,22 @@ const AuthenticatedApp = () => {
                 >
                     {/* Sidebar Header */}
                     <div className="sidebar-header">
-                        <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-2)' }}>
-                            {isMobile && (
-                                <button
-                                    className="btn btn-icon"
-                                    onClick={() => setIsMobileMenuOpen(true)}
-                                    style={{ marginRight: '4px' }}
-                                >
-                                    <Menu className="w-5 h-5" />
-                                </button>
-                            )}
-                            <MessageSquare className="w-6 h-6" style={{ color: 'var(--color-primary)' }} />
-                            <span style={{ fontWeight: 600, fontSize: 'var(--font-size-lg)' }}>Chat</span>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-1)' }}>
+                            <button
+                                className="btn btn-icon"
+                                onClick={() => isMobile ? setIsMobileMenuOpen(true) : setIsRailCollapsed(!isRailCollapsed)}
+                                style={{
+                                    color: 'var(--color-primary)',
+                                    backgroundColor: 'rgba(7,94,84,0.1)',
+                                    borderRadius: '8px',
+                                    padding: '6px',
+                                    marginRight: '8px'
+                                }}
+                                title={isMobile ? "MenÃº" : (isRailCollapsed ? "Mostrar NavegaciÃ³n" : "Ocultar NavegaciÃ³n")}
+                            >
+                                <Menu className="w-5 h-5" />
+                            </button>
+                            <span style={{ fontWeight: 700, fontSize: 'var(--font-size-lg)', color: 'var(--color-gray-800)' }}>Chat</span>
                         </div>
 
                         <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-2)', flexShrink: 0 }}>
@@ -1013,6 +964,11 @@ const AuthenticatedApp = () => {
                                 )}
                             </button>
                         </div>
+                    </div>
+
+                    {/* Sede Selector */}
+                    <div style={{ padding: '0 4px 12px 4px' }}>
+                        <SedeSelector />
                     </div>
 
                     {/* Search */}
@@ -1134,7 +1090,7 @@ const AuthenticatedApp = () => {
                                     left: '50%',
                                     transform: 'translate(-50%, -50%)'
                                 }}>
-                                    ⟷
+                                    âŸ·
                                 </div>
                             </div>
                         </div>
@@ -1223,7 +1179,7 @@ const AuthenticatedApp = () => {
                                     <button
                                         className="btn btn-icon"
                                         onClick={() => handleMarkUnread(selectedConversation.contact.phone)}
-                                        title="Marcar como no leído"
+                                        title="Marcar como no leÃ­do"
                                         style={{
                                             color: 'var(--color-primary)',
                                         }}
@@ -1349,6 +1305,7 @@ const AuthenticatedApp = () => {
 
             {activeTab === 'dashboard' && <Dashboard isMobile={isMobile} />}
             {activeTab === 'ai' && <AIArea isMobile={isMobile} />}
+            {activeTab === 'admin' && <AdminPanel isMobile={isMobile} />}
 
         </MainLayout>
     );
@@ -1378,14 +1335,17 @@ const BroomIcon = ({ className, style }) => (
 const App = () => {
     return (
         <AuthProvider>
-            <AppContent />
+            <TenantProvider>
+                <AppContent />
+            </TenantProvider>
         </AuthProvider>
     );
 };
 
 // Auth Guard Content
 const AppContent = () => {
-    const { isAuthenticated, loading } = useAuth();
+    const { isAuthenticated, loading, user } = useAuth();
+    const { currentTenant } = useTenant();
 
     if (loading) {
         return (
@@ -1403,7 +1363,63 @@ const AppContent = () => {
         );
     }
 
-    return isAuthenticated ? <AuthenticatedApp /> : <LoginPage />;
+    if (!isAuthenticated) return <LoginPage />;
+
+    // Wait for tenant identification if authenticated
+    // This prevents "Sede no especificada" errors from triggered effects on mount
+    const hasTenants = user?.tenants?.length > 0 || user?.role === 'SUPER_ADMIN';
+
+    if (isAuthenticated && hasTenants && !currentTenant) {
+        // If Super Admin, show the selection cards
+        if (user.role === 'SUPER_ADMIN') {
+            return <TenantSelectorPage />;
+        }
+
+        // For regular users, show loading while the default tenant is auto-selected
+        return (
+            <div style={{
+                height: '100vh',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                flexDirection: 'column',
+                gap: '24px',
+                background: 'linear-gradient(135deg, #f3f4f6 0%, #e5e7eb 100%)',
+                color: '#11ab9c',
+                fontFamily: 'system-ui, -apple-system, sans-serif'
+            }}>
+                <div style={{
+                    position: 'relative',
+                    width: '80px',
+                    height: '80px',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center'
+                }}>
+                    <div style={{
+                        position: 'absolute',
+                        width: '100%',
+                        height: '100%',
+                        border: '4px solid rgba(17, 171, 156, 0.1)',
+                        borderRadius: '50%',
+                        borderTopColor: '#11ab9c',
+                        animation: 'spin 1s linear infinite'
+                    }} />
+                    <RotateCw className="w-8 h-8" style={{ animation: 'reverse-spin 2s linear infinite' }} />
+                </div>
+                <div style={{ textAlign: 'center' }}>
+                    <h2 style={{ fontSize: '1.5rem', fontWeight: '700', margin: 0 }}>Cargando su Sede</h2>
+                    <p style={{ color: '#6b7280', marginTop: '8px' }}>Configurando su espacio de trabajo...</p>
+                </div>
+                <style>{`
+                    @keyframes spin { to { transform: rotate(360deg); } }
+                    @keyframes reverse-spin { from { transform: rotate(360deg); } to { transform: rotate(0deg); } }
+                `}</style>
+            </div>
+        );
+    }
+
+    return <AuthenticatedApp />;
 };
 
 export default App;

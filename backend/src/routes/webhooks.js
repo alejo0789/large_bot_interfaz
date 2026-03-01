@@ -16,6 +16,7 @@ const { normalizePhone, getPureDigits } = require('../utils/phoneUtils');
 const { pool } = require('../config/database');
 const path = require('path');
 const fs = require('fs');
+const { tenantContext } = require('../utils/tenantContext');
 
 // Socket.IO instance
 let io = null;
@@ -23,25 +24,29 @@ const setSocketIO = (socketIO) => { io = socketIO; };
 
 /**
  * Emit message to specific conversation room only
- * This reduces network traffic significantly for 2000+ conversations
+ * MT-AWARE: Uses tenant-scoped rooms
  */
 const emitToConversation = (phone, event, data) => {
     if (!io) return;
+
+    // Get tenant from context
+    const context = tenantContext.getStore();
+    const tenantSlug = context?.tenant?.slug;
+
+    if (!tenantSlug) {
+        console.warn('⚠️ emitToConversation called without tenant context');
+        return;
+    }
 
     // Normalizar para asegurar entrega a ambos tipos de salas
     const dbPhone = normalizePhone(phone);
     const purePhone = getPureDigits(phone);
 
-    // Emitir a la sala con + (formato DB)
-    io.to(`conversation:${dbPhone}`).emit(event, data);
+    // Emitir a la sala de conversación (tenant-scoped)
+    io.to(`tenant:${tenantSlug}:conversation:${purePhone}`).emit(event, data);
 
-    // Emitir a la sala sin + (formato puro, común en frontend antiguo/específico)
-    if (dbPhone !== purePhone) {
-        io.to(`conversation:${purePhone}`).emit(event, data);
-    }
-
-    // Emit to global conversations room (for updating conversation list)
-    io.to('conversations:list').emit('conversation-updated', {
+    // Emit to tenant-specific conversations list room
+    io.to(`tenant:${tenantSlug}:conversations:list`).emit('conversation-updated', {
         phone: dbPhone,
         lastMessage: data.message,
         timestamp: data.timestamp,
@@ -49,9 +54,6 @@ const emitToConversation = (phone, event, data) => {
         unread: data.unread !== undefined ? data.unread : 1,
         isNew: data.isNew || false
     });
-
-    // Also emit globally for backward compatibility
-    io.emit('new-message', data);
 };
 
 // Receive message from N8N (WhatsApp incoming)

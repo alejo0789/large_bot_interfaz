@@ -153,11 +153,16 @@ const MessageInput = ({ onSend, onSendFile, disabled, isMobile, replyToMessage, 
                     textareaRef.current.setSelectionRange(length, length);
                 }
             }, 0);
-        } else if (!editingMessage && !replyToMessage && message !== '') {
-            // Only clear message if we are not editing or quick replying maybe? Wait, cancelling edit should probably clear or revert?
-            // Actually let editing cancel just leave the draft or clear if it matches exactly. Let's just not clear it unless it's sent.
         }
     }, [editingMessage]);
+
+    // Auto-resize textarea when message changes (for quick replies or external updates)
+    useEffect(() => {
+        if (textareaRef.current) {
+            textareaRef.current.style.height = 'auto';
+            textareaRef.current.style.height = Math.min(textareaRef.current.scrollHeight, 250) + 'px';
+        }
+    }, [message]);
 
     const mediaRecorderRef = useRef(null);
     const audioChunksRef = useRef([]);
@@ -996,7 +1001,7 @@ const MessageInput = ({ onSend, onSendFile, disabled, isMobile, replyToMessage, 
                         if (showEmojiPicker) setShowEmojiPicker(false);
                         // Auto-resize textarea
                         e.target.style.height = 'auto';
-                        e.target.style.height = Math.min(e.target.scrollHeight, 120) + 'px';
+                        e.target.style.height = Math.min(e.target.scrollHeight, 250) + 'px';
                     }}
                     onKeyDown={(e) => {
                         if (e.key === 'Enter' && !e.shiftKey) {
@@ -1012,14 +1017,14 @@ const MessageInput = ({ onSend, onSendFile, disabled, isMobile, replyToMessage, 
                         }
                     }}
                     disabled={disabled || isUploading}
-                    rows={1}
                     style={{
+                        padding: '12px 16px',
                         fontSize: isMobile ? '16px' : '14px',
                         resize: 'none',
-                        minHeight: '40px',
-                        maxHeight: '120px',
+                        minHeight: '50px',
+                        maxHeight: '250px',
                         overflowY: 'auto',
-                        lineHeight: '1.4'
+                        lineHeight: '1.5'
                     }}
                 />
 

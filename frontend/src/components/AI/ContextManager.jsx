@@ -1,9 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Plus, Trash2, Edit2, Search, FileText } from 'lucide-react';
 import ContextModal from './ContextModal';
-
-const API_URL = process.env.REACT_APP_API_URL ||
-    (process.env.NODE_ENV === 'production' ? window.location.origin : 'http://localhost:4000');
+import apiFetch, { API_URL } from '../../utils/api';
 
 const ContextManager = () => {
     const [contexts, setContexts] = useState([]);
@@ -15,7 +13,7 @@ const ContextManager = () => {
     const fetchContexts = async () => {
         setLoading(true);
         try {
-            const res = await fetch(`${API_URL}/api/ai-knowledge?type=text`);
+            const res = await apiFetch('/api/ai-knowledge?type=text');
             const data = await res.json();
 
             // Safeguard: Ensure data is an array
@@ -35,7 +33,7 @@ const ContextManager = () => {
     const handleDelete = async (id) => {
         if (!window.confirm('¿Eliminar este contexto?')) return;
         try {
-            await fetch(`${API_URL}/api/ai-knowledge/${id}`, { method: 'DELETE' });
+            await apiFetch(`/api/ai-knowledge/${id}`, { method: 'DELETE' });
             setContexts(prev => prev.filter(c => c.id !== id));
         } catch (error) {
             console.error('Error deleting context:', error);
@@ -229,7 +227,7 @@ const ContextManager = () => {
                                 {context.media_url && (
                                     <div style={{ marginTop: '16px', position: 'relative', width: 'fit-content' }}>
                                         <img
-                                            src={`${API_URL}${context.media_url}`}
+                                            src={context.media_url?.startsWith('http') ? context.media_url : `${API_URL}${context.media_url}`}
                                             alt={context.title}
                                             style={{
                                                 maxWidth: '120px',

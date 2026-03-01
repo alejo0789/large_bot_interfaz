@@ -12,9 +12,19 @@ export const useSocket = () => {
     const [socket, setSocket] = useState(null);
     const [isConnected, setIsConnected] = useState(false);
 
+    const token = sessionStorage.getItem('auth_token') || localStorage.getItem('auth_token');
+    const tenant = localStorage.getItem('current_tenant');
+    const tenantSlug = tenant ? JSON.parse(tenant).slug : null;
+
     useEffect(() => {
+        if (!token || !tenantSlug) return;
+
         const socketInstance = io(SOCKET_URL, {
             transports: ['websocket', 'polling'],
+            auth: {
+                token: token,
+                tenantSlug: tenantSlug
+            },
             reconnectionAttempts: Infinity,
             reconnectionDelay: 1000,
             reconnectionDelayMax: 5000,
@@ -51,7 +61,7 @@ export const useSocket = () => {
         return () => {
             socketInstance.disconnect();
         };
-    }, []);
+    }, [token, tenantSlug]);
 
     const emit = useCallback((event, data) => {
         if (socket && isConnected) {

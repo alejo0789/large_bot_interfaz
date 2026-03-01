@@ -1,14 +1,16 @@
-const express = require('express');
+﻿const express = require('express');
 const http = require('http');
 const socketIo = require('socket.io');
 const cors = require('cors');
-const { Pool } = require('pg');
 require('dotenv').config();
 
-// --- CONFIGURACIÓN ---
+// --- CONFIGURACIÃ“N DE BASE DE DATOS Y SERVICIOS ---
+const { dbManager } = require('./src/config/database');
+const evolutionService = require('./src/services/evolutionService');
+const tenantMiddleware = require('./src/middleware/tenantMiddleware');
+
 const app = express();
 const server = http.createServer(app);
-const evolutionService = require('./src/services/evolutionService');
 const io = socketIo(server, {
   cors: {
     origin: process.env.FRONTEND_URL || "http://localhost:3000",
@@ -16,53 +18,11 @@ const io = socketIo(server, {
   }
 });
 
-// --- CONFIGURACIÓN DE POSTGRESQL con UTF-8 ---
-const { types } = require('pg');
-
-// Parsear DATABASE_URL para obtener los componentes
-const parseDbUrl = (url) => {
-  if (!url) return null;
-  const regex = /postgres:\/\/([^:]+):([^@]+)@([^:]+):(\d+)\/(.+)/;
-  const match = url.match(regex);
-  if (match) {
-    return {
-      user: match[1],
-      password: match[2],
-      host: match[3],
-      port: parseInt(match[4]),
-      database: match[5]
-    };
-  }
-  return null;
-};
-
-const dbConfig = parseDbUrl(process.env.DATABASE_URL);
-
-const pool = new Pool({
-  user: dbConfig?.user || 'postgres',
-  password: dbConfig?.password || 'root',
-  host: dbConfig?.host || 'localhost',
-  port: dbConfig?.port || 5432,
-  database: dbConfig?.database || 'chatbot_db',
-  ssl: process.env.NODE_ENV === 'production' ? { rejectUnauthorized: false } : false,
-  // Forzar encoding UTF-8
-  client_encoding: 'UTF8'
-});
-
-// Establecer encoding en cada conexión
-pool.on('connect', async (client) => {
-  try {
-    await client.query("SET client_encoding = 'UTF8'");
-  } catch (err) {
-    console.error('Error setting encoding:', err);
-  }
-});
-
-// Middleware
+// Middleware Global
 app.use(cors());
 app.use(express.json({ limit: '10mb' }));
 
-// Configuración para subida de archivos
+// ConfiguraciÃ³n para subida de archivos
 const multer = require('multer');
 const path = require('path');
 const fs = require('fs');
@@ -109,17 +69,28 @@ const upload = multer({
   }
 });
 
-// Servir archivos estáticos de uploads
+// Servir archivos estÃ¡ticos de uploads
 app.use('/uploads', express.static(uploadDir));
 
-// --- ENDPOINTS DE LA API (SOLO LECTURA) ---
+// --- RUTAS DE AUTENTICACIÃ“N (Globales) ---
+const authRoutes = require('./src/routes/auth.js');
+app.use('/api/auth', authRoutes);
+
+
+// --- RUTAS DE ADMINISTRACION (sin sede) ---
+const adminRoutes = require('./src/routes/userManagement.js');
+app.use('/api/admin', adminRoutes);
+// --- MIDDLEWARE DE SEDE (Para el resto de la API) ---
+app.use('/api', tenantMiddleware);
+
+// --- ENDPOINTS DE LA API (TENANT CONTEXT) ---
 
 // 1. ENDPOINT PARA CARGAR TODAS LAS CONVERSACIONES
 app.get('/api/conversations', async (req, res) => {
   try {
-    console.log('🔄 Cargando conversaciones...');
+    console.log('ðŸ”„ Cargando conversaciones...');
 
-    const { rows } = await pool.query(`
+    const { rows } = await req.db.query(`
       SELECT 
         phone,
         contact_name,
@@ -153,11 +124,11 @@ app.get('/api/conversations', async (req, res) => {
       status: conv.status || 'active'
     }));
 
-    console.log(`✅ Conversaciones cargadas: ${conversations.length}`);
+    console.log(`âœ… Conversaciones cargadas: ${conversations.length}`);
     res.json(conversations);
 
   } catch (error) {
-    console.error('❌ Error al cargar conversaciones:', error);
+    console.error('âŒ Error al cargar conversaciones:', error);
     res.status(500).json({ error: 'No se pudieron cargar las conversaciones.' });
   }
 });
@@ -169,9 +140,9 @@ app.post('/api/conversations/:phone/toggle-ai', async (req, res) => {
     const { phone } = req.params;
     const { aiEnabled } = req.body;
 
-    console.log(`🤖 Cambiando IA para ${phone}: ${aiEnabled}`);
+    console.log(`ðŸ¤– Cambiando IA para ${phone}: ${aiEnabled}`);
 
-    const { rows } = await pool.query(`
+    const { rows } = await req.db.query(`
       UPDATE conversations 
       SET ai_enabled = $1, updated_at = NOW()
       WHERE phone = $2
@@ -179,25 +150,25 @@ app.post('/api/conversations/:phone/toggle-ai', async (req, res) => {
     `, [aiEnabled, phone]);
 
     if (rows.length === 0) {
-      return res.status(404).json({ error: 'Conversación no encontrada' });
+      return res.status(404).json({ error: 'ConversaciÃ³n no encontrada' });
     }
 
-    console.log(`✅ IA ${aiEnabled ? 'activada' : 'desactivada'} para ${phone}`);
+    console.log(`âœ… IA ${aiEnabled ? 'activada' : 'desactivada'} para ${phone}`);
     res.json({ aiEnabled: rows[0].ai_enabled });
 
   } catch (error) {
-    console.error('❌ Error al cambiar estado de IA:', error);
+    console.error('âŒ Error al cambiar estado de IA:', error);
     res.status(500).json({ error: 'No se pudo cambiar el estado de la IA' });
   }
 });
 
-// 2. ENDPOINT PARA CARGAR MENSAJES DE UNA CONVERSACIÓN ESPECÍFICA
+// 2. ENDPOINT PARA CARGAR MENSAJES DE UNA CONVERSACIÃ“N ESPECÃFICA
 app.get('/api/conversations/:phone/messages', async (req, res) => {
   try {
     const { phone } = req.params;
-    console.log(`🔄 Cargando mensajes para: ${phone}`);
+    console.log(`ðŸ”„ Cargando mensajes para: ${phone}`);
 
-    const { rows } = await pool.query(`
+    const { rows } = await req.db.query(`
       SELECT 
         id,
         whatsapp_id,
@@ -228,11 +199,11 @@ app.get('/api/conversations/:phone/messages', async (req, res) => {
       agent_name: msg.agent_name
     }));
 
-    console.log(`✅ Mensajes cargados para ${phone}: ${messages.length}`);
+    console.log(`âœ… Mensajes cargados para ${phone}: ${messages.length}`);
     res.json(messages);
 
   } catch (error) {
-    console.error('❌ Error al cargar mensajes:', error);
+    console.error('âŒ Error al cargar mensajes:', error);
     res.status(500).json({ error: 'No se pudieron cargar los mensajes.' });
   }
 });
@@ -244,17 +215,17 @@ app.post('/api/send-message', async (req, res) => {
   try {
     const { phone, name, message, temp_id, agent_id, agent_name } = req.body;
 
-    console.log('📥 RAW BODY received:', JSON.stringify(req.body, null, 2));
+    console.log('ðŸ“¥ RAW BODY received:', JSON.stringify(req.body, null, 2));
 
     if (!phone || !message) {
       return res.status(400).json({ error: 'Faltan datos requeridos (to, text)' });
     }
 
-    console.log(`📤 Enviando mensaje a n8n: ${phone} -> ${message} (Agent: ${agent_name || 'System'})`);
+    console.log(`ðŸ“¤ Enviando mensaje a n8n: ${phone} -> ${message} (Agent: ${agent_name || 'System'})`);
 
     // 1. GUARDAR EN BD LOCALMENTE (Status: sending)
     try {
-      await pool.query(`
+      await req.db.query(`
             INSERT INTO messages (
                 id,
                 whatsapp_id, 
@@ -287,7 +258,7 @@ app.post('/api/send-message', async (req, res) => {
       ]);
 
       // Update conversation last message
-      await pool.query(`
+      await req.db.query(`
             UPDATE conversations 
             SET 
                 last_message_text = $1,
@@ -297,7 +268,7 @@ app.post('/api/send-message', async (req, res) => {
         `, [message, phone]);
 
     } catch (dbError) {
-      console.error('⚠️ Error guardando mensaje en BD local (no crítico):', dbError);
+      console.error('âš ï¸ Error guardando mensaje en BD local (no crÃ­tico):', dbError);
     }
 
     // 2. ENVIAR A N8N
@@ -324,50 +295,49 @@ app.post('/api/send-message', async (req, res) => {
       });
 
       if (response.ok) {
-        console.log('✅ Mensaje enviado a n8n correctamente');
+        console.log('âœ… Mensaje enviado a n8n correctamente');
         res.json({ success: true, message: 'Mensaje enviado a n8n' });
       } else {
         const errorBody = await response.text();
-        console.error(`❌ Error enviando a N8N: ${response.status} ${response.statusText}`);
+        console.error(`âŒ Error enviando a N8N: ${response.status} ${response.statusText}`);
         console.error(`   Respuesta: ${errorBody}`);
         throw new Error(`N8N responded with ${response.status}`);
       }
     } else {
-      console.log('⚠️ No hay URL de n8n configurada, simulando envío...');
+      console.log('âš ï¸ No hay URL de n8n configurada, simulando envÃ­o...');
       res.json({ success: true, message: 'Mensaje simulado (configurar N8N_SEND_WEBHOOK_URL)' });
     }
 
   } catch (error) {
-    console.error('❌ Error enviando mensaje a n8n:', error);
+    console.error('âŒ Error enviando mensaje a n8n:', error);
     res.status(500).json({ error: 'Error al enviar mensaje' });
   }
 });
-// 3. ENDPOINT PARA MARCAR MENSAJES COMO LEÍDOS
+// 3. ENDPOINT PARA MARCAR MENSAJES COMO LEÃDOS
 app.post('/api/conversations/:phone/mark-read', async (req, res) => {
   try {
     const { phone } = req.params;
 
-    await pool.query(`
+    await req.db.query(`
       UPDATE conversations 
       SET unread_count = 0, updated_at = NOW() 
       WHERE phone = $1
     `, [phone]);
 
-    console.log(`✅ Mensajes marcados como leídos para: ${phone}`);
+    console.log(`âœ… Mensajes marcados como leÃ­dos para: ${phone}`);
     res.json({ success: true });
 
   } catch (error) {
-    console.error('❌ Error marcando como leído:', error);
-    res.status(500).json({ error: 'No se pudo marcar como leído' });
+    console.error('âŒ Error marcando como leÃ­do:', error);
+    res.status(500).json({ error: 'No se pudo marcar como leÃ­do' });
   }
 });
 
-// 4. ENDPOINT RECEIVE-MESSAGE (TU ENDPOINT EXISTENTE)
-// Este endpoint ya existe en tu configuración actual con n8n
-// Solo agregamos la emisión en tiempo real
-app.post('/receive-message', async (req, res) => {
+// 4. ENDPOINT RECEIVE-MESSAGE
+// Agregamos el middleware de sede para que sepa a quÃ© base de datos guardar
+app.post('/receive-message', tenantMiddleware, async (req, res) => {
   try {
-    console.log('📨 Mensaje recibido de n8n:', JSON.stringify(req.body, null, 2));
+    console.log('ðŸ“¨ Mensaje recibido de n8n:', JSON.stringify(req.body, null, 2));
 
     const {
       phone,
@@ -379,14 +349,14 @@ app.post('/receive-message', async (req, res) => {
     } = req.body;
 
     if (!phone || !message) {
-      console.log('❌ Datos incompletos en mensaje');
+      console.log('âŒ Datos incompletos en mensaje');
       return res.status(400).json({ error: 'Faltan datos requeridos (phone, message)' });
     }
 
     const cleanPhone = phone.replace(/\s+/g, '');
 
-    // ✅ LÓGICA CORREGIDA: Verificar el estado usando ai_enabled
-    const conversationState = await pool.query(`
+    // âœ… LÃ“GICA CORREGIDA: Verificar el estado usando ai_enabled
+    const conversationState = await req.db.query(`
       SELECT ai_enabled, agent_id, taken_by_agent_at 
       FROM conversations 
       WHERE phone = $1
@@ -402,15 +372,15 @@ app.post('/receive-message', async (req, res) => {
       if (aiEnabled === false) {
         shouldActivateAI = false;
         currentState = 'agent_active';
-        console.log(`🚫 IA desactivada - Conversación en modo agente para ${cleanPhone}`);
+        console.log(`ðŸš« IA desactivada - ConversaciÃ³n en modo agente para ${cleanPhone}`);
       } else {
         currentState = 'ai_active';
-        console.log(`🤖 IA activada para ${cleanPhone}`);
+        console.log(`ðŸ¤– IA activada para ${cleanPhone}`);
       }
     } else {
-      // Si no existe la conversación, crear una nueva con IA habilitada por defecto
-      console.log(`➕ Creando nueva conversación para ${cleanPhone}`);
-      await pool.query(`
+      // Si no existe la conversaciÃ³n, crear una nueva con IA habilitada por defecto
+      console.log(`âž• Creando nueva conversaciÃ³n para ${cleanPhone}`);
+      await req.db.query(`
         INSERT INTO conversations (
           phone, 
           contact_name, 
@@ -434,26 +404,26 @@ app.post('/receive-message', async (req, res) => {
       ai_enabled: shouldActivateAI
     };
 
-    console.log('📤 Emitiendo mensaje al frontend:', messageData);
-    io.emit('new-message', messageData);
+    console.log(`ðŸ“¤ Emitiendo mensaje al frontend (Sede: ${req.tenant.slug}):`, messageData);
+    io.to(`tenant:${req.tenant.slug}`).emit('new-message', messageData);
 
     // --- ENVIAR A WHATSAPP (EVOLUTION API) ---
     // Si el mensaje es del bot o IA, enviarlo al usuario final
     if (sender_type === 'bot' || sender_type === 'ai') {
-      console.log(`🤖 Intentando enviar respuesta de IA a ${cleanPhone}...`);
+      console.log(`ðŸ¤– Intentando enviar respuesta de IA a ${cleanPhone}...`);
       try {
         const result = await evolutionService.sendText(cleanPhone, message);
         if (result && result.success) {
-          console.log(`✅ Mensaje de IA enviado exitosamente a WhatsApp (${cleanPhone})`);
+          console.log(`âœ… Mensaje de IA enviado exitosamente a WhatsApp (${cleanPhone})`);
         } else {
-          console.error(`❌ Error al enviar mensaje de IA a ${cleanPhone}:`, result ? result.error : 'Respuesta vacía');
+          console.error(`âŒ Error al enviar mensaje de IA a ${cleanPhone}:`, result ? result.error : 'Respuesta vacÃ­a');
         }
       } catch (evoError) {
-        console.error('❌ Error fatal en el servicio de Evolution:', evoError.message);
+        console.error('âŒ Error fatal en el servicio de Evolution:', evoError.message);
       }
     }
 
-    // ✅ RESPUESTA AL WEBHOOK
+    // âœ… RESPUESTA AL WEBHOOK
     res.json({
       success: true,
       message: 'Mensaje procesado',
@@ -463,17 +433,17 @@ app.post('/receive-message', async (req, res) => {
     });
 
   } catch (error) {
-    console.error('❌ Error procesando mensaje:', error);
+    console.error('âŒ Error procesando mensaje:', error);
     res.status(500).json({ error: 'Error interno del servidor' });
   }
 });
-// ✅ NUEVO ENDPOINT: Activar modo agente
+// âœ… NUEVO ENDPOINT: Activar modo agente
 app.post('/api/conversations/:phone/take-by-agent', async (req, res) => {
   try {
     const { phone } = req.params;
-    const { agent_id } = req.body; // ID del agente que toma la conversación
+    const { agent_id } = req.body; // ID del agente que toma la conversaciÃ³n
 
-    await pool.query(`
+    await req.db.query(`
       UPDATE conversations 
       SET 
         conversation_state = 'agent_active',
@@ -483,13 +453,13 @@ app.post('/api/conversations/:phone/take-by-agent', async (req, res) => {
       WHERE phone = $2
     `, [agent_id || 'manual_agent', phone]);
 
-    console.log(`✅ Conversación ${phone} tomada por agente: ${agent_id}`);
+    console.log(`âœ… ConversaciÃ³n ${phone} tomada por agente: ${agent_id}`);
 
-    // Notificar a n8n que la IA debe desactivarse para esta conversación
+    // Notificar a n8n que la IA debe desactivarse para esta conversaciÃ³n
     await notifyN8nStateChange(phone, 'agent_active');
 
     // Emitir cambio de estado al frontend
-    io.emit('conversation-state-changed', {
+    io.to(`tenant:${req.tenant.slug}`).emit('conversation-state-changed', {
       phone: phone,
       state: 'agent_active',
       agent_id: agent_id
@@ -497,50 +467,50 @@ app.post('/api/conversations/:phone/take-by-agent', async (req, res) => {
 
     res.json({
       success: true,
-      message: 'Conversación tomada por agente',
+      message: 'ConversaciÃ³n tomada por agente',
       state: 'agent_active'
     });
 
   } catch (error) {
-    console.error('❌ Error al tomar conversación:', error);
-    res.status(500).json({ error: 'Error al tomar conversación' });
+    console.error('âŒ Error al tomar conversaciÃ³n:', error);
+    res.status(500).json({ error: 'Error al tomar conversaciÃ³n' });
   }
 });
 
-// ✅ NUEVO ENDPOINT: Reactivar IA
+// âœ… NUEVO ENDPOINT: Reactivar IA
 app.post('/api/conversations/:phone/activate-ai', async (req, res) => {
   try {
     const { phone } = req.params;
 
-    await pool.query(`
+    await req.db.query(`
       UPDATE conversations 
       SET 
         conversation_state = 'ai_active',
         agent_id = NULL,
         taken_by_agent_at = NULL,
         updated_at = NOW()
-      WHERE phone = $2
+      WHERE phone = $1
     `, [phone]);
 
-    console.log(`✅ IA reactivada para conversación: ${phone}`);
+    console.log(`âœ… IA reactivada para conversaciÃ³n: ${phone}`);
 
     // Notificar a n8n que la IA debe reactivarse
     await notifyN8nStateChange(phone, 'ai_active');
 
     // Emitir cambio de estado al frontend
-    io.emit('conversation-state-changed', {
+    io.to(`tenant:${req.tenant.slug}`).emit('conversation-state-changed', {
       phone: phone,
       state: 'ai_active'
     });
 
     res.json({
       success: true,
-      message: 'IA reactivada para la conversación',
+      message: 'IA reactivada para la conversaciÃ³n',
       state: 'ai_active'
     });
 
   } catch (error) {
-    console.error('❌ Error al reactivar IA:', error);
+    console.error('âŒ Error al reactivar IA:', error);
     res.status(500).json({ error: 'Error al reactivar IA' });
   }
 });
@@ -553,15 +523,15 @@ app.post('/api/conversations/:phone/activate-ai', async (req, res) => {
 app.post('/api/conversations/:phone/close', async (req, res) => {
   try {
     const { phone } = req.params;
-    await pool.query(`
+    await req.db.query(`
       UPDATE conversations 
       SET status = 'archived', updated_at = NOW() 
       WHERE phone = $1
     `, [phone]);
-    res.json({ success: true, message: 'Conversación archivada' });
+    res.json({ success: true, message: 'ConversaciÃ³n archivada' });
   } catch (error) {
-    console.error('❌ Error cerrando conversación:', error);
-    res.status(500).json({ error: 'Error al cerrar conversación' });
+    console.error('âŒ Error cerrando conversaciÃ³n:', error);
+    res.status(500).json({ error: 'Error al cerrar conversaciÃ³n' });
   }
 });
 
@@ -572,16 +542,16 @@ app.post('/api/send-file', upload.single('file'), async (req, res) => {
     const file = req.file;
 
     if (!file) {
-      return res.status(400).json({ error: 'No se recibió ningún archivo' });
+      return res.status(400).json({ error: 'No se recibiÃ³ ningÃºn archivo' });
     }
 
     if (!phone) {
-      return res.status(400).json({ error: 'Falta el número de teléfono' });
+      return res.status(400).json({ error: 'Falta el nÃºmero de telÃ©fono' });
     }
 
-    console.log(`📎 Archivo recibido: ${file.originalname} para ${phone} (temp_id: ${temp_id})`);
+    console.log(`ðŸ“Ž Archivo recibido: ${file.originalname} para ${phone} (temp_id: ${temp_id})`);
 
-    // URL del archivo subido (Usar WEBHOOK_URL si existe para evitar localhost en producción)
+    // URL del archivo subido (Usar WEBHOOK_URL si existe para evitar localhost en producciÃ³n)
     const baseUrl = process.env.WEBHOOK_URL ? process.env.WEBHOOK_URL.replace('/evolution', '') : `${req.protocol}://${req.get('host')}`;
     const fileUrl = `${baseUrl}/uploads/${file.filename}`;
 
@@ -592,7 +562,7 @@ app.post('/api/send-file', upload.single('file'), async (req, res) => {
     else if (file.mimetype.startsWith('audio/')) mediaType = 'audio';
 
     // Guardar mensaje en la base de datos con whatsapp_id usando temp_id
-    const messageResult = await pool.query(`
+    const messageResult = await req.db.query(`
       INSERT INTO messages (
         whatsapp_id,
         conversation_phone, 
@@ -611,17 +581,17 @@ app.post('/api/send-file', upload.single('file'), async (req, res) => {
     const savedId = messageResult.rows[0].id;
     const savedWhatsappId = messageResult.rows[0].whatsapp_id;
 
-    // Actualizar la conversación
-    await pool.query(`
+    // Actualizar la conversaciÃ³n
+    await req.db.query(`
       UPDATE conversations 
       SET 
         last_message_text = $1,
         last_message_timestamp = NOW(),
         updated_at = NOW()
       WHERE phone = $2
-    `, [caption || `📎 ${file.originalname}`, phone]);
+    `, [caption || `ðŸ“Ž ${file.originalname}`, phone]);
 
-    // Enviar a n8n si está configurado
+    // Enviar a n8n si estÃ¡ configurado
     const n8nWebhookUrl = process.env.N8N_SEND_WEBHOOK_URL;
     if (n8nWebhookUrl) {
       try {
@@ -642,9 +612,9 @@ app.post('/api/send-file', upload.single('file'), async (req, res) => {
             conversation_state: 'agent_active'
           })
         });
-        console.log('✅ Archivo enviado a n8n');
+        console.log('âœ… Archivo enviado a n8n');
       } catch (n8nError) {
-        console.error('⚠️ Error enviando a n8n:', n8nError.message);
+        console.error('âš ï¸ Error enviando a n8n:', n8nError.message);
       }
     }
 
@@ -663,7 +633,7 @@ app.post('/api/send-file', upload.single('file'), async (req, res) => {
       agent_name: agent_name,
       timestamp: new Date().toISOString()
     };
-    io.emit('agent-message', messageData);
+    io.to(`tenant:${req.tenant.slug}`).emit('agent-message', messageData);
 
     res.json({
       success: true,
@@ -677,7 +647,7 @@ app.post('/api/send-file', upload.single('file'), async (req, res) => {
     });
 
   } catch (error) {
-    console.error('❌ Error enviando archivo:', error);
+    console.error('âŒ Error enviando archivo:', error);
     res.status(500).json({ error: 'Error al enviar archivo' });
   }
 });
@@ -688,10 +658,10 @@ app.post('/api/send-file', upload.single('file'), async (req, res) => {
 // Obtener todas las etiquetas disponibles
 app.get('/api/tags', async (req, res) => {
   try {
-    const { rows } = await pool.query('SELECT * FROM tags ORDER BY name ASC');
+    const { rows } = await req.db.query('SELECT * FROM tags ORDER BY name ASC');
     res.json(rows);
   } catch (error) {
-    console.error('❌ Error cargando etiquetas:', error);
+    console.error('âŒ Error cargando etiquetas:', error);
     res.status(500).json({ error: 'Error al cargar etiquetas' });
   }
 });
@@ -700,25 +670,25 @@ app.get('/api/tags', async (req, res) => {
 app.post('/api/tags', async (req, res) => {
   try {
     const { name, color } = req.body;
-    const { rows } = await pool.query(`
+    const { rows } = await req.db.query(`
       INSERT INTO tags (name, color) VALUES ($1, $2) 
       ON CONFLICT (name) DO UPDATE SET color = EXCLUDED.color
       RETURNING *
     `, [name, color || '#808080']);
     res.json(rows[0]);
   } catch (error) {
-    console.error('❌ Error creando etiqueta:', error);
+    console.error('âŒ Error creando etiqueta:', error);
     res.status(500).json({ error: 'Error al crear etiqueta' });
   }
 });
 
-// Asignar etiqueta a conversación
+// Asignar etiqueta a conversaciÃ³n
 app.post('/api/conversations/:phone/tags', async (req, res) => {
   try {
     const { phone } = req.params;
     const { tagId } = req.body;
 
-    await pool.query(`
+    await req.db.query(`
       INSERT INTO conversation_tags (conversation_phone, tag_id)
       VALUES ($1, $2)
       ON CONFLICT DO NOTHING
@@ -726,31 +696,31 @@ app.post('/api/conversations/:phone/tags', async (req, res) => {
 
     res.json({ success: true, message: 'Etiqueta asignada' });
   } catch (error) {
-    console.error('❌ Error asignando etiqueta:', error);
+    console.error('âŒ Error asignando etiqueta:', error);
     res.status(500).json({ error: 'Error al asignar etiqueta' });
   }
 });
 
-// Remover etiqueta de conversación
+// Remover etiqueta de conversaciÃ³n
 app.delete('/api/conversations/:phone/tags/:tagId', async (req, res) => {
   try {
     const { phone, tagId } = req.params;
-    await pool.query(`
+    await req.db.query(`
       DELETE FROM conversation_tags 
       WHERE conversation_phone = $1 AND tag_id = $2
     `, [phone, tagId]);
     res.json({ success: true, message: 'Etiqueta removida' });
   } catch (error) {
-    console.error('❌ Error removiendo etiqueta:', error);
+    console.error('âŒ Error removiendo etiqueta:', error);
     res.status(500).json({ error: 'Error al remover etiqueta' });
   }
 });
 
-// Obtener etiquetas de una conversación
+// Obtener etiquetas de una conversaciÃ³n
 app.get('/api/conversations/:phone/tags', async (req, res) => {
   try {
     const { phone } = req.params;
-    const { rows } = await pool.query(`
+    const { rows } = await req.db.query(`
       SELECT t.* 
       FROM tags t
       JOIN conversation_tags ct ON t.id = ct.tag_id
@@ -758,7 +728,7 @@ app.get('/api/conversations/:phone/tags', async (req, res) => {
     `, [phone]);
     res.json(rows);
   } catch (error) {
-    console.error('❌ Error obteniendo etiquetas de conversación:', error);
+    console.error('âŒ Error obteniendo etiquetas de conversaciÃ³n:', error);
     res.status(500).json({ error: 'Error al obtener etiquetas' });
   }
 });
@@ -767,16 +737,16 @@ app.get('/api/conversations/:phone/tags', async (req, res) => {
 // 8. ENDPOINT LEGACY PARA HISTORIAL COMPLETO (mantener compatibilidad)
 app.get('/api/history', async (req, res) => {
   try {
-    console.log('🔄 Petición de historial completo (legacy)...');
+    console.log('ðŸ”„ PeticiÃ³n de historial completo (legacy)...');
 
     // Cargar conversaciones
-    const conversationsResult = await pool.query(`
+    const conversationsResult = await req.db.query(`
       SELECT * FROM conversations 
       ORDER BY last_message_timestamp DESC NULLS LAST, created_at DESC
     `);
 
-    // Cargar todos los mensajes agrupados por conversación
-    const messagesResult = await pool.query(`
+    // Cargar todos los mensajes agrupados por conversaciÃ³n
+    const messagesResult = await req.db.query(`
       SELECT * FROM messages ORDER BY timestamp ASC
     `);
 
@@ -817,11 +787,11 @@ app.get('/api/history', async (req, res) => {
       status: conv.status || 'active'
     }));
 
-    console.log(`✅ Historial completo: ${conversations.length} conversaciones`);
+    console.log(`âœ… Historial completo: ${conversations.length} conversaciones`);
     res.json({ conversations, messagesByConversation });
 
   } catch (error) {
-    console.error('❌ Error al cargar historial completo:', error);
+    console.error('âŒ Error al cargar historial completo:', error);
     res.status(500).json({ error: 'No se pudo cargar el historial.' });
   }
 });
@@ -878,10 +848,10 @@ app.get('/api/dashboard/stats', async (req, res) => {
     `;
 
     const [received, sent, unreads, agents] = await Promise.all([
-      pool.query(receivedQuery, params),
-      pool.query(sentQuery, params),
-      pool.query(unreadQuery),
-      pool.query(agentQuery, params)
+      req.db.query(receivedQuery, params),
+      req.db.query(sentQuery, params),
+      req.db.query(unreadQuery),
+      req.db.query(agentQuery, params)
     ]);
 
     res.json({
@@ -895,9 +865,9 @@ app.get('/api/dashboard/stats', async (req, res) => {
     });
 
   } catch (error) {
-    console.error('❌ Error fetching dashboard stats:', error);
+    console.error('âŒ Error fetching dashboard stats:', error);
     console.error(error.stack);
-    res.status(500).json({ error: 'Error cargando estadísticas' });
+    res.status(500).json({ error: 'Error cargando estadÃ­sticas' });
   }
 });
 
@@ -922,7 +892,7 @@ app.get('/api/dashboard/charts', async (req, res) => {
       params.push(startDate);
     }
 
-    // Gráfica de mensajes recibidos vs enviados
+    // GrÃ¡fica de mensajes recibidos vs enviados
     const chartQuery = `
       SELECT 
         date_trunc($${params.length + 1}, timestamp) as time_slot,
@@ -935,7 +905,7 @@ app.get('/api/dashboard/charts', async (req, res) => {
     `;
 
     const chartParams = [...params, period];
-    const { rows } = await pool.query(chartQuery, chartParams);
+    const { rows } = await req.db.query(chartQuery, chartParams);
 
     const chartData = rows.map(row => ({
       time: period === 'hour'
@@ -949,26 +919,56 @@ app.get('/api/dashboard/charts', async (req, res) => {
     res.json(chartData);
 
   } catch (error) {
-    console.error('❌ Error fetching chart data:', error);
-    res.status(500).json({ error: 'Error cargando gráficas' });
+    console.error('âŒ Error fetching chart data:', error);
+    res.status(500).json({ error: 'Error cargando grÃ¡ficas' });
   }
 });
 
-// --- LÓGICA DE SOCKET.IO ---
+// --- LÃ“GICA DE SOCKET.IO (MT Aware) ---
 io.on('connection', (socket) => {
-  console.log(`🟢 Usuario conectado: ${socket.id}`);
+  const { token, tenantSlug } = socket.handshake.auth;
 
-  socket.on('disconnect', () => {
-    console.log(`🔴 Usuario desconectado: ${socket.id}`);
+  if (!token || !tenantSlug) {
+    console.log(`ðŸ”´ ConexiÃ³n rechazada: token o tenantSlug faltante para socket ${socket.id}`);
+    socket.disconnect(true);
+    return;
+  }
+
+  // AquÃ­ podrÃ­as aÃ±adir lÃ³gica para verificar el token si fuera necesario
+  // Por ejemplo, decodificar el JWT y verificar que el tenantSlug coincide
+  // if (!verifyTokenAndTenant(token, tenantSlug)) {
+  //   console.log(`ðŸ”´ ConexiÃ³n rechazada: token invÃ¡lido o no coincide con tenantSlug para socket ${socket.id}`);
+  //   socket.disconnect(true);
+  //   return;
+  // }
+
+  console.log(`ðŸŸ¢ Usuario conectado a sede [${tenantSlug}]: ${socket.id}`);
+  socket.join(`tenant:${tenantSlug}`);
+
+  socket.on('join-conversation', (phone) => {
+    if (tenantSlug) {
+      socket.join(`tenant:${tenantSlug}:conv:${phone}`);
+      console.log(`ðŸ“± Usuario unido a conversaciÃ³n ${phone} en sede ${tenantSlug}`);
+    }
   });
 
-  // Manejar envío de mensajes desde el agente
+  socket.on('leave-conversation', (phone) => {
+    if (tenantSlug) {
+      socket.leave(`tenant:${tenantSlug}:conv:${phone}`);
+    }
+  });
+
+  socket.on('disconnect', () => {
+    console.log(`ðŸ”´ Usuario desconectado: ${socket.id}`);
+  });
+
+  // Manejar envÃ­o de mensajes desde el agente
   socket.on('send-whatsapp-message', async (data) => {
     try {
-      console.log('➡️ Petición para enviar mensaje vía socket:', data);
+      console.log('âž¡ï¸ PeticiÃ³n para enviar mensaje vÃ­a socket:', data);
       const { to, text, temp_id } = data;
 
-      // Reenviar a la API de envío
+      // Reenviar a la API de envÃ­o
       const response = await fetch(`http://localhost:${process.env.PORT || 4000}/api/send-message`, {
         method: 'POST',
         headers: {
@@ -983,13 +983,13 @@ io.on('connection', (socket) => {
           message_id: `sent_${Date.now()}`,
           status: 'delivered'
         });
-        console.log('✅ Mensaje procesado correctamente vía socket');
+        console.log('âœ… Mensaje procesado correctamente vÃ­a socket');
       } else {
-        throw new Error('Error en envío');
+        throw new Error('Error en envÃ­o');
       }
 
     } catch (error) {
-      console.error('❌ Error enviando mensaje vía socket:', error);
+      console.error('âŒ Error enviando mensaje vÃ­a socket:', error);
       socket.emit('message-error', {
         temp_id: data.temp_id,
         error: 'Error al enviar mensaje'
@@ -1010,9 +1010,9 @@ app.get('/health', (req, res) => {
 // --- INICIAR SERVIDOR ---
 const PORT = process.env.PORT || 4000;
 server.listen(PORT, () => {
-  console.log(`🚀 Servidor escuchando en el puerto ${PORT}`);
-  console.log(`📡 Frontend URL: ${process.env.FRONTEND_URL || "http://localhost:3000"}`);
-  console.log(`🔗 Endpoints disponibles:`);
+  console.log(`ðŸš€ Servidor escuchando en el puerto ${PORT}`);
+  console.log(`ðŸ“¡ Frontend URL: ${process.env.FRONTEND_URL || "http://localhost:3000"}`);
+  console.log(`ðŸ”— Endpoints disponibles:`);
   console.log(`   - GET  /api/conversations`);
   console.log(`   - GET  /api/conversations/:phone/messages`);
   console.log(`   - N8N Webhook: ${process.env.N8N_SEND_WEBHOOK_URL || 'No configurado'}`);
@@ -1024,11 +1024,9 @@ server.listen(PORT, () => {
 
 // --- MANEJO GRACEFUL DE CIERRE ---
 process.on('SIGTERM', () => {
-  console.log('🔄 Cerrando servidor...');
+  console.log('ðŸ”„ Cerrando servidor...');
   server.close(() => {
-    pool.end(() => {
-      console.log('✅ Servidor cerrado correctamente');
-      process.exit(0);
-    });
+    console.log('âœ… Servidor cerrado correctamente');
+    process.exit(0);
   });
 });

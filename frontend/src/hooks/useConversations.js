@@ -1,7 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
-
-const API_URL = process.env.REACT_APP_API_URL ||
-    (process.env.NODE_ENV === 'production' ? window.location.origin : 'http://localhost:4000');
+import apiFetch from '../utils/api';
 
 const sortConversations = (conversations) => {
     return [...conversations].sort((a, b) => {
@@ -38,7 +36,7 @@ export const useConversations = (socket) => {
     useEffect(() => {
         const fetchGlobalSettings = async () => {
             try {
-                const response = await fetch(`${API_URL}/api/settings`);
+                const response = await apiFetch('/api/settings');
                 if (response.ok) {
                     const data = await response.json();
                     if (data.settings && data.settings.default_ai_enabled !== undefined) {
@@ -88,7 +86,7 @@ export const useConversations = (socket) => {
                 params.append('unreadOnly', 'true');
             }
 
-            const response = await fetch(`${API_URL}/api/conversations?${params}`, {
+            const response = await apiFetch(`/api/conversations?${params}`, {
                 cache: 'no-cache'
             });
             if (!response.ok) throw new Error('Error fetching conversations');
@@ -156,7 +154,7 @@ export const useConversations = (socket) => {
             setIsLoadingMessages(true);
             console.log(`🔄 Fetching messages for ${phone}...`);
 
-            const response = await fetch(`${API_URL}/api/conversations/${phone}/messages`);
+            const response = await apiFetch(`/api/conversations/${phone}/messages`);
             if (!response.ok) throw new Error('Error fetching messages');
 
             const data = await response.json();
@@ -187,7 +185,7 @@ export const useConversations = (socket) => {
     // Mark conversation as read
     const markConversationAsRead = useCallback(async (phone) => {
         try {
-            await fetch(`${API_URL}/api/conversations/${phone}/mark-read`, { method: 'POST' });
+            await apiFetch(`/api/conversations/${phone}/mark-read`, { method: 'POST' });
 
             setConversations(prev => prev.map(conv =>
                 (conv && conv.contact && conv.contact.phone === phone) ? { ...conv, unread: 0 } : conv
@@ -200,7 +198,7 @@ export const useConversations = (socket) => {
     // Mark conversation as unread
     const markConversationAsUnread = useCallback(async (phone) => {
         try {
-            await fetch(`${API_URL}/api/conversations/${phone}/mark-unread`, { method: 'POST' });
+            await apiFetch(`/api/conversations/${phone}/mark-unread`, { method: 'POST' });
 
             setConversations(prev => prev.map(conv =>
                 (conv && conv.contact && conv.contact.phone === phone) ? { ...conv, unread: 1 } : conv
@@ -300,12 +298,8 @@ export const useConversations = (socket) => {
         });
 
         try {
-            const response = await fetch(`${API_URL}/api/send-message`, {
+            const response = await apiFetch('/api/send-message', {
                 method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                    'x-api-key': process.env.REACT_APP_API_KEY || ''
-                },
                 body: JSON.stringify({
                     phone: String(phone),
                     message,
@@ -369,11 +363,10 @@ export const useConversations = (socket) => {
         if (replyTo) formData.append('reply_to', replyTo);
 
         try {
-            const response = await fetch(`${API_URL}/api/send-file`, {
+            const response = await apiFetch('/api/send-file', {
                 method: 'POST',
-                headers: {
-                    'x-api-key': process.env.REACT_APP_API_KEY || ''
-                },
+                // apiFetch handles standard headers, but for FormData we should let the browser set it
+                headers: {},
                 body: formData
             });
 
@@ -427,9 +420,8 @@ export const useConversations = (socket) => {
         setAiStatesByPhone(prev => ({ ...prev, [phone]: newState }));
 
         try {
-            const response = await fetch(`${API_URL}/api/conversations/${phone}/toggle-ai`, {
+            const response = await apiFetch(`/api/conversations/${phone}/toggle-ai`, {
                 method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ aiEnabled: newState })
             });
 
@@ -464,9 +456,8 @@ export const useConversations = (socket) => {
         });
 
         try {
-            const response = await fetch(`${API_URL}/api/conversations/${phone}/pin`, {
+            const response = await apiFetch(`/api/conversations/${phone}/pin`, {
                 method: 'PUT',
-                headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ isPinned: newState })
             });
 
@@ -842,7 +833,7 @@ export const useConversations = (socket) => {
                 return prev;
             });
 
-            const res = await fetch(`${API_URL}/api/messages/${messageId}`, {
+            const res = await apiFetch(`/api/messages/${messageId}`, {
                 method: 'DELETE'
             });
 
@@ -853,7 +844,7 @@ export const useConversations = (socket) => {
             console.error(error);
             // Revert logic would go here
         }
-    }, [API_URL]);
+    }, []);
 
     const reactToMessage = useCallback(async (messageId, emoji, phone) => {
         // Optimistic update
@@ -878,9 +869,8 @@ export const useConversations = (socket) => {
         });
 
         try {
-            await fetch(`${API_URL}/api/messages/${messageId}/reaction`, {
+            await apiFetch(`/api/messages/${messageId}/reaction`, {
                 method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ reaction: emoji, phone })
             });
         } catch (error) {

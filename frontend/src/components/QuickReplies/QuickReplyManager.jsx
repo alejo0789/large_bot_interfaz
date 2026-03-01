@@ -388,7 +388,7 @@ const QuickReplyManager = ({ isOpen, onClose, initialContent = '', initialData =
                                 if (showEmojiPicker) setShowEmojiPicker(false);
                             }}
                             placeholder="Escribe el mensaje automático..."
-                            rows={4}
+                            rows={10}
                             required
                             style={{
                                 width: '100%',
@@ -399,7 +399,8 @@ const QuickReplyManager = ({ isOpen, onClose, initialContent = '', initialData =
                                 fontSize: '1rem',
                                 outline: 'none',
                                 transition: 'all 0.2s',
-                                resize: 'none',
+                                resize: 'vertical',
+                                minHeight: '160px',
                                 color: 'var(--color-gray-900)',
                                 lineHeight: '1.6'
                             }}

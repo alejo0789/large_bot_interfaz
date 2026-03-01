@@ -3,13 +3,29 @@
  * Handles communication with N8N webhooks
  */
 const { config } = require('../config/app');
+const { tenantContext } = require('../utils/tenantContext');
 
 class N8NService {
+    /**
+     * Resolves the current N8N config based on the tenant context
+     */
+    getConfig() {
+        const context = tenantContext.getStore();
+        const tenant = context?.tenant;
+
+        return {
+            webhookUrl: tenant?.n8n_webhook_url || config.n8nWebhookUrl,
+            slug: tenant?.slug || 'default'
+        };
+    }
+
     /**
      * Send message to N8N for WhatsApp delivery
      */
     async sendMessage({ phone, name, message, mediaType, mediaUrl, fileName, tempId }) {
-        if (!config.n8nWebhookUrl) {
+        const { webhookUrl, slug } = this.getConfig();
+
+        if (!webhookUrl) {
             console.warn('⚠️ N8N webhook not configured, message not sent to WhatsApp');
             return { sent: false, reason: 'N8N not configured' };
         }
@@ -18,6 +34,7 @@ class N8NService {
             const fetch = (await import('node-fetch')).default;
 
             const payload = {
+                sede: slug, // Include tenant slug
                 phone,
                 name,
                 message,
@@ -32,7 +49,7 @@ class N8NService {
                 payload.file_name = fileName;
             }
 
-            const response = await fetch(config.n8nWebhookUrl, {
+            const response = await fetch(webhookUrl, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify(payload)
@@ -42,7 +59,7 @@ class N8NService {
                 throw new Error(`N8N responded with ${response.status}`);
             }
 
-            console.log('✅ Message sent to N8N');
+            console.log(`✅ Message sent to N8N [Sede: ${slug}]`);
             return { sent: true };
         } catch (error) {
             console.error('❌ Error sending to N8N:', error.message);
@@ -54,15 +71,17 @@ class N8NService {
      * Notify N8N of state change
      */
     async notifyStateChange(phone, state) {
-        if (!config.n8nWebhookUrl) return;
+        const { webhookUrl, slug } = this.getConfig();
+        if (!webhookUrl) return;
 
         try {
             const fetch = (await import('node-fetch')).default;
 
-            await fetch(config.n8nWebhookUrl, {
+            await fetch(webhookUrl, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
+                    sede: slug,
                     phone,
                     type: 'state_change',
                     new_state: state,
@@ -70,7 +89,7 @@ class N8NService {
                 })
             });
 
-            console.log(`✅ State change notified to N8N: ${phone} -> ${state}`);
+            console.log(`✅ State change notified to N8N: ${phone} -> ${state} [Sede: ${slug}]`);
         } catch (error) {
             console.error('❌ Error notifying N8N:', error.message);
         }
@@ -81,12 +100,14 @@ class N8NService {
      * Call this when a new user message arrives and AI is enabled
      */
     async triggerAIProcessing({ phone, text, contactName, mediaType, mediaUrl }) {
-        if (!config.n8nWebhookUrl) return null;
+        const { webhookUrl, slug } = this.getConfig();
+        if (!webhookUrl) return null;
 
         try {
             const fetch = (await import('node-fetch')).default;
 
             const payload = {
+                sede: slug,
                 type: 'incoming_message',
                 phone,
                 name: contactName,
@@ -97,19 +118,19 @@ class N8NService {
                 media_url: mediaUrl || null
             };
 
-            const response = await fetch(config.n8nWebhookUrl, {
+            const response = await fetch(webhookUrl, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify(payload)
             });
 
             if (!response.ok) {
-                console.warn(`⚠️ N8N AI Trigger failed: ${response.status}`);
+                console.warn(`⚠️ N8N AI Trigger failed: ${response.status} [Sede: ${slug}]`);
                 return null;
             }
 
             const data = await response.json();
-            console.log('📥 Raw N8N AI Response:', JSON.stringify(data));
+            console.log(`📥 Raw N8N AI Response [Sede: ${slug}]:`, JSON.stringify(data));
 
             // n8n returns an array of items
             if (Array.isArray(data) && data.length > 0) {

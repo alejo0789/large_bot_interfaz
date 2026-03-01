@@ -7,8 +7,7 @@ import {
     Calendar, MessageSquare, CheckCircle, AlertCircle, TrendingUp, Users, ArrowUp, ArrowDown, Zap
 } from 'lucide-react';
 
-const API_URL = process.env.REACT_APP_API_URL ||
-    (process.env.NODE_ENV === 'production' ? window.location.origin : 'http://localhost:4000');
+import apiFetch from '../../utils/api';
 
 const Dashboard = ({ isMobile }) => {
     const [stats, setStats] = useState(null);
@@ -53,8 +52,8 @@ const Dashboard = ({ isMobile }) => {
                 });
 
                 const [statsRes, chartRes] = await Promise.all([
-                    fetch(`${API_URL}/api/dashboard/stats?${queryParams}`),
-                    fetch(`${API_URL}/api/dashboard/charts?${queryParams}`)
+                    apiFetch(`/api/dashboard/stats?${queryParams}`),
+                    apiFetch(`/api/dashboard/charts?${queryParams}`)
                 ]);
 
                 if (statsRes.ok && chartRes.ok) {

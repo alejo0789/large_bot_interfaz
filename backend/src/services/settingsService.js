@@ -2,16 +2,8 @@
  * Settings Service
  * Manages global application settings
  */
-const { Pool } = require('pg');
+const { pool } = require('../config/database');
 const { config } = require('../config/app');
-
-// We use the same pool logic as other services, assuming direct pool usage or singleton
-// For simplicity/consistency with this codebase, I'll instantiate a pool if not exported centrally,
-// BUT looking at previous files, they seem to use a pool from config or creating new ones.
-// Best practice: Use a shared db module. I will replicate the pattern seen in n8nService/evolutionService.
-const pool = new Pool({
-    connectionString: 'postgresql://neondb_owner:npg_LYBzGw64JDWh@ep-withered-term-a4nrhhk1-pooler.us-east-1.aws.neon.tech/chatbot_db?sslmode=require'
-});
 
 class SettingsService {
 

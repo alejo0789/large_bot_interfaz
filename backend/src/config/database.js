@@ -1,81 +1,122 @@
-/**
- * Database Configuration
- * Handles PostgreSQL connection pool with UTF-8 support
- * Supports Neon, Railway, and local PostgreSQL
- */
 const { Pool } = require('pg');
+const { tenantContext } = require('../utils/tenantContext');
 
-// Check if we have a DATABASE_URL (Neon, Railway, etc.)
-const DATABASE_URL = process.env.DATABASE_URL;
+/**
+ * Multi-Tenant Database Manager
+ * Manages a cache of connection pools for different sites
+ */
+class MultiTenantManager {
+    constructor() {
+        this.pools = new Map();
+        // Master connection configuration
+        // Prefer MASTER_DATABASE_URL (Neon cloud) over individual local vars
+        const masterUrl = process.env.MASTER_DATABASE_URL;
+        const masterConfig = masterUrl
+            ? {
+                connectionString: masterUrl,
+                ssl: { rejectUnauthorized: false }
+            }
+            : {
+                user: process.env.DB_USER || 'postgres',
+                password: process.env.DB_PASSWORD || 'root',
+                host: process.env.DB_HOST || 'localhost',
+                port: process.env.DB_PORT || 5432,
+                database: process.env.DB_NAME || 'chatbot_master'
+            };
 
-// Configure pool based on environment
-let poolConfig;
+        console.log(`📡 Initializing Master Database Connection: ${masterUrl ? '(Neon) chatbot_master' : `${masterConfig.host}:${masterConfig.port}/${masterConfig.database}`}`);
 
-if (DATABASE_URL) {
-    // Use connection string directly (works with Neon, Railway, etc.)
-    poolConfig = {
-        connectionString: DATABASE_URL,
-        ssl: {
-            rejectUnauthorized: false // Required for Neon
-        },
-        // =============================================
-        // OPTIMIZED FOR 2000+ CONVERSATIONS
-        // =============================================
-        min: 5,                        // Minimum connections to keep ready
-        max: 50,                       // Maximum connections (increased from 20)
-        idleTimeoutMillis: 60000,      // Close idle connections after 1 minute
-        connectionTimeoutMillis: 10000, // Wait up to 10s for a connection
-        acquireTimeoutMillis: 30000,   // Wait up to 30s to acquire from pool
-        statement_timeout: 30000,      // Kill queries running longer than 30s
-    };
-    console.log('📡 Using DATABASE_URL for connection (pool: 5-50)');
-} else {
-    // Use individual environment variables (local development)
-    poolConfig = {
-        user: process.env.DB_USER || 'postgres',
-        password: process.env.DB_PASSWORD || 'root',
-        host: process.env.DB_HOST || 'localhost',
-        port: process.env.DB_PORT || 5432,
-        database: process.env.DB_NAME || 'chatbot_db',
-        ssl: false,
-        // =============================================
-        // OPTIMIZED FOR 2000+ CONVERSATIONS
-        // =============================================
-        min: 2,                        // Minimum connections for local dev
-        max: 50,                       // Maximum connections (increased from 20)
-        idleTimeoutMillis: 60000,      // Close idle connections after 1 minute
-        connectionTimeoutMillis: 5000, // Wait up to 5s for a connection
-        acquireTimeoutMillis: 15000,   // Wait up to 15s to acquire from pool
-    };
-    console.log('🏠 Using local database configuration (pool: 2-50)');
+        this.masterPool = new Pool(masterConfig);
+
+        // Force public schema — Neon sometimes has a different default search_path
+        this.masterPool.on('connect', async (client) => {
+            await client.query("SET search_path = public");
+        });
+
+        this.masterPool.on('error', (err) => {
+            console.error('Unexpected error on master database pool', err);
+        });
+    }
+
+    /**
+     * Get or create a connection pool for a specific tenant
+     * @param {string} tenantId - The UUID or slug of the tenant
+     * @param {string} connectionString - The full DB connection URL
+     */
+    async getPool(tenantId, connectionString) {
+        if (this.pools.has(tenantId)) {
+            return this.pools.get(tenantId);
+        }
+
+        console.log(`📡 Creating new connection pool for tenant: ${tenantId}`);
+        // Ensure connectionString is valid or fallback to local if same host but different DB
+        const pool = new Pool({
+            connectionString: connectionString,
+            ssl: connectionString.includes('localhost') || connectionString.includes('127.0.0.1') ? false : { rejectUnauthorized: false },
+            min: 2,
+            max: 20,
+            idleTimeoutMillis: 30000
+        });
+
+        // Set UTF-8 encoding on each connection
+        pool.on('connect', async (client) => {
+            try {
+                await client.query("SET client_encoding = 'UTF8'");
+            } catch (err) {
+                console.error(`Error setting encoding for ${tenantId}:`, err);
+            }
+        });
+
+        pool.on('error', (err) => {
+            console.error(`Unexpected error on idle client for ${tenantId}`, err);
+        });
+
+        this.pools.set(tenantId, pool);
+        return pool;
+    }
+
+    /**
+     * Legacy Test connection (for master)
+     */
+    async testConnection() {
+        try {
+            const client = await this.masterPool.connect();
+            console.log('✅ Master Database connected successfully');
+            client.release();
+            return true;
+        } catch (err) {
+            console.error('❌ Master Database connection failed:', err.message);
+            return false;
+        }
+    }
 }
 
-const pool = new Pool(poolConfig);
+const dbManager = new MultiTenantManager();
 
-// Set UTF-8 encoding on each connection
-pool.on('connect', async (client) => {
-    try {
-        await client.query("SET client_encoding = 'UTF8'");
-    } catch (err) {
-        console.error('Error setting encoding:', err);
+/**
+ * DATABASE POOL PROXY
+ * This is the magic: it returns the tenant-specific pool if we are inside a 
+ * tenant request context (via tenantMiddleware), otherwise falls back to masterPool.
+ * 
+ * This allows all existing services to continue using `require('../config/database').pool`
+ * without modification while becoming multi-tenant aware.
+ */
+const poolProxy = new Proxy({}, {
+    get: (target, prop) => {
+        // Try to get the pool from the current request context
+        const context = tenantContext.getStore();
+        const activePool = (context && context.db) ? context.db : dbManager.masterPool;
+
+        const value = activePool[prop];
+        if (typeof value === 'function') {
+            return value.bind(activePool);
+        }
+        return value;
     }
 });
 
-pool.on('error', (err) => {
-    console.error('Unexpected error on idle client', err);
-});
-
-// Test connection
-const testConnection = async () => {
-    try {
-        const client = await pool.connect();
-        console.log('✅ Database connected successfully');
-        client.release();
-        return true;
-    } catch (err) {
-        console.error('❌ Database connection failed:', err.message);
-        return false;
-    }
+module.exports = {
+    pool: poolProxy, // Dynamic proxy
+    dbManager,
+    testConnection: () => dbManager.testConnection()
 };
-
-module.exports = { pool, testConnection };

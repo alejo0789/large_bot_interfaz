@@ -1,7 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
-
-const API_URL = process.env.REACT_APP_API_URL ||
-    (process.env.NODE_ENV === 'production' ? window.location.origin : 'http://localhost:4000');
+import apiFetch from '../utils/api';
 
 /**
  * Custom hook for managing tags
@@ -18,7 +16,7 @@ export const useTags = () => {
             setIsLoading(true);
             setError(null);
 
-            const response = await fetch(`${API_URL}/api/tags`);
+            const response = await apiFetch('/api/tags');
             if (!response.ok) throw new Error('Error fetching tags');
 
             const data = await response.json();
@@ -34,9 +32,8 @@ export const useTags = () => {
     // Create a new tag
     const createTag = useCallback(async (name, color) => {
         try {
-            const response = await fetch(`${API_URL}/api/tags`, {
+            const response = await apiFetch('/api/tags', {
                 method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ name, color })
             });
 
@@ -54,9 +51,8 @@ export const useTags = () => {
     // Update an existing tag
     const updateTag = useCallback(async (tagId, name, color) => {
         try {
-            const response = await fetch(`${API_URL}/api/tags/${tagId}`, {
+            const response = await apiFetch(`/api/tags/${tagId}`, {
                 method: 'PUT',
-                headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ name, color })
             });
 
@@ -74,7 +70,7 @@ export const useTags = () => {
     // Get tags for a specific conversation
     const getConversationTags = useCallback(async (phone) => {
         try {
-            const response = await fetch(`${API_URL}/api/conversations/${phone}/tags`);
+            const response = await apiFetch(`/api/conversations/${phone}/tags`);
             if (!response.ok) throw new Error('Error fetching conversation tags');
             return await response.json();
         } catch (err) {
@@ -86,9 +82,8 @@ export const useTags = () => {
     // Assign tag to conversation
     const assignTag = useCallback(async (phone, tagId) => {
         try {
-            const response = await fetch(`${API_URL}/api/conversations/${phone}/tags`, {
+            const response = await apiFetch(`/api/conversations/${phone}/tags`, {
                 method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ tagId })
             });
 
@@ -103,7 +98,7 @@ export const useTags = () => {
     // Remove tag from conversation
     const removeTag = useCallback(async (phone, tagId) => {
         try {
-            const response = await fetch(`${API_URL}/api/conversations/${phone}/tags/${tagId}`, {
+            const response = await apiFetch(`/api/conversations/${phone}/tags/${tagId}`, {
                 method: 'DELETE'
             });
 

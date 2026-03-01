@@ -2,6 +2,7 @@ import React, { useState, useRef, useEffect } from 'react';
 import { User, Bot, UserCheck, Tag, MoreVertical, Edit2, Trash2, Pin, CheckSquare } from 'lucide-react';
 import EditContactModal from './EditContactModal';
 import { getShortDate } from '../../utils/dateUtils';
+import apiFetch from '../../utils/api';
 
 /**
  * Conversation item component
@@ -25,6 +26,13 @@ const ConversationItem = React.memo(({
     const hasUnread = unread > 0;
     const shortDate = getShortDate(rawTimestamp);
 
+    // Helper para la URL de la sede
+    const tenantStr = localStorage.getItem('current_tenant');
+    let tenantSlug = null;
+    try {
+        if (tenantStr) tenantSlug = JSON.parse(tenantStr)?.slug;
+    } catch (e) { }
+
     // Helper para la URL base (usado para fetch y para la imagen)
     let baseApiUrl = typeof process !== 'undefined' && process.env?.REACT_APP_API_URL
         ? process.env.REACT_APP_API_URL
@@ -33,7 +41,9 @@ const ConversationItem = React.memo(({
             : 'http://localhost:4000';
     if (baseApiUrl.endsWith('/')) baseApiUrl = baseApiUrl.slice(0, -1);
     const apiPrefix = baseApiUrl.includes('/api') ? '' : '/api';
-    const avatarUrl = `${baseApiUrl}${apiPrefix}/conversations/${contact.phone}/avatar`;
+
+    // Añadimos el query param 'sede' para que el <img> pueda cargarla sin headers
+    const avatarUrl = `${baseApiUrl}${apiPrefix}/conversations/${contact.phone}/avatar${tenantSlug ? `?sede=${tenantSlug}` : ''}`;
 
     // State for name editing
     const [isMenuOpen, setIsMenuOpen] = useState(false);
@@ -61,55 +71,8 @@ const ConversationItem = React.memo(({
 
     const handleSaveName = async (newName) => {
         try {
-            // Robust API URL detection (CRA vs Vite)
-            let apiUrl = '/api';
-
-            // Check for CRA (Create React App) environment variables
-            if (typeof process !== 'undefined' && process.env && process.env.REACT_APP_API_URL) {
-                apiUrl = process.env.REACT_APP_API_URL;
-            }
-            // Check for Vite environment variables
-            else {
-                try {
-                    if (import.meta && import.meta.env && import.meta.env.VITE_API_URL) {
-                        apiUrl = import.meta.env.VITE_API_URL;
-                    }
-                } catch (e) {
-                    // Ignore, likely not Vite
-                }
-            }
-
-            // Fallback for local development if env var is missing
-            if ((!apiUrl || apiUrl === '/api') && window.location.hostname === 'localhost') {
-                console.warn('⚠️ REACT_APP_API_URL not found, falling back to http://localhost:4000');
-                apiUrl = 'http://localhost:4000';
-            }
-
-            // Fallback for PRODUCTION if env var is missing/not injected
-            else if ((!apiUrl || apiUrl === '/api') && window.location.hostname !== 'localhost') {
-                console.warn('⚠️ REACT_APP_API_URL not found in production, using fallback');
-                apiUrl = 'https://largebotinterfaz-production-5b38.up.railway.app';
-            }
-
-            console.log('🔗 Updating Name using API:', apiUrl);
-
-            // Remove trailing slash if present
-            if (apiUrl.endsWith('/')) apiUrl = apiUrl.slice(0, -1);
-
-            // Construct full URL using safer endpoint that accepts phone in body
-            let finalUrl;
-            if (apiUrl.includes('/api')) {
-                finalUrl = `${apiUrl}/conversations/update-contact-name`;
-            } else {
-                finalUrl = `${apiUrl}/api/conversations/update-contact-name`;
-            }
-
-            // Fix double slashes just in case
-            finalUrl = finalUrl.replace(/([^:]\/)\/+/g, "$1");
-
-            const res = await fetch(finalUrl, {
+            const res = await apiFetch('/api/conversations/update-contact-name', {
                 method: 'PUT',
-                headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
                     phone: contact.phone,
                     name: newName
@@ -132,14 +95,7 @@ const ConversationItem = React.memo(({
     const handleDeleteConversation = async () => {
         setIsDeleting(true);
         try {
-            let apiUrl = typeof process !== 'undefined' && process.env?.REACT_APP_API_URL
-                ? process.env.REACT_APP_API_URL
-                : window.location.hostname !== 'localhost'
-                    ? 'https://largebotinterfaz-production-5b38.up.railway.app'
-                    : 'http://localhost:4000';
-            if (apiUrl.endsWith('/')) apiUrl = apiUrl.slice(0, -1);
-
-            const res = await fetch(`${apiUrl}/api/conversations/${encodeURIComponent(contact.phone)}`, {
+            const res = await apiFetch(`/api/conversations/${encodeURIComponent(contact.phone)}`, {
                 method: 'DELETE'
             });
 

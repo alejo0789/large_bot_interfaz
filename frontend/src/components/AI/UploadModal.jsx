@@ -1,7 +1,6 @@
 import React, { useState } from 'react';
 import { X, Upload, File as FileIcon } from 'lucide-react';
-
-const API_URL = process.env.REACT_APP_API_URL || 'http://localhost:4000';
+import apiFetch, { API_URL } from '../../utils/api';
 
 const UploadModal = ({ isOpen, onClose, type, onSuccess }) => {
     const [file, setFile] = useState(null);
@@ -37,7 +36,7 @@ const UploadModal = ({ isOpen, onClose, type, onSuccess }) => {
         formData.append('keywords', keywords); // Backend espera string separado por comas o array
 
         try {
-            const response = await fetch(`${API_URL}/api/ai-knowledge/upload`, {
+            const response = await apiFetch(`/api/ai-knowledge/upload`, {
                 method: 'POST',
                 body: formData,
             });

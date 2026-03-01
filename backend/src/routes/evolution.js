@@ -12,31 +12,36 @@ const n8nService = require('../services/n8nService');
 const settingsService = require('../services/settingsService');
 const { saveBase64AsFile } = require('../utils/fileUtils');
 const { normalizePhone, getPureDigits } = require('../utils/phoneUtils');
+const { tenantContext } = require('../utils/tenantContext');
 
 
 let io = null;
 const setSocketIO = (socketIO) => { io = socketIO; };
 
-// Helper to emit events - NORMALIZED phone handling
+// Helper to emit events - MT-AWARE
 const emitToConversation = (phone, event, data) => {
     if (!io) return;
 
-    // Normalize phone to ensure delivery to both formats (+57... and 57...)
+    // Get tenant from context
+    const context = tenantContext.getStore();
+    const tenantSlug = context?.tenant?.slug;
+
+    if (!tenantSlug) {
+        console.warn('⚠️ emitToConversation called without tenant context');
+        return;
+    }
+
+    // Normalize phone to ensure delivery to formatted rooms
     const dbPhone = normalizePhone(phone);
     const purePhone = getPureDigits(phone);
 
-    console.log(`📡 Emitting ${event} to conversation:${dbPhone} (also ${purePhone})`);
+    console.log(`📡 [${tenantSlug}] Emitting ${event} to tenant:${tenantSlug}:conversation:${purePhone}`);
 
-    // Emit to conversation room with + (DB format)
-    io.to(`conversation:${dbPhone}`).emit(event, data);
+    // Emit to conversation room (tenant-scoped)
+    io.to(`tenant:${tenantSlug}:conversation:${purePhone}`).emit(event, data);
 
-    // Emit to conversation room without + (pure format, in case frontend joined with that)
-    if (dbPhone !== purePhone) {
-        io.to(`conversation:${purePhone}`).emit(event, data);
-    }
-
-    // Also emit to conversations:list to update sidebar in real-time
-    io.to('conversations:list').emit('conversation-updated', {
+    // Also emit to tenant-specific conversations list room
+    io.to(`tenant:${tenantSlug}:conversations:list`).emit('conversation-updated', {
         phone: dbPhone,
         lastMessage: data.message,
         timestamp: data.timestamp || new Date().toISOString(),
@@ -45,9 +50,6 @@ const emitToConversation = (phone, event, data) => {
         sender_type: data.sender_type || 'user',
         isNew: data.isNew || false
     });
-
-    // Also emit globally for compatibility until everything is room-based
-    io.emit('new-message', data);
 };
 
 router.post('/', async (req, res) => {
@@ -222,16 +224,20 @@ router.post('/', async (req, res) => {
                 if (existingMsg) {
                     await messageService.updateMessageText(existingMsg.id, newText);
                     if (io) {
-                        io.emit('message-updated', {
-                            id: existingMsg.id,
-                            whatsapp_id: targetId,
-                            status: existingMsg.status,
-                            text: newText,
-                            media_url: existingMsg.media_url,
-                            media_type: existingMsg.media_type,
-                            phone: phone,
-                            edited: true
-                        });
+                        const context = tenantContext.getStore();
+                        const tenantSlug = context?.tenant?.slug;
+                        if (tenantSlug) {
+                            io.to(`tenant:${tenantSlug}:conversation:${getPureDigits(phone)}`).emit('message-updated', {
+                                id: existingMsg.id,
+                                whatsapp_id: targetId,
+                                status: existingMsg.status,
+                                text: newText,
+                                media_url: existingMsg.media_url,
+                                media_type: existingMsg.media_type,
+                                phone: phone,
+                                edited: true
+                            });
+                        }
                     }
                 }
             }
