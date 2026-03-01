@@ -19,6 +19,21 @@ const { requireApiKey } = require('../middleware/apiKeyAuth');
 
 const { tenantContext } = require('../utils/tenantContext');
 
+/**
+ * Multer (stream-based) can lose AsyncLocalStorage context during multipart parsing.
+ * This middleware re-establishes the tenant context after Multer runs,
+ * using req.tenant and req.db set by tenantMiddleware (which survive on the request object).
+ */
+const restoreTenantContext = (req, res, next) => {
+    const existing = tenantContext.getStore();
+    if (!existing && req.tenant && req.db) {
+        console.log(`🔄 [TenantContext] Restoring lost context for tenant: ${req.tenant.slug}`);
+        tenantContext.run({ tenant: req.tenant, db: req.db }, next);
+    } else {
+        next();
+    }
+};
+
 // Socket.IO instance (will be set from app.js)
 let io = null;
 const setSocketIO = (socketIO) => { io = socketIO; };
@@ -176,7 +191,7 @@ router.post('/send-message', requireApiKey, asyncHandler(async (req, res) => {
 
 
 // Send file
-router.post('/send-file', requireApiKey, upload.single('file'), optimizeMedia, asyncHandler(async (req, res) => {
+router.post('/send-file', requireApiKey, upload.single('file'), restoreTenantContext, optimizeMedia, asyncHandler(async (req, res) => {
     const { phone, name, caption, agent_id, agent_name, temp_id, reply_to } = req.body;
     const file = req.file;
 
@@ -306,7 +321,7 @@ router.post('/send-file', requireApiKey, upload.single('file'), optimizeMedia, a
 }));
 
 // Basic upload endpoint (just saves file and returns URL)
-router.post('/upload', upload.single('file'), optimizeMedia, asyncHandler(async (req, res) => {
+router.post('/upload', upload.single('file'), restoreTenantContext, optimizeMedia, asyncHandler(async (req, res) => {
     const file = req.file;
     if (!file) throw new AppError('No se recibió ningún archivo', 400);
 
