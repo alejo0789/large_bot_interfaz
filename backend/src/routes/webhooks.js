@@ -62,16 +62,28 @@ router.post('/receive-message', asyncHandler(async (req, res) => {
     console.log('📦 Body:', JSON.stringify(req.body));
     console.log('---------------------------');
 
+    // n8n a veces envía un array de objetos: [{...}] — desenvuelver
+    const rawBody = Array.isArray(req.body) ? req.body[0] : req.body;
+
     let {
         phone,
         contact_name,
+        name,           // alias que usa n8n
         message,
+        output,         // alias que usa n8n en lugar de 'message'
         whatsapp_id,
-        sender_type = 'user',
+        sender_type = 'bot', // n8n siempre es bot/IA
         timestamp,
         media_type,
         media_url
-    } = req.body;
+    } = rawBody;
+
+    // Normalizar aliases de n8n
+    if (!message && output) message = output;           // output → message
+    if (!contact_name && name) contact_name = name;     // name → contact_name
+    // Si n8n no envía sender_type, asumimos que es el bot respondiendo
+    if (!rawBody.sender_type) sender_type = 'bot';
+
 
     if (!phone) {
         console.error('❌ Error: El webhook no incluyó un número de teléfono (phone)');
