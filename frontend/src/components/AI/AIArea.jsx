@@ -1,16 +1,31 @@
 import React, { useState } from 'react';
-import { Image, Video, FileText } from 'lucide-react';
-import ResourceManager from './ResourceManager';
-import ContextManager from './ContextManager';
+import { ShoppingBag, Megaphone, Wrench, FileText } from 'lucide-react';
+import ProductosManager from './ProductosManager';
+import PromocionesManager from './PromocionesManager';
+import ServiciosManager from './ServiciosManager';
 
 const AIArea = ({ isMobile }) => {
-    const [activeSection, setActiveSection] = useState('images');
+    const [activeSection, setActiveSection] = useState('productos');
 
-    // Definición de secciones y sus iconos
     const sections = [
-        { id: 'images', label: 'Imágenes', icon: Image, description: 'Gestiona los recursos visuales para el asistente.' },
-        { id: 'media', label: 'Audio/Video', icon: Video, description: 'Biblioteca de archivos multimedia para respuestas.' },
-        { id: 'context', label: 'Contexto', icon: FileText, description: 'Documentación y contexto para entrenar a la IA.' },
+        {
+            id: 'productos',
+            label: 'Productos',
+            icon: ShoppingBag,
+            description: 'Catálogo de productos con precios e información detallada para la IA.'
+        },
+        {
+            id: 'promociones',
+            label: 'Promociones',
+            icon: Megaphone,
+            description: 'Gestiona promociones activas e inactivas que la IA puede comunicar.'
+        },
+        {
+            id: 'servicios',
+            label: 'Servicios',
+            icon: Wrench,
+            description: 'Catálogo de servicios ofrecidos con descripción, precio e imagen.'
+        },
     ];
 
     const currentSection = sections.find(s => s.id === activeSection) || sections[0];
@@ -18,7 +33,7 @@ const AIArea = ({ isMobile }) => {
 
     return (
         <div style={{ height: '100%', display: 'flex', flexDirection: 'column', backgroundColor: '#f3f4f6', overflow: 'hidden' }}>
-            {/* Header / Tabs - Integrated Look */}
+            {/* Header / Tabs */}
             <div style={{
                 padding: isSmallScreen ? '20px 20px 0 20px' : '32px 32px 0 32px',
                 backgroundColor: 'white',
@@ -93,9 +108,9 @@ const AIArea = ({ isMobile }) => {
                     width: '100%',
                     boxSizing: 'border-box'
                 }}>
-                    {activeSection === 'images' && <ResourceManager type="image" title="Galería de Imágenes" />}
-                    {activeSection === 'media' && <ResourceManager type="media" title="Biblioteca Multimedia" />}
-                    {activeSection === 'context' && <ContextManager />}
+                    {activeSection === 'productos' && <ProductosManager />}
+                    {activeSection === 'promociones' && <PromocionesManager />}
+                    {activeSection === 'servicios' && <ServiciosManager />}
                 </div>
             </div>
         </div>

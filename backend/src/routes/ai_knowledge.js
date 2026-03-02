@@ -158,7 +158,7 @@ router.post('/upload', upload.single('file'), async (req, res, next) => {
             return res.status(400).json({ error: 'No se ha subido ningún archivo' });
         }
 
-        const { description, keywords, title } = req.body;
+        const { description, keywords, title, price, active } = req.body;
         let type = 'image';
         if (req.file.mimetype.startsWith('audio/')) type = 'audio';
         if (req.file.mimetype.startsWith('video/')) type = 'video';
@@ -173,14 +173,17 @@ router.post('/upload', upload.single('file'), async (req, res, next) => {
         const embeddingText = `${title || ''} ${description || ''}`.trim();
         const embedding = await getEmbedding(embeddingText);
 
+        const priceVal = price ? parseFloat(price) : null;
+        const activeVal = active === 'false' ? false : true;
+
         const query = `
             INSERT INTO ai_knowledge 
-            (type, title, content, media_url, filename, keywords, embedding) 
-            VALUES ($1, $2, $3, $4, $5, $6, $7) 
+            (type, title, content, media_url, filename, keywords, embedding, price, active) 
+            VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9) 
             RETURNING *
         `;
 
-        const values = [type, title || '', description || '', mediaUrl, req.file.originalname, keywordArray, embedding];
+        const values = [type, title || '', description || '', mediaUrl, req.file.originalname, keywordArray, embedding, priceVal, activeVal];
         const result = await pool.query(query, values);
 
         res.status(201).json(result.rows[0]);
@@ -200,7 +203,7 @@ router.post('/upload', upload.single('file'), async (req, res, next) => {
  */
 router.post('/text', upload.single('file'), async (req, res, next) => {
     try {
-        const { title, content, keywords, media_url } = req.body;
+        const { title, content, keywords, media_url, price, active } = req.body;
 
         if (!content) {
             return res.status(400).json({ error: 'El contenido es obligatorio' });
@@ -220,6 +223,8 @@ router.post('/text', upload.single('file'), async (req, res, next) => {
         }
 
         const keywordArray = keywords ? (Array.isArray(keywords) ? keywords : keywords.split(',').map(k => k.trim())) : [];
+        const priceVal = price ? parseFloat(price) : null;
+        const activeVal = active === 'false' ? false : true;
 
         // Generar embedding automático (Título + Contenido)
         const embeddingText = `${title || ''} ${content || ''}`.trim();
@@ -228,12 +233,12 @@ router.post('/text', upload.single('file'), async (req, res, next) => {
 
         const query = `
             INSERT INTO ai_knowledge 
-            (type, title, content, keywords, embedding, media_url) 
-            VALUES ($1, $2, $3, $4, $5, $6) 
+            (type, title, content, keywords, embedding, media_url, price, active) 
+            VALUES ($1, $2, $3, $4, $5, $6, $7, $8) 
             RETURNING *
         `;
 
-        const values = ['text', title || '', content, keywordArray, embedding, finalMediaUrl];
+        const values = ['text', title || '', content, keywordArray, embedding, finalMediaUrl, priceVal, activeVal];
         const result = await pool.query(query, values);
 
         res.status(201).json(result.rows[0]);
@@ -255,7 +260,7 @@ router.post('/text', upload.single('file'), async (req, res, next) => {
 router.put('/:id', upload.single('file'), async (req, res, next) => {
     try {
         const { id } = req.params;
-        const { title, content, keywords, media_url } = req.body;
+        const { title, content, keywords, media_url, price, active } = req.body;
 
         // Verificar si existe
         const checkResult = await pool.query('SELECT * FROM ai_knowledge WHERE id = $1', [id]);
@@ -282,10 +287,9 @@ router.put('/:id', upload.single('file'), async (req, res, next) => {
                     });
                 }
             }
-        } else if (media_url) {
-            finalMediaUrl = media_url;
-            // Opcional: Si el anterior era un archivo local y ahora es una URL, borrar el archivo local
-            if (oldResource.media_url && oldResource.media_url.startsWith('/uploads')) {
+        } else if (media_url !== undefined) {
+            finalMediaUrl = media_url || null;
+            if (media_url && oldResource.media_url && oldResource.media_url.startsWith('/uploads')) {
                 const oldPath = path.join(__dirname, '../../', oldResource.media_url.substring(1));
                 if (fs.existsSync(oldPath)) {
                     fs.unlink(oldPath, (err) => {
@@ -296,6 +300,8 @@ router.put('/:id', upload.single('file'), async (req, res, next) => {
         }
 
         const keywordArray = keywords ? (Array.isArray(keywords) ? keywords : keywords.split(',').map(k => k.trim())) : oldResource.keywords;
+        const priceVal = price !== undefined ? (price === '' || price === null ? null : parseFloat(price)) : oldResource.price;
+        const activeVal = active !== undefined ? (active === 'false' || active === false ? false : true) : oldResource.active;
 
         // Re-generar embedding si cambió el contenido o título
         let embedding = oldResource.embedding;
@@ -307,12 +313,12 @@ router.put('/:id', upload.single('file'), async (req, res, next) => {
 
         const query = `
             UPDATE ai_knowledge 
-            SET title = $1, content = $2, keywords = $3, media_url = $4, embedding = $5, updated_at = NOW()
-            WHERE id = $6
+            SET title = $1, content = $2, keywords = $3, media_url = $4, embedding = $5, price = $6, active = $7, updated_at = NOW()
+            WHERE id = $8
             RETURNING *
         `;
 
-        const values = [title || oldResource.title, content || oldResource.content, keywordArray, finalMediaUrl, embedding, id];
+        const values = [title ?? oldResource.title, content ?? oldResource.content, keywordArray, finalMediaUrl, embedding, priceVal, activeVal, id];
         const result = await pool.query(query, values);
 
         res.json(result.rows[0]);
@@ -363,4 +369,65 @@ router.delete('/:id', async (req, res, next) => {
     }
 });
 
+/**
+ * GET /api/ai-knowledge/promociones
+ * Retorna las promociones del tenant.
+ * Query params:
+ *   active=true  → solo activas (default: todas)
+ *   active=false → solo inactivas
+ */
+router.get('/promociones', async (req, res, next) => {
+    try {
+        const { active } = req.query;
+
+        let query = `
+            SELECT id, title, content, media_url, active, price, keywords, created_at, updated_at
+            FROM ai_knowledge
+            WHERE $1 = ANY(keywords)
+        `;
+        const params = ['promocion'];
+        let paramCount = 2;
+
+        // Filtrar por estado activo si se especifica
+        if (active !== undefined) {
+            query += ` AND active = $${paramCount}`;
+            params.push(active === 'true');
+            paramCount++;
+        }
+
+        query += ' ORDER BY active DESC, created_at DESC';
+
+        const result = await pool.query(query, params);
+
+        const promociones = result.rows.map(row => {
+            let imageUrl = row.media_url;
+            if (imageUrl && imageUrl.startsWith('/uploads')) {
+                imageUrl = `${config.publicUrl}${imageUrl}`;
+            }
+            return {
+                id: row.id,
+                nombre: row.title,
+                texto: row.content,
+                activa: row.active,
+                precio: row.price,
+                imagen_url: imageUrl || null,
+                keywords: row.keywords,
+                creado: row.created_at,
+                actualizado: row.updated_at
+            };
+        });
+
+        res.json({
+            total: promociones.length,
+            activas: promociones.filter(p => p.activa).length,
+            inactivas: promociones.filter(p => !p.activa).length,
+            promociones
+        });
+    } catch (error) {
+        console.error('❌ Error en GET /api/ai-knowledge/promociones:', error.message);
+        next(error);
+    }
+});
+
 module.exports = router;
+

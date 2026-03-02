@@ -93,25 +93,28 @@ const ContextModal = ({ isOpen, onClose, context, onSuccess }) => {
 
     return (
         <div className="modal-overlay">
-            <div className="modal" style={{ padding: '24px', maxWidth: '600px', overflowY: 'auto', maxHeight: '90vh' }}>
-                <button
-                    onClick={onClose}
-                    style={{ position: 'absolute', top: '16px', right: '16px', border: 'none', background: 'none', cursor: 'pointer' }}
-                >
-                    <X className="w-5 h-5 text-gray-500" />
-                </button>
-
-                <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '20px' }}>
-                    <div style={{ backgroundColor: 'var(--color-primary-light)', padding: '8px', borderRadius: '8px' }}>
-                        <FileText className="w-5 h-5 text-primary-dark" />
+            <div className="modal" style={{ maxWidth: '600px', display: 'flex', flexDirection: 'column', maxHeight: '90vh' }}>
+                {/* Header fijo */}
+                <div style={{ flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '20px 24px', borderBottom: '1px solid #f3f4f6' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                        <div style={{ backgroundColor: 'var(--color-primary-light)', padding: '8px', borderRadius: '8px' }}>
+                            <FileText className="w-5 h-5" style={{ color: 'var(--color-primary)' }} />
+                        </div>
+                        <h3 style={{ fontSize: '1.15rem', fontWeight: 700, margin: 0 }}>
+                            {context ? 'Editar Producto' : 'Nuevo Producto'}
+                        </h3>
                     </div>
-                    <h3 style={{ fontSize: '1.25rem', fontWeight: 600 }}>
-                        {context ? 'Editar Contexto' : 'Nuevo Contexto de Texto'}
-                    </h3>
+                    <button onClick={onClose} style={{ background: 'none', border: 'none', cursor: 'pointer', padding: '4px' }}>
+                        <X className="w-5 h-5" style={{ color: '#6b7280' }} />
+                    </button>
                 </div>
 
-                <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
-
+                {/* Body scrollable */}
+                <form
+                    id="context-modal-form"
+                    onSubmit={handleSubmit}
+                    style={{ flex: 1, overflowY: 'auto', padding: '24px', display: 'flex', flexDirection: 'column', gap: '16px', minHeight: 0 }}
+                >
                     {/* Title */}
                     <div>
                         <label style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '0.875rem', fontWeight: 600, marginBottom: '8px', color: 'var(--color-gray-700)' }}>
@@ -123,167 +126,67 @@ const ContextModal = ({ isOpen, onClose, context, onSuccess }) => {
                             value={title}
                             onChange={(e) => setTitle(e.target.value)}
                             placeholder="Nombre del producto o servicio (ej: Aceite de Cebolla)..."
-                            style={{
-                                width: '100%',
-                                padding: '12px 14px',
-                                borderRadius: '12px',
-                                border: '1.5px solid var(--color-gray-200)',
-                                outline: 'none',
-                                fontSize: '0.95rem',
-                                transition: 'all 0.2s'
-                            }}
+                            style={{ width: '100%', padding: '12px 14px', borderRadius: '12px', border: '1.5px solid var(--color-gray-200)', outline: 'none', fontSize: '0.95rem', transition: 'all 0.2s', boxSizing: 'border-box' }}
                             onFocus={(e) => e.target.style.borderColor = 'var(--color-primary)'}
                             onBlur={(e) => e.target.style.borderColor = 'var(--color-gray-200)'}
                         />
                     </div>
+
+                    {/* Imagen */}
                     <div>
                         <label style={{ display: 'block', fontSize: '0.875rem', fontWeight: 600, marginBottom: '8px', color: 'var(--color-gray-700)' }}>
                             Imagen del Contexto (Subir o Pegar URL)
                         </label>
-
                         <div
-                            style={{
-                                width: '100%',
-                                minHeight: '130px',
-                                borderRadius: '16px',
-                                border: '2px dashed var(--color-gray-200)',
-                                backgroundColor: '#fcfcfc',
-                                transition: 'all 0.3s ease',
-                                position: 'relative',
-                                display: 'flex',
-                                flexDirection: 'column',
-                                alignItems: 'center',
-                                justifyContent: 'center',
-                                gap: '12px',
-                                cursor: 'pointer',
-                                padding: '20px',
-                                overflow: 'hidden',
-                                marginBottom: '12px'
-                            }}
-                            onMouseEnter={(e) => {
-                                e.currentTarget.style.borderColor = 'var(--color-primary)';
-                                e.currentTarget.style.backgroundColor = 'rgba(18, 140, 126, 0.02)';
-                            }}
-                            onMouseLeave={(e) => {
-                                e.currentTarget.style.borderColor = 'var(--color-gray-200)';
-                                e.currentTarget.style.backgroundColor = '#fcfcfc';
-                            }}
+                            style={{ width: '100%', minHeight: '130px', borderRadius: '16px', border: '2px dashed var(--color-gray-200)', backgroundColor: '#fcfcfc', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: '12px', cursor: 'pointer', padding: '20px', overflow: 'hidden', marginBottom: '12px', boxSizing: 'border-box' }}
+                            onMouseEnter={(e) => { e.currentTarget.style.borderColor = 'var(--color-primary)'; e.currentTarget.style.backgroundColor = 'rgba(18, 140, 126, 0.02)'; }}
+                            onMouseLeave={(e) => { e.currentTarget.style.borderColor = 'var(--color-gray-200)'; e.currentTarget.style.backgroundColor = '#fcfcfc'; }}
                             onClick={() => document.getElementById('context-image-upload').click()}
                         >
                             {previewUrl ? (
                                 <div style={{ width: '100%', height: '100%', display: 'flex', alignItems: 'center', gap: '16px' }}>
                                     <div style={{ position: 'relative', width: '100px', height: '100px', flexShrink: 0 }}>
-                                        <img
-                                            src={previewUrl}
-                                            alt="Preview"
-                                            style={{ width: '100%', height: '100%', objectFit: 'cover', borderRadius: '12px' }}
-                                        />
-                                        <div style={{
-                                            position: 'absolute',
-                                            top: '-8px',
-                                            right: '-8px',
-                                            backgroundColor: 'var(--color-primary)',
-                                            color: 'white',
-                                            borderRadius: '50%',
-                                            padding: '4px',
-                                            boxShadow: '0 2px 8px rgba(0,0,0,0.1)'
-                                        }}>
-                                            <Save className="w-3 h-3" />
-                                        </div>
+                                        <img src={previewUrl} alt="Preview" style={{ width: '100%', height: '100%', objectFit: 'cover', borderRadius: '12px' }} />
                                     </div>
                                     <div style={{ flex: 1 }}>
                                         <p style={{ fontSize: '0.9rem', fontWeight: 600, color: 'var(--color-gray-800)', margin: 0 }}>
                                             {file ? file.name : (mediaUrl ? 'Imagen desde URL' : 'Imagen actual')}
                                         </p>
-                                        <p style={{ fontSize: '0.75rem', color: 'var(--color-gray-500)', margin: '4px 0 0 0' }}>
-                                            Haga clic aquí para cambiar el archivo
-                                        </p>
+                                        <p style={{ fontSize: '0.75rem', color: 'var(--color-gray-500)', margin: '4px 0 0 0' }}>Haga clic aquí para cambiar</p>
                                     </div>
                                 </div>
                             ) : (
                                 <>
-                                    <div style={{
-                                        width: '48px',
-                                        height: '48px',
-                                        borderRadius: '50%',
-                                        backgroundColor: '#f3f4f6',
-                                        display: 'flex',
-                                        alignItems: 'center',
-                                        justifyContent: 'center',
-                                        color: '#9ca3af'
-                                    }}>
-                                        <Save className="w-6 h-6" style={{ transform: 'rotate(45deg)' }} />
-                                    </div>
+                                    <div style={{ fontSize: '2rem' }}>🖼️</div>
                                     <div style={{ textAlign: 'center' }}>
-                                        <p style={{ margin: 0, fontSize: '0.9rem', fontWeight: 600, color: '#4b5563' }}>
-                                            Subir imagen o archivo
-                                        </p>
-                                        <p style={{ margin: '4px 0 0 0', fontSize: '0.75rem', color: '#9ca3af' }}>
-                                            JPG, PNG o WEBP
-                                        </p>
+                                        <p style={{ margin: 0, fontSize: '0.9rem', fontWeight: 600, color: '#4b5563' }}>Subir imagen</p>
+                                        <p style={{ margin: '4px 0 0 0', fontSize: '0.75rem', color: '#9ca3af' }}>JPG, PNG o WEBP</p>
                                     </div>
                                 </>
                             )}
-
-                            <input
-                                id="context-image-upload"
-                                type="file"
-                                accept="image/*"
-                                onChange={(e) => {
-                                    if (e.target.files[0]) {
-                                        setFile(e.target.files[0]);
-                                        setMediaUrl(''); // Limpiar URL si se sube archivo
-                                    }
-                                }}
-                                style={{ display: 'none' }}
-                            />
+                            <input id="context-image-upload" type="file" accept="image/*"
+                                onChange={(e) => { if (e.target.files[0]) { setFile(e.target.files[0]); setMediaUrl(''); } }}
+                                style={{ display: 'none' }} />
                         </div>
-
-                        {/* URL Input field as alternative */}
-                        <div style={{ position: 'relative' }}>
-                            <input
-                                type="text"
-                                value={mediaUrl}
-                                onChange={(e) => {
-                                    setMediaUrl(e.target.value);
-                                    if (e.target.value) setFile(null); // Limpiar archivo si se pone URL
-                                }}
-                                placeholder="O pega el link de una imagen (https://...)"
-                                style={{
-                                    width: '100%',
-                                    padding: '10px 14px',
-                                    borderRadius: '10px',
-                                    border: '1.5px solid var(--color-gray-200)',
-                                    outline: 'none',
-                                    fontSize: '0.85rem',
-                                    backgroundColor: '#f9fafb'
-                                }}
-                                onFocus={(e) => e.target.style.borderColor = 'var(--color-primary)'}
-                                onBlur={(e) => e.target.style.borderColor = 'var(--color-gray-200)'}
-                            />
-                        </div>
+                        <input
+                            type="text" value={mediaUrl}
+                            onChange={(e) => { setMediaUrl(e.target.value); if (e.target.value) setFile(null); }}
+                            placeholder="O pega el link de una imagen (https://...)"
+                            style={{ width: '100%', padding: '10px 14px', borderRadius: '10px', border: '1.5px solid var(--color-gray-200)', outline: 'none', fontSize: '0.85rem', backgroundColor: '#f9fafb', boxSizing: 'border-box' }}
+                            onFocus={(e) => e.target.style.borderColor = 'var(--color-primary)'}
+                            onBlur={(e) => e.target.style.borderColor = 'var(--color-gray-200)'}
+                        />
                     </div>
 
                     {/* Content */}
                     <div>
-                        <label style={{ display: 'block', fontSize: '0.875rem', fontWeight: 600, marginBottom: '8px', color: 'var(--color-gray-700)' }}>
-                            Información Detallada
-                        </label>
+                        <label style={{ display: 'block', fontSize: '0.875rem', fontWeight: 600, marginBottom: '8px', color: 'var(--color-gray-700)' }}>Información Detallada</label>
                         <textarea
                             value={content}
                             onChange={(e) => setContent(e.target.value)}
                             placeholder="Describe precios, beneficios y detalles del producto o servicio..."
                             rows={6}
-                            style={{
-                                width: '100%',
-                                padding: '12px 14px',
-                                borderRadius: '12px',
-                                border: '1.5px solid var(--color-gray-200)',
-                                outline: 'none',
-                                resize: 'vertical',
-                                fontSize: '0.95rem',
-                                transition: 'all 0.2s'
-                            }}
+                            style={{ width: '100%', padding: '12px 14px', borderRadius: '12px', border: '1.5px solid var(--color-gray-200)', outline: 'none', resize: 'vertical', fontSize: '0.95rem', boxSizing: 'border-box' }}
                             onFocus={(e) => e.target.style.borderColor = 'var(--color-primary)'}
                             onBlur={(e) => e.target.style.borderColor = 'var(--color-gray-200)'}
                         />
@@ -291,66 +194,31 @@ const ContextModal = ({ isOpen, onClose, context, onSuccess }) => {
 
                     {/* Keywords */}
                     <div>
-                        <label style={{ display: 'block', fontSize: '0.875rem', fontWeight: 600, marginBottom: '8px', color: 'var(--color-gray-700)' }}>
-                            Palabras clave (separadas por comas)
-                        </label>
+                        <label style={{ display: 'block', fontSize: '0.875rem', fontWeight: 600, marginBottom: '8px', color: 'var(--color-gray-700)' }}>Palabras clave (separadas por comas)</label>
                         <input
-                            type="text"
-                            value={keywords}
-                            onChange={(e) => setKeywords(e.target.value)}
+                            type="text" value={keywords} onChange={(e) => setKeywords(e.target.value)}
                             placeholder="ej: aceite, cebolla, cabello, crecimiento"
-                            style={{
-                                width: '100%',
-                                padding: '12px 14px',
-                                borderRadius: '12px',
-                                border: '1.5px solid var(--color-gray-200)',
-                                outline: 'none',
-                                fontSize: '0.95rem',
-                                transition: 'all 0.2s'
-                            }}
+                            style={{ width: '100%', padding: '12px 14px', borderRadius: '12px', border: '1.5px solid var(--color-gray-200)', outline: 'none', fontSize: '0.95rem', boxSizing: 'border-box' }}
                             onFocus={(e) => e.target.style.borderColor = 'var(--color-primary)'}
                             onBlur={(e) => e.target.style.borderColor = 'var(--color-gray-200)'}
                         />
                     </div>
 
                     {error && <p style={{ color: 'var(--color-red-500)', fontSize: '0.875rem' }}>{error}</p>}
-
-                    <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '12px', marginTop: '12px' }}>
-                        <button
-                            type="button"
-                            onClick={onClose}
-                            style={{
-                                padding: '10px 20px',
-                                border: '1px solid var(--color-gray-300)',
-                                borderRadius: '6px',
-                                backgroundColor: 'white',
-                                cursor: 'pointer',
-                                fontWeight: 500
-                            }}
-                        >
-                            Cancelar
-                        </button>
-                        <button
-                            type="submit"
-                            disabled={saving}
-                            style={{
-                                display: 'flex',
-                                alignItems: 'center',
-                                gap: '8px',
-                                padding: '10px 20px',
-                                border: 'none',
-                                borderRadius: '6px',
-                                backgroundColor: saving ? 'var(--color-primary-light)' : 'var(--color-primary)',
-                                color: 'white',
-                                cursor: saving ? 'default' : 'pointer',
-                                fontWeight: 600
-                            }}
-                        >
-                            <Save className="w-4 h-4" />
-                            {saving ? 'Guardando...' : 'Guardar Contexto'}
-                        </button>
-                    </div>
                 </form>
+
+                {/* Footer fijo */}
+                <div style={{ flexShrink: 0, padding: '16px 24px', borderTop: '1px solid #f3f4f6', display: 'flex', justifyContent: 'flex-end', gap: '12px', backgroundColor: '#fafafa', borderBottomLeftRadius: 'var(--radius-xl)', borderBottomRightRadius: 'var(--radius-xl)' }}>
+                    <button type="button" onClick={onClose}
+                        style={{ padding: '10px 20px', border: '1px solid var(--color-gray-300)', borderRadius: '6px', backgroundColor: 'white', cursor: 'pointer', fontWeight: 500 }}>
+                        Cancelar
+                    </button>
+                    <button type="submit" form="context-modal-form" disabled={saving}
+                        style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '10px 20px', border: 'none', borderRadius: '6px', backgroundColor: saving ? 'var(--color-primary-light)' : 'var(--color-primary)', color: 'white', cursor: saving ? 'default' : 'pointer', fontWeight: 600 }}>
+                        <Save className="w-4 h-4" />
+                        {saving ? 'Guardando...' : 'Guardar Contexto'}
+                    </button>
+                </div>
             </div>
         </div>
     );
