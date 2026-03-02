@@ -689,7 +689,9 @@ body {
   box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.25);
   max-width: 500px;
   width: 90%;
-  max-height: 80vh;
+  max-height: 85vh;
+  display: flex;
+  flex-direction: column;
   overflow: hidden;
   animation: slideUp var(--transition-normal);
   position: relative;
@@ -710,8 +712,10 @@ body {
 }
 
 .modal-body {
+  flex: 1;
   padding: var(--space-4);
   overflow-y: auto;
+  min-height: 0;
 }
 
 .modal-footer {
