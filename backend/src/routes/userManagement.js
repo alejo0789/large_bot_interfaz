@@ -215,6 +215,36 @@ router.get('/tenants/evolution/qr/:instanceName', asyncHandler(async (req, res) 
 }));
 
 // ─────────────────────────────────────────────
+// GET /api/admin/tenants/evolution/status/:instanceName
+// Check if an Evolution instance is connected (SUPER_ADMIN only)
+// Returns: { connected: boolean, state: string }
+// ─────────────────────────────────────────────
+router.get('/tenants/evolution/status/:instanceName', asyncHandler(async (req, res) => {
+    if (req.adminUser.role !== 'SUPER_ADMIN') {
+        throw new AppError('Solo SUPER_ADMIN puede realizar esta acción', 403);
+    }
+    const { instanceName } = req.params;
+    const evolutionService = require('../services/evolutionService');
+
+    try {
+        const url = `${evolutionService.baseUrl}/instance/connectionState/${instanceName}`;
+        const fetch = (...args) => import('node-fetch').then(({ default: fetch }) => fetch(...args));
+        const response = await fetch(url, {
+            headers: { 'apikey': evolutionService.globalApiKey }
+        });
+        const data = await response.json();
+
+        // Evolution v2 returns: { instance: { state: "open" | "connecting" | "close" } }
+        const state = data?.instance?.state || data?.state || data?.status || '';
+        const connected = state === 'open' || state === 'CONNECTED' || state === 'connected';
+
+        res.json({ success: true, connected, state });
+    } catch (err) {
+        res.json({ success: false, connected: false, state: 'unknown', error: err.message });
+    }
+}));
+
+// ─────────────────────────────────────────────
 // POST /api/admin/tenants
 // Create a new sede/tenant (SUPER_ADMIN only)
 // Body: { name, slug, dbUrl, evolutionInstance?, evolutionApiKey?, n8nWebhookUrl? }
@@ -279,6 +309,186 @@ router.post('/tenants', asyncHandler(async (req, res) => {
 }));
 
 // ─────────────────────────────────────────────
+// POST /api/admin/tenants/evolution/setup
+// Create instance + configure webhook in ONE step (SUPER_ADMIN only)
+// Body: { instanceName, webhookBaseUrl }
+// ─────────────────────────────────────────────
+router.post('/tenants/evolution/setup', asyncHandler(async (req, res) => {
+    if (req.adminUser.role !== 'SUPER_ADMIN') {
+        throw new AppError('Solo SUPER_ADMIN puede realizar esta acción', 403);
+    }
+    const { instanceName, webhookBaseUrl } = req.body;
+    if (!instanceName) throw new AppError('Se requiere instanceName', 400);
+
+    const evolutionService = require('../services/evolutionService');
+
+    // Step 1: Create instance (ignore "already exists" errors)
+    const createResult = await evolutionService.createInstance(instanceName);
+    if (!createResult.success) {
+        const errStr = (createResult.error || '').toLowerCase();
+        if (!errStr.includes('already exists') && !errStr.includes('ya existe') && !errStr.includes('conflict')) {
+            throw new AppError(`Error al crear instancia: ${createResult.error}`, 400);
+        }
+        console.log(`ℹ️ Instance ${instanceName} already exists, continuing with webhook setup...`);
+    }
+
+    // Step 2: Configure webhook
+    const webhookUrl = `${webhookBaseUrl}/evolution`;
+    const whResult = await evolutionService.setWebhook(instanceName, webhookUrl);
+
+    // Step 3: Get QR
+    const qrResult = await evolutionService.getQR(instanceName);
+
+    res.json({
+        success: true,
+        instanceCreated: createResult.success,
+        webhookConfigured: whResult.success,
+        webhookUrl,
+        qr: qrResult.qr || null,
+        warnings: [
+            !whResult.success ? `Webhook no pudo configurarse: ${whResult.error}` : null
+        ].filter(Boolean)
+    });
+}));
+
+// ─────────────────────────────────────────────
+// POST /api/admin/tenants/evolution/set-webhook
+// Configure webhook for an existing instance
+// Body: { instanceName, webhookBaseUrl }
+// ─────────────────────────────────────────────
+router.post('/tenants/evolution/set-webhook', asyncHandler(async (req, res) => {
+    if (req.adminUser.role !== 'SUPER_ADMIN') {
+        throw new AppError('Solo SUPER_ADMIN puede realizar esta acción', 403);
+    }
+    const { instanceName, webhookBaseUrl } = req.body;
+    if (!instanceName || !webhookBaseUrl) throw new AppError('Se requiere instanceName y webhookBaseUrl', 400);
+
+    const evolutionService = require('../services/evolutionService');
+    const webhookUrl = `${webhookBaseUrl}/evolution`;
+    const result = await evolutionService.setWebhook(instanceName, webhookUrl);
+
+    if (!result.success) throw new AppError(`Error configurando webhook: ${result.error}`, 400);
+    res.json({ success: true, webhookUrl });
+}));
+
+// ─────────────────────────────────────────────
+// POST /api/admin/tenants/:slug/sync-conversations
+// Import historical conversations from Evolution into tenant DB
+// Body: none required (uses tenant slug → instance from master DB)
+// ─────────────────────────────────────────────
+router.post('/tenants/:slug/sync-conversations', asyncHandler(async (req, res) => {
+    if (req.adminUser.role !== 'SUPER_ADMIN') {
+        throw new AppError('Solo SUPER_ADMIN puede sincronizar sedes', 403);
+    }
+
+    const { slug } = req.params;
+    const masterPool = require('../config/database').dbManager.masterPool;
+
+    // Get tenant from master DB
+    const { rows: tenantRows } = await masterPool.query(
+        'SELECT * FROM tenants WHERE slug = $1 AND is_active = true', [slug]
+    );
+    if (tenantRows.length === 0) throw new AppError('Sede no encontrada o inactiva', 404);
+    const tenant = tenantRows[0];
+
+    if (!tenant.evolution_instance) {
+        throw new AppError('La sede no tiene una instancia de Evolution configurada', 400);
+    }
+
+    // Get tenant's DB pool
+    const { Pool } = require('pg');
+    const { normalizePhone } = require('../utils/phoneUtils');
+    const evolutionService = require('../services/evolutionService');
+
+    const tenantPool = new Pool({
+        connectionString: tenant.db_url,
+        ssl: tenant.db_url.includes('localhost') || tenant.db_url.includes('127.0.0.1')
+            ? false : { rejectUnauthorized: false },
+        max: 5
+    });
+
+    try {
+        // 1. Fetch chats from Evolution
+        const { success, chats, error } = await evolutionService.fetchChats(tenant.evolution_instance);
+
+        if (!success) {
+            throw new AppError(`No se pudieron obtener chats de Evolution: ${error}`, 500);
+        }
+
+        let imported = 0;
+        let skipped = 0;
+        let errors = 0;
+
+        // 2. Import each chat into tenant DB (only individual chats, not groups in a first pass)
+        for (const chat of chats) {
+            try {
+                // Extract phone from JID (e.g. "573152345678@s.whatsapp.net")
+                const jid = chat.id || chat.remoteJid || '';
+                if (!jid || jid.includes('@g.us') || jid.includes('@broadcast')) {
+                    skipped++;
+                    continue; // Skip groups and broadcast lists for now
+                }
+
+                const phone = normalizePhone(jid);
+                if (!phone || phone.length < 7) { skipped++; continue; }
+
+                const contactName = chat.name || chat.pushName || `Usuario ${phone.slice(-4)}`;
+                const lastMsg = chat.lastMessage?.message?.conversation ||
+                    chat.lastMessage?.message?.extendedTextMessage?.text ||
+                    (chat.lastMessage?.message?.imageMessage ? '📷 Imagen' : null) ||
+                    (chat.lastMessage?.message?.audioMessage ? '🎤 Audio' : null) ||
+                    (chat.lastMessage?.message?.videoMessage ? '🎥 Video' : null) ||
+                    null;
+
+                const lastMsgTs = chat.lastMessage?.messageTimestamp
+                    ? new Date(chat.lastMessage.messageTimestamp * 1000).toISOString()
+                    : null;
+
+                const unread = typeof chat.unreadCount === 'number' ? Math.max(0, chat.unreadCount) : 0;
+
+                // Upsert conversation in tenant DB (don't overwrite existing ai_enabled setting)
+                await tenantPool.query(`
+                    INSERT INTO conversations 
+                        (phone, contact_name, last_message_text, last_message_timestamp, unread_count, ai_enabled, conversation_state, status, created_at, updated_at)
+                    VALUES 
+                        ($1, $2, $3, $4, $5, false, 'agent_active', 'active', NOW(), NOW())
+                    ON CONFLICT (phone) DO UPDATE SET
+                        contact_name = CASE 
+                            WHEN conversations.contact_name IS NULL OR conversations.contact_name = '' 
+                                 OR conversations.contact_name LIKE 'Usuario %'
+                            THEN EXCLUDED.contact_name
+                            ELSE conversations.contact_name
+                        END,
+                        last_message_text = COALESCE(EXCLUDED.last_message_text, conversations.last_message_text),
+                        last_message_timestamp = COALESCE(EXCLUDED.last_message_timestamp, conversations.last_message_timestamp),
+                        updated_at = NOW()
+                `, [phone, contactName, lastMsg, lastMsgTs, unread]);
+
+                imported++;
+            } catch (chatErr) {
+                console.error(`❌ Error importing chat ${chat.id}:`, chatErr.message);
+                errors++;
+            }
+        }
+
+        await tenantPool.end();
+
+        console.log(`✅ Sync complete for [${slug}]: ${imported} imported, ${skipped} skipped, ${errors} errors`);
+
+        res.json({
+            success: true,
+            total: chats.length,
+            imported,
+            skipped,
+            errors
+        });
+    } catch (err) {
+        await tenantPool.end().catch(() => { });
+        throw err;
+    }
+}));
+
+// ─────────────────────────────────────────────
 // PATCH /api/admin/tenants/:id/status
 // Activate / deactivate a sede (SUPER_ADMIN only)
 // ─────────────────────────────────────────────
@@ -299,3 +509,4 @@ router.patch('/tenants/:id/status', asyncHandler(async (req, res) => {
 }));
 
 module.exports = router;
+

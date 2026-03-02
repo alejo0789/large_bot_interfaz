@@ -833,6 +833,144 @@ class EvolutionService {
             return { success: false, error: error.message };
         }
     }
+
+    /**
+     * Configure webhook for an instance (MESSAGES_UPSERT, MESSAGES_UPDATE, CONNECTION_UPDATE)
+     * @param {string} instanceName
+     * @param {string} webhookUrl - Full URL where Evolution will POST events
+     */
+    async setWebhook(instanceName, webhookUrl) {
+        try {
+            // Evolution v2 uses PUT /webhook/set/{instance}
+            const url = `${this.baseUrl}/webhook/set/${instanceName}`;
+            const body = {
+                webhook: {
+                    enabled: true,
+                    url: webhookUrl,
+                    webhookByEvents: false,
+                    webhookBase64: true,   // send media as base64 so we can save them
+                    events: [
+                        'MESSAGES_UPSERT',
+                        'MESSAGES_UPDATE',
+                        'MESSAGES_DELETE',
+                        'CONNECTION_UPDATE',
+                        'SEND_MESSAGE'
+                    ]
+                }
+            };
+
+            console.log(`🔗 Setting webhook for [${instanceName}] → ${webhookUrl}`);
+
+            const response = await fetch(url, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'apikey': this.globalApiKey
+                },
+                body: JSON.stringify(body)
+            });
+
+            const data = await response.json();
+
+            if (!response.ok) {
+                // Try alternative structure (some Evolution forks differ)
+                console.warn(`⚠️ setWebhook attempt 1 failed (${response.status}), trying alternative structure...`);
+
+                const altUrl = `${this.baseUrl}/webhook/set/${instanceName}`;
+                const altBody = {
+                    enabled: true,
+                    url: webhookUrl,
+                    webhookByEvents: false,
+                    webhookBase64: true,
+                    events: ['MESSAGES_UPSERT', 'MESSAGES_UPDATE', 'CONNECTION_UPDATE']
+                };
+
+                const altResponse = await fetch(altUrl, {
+                    method: 'PUT',
+                    headers: { 'Content-Type': 'application/json', 'apikey': this.globalApiKey },
+                    body: JSON.stringify(altBody)
+                });
+
+                const altData = await altResponse.json();
+                if (!altResponse.ok) {
+                    throw new Error(altData.message || `HTTP ${altResponse.status}`);
+                }
+                console.log(`✅ Webhook set (alt method) for ${instanceName}`);
+                return { success: true, data: altData };
+            }
+
+            console.log(`✅ Webhook set successfully for ${instanceName}`);
+            return { success: true, data };
+        } catch (error) {
+            console.error('❌ setWebhook Error:', error);
+            return { success: false, error: error.message };
+        }
+    }
+
+    /**
+     * Fetch all chats from an Evolution instance (for initial sync)
+     * @param {string} instanceName
+     * @returns {{ success: boolean, chats: Array }}
+     */
+    async fetchChats(instanceName) {
+        try {
+            // Evolution v2: POST /chat/findChats/{instance}
+            const url = `${this.baseUrl}/chat/findChats/${instanceName}`;
+            console.log(`📋 Fetching chats from Evolution [${instanceName}]: ${url}`);
+
+            const response = await fetch(url, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'apikey': this.globalApiKey
+                },
+                body: JSON.stringify({})
+            });
+
+            const data = await response.json();
+
+            if (!response.ok) {
+                throw new Error(data.message || `HTTP ${response.status}`);
+            }
+
+            // data can be an array of chats directly or { chats: [] }
+            const chats = Array.isArray(data) ? data : (data.chats || data.data || []);
+            console.log(`✅ Fetched ${chats.length} chats from Evolution [${instanceName}]`);
+            return { success: true, chats };
+        } catch (error) {
+            console.error('❌ fetchChats Error:', error);
+            return { success: false, chats: [], error: error.message };
+        }
+    }
+
+    /**
+     * Fetch recent messages for a chat from Evolution
+     * @param {string} instanceName
+     * @param {string} remoteJid - e.g. "57312...@s.whatsapp.net"
+     * @param {number} count - number of messages to fetch (default 30)
+     */
+    async fetchRecentMessages(instanceName, remoteJid, count = 30) {
+        try {
+            const url = `${this.baseUrl}/chat/findMessages/${instanceName}`;
+            const response = await fetch(url, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json', 'apikey': this.globalApiKey },
+                body: JSON.stringify({
+                    where: { key: { remoteJid } },
+                    limit: count
+                })
+            });
+
+            if (!response.ok) return { success: false, messages: [] };
+
+            const data = await response.json();
+            const messages = Array.isArray(data) ? data : (data.messages?.records || data.records || data.data || []);
+            return { success: true, messages };
+        } catch (error) {
+            console.error(`❌ fetchRecentMessages Error for ${remoteJid}:`, error);
+            return { success: false, messages: [] };
+        }
+    }
 }
 
 module.exports = new EvolutionService();

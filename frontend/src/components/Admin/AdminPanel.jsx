@@ -222,6 +222,7 @@ const AdminPanel = ({ isMobile }) => {
     const [searchQuery, setSearchQuery] = useState('');
     const [toast, setToast] = useState(null);
     const [confirmDelete, setConfirmDelete] = useState(null);
+    const [syncingSlug, setSyncingSlug] = useState(null);
 
     const isSuperAdmin = user?.role === 'SUPER_ADMIN';
     const isSedeAdmin = user?.role === 'SEDE_ADMIN';
@@ -290,6 +291,26 @@ const AdminPanel = ({ isMobile }) => {
         } catch { showToast('Error de conexión', 'error'); }
     };
 
+    const handleSyncConversations = async (slug) => {
+        setSyncingSlug(slug);
+        try {
+            const res = await fetch(`${API_URL}/api/admin/tenants/${slug}/sync-conversations`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` }
+            });
+            const data = await res.json();
+            if (data.success) {
+                showToast(`✅ ${data.imported} conversaciones sincronizadas (${data.skipped} omitidas)`, 'success');
+            } else {
+                showToast(data.error || 'Error sincronizando', 'error');
+            }
+        } catch (err) {
+            showToast('Error de conexión', 'error');
+        } finally {
+            setSyncingSlug(null);
+        }
+    };
+
     const filteredUsers = users.filter(u => {
         const q = searchQuery.toLowerCase();
         return !q || u.name?.toLowerCase().includes(q) || u.username?.toLowerCase().includes(q) || u.email?.toLowerCase().includes(q);
@@ -298,7 +319,7 @@ const AdminPanel = ({ isMobile }) => {
     const callerTenants = user?.tenants || [];
 
     return (
-        <div style={{ height: '100%', overflowY: 'auto', background: '#f8fafc', padding: isMobile ? '12px' : '24px' }}>
+        <div style={{ flex: 1, minHeight: 0, overflowY: 'auto', background: '#f8fafc', padding: isMobile ? '12px' : '24px' }}>
 
             {/* Toast */}
             {toast && (
@@ -384,6 +405,37 @@ const AdminPanel = ({ isMobile }) => {
                     <UserPlus size={16} /> Nuevo Usuario
                 </button>
             </div>
+
+            {/* ── Sedes (SUPER_ADMIN only) ── */}
+            {isSuperAdmin && tenants.length > 0 && (
+                <div style={{ background: 'white', borderRadius: '12px', padding: '16px', marginBottom: '20px', boxShadow: '0 1px 3px rgba(0,0,0,0.06)' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '14px' }}>
+                        <Building2 size={16} color="#059669" />
+                        <span style={{ fontWeight: 700, fontSize: '14px', color: '#111827' }}>Sedes registradas</span>
+                        <span style={{ fontSize: '12px', color: '#6b7280', marginLeft: '4px' }}>({tenants.length})</span>
+                    </div>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                        {tenants.map(t => (
+                            <div key={t.slug} style={{ display: 'flex', alignItems: 'center', gap: '10px', padding: '10px 14px', borderRadius: '10px', background: '#f8fafc', border: '1px solid #e2e8f0', flexWrap: 'wrap' }}>
+                                <div style={{ flex: 1, minWidth: '120px' }}>
+                                    <div style={{ fontWeight: 600, fontSize: '14px', color: '#111827' }}>{t.name}</div>
+                                    <div style={{ fontSize: '11px', color: '#6b7280', fontFamily: 'monospace' }}>{t.slug} {t.evolution_instance ? `· ${t.evolution_instance}` : ''}</div>
+                                </div>
+                                <StatusBadge isActive={t.is_active} />
+                                <button
+                                    onClick={() => handleSyncConversations(t.slug)}
+                                    disabled={syncingSlug === t.slug}
+                                    title="Sincronizar conversaciones históricas desde Evolution"
+                                    style={{ display: 'flex', alignItems: 'center', gap: '6px', padding: '6px 12px', borderRadius: '8px', border: '1px solid #bbf7d0', background: '#f0fdf4', color: '#15803d', cursor: syncingSlug === t.slug ? 'wait' : 'pointer', fontSize: '12px', fontWeight: 600, opacity: syncingSlug === t.slug ? 0.7 : 1 }}
+                                >
+                                    <RotateCw size={13} style={syncingSlug === t.slug ? { animation: 'spin 1s linear infinite' } : {}} />
+                                    {syncingSlug === t.slug ? 'Sincronizando...' : 'Sincronizar chats'}
+                                </button>
+                            </div>
+                        ))}
+                    </div>
+                </div>
+            )}
 
             {/* Tabla de usuarios */}
             <div style={{ background: 'white', borderRadius: '12px', boxShadow: '0 1px 3px rgba(0,0,0,0.06)', overflow: 'hidden' }}>

@@ -22,7 +22,9 @@ const TenantSelectorPage = () => {
             flexDirection: 'column',
             alignItems: 'center',
             padding: '40px 20px',
-            fontFamily: 'Inter, system-ui, -apple-system, sans-serif'
+            fontFamily: 'Inter, system-ui, -apple-system, sans-serif',
+            overflowY: 'auto',
+            boxSizing: 'border-box'
         }}>
             {/* Header Area */}
             <div style={{

@@ -195,7 +195,7 @@ class ConversationService {
     async upsert(phone, contactName) {
         const normalizedPhone = normalizePhone(phone);
         // Fetch default AI setting
-        const defaultAiEnabledStr = await settingsService.get('default_ai_enabled', 'true');
+        const defaultAiEnabledStr = await settingsService.get('default_ai_enabled', 'false');
         const defaultAiEnabled = String(defaultAiEnabledStr) === 'true';
 
         // Check if exists to preserve existing setting if it does
@@ -460,7 +460,7 @@ class ConversationService {
         }
 
         // Fetch user default AI setting instead of hardcoding 'true'
-        const defaultAiEnabledStr = await settingsService.get('default_ai_enabled', 'true');
+        const defaultAiEnabledStr = await settingsService.get('default_ai_enabled', 'false');
         const defaultAiEnabled = String(defaultAiEnabledStr) === 'true';
 
         // Create new
@@ -518,6 +518,18 @@ class ConversationService {
         `, [isPinned, phone]);
 
         return rows[0] || null;
+    }
+
+    /**
+     * Bulk update AI status for all conversations
+     */
+    async setAllAI(isEnabled) {
+        const state = isEnabled ? 'ai_active' : 'agent_active';
+        const { rowCount } = await pool.query(`
+            UPDATE conversations 
+            SET ai_enabled = $1, conversation_state = $2, updated_at = NOW()
+        `, [isEnabled, state]);
+        return rowCount;
     }
 }
 

@@ -77,7 +77,8 @@ const Dashboard = ({ isMobile }) => {
         return (
             <div className="dashboard-container" style={{
                 padding: '24px',
-                height: '100%',
+                flex: 1,
+                minHeight: 0,
                 display: 'flex',
                 alignItems: 'center',
                 justifyContent: 'center'
@@ -102,7 +103,8 @@ const Dashboard = ({ isMobile }) => {
     return (
         <div className="dashboard-container" style={{
             padding: isMobile ? '16px' : '24px',
-            height: '100%',
+            flex: 1,
+            minHeight: 0,
             overflowY: 'auto',
             backgroundColor: '#f8fafc'
         }}>
