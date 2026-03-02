@@ -344,13 +344,33 @@ export const useConversations = (socket) => {
 
     const sendFile = useCallback(async (phone, file, caption, name, options = {}) => {
         const tempId = `temp_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
-        const { agentId, agentName, replyTo } = options;
+        const { agentId, agentName, replyTo, replyToFull } = options;
         const media_type = file.type.startsWith('image/') ? 'image' :
             file.type.startsWith('video/') ? 'video' :
                 file.type.startsWith('audio/') ? 'audio' : 'document';
 
-        // NO crear mensaje optimista - solo se mostrará cuando llegue del servidor
-        // Esto evita ver dos imágenes (preview optimista + imagen real)
+        // ── OPTIMISTIC UPDATE ──────────────────────────────────────────────────
+        // Create a local blob URL so the image shows instantly without waiting
+        const localBlobUrl = URL.createObjectURL(file);
+        const optimisticMsg = {
+            id: tempId,
+            whatsapp_id: tempId,
+            sender: 'agent',
+            sender_name: agentName || 'Tú',
+            agent_name: agentName || 'Tú',
+            text_content: caption || '',
+            media_url: localBlobUrl,
+            media_type,
+            status: 'sending',    // custom status for UI
+            timestamp: new Date().toISOString(),
+            _isOptimistic: true,  // flag to identify and replace later
+        };
+
+        // Add optimistic message to the conversation immediately
+        setMessagesByConversation(prev => {
+            const existing = prev[phone] || [];
+            return { ...prev, [phone]: [...existing, optimisticMsg] };
+        });
 
         const formData = new FormData();
         formData.append('file', file);
@@ -374,7 +394,18 @@ export const useConversations = (socket) => {
 
             const result = await response.json();
 
-            // Reordering after send
+            // ✅ SUCCESS: remove the optimistic message — the real one will arrive via socket
+            // (or keep it if no socket is connected, updating its status)
+            setMessagesByConversation(prev => {
+                const msgs = prev[phone] || [];
+                // Remove optimistic placeholder; socket event will add the real message
+                return { ...prev, [phone]: msgs.filter(m => m.id !== tempId) };
+            });
+
+            // Revoke the blob URL to free memory
+            URL.revokeObjectURL(localBlobUrl);
+
+            // Update conversation list order
             setConversations(prev => {
                 const currentConversations = [...prev];
                 const cleanIncomingPhone = String(phone).replace(/\D/g, '');
@@ -406,7 +437,22 @@ export const useConversations = (socket) => {
             return result;
         } catch (error) {
             console.error('❌ Error sending file:', error);
-            // Ya no hay mensaje optimista que actualizar
+
+            // ❌ FAILURE: mark the optimistic message as failed
+            setMessagesByConversation(prev => {
+                const msgs = prev[phone] || [];
+                return {
+                    ...prev,
+                    [phone]: msgs.map(m =>
+                        m.id === tempId
+                            ? { ...m, status: 'failed', _errorText: 'No se pudo enviar' }
+                            : m
+                    )
+                };
+            });
+
+            // NOTE: we keep the blob URL alive so the user can see the failed image
+            // It will be cleaned up when the message is dismissed
             throw error;
         }
     }, []);

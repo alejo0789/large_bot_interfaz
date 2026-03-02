@@ -377,16 +377,16 @@ const MessageInput = ({ onSend, onSendFile, disabled, isMobile, replyToMessage, 
 
     const handleSendFile = async () => {
         if (!selectedFile || !onSendFile) return;
-        setIsUploading(true);
+        // Clear file immediately — message already shows in conversation optimistically
+        const fileToSend = selectedFile;
+        const captionToSend = message.trim();
+        clearFile();
+        setMessage('');
         try {
-            await onSendFile(selectedFile, message.trim());
-            clearFile();
-            setMessage('');
+            await onSendFile(fileToSend, captionToSend);
         } catch (error) {
+            // Error is shown inline in the conversation bubble
             console.error('Error enviando archivo:', error);
-            alert('Error al enviar el archivo');
-        } finally {
-            setIsUploading(false);
         }
     };
 

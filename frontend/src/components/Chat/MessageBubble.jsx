@@ -123,15 +123,22 @@ const MessageBubble = ({ message, onForward, onReact, onDelete, onReply, onEdit,
     const renderMedia = () => {
         if (!media_url) return null;
 
+        const isSending = status === 'sending';
+        const isFailed = status === 'failed';
+
         switch (media_type) {
             case 'image':
                 return (
                     <div
                         style={{
-                            cursor: 'pointer',
-                            marginBottom: text ? 'var(--space-2)' : 0
+                            cursor: isSending || isFailed ? 'default' : 'pointer',
+                            marginBottom: text ? 'var(--space-2)' : 0,
+                            position: 'relative',
+                            display: 'inline-block',
+                            borderRadius: 'var(--radius-md)',
+                            overflow: 'hidden'
                         }}
-                        onClick={() => setShowFullImage(true)}
+                        onClick={() => !isSending && !isFailed && setShowFullImage(true)}
                     >
                         {!imageError ? (
                             <img
@@ -142,7 +149,10 @@ const MessageBubble = ({ message, onForward, onReact, onDelete, onReply, onEdit,
                                     maxWidth: '100%',
                                     maxHeight: '300px',
                                     borderRadius: 'var(--radius-md)',
-                                    objectFit: 'cover'
+                                    objectFit: 'cover',
+                                    display: 'block',
+                                    filter: isSending ? 'brightness(0.6)' : isFailed ? 'brightness(0.5) sepia(1) hue-rotate(-30deg)' : 'none',
+                                    transition: 'filter 0.2s ease'
                                 }}
                             />
                         ) : (
@@ -156,6 +166,50 @@ const MessageBubble = ({ message, onForward, onReact, onDelete, onReply, onEdit,
                             }}>
                                 <ImageIcon className="w-5 h-5" />
                                 <span>Imagen no disponible</span>
+                            </div>
+                        )}
+
+                        {/* Sending overlay */}
+                        {isSending && (
+                            <div style={{
+                                position: 'absolute',
+                                inset: 0,
+                                display: 'flex',
+                                flexDirection: 'column',
+                                alignItems: 'center',
+                                justifyContent: 'center',
+                                gap: '6px'
+                            }}>
+                                <div style={{
+                                    width: '28px',
+                                    height: '28px',
+                                    border: '3px solid rgba(255,255,255,0.3)',
+                                    borderTopColor: 'white',
+                                    borderRadius: '50%',
+                                    animation: 'spin 0.8s linear infinite'
+                                }} />
+                                <span style={{ color: 'white', fontSize: '11px', fontWeight: 600, textShadow: '0 1px 2px rgba(0,0,0,0.5)' }}>
+                                    Enviando...
+                                </span>
+                                <style>{`@keyframes spin { to { transform: rotate(360deg); } }`}</style>
+                            </div>
+                        )}
+
+                        {/* Failed overlay */}
+                        {isFailed && (
+                            <div style={{
+                                position: 'absolute',
+                                inset: 0,
+                                display: 'flex',
+                                flexDirection: 'column',
+                                alignItems: 'center',
+                                justifyContent: 'center',
+                                gap: '4px'
+                            }}>
+                                <span style={{ fontSize: '22px' }}>⚠️</span>
+                                <span style={{ color: 'white', fontSize: '11px', fontWeight: 600, textShadow: '0 1px 2px rgba(0,0,0,0.8)', textAlign: 'center', padding: '0 8px' }}>
+                                    Error al enviar
+                                </span>
                             </div>
                         )}
                     </div>

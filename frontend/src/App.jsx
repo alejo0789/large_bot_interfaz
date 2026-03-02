@@ -441,8 +441,8 @@ const AuthenticatedApp = () => {
             );
             setReplyToMessage(null);
         } catch (error) {
+            // Error is shown inline in the conversation bubble — no alert needed
             console.error('Error in App handleSendFile:', error);
-            alert('Error al enviar el archivo');
         }
     }, [selectedConversation, sendFile, user, replyToMessage]);
 
