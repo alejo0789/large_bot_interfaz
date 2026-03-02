@@ -548,7 +548,7 @@ const MessageBubble = ({ message, onForward, onReact, onDelete, onReply, onEdit,
 
                         {/* Reactions Display */}
                         {
-                            reactions && reactions.length > 0 && (
+                            Array.isArray(reactions) && reactions.length > 0 && (
                                 <div style={{
                                     position: 'absolute',
                                     bottom: '-12px',
@@ -567,7 +567,7 @@ const MessageBubble = ({ message, onForward, onReact, onDelete, onReply, onEdit,
                                     whiteSpace: 'nowrap' // Prevent wrapping
                                 }}>
                                     {reactions.map((r, idx) => (
-                                        <span key={idx} title={r.by}>{r.emoji}</span>
+                                        <span key={idx} title={r?.by || ''}>{r?.emoji || ''}</span>
                                     ))}
                                 </div>
                             )

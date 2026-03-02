@@ -358,11 +358,14 @@ export const useConversations = (socket) => {
             sender: 'agent',
             sender_name: agentName || 'Tú',
             agent_name: agentName || 'Tú',
-            text_content: caption || '',
+            text: caption || '',
             media_url: localBlobUrl,
             media_type,
-            status: 'sending',    // custom status for UI
-            timestamp: new Date().toISOString(),
+            timestamp: new Date().toLocaleTimeString('es-CO', {
+                hour: '2-digit',
+                minute: '2-digit'
+            }),
+            reactions: [],        // explicitly empty array to prevent map errors
             _isOptimistic: true,  // flag to identify and replace later
         };
 

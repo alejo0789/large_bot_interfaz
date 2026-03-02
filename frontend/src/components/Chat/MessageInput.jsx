@@ -198,11 +198,15 @@ const MessageInput = ({ onSend, onSendFile, disabled, isMobile, replyToMessage, 
             ];
 
             let supportedMimeType = '';
-            for (const type of mimeTypes) {
-                if (MediaRecorder.isTypeSupported(type)) {
-                    supportedMimeType = type;
-                    break;
+            if (window.MediaRecorder) {
+                for (const type of mimeTypes) {
+                    if (MediaRecorder.isTypeSupported(type)) {
+                        supportedMimeType = type;
+                        break;
+                    }
                 }
+            } else {
+                console.warn('⚠️ MediaRecorder is not supported in this browser');
             }
 
             console.log(`🎙️ Using supported MIME type: ${supportedMimeType || 'browser default'}`);

@@ -164,7 +164,7 @@ const AuthenticatedApp = () => {
     // Mobile detection - show sidebar by default on mobile
     useEffect(() => {
         const checkMobile = () => {
-            const mobile = window.innerWidth <= 768;
+            const mobile = window.innerWidth <= 1024;
             setIsMobile(mobile);
             // En mÃ³vil, mostrar sidebar por defecto (se oculta al seleccionar conversaciÃ³n)
             // En desktop, siempre mostrar sidebar
