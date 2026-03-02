@@ -169,23 +169,25 @@ router.post('/upload', upload.single('file'), async (req, res, next) => {
             : `/uploads/ai_knowledge/${req.file.filename}`;
         const keywordArray = keywords ? (Array.isArray(keywords) ? keywords : keywords.split(',').map(k => k.trim())) : [];
 
-        // Generar embedding automático del contenido/descripción
+        // Generar embedding automático (opcional — no falla si la columna no existe)
         const embeddingText = `${title || ''} ${description || ''}`.trim();
-        const embedding = await getEmbedding(embeddingText);
+        let embedding = null;
+        try { embedding = await getEmbedding(embeddingText); } catch (e) { console.warn('⚠️ Embedding no generado:', e.message); }
 
         const priceVal = price ? parseFloat(price) : null;
         const activeVal = active === 'false' ? false : true;
 
-        const query = `
-            INSERT INTO ai_knowledge 
-            (type, title, content, media_url, filename, keywords, embedding, price, active) 
-            VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9) 
-            RETURNING *
-        `;
+        // Construir query dinámico según si el embedding está disponible
+        let columns = '(type, title, content, media_url, filename, keywords, price, active)';
+        let placeholders = 'VALUES ($1, $2, $3, $4, $5, $6, $7, $8)';
+        let values = [type, title || '', description || '', mediaUrl, req.file.originalname, keywordArray, priceVal, activeVal];
+        if (embedding) {
+            columns = '(type, title, content, media_url, filename, keywords, embedding, price, active)';
+            placeholders = 'VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)';
+            values = [type, title || '', description || '', mediaUrl, req.file.originalname, keywordArray, embedding, priceVal, activeVal];
+        }
 
-        const values = [type, title || '', description || '', mediaUrl, req.file.originalname, keywordArray, embedding, priceVal, activeVal];
-        const result = await pool.query(query, values);
-
+        const result = await pool.query(`INSERT INTO ai_knowledge ${columns} ${placeholders} RETURNING *`, values);
         res.status(201).json(result.rows[0]);
     } catch (error) {
         if (req.file && req.file.path) {
@@ -226,21 +228,25 @@ router.post('/text', upload.single('file'), async (req, res, next) => {
         const priceVal = price ? parseFloat(price) : null;
         const activeVal = active === 'false' ? false : true;
 
-        // Generar embedding automático (Título + Contenido)
+        // Generar embedding automático (opcional — no falla si la columna no existe)
         const embeddingText = `${title || ''} ${content || ''}`.trim();
-        console.log(`🧬 Generando embedding automático para: ${title || 'Sin título'}`);
-        const embedding = await getEmbedding(embeddingText);
+        let embedding = null;
+        try {
+            console.log(`🧬 Generando embedding para: ${title || 'Sin título'}`);
+            embedding = await getEmbedding(embeddingText);
+        } catch (e) { console.warn('⚠️ Embedding no generado:', e.message); }
 
-        const query = `
-            INSERT INTO ai_knowledge 
-            (type, title, content, keywords, embedding, media_url, price, active) 
-            VALUES ($1, $2, $3, $4, $5, $6, $7, $8) 
-            RETURNING *
-        `;
+        // Construir query dinámico según si el embedding está disponible
+        let columns = '(type, title, content, keywords, media_url, price, active)';
+        let placeholders = 'VALUES ($1, $2, $3, $4, $5, $6, $7)';
+        let values = ['text', title || '', content, keywordArray, finalMediaUrl, priceVal, activeVal];
+        if (embedding) {
+            columns = '(type, title, content, keywords, embedding, media_url, price, active)';
+            placeholders = 'VALUES ($1, $2, $3, $4, $5, $6, $7, $8)';
+            values = ['text', title || '', content, keywordArray, embedding, finalMediaUrl, priceVal, activeVal];
+        }
 
-        const values = ['text', title || '', content, keywordArray, embedding, finalMediaUrl, priceVal, activeVal];
-        const result = await pool.query(query, values);
-
+        const result = await pool.query(`INSERT INTO ai_knowledge ${columns} ${placeholders} RETURNING *`, values);
         res.status(201).json(result.rows[0]);
     } catch (error) {
         // Si hubo error, borrar el archivo subido si existe
@@ -303,23 +309,35 @@ router.put('/:id', upload.single('file'), async (req, res, next) => {
         const priceVal = price !== undefined ? (price === '' || price === null ? null : parseFloat(price)) : oldResource.price;
         const activeVal = active !== undefined ? (active === 'false' || active === false ? false : true) : oldResource.active;
 
-        // Re-generar embedding si cambió el contenido o título
-        let embedding = oldResource.embedding;
-        if (content !== oldResource.content || title !== oldResource.title) {
-            console.log(`🧬 Re-generando embedding para actualización: ${title || 'Sin título'}`);
-            const embeddingText = `${title || ''} ${content || ''}`.trim();
-            embedding = await getEmbedding(embeddingText);
+        // Re-generar embedding si cambió el contenido o título (opcional)
+        let embeddingUpdate = null;
+        if ((content !== undefined && content !== oldResource.content) || (title !== undefined && title !== oldResource.title)) {
+            try {
+                console.log(`🧬 Re-generando embedding para: ${title || 'Sin título'}`);
+                const embeddingText = `${title || ''} ${content || ''}`.trim();
+                embeddingUpdate = await getEmbedding(embeddingText);
+            } catch (e) { console.warn('⚠️ Embedding no re-generado:', e.message); }
         }
 
-        const query = `
-            UPDATE ai_knowledge 
-            SET title = $1, content = $2, keywords = $3, media_url = $4, embedding = $5, price = $6, active = $7, updated_at = NOW()
-            WHERE id = $8
-            RETURNING *
-        `;
+        // Construir UPDATE dinámico
+        const setClauses = [
+            'title = $1', 'content = $2', 'keywords = $3',
+            'media_url = $4', 'price = $5', 'active = $6', 'updated_at = NOW()'
+        ];
+        const values = [title ?? oldResource.title, content ?? oldResource.content, keywordArray, finalMediaUrl, priceVal, activeVal];
+        let paramIdx = 7;
 
-        const values = [title ?? oldResource.title, content ?? oldResource.content, keywordArray, finalMediaUrl, embedding, priceVal, activeVal, id];
-        const result = await pool.query(query, values);
+        if (embeddingUpdate) {
+            setClauses.splice(4, 0, `embedding = $${paramIdx}`);
+            values.splice(4, 0, embeddingUpdate);
+            paramIdx++;
+        }
+
+        values.push(id);
+        const result = await pool.query(
+            `UPDATE ai_knowledge SET ${setClauses.join(', ')} WHERE id = $${paramIdx} RETURNING *`,
+            values
+        );
 
         res.json(result.rows[0]);
     } catch (error) {
