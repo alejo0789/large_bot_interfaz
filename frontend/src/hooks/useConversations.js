@@ -365,6 +365,7 @@ export const useConversations = (socket) => {
                 hour: '2-digit',
                 minute: '2-digit'
             }),
+            rawTimestamp: new Date().toISOString(),  // needed for socket duplicate detection
             reactions: [],        // explicitly empty array to prevent map errors
             _isOptimistic: true,  // flag to identify and replace later
         };
@@ -397,16 +398,37 @@ export const useConversations = (socket) => {
 
             const result = await response.json();
 
-            // ✅ SUCCESS: remove the optimistic message — the real one will arrive via socket
-            // (or keep it if no socket is connected, updating its status)
+            // ✅ SUCCESS: update the optimistic message in-place with the real data from the server.
+            // Do NOT remove it and wait for the socket — the socket may be slow, filtered as duplicate,
+            // or missed entirely, causing the message to disappear until a page refresh.
+            const realMessage = result.newMessage || result.message || result;
+            const realMediaUrl = realMessage?.media_url || realMessage?.mediaUrl || localBlobUrl;
+            const realId = realMessage?.whatsapp_id || realMessage?.id || tempId;
+
             setMessagesByConversation(prev => {
                 const msgs = prev[phone] || [];
-                // Remove optimistic placeholder; socket event will add the real message
-                return { ...prev, [phone]: msgs.filter(m => m.id !== tempId) };
+                return {
+                    ...prev,
+                    [phone]: msgs.map(m =>
+                        m.id === tempId
+                            ? {
+                                ...m,
+                                id: realId,
+                                whatsapp_id: realId,
+                                media_url: realMediaUrl,
+                                status: 'delivered',
+                                _isOptimistic: false,
+                                replyTo: realMessage?.replyTo || m.replyTo
+                            }
+                            : m
+                    )
+                };
             });
 
-            // Revoke the blob URL to free memory
-            URL.revokeObjectURL(localBlobUrl);
+            // Revoke the local blob URL if we got a real URL from the server
+            if (realMediaUrl !== localBlobUrl) {
+                URL.revokeObjectURL(localBlobUrl);
+            }
 
             // Update conversation list order
             setConversations(prev => {

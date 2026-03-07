@@ -12,26 +12,37 @@ const getKnowledgeDir = () => {
     const context = tenantContext.getStore();
     const slug = context?.tenant?.slug;
 
-    // Base dir: e.g., uploads/
-    // Tenant dir: e.g., uploads/cali/
-    // Knowledge dir: e.g., uploads/cali/ai_knowledge/
-
     let baseDir = config.uploadDir;
     if (slug) {
         baseDir = path.join(config.uploadDir, slug);
     }
 
     const kDir = path.join(baseDir, 'ai_knowledge');
-    if (!fs.existsSync(kDir)) {
-        fs.mkdirSync(kDir, { recursive: true });
+    console.log(`📂 [AI Knowledge] uploadDir base: ${config.uploadDir}`);
+    console.log(`📂 [AI Knowledge] kDir objetivo: ${kDir}`);
+
+    try {
+        if (!fs.existsSync(kDir)) {
+            fs.mkdirSync(kDir, { recursive: true });
+            console.log(`✅ [AI Knowledge] Directorio creado: ${kDir}`);
+        } else {
+            console.log(`✅ [AI Knowledge] Directorio existe: ${kDir}`);
+        }
+    } catch (err) {
+        console.error(`❌ [AI Knowledge] Error creando directorio ${kDir}:`, err.message);
+        throw err; // propagar para que multer devuelva 500
     }
     return { dir: kDir, slug };
 };
 
 const storage = multer.diskStorage({
     destination: function (req, file, cb) {
-        const { dir } = getKnowledgeDir();
-        cb(null, dir);
+        try {
+            const { dir } = getKnowledgeDir();
+            cb(null, dir);
+        } catch (err) {
+            cb(err);
+        }
     },
     filename: function (req, file, cb) {
         const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1E9);

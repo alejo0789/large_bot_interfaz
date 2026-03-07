@@ -134,7 +134,8 @@ const MessageBubble = ({ message, onForward, onReact, onDelete, onReply, onEdit,
                             cursor: isSending || isFailed ? 'default' : 'pointer',
                             marginBottom: text ? 'var(--space-2)' : 0,
                             position: 'relative',
-                            display: 'inline-block',
+                            display: 'block',
+                            width: '100%',
                             borderRadius: 'var(--radius-md)',
                             overflow: 'hidden'
                         }}
@@ -516,8 +517,10 @@ const MessageBubble = ({ message, onForward, onReact, onDelete, onReply, onEdit,
                                     fontSize: media_type ? 'var(--font-size-sm)' : undefined,
                                     overflowWrap: 'break-word',
                                     wordWrap: 'break-word',
+                                    wordBreak: 'break-word',
                                     whiteSpace: 'pre-wrap',
                                     maxWidth: '100%',
+                                    overflow: 'hidden',
                                     userSelect: 'text' // Allow text selection inside bubble
                                 }}>
                                     {formatText(text)}

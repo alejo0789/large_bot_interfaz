@@ -418,16 +418,17 @@ const MessageInput = ({ onSend, onSendFile, disabled, isMobile, replyToMessage, 
     // If recording or has recorded audio, show recording UI
     if (isRecording || audioBlob) {
         return (
-            <div style={{ width: '100%' }}>
+            <div style={{ width: '100%', overflow: 'hidden' }}>
                 <div className="chat-input-container" style={{
-                    backgroundColor: isRecording ? 'rgba(239, 68, 68, 0.1)' : 'var(--color-gray-50)'
+                    backgroundColor: isRecording ? 'rgba(239, 68, 68, 0.1)' : 'var(--color-gray-50)',
+                    overflow: 'hidden'
                 }}>
                     {/* Cancel button */}
                     <button
                         className="btn btn-icon"
                         onClick={cancelRecording}
                         title="Cancelar"
-                        style={{ color: 'var(--color-error)' }}
+                        style={{ color: 'var(--color-error)', flexShrink: 0 }}
                     >
                         <Trash2 className="w-5 h-5" />
                     </button>
@@ -438,7 +439,9 @@ const MessageInput = ({ onSend, onSendFile, disabled, isMobile, replyToMessage, 
                         display: 'flex',
                         alignItems: 'center',
                         gap: 'var(--space-2)',
-                        padding: '0 var(--space-2)'
+                        padding: '0 var(--space-2)',
+                        minWidth: 0,          // ← critical: allows flex child to shrink below intrinsic size
+                        overflow: 'hidden'
                     }}>
                         {isRecording ? (
                             <>
@@ -448,7 +451,8 @@ const MessageInput = ({ onSend, onSendFile, disabled, isMobile, replyToMessage, 
                                     height: '12px',
                                     borderRadius: '50%',
                                     backgroundColor: 'var(--color-error)',
-                                    animation: 'pulse 1s infinite'
+                                    animation: 'pulse 1s infinite',
+                                    flexShrink: 0
                                 }} />
 
                                 {/* Waveform */}
@@ -458,7 +462,9 @@ const MessageInput = ({ onSend, onSendFile, disabled, isMobile, replyToMessage, 
                                     alignItems: 'center',
                                     justifyContent: 'center',
                                     gap: '2px',
-                                    height: '40px'
+                                    height: '40px',
+                                    minWidth: 0,
+                                    overflow: 'hidden'
                                 }}>
                                     {audioWaveform.map((value, index) => (
                                         <div
@@ -468,7 +474,8 @@ const MessageInput = ({ onSend, onSendFile, disabled, isMobile, replyToMessage, 
                                                 height: `${Math.max(4, value * 36)}px`,
                                                 backgroundColor: 'var(--color-primary)',
                                                 borderRadius: '2px',
-                                                transition: 'height 0.1s ease'
+                                                transition: 'height 0.1s ease',
+                                                flexShrink: 0
                                             }}
                                         />
                                     ))}
@@ -479,7 +486,8 @@ const MessageInput = ({ onSend, onSendFile, disabled, isMobile, replyToMessage, 
                                                 width: '3px',
                                                 height: '4px',
                                                 backgroundColor: 'var(--color-gray-300)',
-                                                borderRadius: '2px'
+                                                borderRadius: '2px',
+                                                flexShrink: 0
                                             }}
                                         />
                                     ))}
@@ -490,7 +498,9 @@ const MessageInput = ({ onSend, onSendFile, disabled, isMobile, replyToMessage, 
                                     fontSize: 'var(--font-size-sm)',
                                     fontWeight: 500,
                                     color: 'var(--color-error)',
-                                    minWidth: '45px'
+                                    minWidth: '40px',
+                                    flexShrink: 0,
+                                    textAlign: 'right'
                                 }}>
                                     {formatTime(recordingTime)}
                                 </span>
@@ -498,19 +508,21 @@ const MessageInput = ({ onSend, onSendFile, disabled, isMobile, replyToMessage, 
                         ) : (
                             <>
                                 {/* Audio preview */}
-                                <Mic className="w-5 h-5" style={{ color: 'var(--color-primary)' }} />
+                                <Mic className="w-5 h-5" style={{ color: 'var(--color-primary)', flexShrink: 0 }} />
                                 <audio
                                     src={audioUrl}
                                     controls
                                     style={{
                                         flex: 1,
                                         height: '36px',
-                                        maxWidth: '200px'
+                                        minWidth: 0,   // ← allows audio player to shrink on small screens
+                                        width: '100%'
                                     }}
                                 />
                                 <span style={{
                                     fontSize: 'var(--font-size-xs)',
-                                    color: 'var(--color-gray-500)'
+                                    color: 'var(--color-gray-500)',
+                                    flexShrink: 0
                                 }}>
                                     {formatTime(recordingTime)}
                                 </span>
@@ -524,7 +536,7 @@ const MessageInput = ({ onSend, onSendFile, disabled, isMobile, replyToMessage, 
                             className="btn btn-send"
                             onClick={stopRecording}
                             title="Detener grabación"
-                            style={{ backgroundColor: 'var(--color-error)' }}
+                            style={{ backgroundColor: 'var(--color-error)', flexShrink: 0 }}
                         >
                             <Square className="w-5 h-5" fill="white" />
                         </button>
@@ -534,7 +546,7 @@ const MessageInput = ({ onSend, onSendFile, disabled, isMobile, replyToMessage, 
                             onClick={sendAudio}
                             disabled={isUploading}
                             title="Enviar audio"
-                            style={{ backgroundColor: 'var(--color-primary-light)' }}
+                            style={{ backgroundColor: 'var(--color-primary-light)', flexShrink: 0 }}
                         >
                             {isUploading ? '⏳' : <Send className="w-5 h-5" />}
                         </button>
@@ -1008,13 +1020,26 @@ const MessageInput = ({ onSend, onSendFile, disabled, isMobile, replyToMessage, 
                         e.target.style.height = Math.min(e.target.scrollHeight, 250) + 'px';
                     }}
                     onKeyDown={(e) => {
+                        // Escape closes the quick reply panel
+                        if (e.key === 'Escape' && showQuickReplies) {
+                            e.preventDefault();
+                            setShowQuickReplies(false);
+                            return;
+                        }
+
                         if (e.key === 'Enter' && !e.shiftKey) {
                             e.preventDefault();
-                            if (showQuickReplies && filteredReplies.length === 1) {
-                                handleQuickReplySelect(filteredReplies[0]);
-                            } else if (showQuickReplies && filteredReplies.length > 1) {
-                                // Do nothing, keep typing to narrow down
+
+                            // If a file is already loaded (e.g. quick reply with media was selected),
+                            // always send — don't let the QR panel interfere.
+                            if (selectedFile) {
+                                handleSubmit();
                                 return;
+                            }
+
+                            if (showQuickReplies && filteredReplies.length >= 1) {
+                                // Select the first (top) quick reply on Enter
+                                handleQuickReplySelect(filteredReplies[0]);
                             } else {
                                 handleSubmit();
                             }
