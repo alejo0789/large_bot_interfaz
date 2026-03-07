@@ -26,11 +26,21 @@ const ChatHeader = ({
     onNameUpdated   // optional callback: (phone, newName) => void
 }) => {
     const [isEditOpen, setIsEditOpen] = useState(false);
-    const [displayName, setDisplayName] = useState('');
+    const [displayName, setDisplayName] = useState(() => {
+        let name = conversation?.contact?.name || '';
+        if (!name || name.toLowerCase() === 'unknown' || name.toLowerCase().startsWith('usuario')) {
+            name = conversation?.contact?.phone || '';
+        }
+        return name;
+    });
 
     useEffect(() => {
-        setDisplayName(conversation?.contact?.name || '');
-    }, [conversation?.contact?.name]);
+        let name = conversation?.contact?.name || '';
+        if (!name || name.toLowerCase() === 'unknown' || name.toLowerCase().startsWith('usuario')) {
+            name = conversation?.contact?.phone || '';
+        }
+        setDisplayName(name);
+    }, [conversation?.contact?.name, conversation?.contact?.phone]);
 
     if (!conversation) return null;
 

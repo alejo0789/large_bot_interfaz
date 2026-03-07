@@ -48,15 +48,28 @@ const ConversationItem = React.memo(({
     // State for name editing
     const [isMenuOpen, setIsMenuOpen] = useState(false);
     const [isEditModalOpen, setIsEditModalOpen] = useState(false);
-    const [displayName, setDisplayName] = useState(contact.name);
+    const [displayName, setDisplayName] = useState(() => {
+        let name = contact.name;
+        if (!name || name.toLowerCase() === 'unknown' || name.toLowerCase().startsWith('usuario')) {
+            name = contact.phone;
+        }
+        return name;
+    });
     const [isDeleting, setIsDeleting] = useState(false);
     const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
     const menuRef = useRef(null);
 
     // Sync state with props
     useEffect(() => {
-        setDisplayName(contact.name);
-    }, [contact.name]);
+        let nameToDisplay = contact.name;
+        if (!nameToDisplay ||
+            nameToDisplay.toLowerCase() === 'unknown' ||
+            nameToDisplay.toLowerCase().startsWith('usuario') ||
+            nameToDisplay.toLowerCase().startsWith('usuarios')) {
+            nameToDisplay = contact.phone;
+        }
+        setDisplayName(nameToDisplay);
+    }, [contact.name, contact.phone]);
 
     // Close menu when clicking outside
     useEffect(() => {
