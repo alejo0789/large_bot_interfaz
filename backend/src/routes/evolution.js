@@ -448,227 +448,236 @@ router.post('/', async (req, res) => {
         // 5. AUTO-TRIGGER N8N IF AI IS ENABLED
         // Only trigger AI for messages from CLIENTS, not from agent's phone
         if (shouldActivateAI && !isGroup && !isFromAgent) {
-            console.log(`🧠 AI is enabled for ${phone}, triggering N8N...`);
+            console.log(`🧠 AI is enabled for ${phone}, buffering message for N8N...`);
 
-            // Wait for N8N response
-            // n8nService.triggerAIProcessing returns an OBJECT: { text, mediaUrl, mediaType, raw }
-            const aiResponse = await n8nService.triggerAIProcessing({
-                phone: phone,
-                text: text,
-                contactName: pushName,
-                mediaType: mediaType,
-                mediaUrl: mediaUrl
-            });
-
-            // Extract text from the response object
-            let aiResponseText = null;
-            if (aiResponse && typeof aiResponse === 'object') {
-                aiResponseText = aiResponse.text || aiResponse.message || null;
-            } else if (typeof aiResponse === 'string') {
-                aiResponseText = aiResponse;
+            if (!global.aiMessageBuffer) {
+                global.aiMessageBuffer = new Map();
             }
 
-            if (aiResponseText) {
-                console.log(`🤖 AI Response received for ${phone}:`);
-                console.log(`   Full text length: ${aiResponseText.length} characters`);
-                console.log(`   First 100 chars: ${aiResponseText.substring(0, 100)}`);
-                console.log(`   Last 100 chars: ${aiResponseText.substring(aiResponseText.length - 100)}`);
+            let bufferData = global.aiMessageBuffer.get(phone);
+            if (!bufferData) {
+                bufferData = {
+                    messages: [],
+                    media: [],
+                    timeoutId: null,
+                    pushName: pushName,
+                    currentState: currentState,
+                    context: tenantContext.getStore()
+                };
+                global.aiMessageBuffer.set(phone, bufferData);
+            }
 
-                // --- MULTIMEDIA DETECTION ---
-                // Check if the response contains an ID reference: [ID: xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx]
-                const idMatch = aiResponseText.match(/\[ID:\s*([a-f\d-]+)\]/i);
-                let finalMediaUrl = aiResponse.mediaUrl || null;
-                let finalMediaType = aiResponse.mediaType || null;
-                let cleanAiText = aiResponseText.replace(/\[ID:\s*[a-f\d-]+\s*\]/gi, '').trim();
+            // Append the new content
+            if (text) {
+                bufferData.messages.push(text);
+            }
+            if (mediaUrl) {
+                bufferData.media.push({ mediaType, mediaUrl });
+            }
 
-                console.log(`🔎 ID Match result: ${idMatch ? `Found - ${idMatch[1]}` : 'Not found'}`);
-                console.log(`✂️ Clean text (without ID): ${cleanAiText.substring(0, 50)}...`);
+            // Update latest metadata
+            bufferData.pushName = pushName || bufferData.pushName;
+            bufferData.currentState = currentState || bufferData.currentState;
 
-                if (idMatch) {
-                    const resourceId = idMatch[1];
-                    console.log(`🔍 Resource ID detected in AI response: ${resourceId}`);
-                    console.log(`   Querying ai_knowledge table...`);
+            // Clear previous timeout
+            if (bufferData.timeoutId) {
+                clearTimeout(bufferData.timeoutId);
+            }
+
+            // Set new timeout for 30s
+            bufferData.timeoutId = setTimeout(async () => {
+                // Remove from buffer when executing
+                global.aiMessageBuffer.delete(phone);
+
+                // Run inside the correct tenant context
+                tenantContext.run(bufferData.context || {}, async () => {
+                    const combinedText = bufferData.messages.join('\n');
+                    const lastMedia = bufferData.media.length > 0 ? bufferData.media[bufferData.media.length - 1] : null;
+
+                    console.log(`⏱️ Buffer timeout reached for ${phone}. Sending combined message to N8N (${bufferData.messages.length} messages merged)`);
 
                     try {
-                        const { pool } = require('../config/database');
-                        const { config } = require('../config/app');
-                        const resourceResult = await pool.query('SELECT id, type, media_url, title FROM ai_knowledge WHERE id = $1', [resourceId]);
+                        // Wait for N8N response
+                        const aiResponse = await n8nService.triggerAIProcessing({
+                            phone: phone,
+                            text: combinedText,
+                            contactName: bufferData.pushName,
+                            mediaType: lastMedia ? lastMedia.mediaType : null,
+                            mediaUrl: lastMedia ? lastMedia.mediaUrl : null
+                        });
 
-                        console.log(`📊 Query result: ${resourceResult.rows.length} rows found`);
+                        // Extract text from the response object
+                        let aiResponseText = null;
+                        if (aiResponse && typeof aiResponse === 'object') {
+                            aiResponseText = aiResponse.text || aiResponse.message || null;
+                        } else if (typeof aiResponse === 'string') {
+                            aiResponseText = aiResponse;
+                        }
 
-                        if (resourceResult.rows.length > 0) {
-                            const resource = resourceResult.rows[0];
-                            console.log(`📦 Resource details:`, {
-                                id: resource.id,
-                                type: resource.type,
-                                title: resource.title,
-                                media_url: resource.media_url
+                        if (aiResponseText) {
+                            console.log(`🤖 AI Response received for ${phone}:`);
+                            console.log(`   Full text length: ${aiResponseText.length} characters`);
+                            console.log(`   First 100 chars: ${aiResponseText.substring(0, 100)}`);
+                            console.log(`   Last 100 chars: ${aiResponseText.substring(aiResponseText.length - 100)}`);
+
+                            // --- MULTIMEDIA DETECTION ---
+                            const idMatch = aiResponseText.match(/\[ID:\s*([a-f\d-]+)\]/i);
+                            let finalMediaUrl = aiResponse.mediaUrl || null;
+                            let finalMediaType = aiResponse.mediaType || null;
+                            let cleanAiText = aiResponseText.replace(/\[ID:\s*[a-f\d-]+\s*\]/gi, '').trim();
+
+                            console.log(`🔎 ID Match result: ${idMatch ? `Found - ${idMatch[1]}` : 'Not found'}`);
+                            console.log(`✂️ Clean text (without ID): ${cleanAiText.substring(0, 50)}...`);
+
+                            if (idMatch) {
+                                const resourceId = idMatch[1];
+                                console.log(`🔍 Resource ID detected in AI response: ${resourceId}`);
+                                console.log(`   Querying ai_knowledge table...`);
+
+                                try {
+                                    const { pool } = require('../config/database');
+                                    const { config } = require('../config/app');
+                                    const resourceResult = await pool.query('SELECT id, type, media_url, title FROM ai_knowledge WHERE id = $1', [resourceId]);
+
+                                    console.log(`📊 Query result: ${resourceResult.rows.length} rows found`);
+
+                                    if (resourceResult.rows.length > 0) {
+                                        const resource = resourceResult.rows[0];
+                                        console.log(`📦 Resource details:`, {
+                                            id: resource.id,
+                                            type: resource.type,
+                                            title: resource.title,
+                                            media_url: resource.media_url
+                                        });
+
+                                        if (resource.media_url) {
+                                            finalMediaUrl = resource.media_url;
+
+                                            if (finalMediaUrl.startsWith('/') && !finalMediaUrl.startsWith('http')) {
+                                                const originalUrl = finalMediaUrl;
+                                                finalMediaUrl = `${config.publicUrl}${finalMediaUrl}`;
+                                            }
+
+                                            let rawType = (resource.type || '').trim().toLowerCase();
+                                            const urlLower = finalMediaUrl.toLowerCase();
+
+                                            if (!rawType || rawType === 'text') {
+                                                if (urlLower.match(/\.(jpg|jpeg|png|gif|webp)$/)) rawType = 'image';
+                                                else if (urlLower.match(/\.(mp4|avi|mov)$/)) rawType = 'video';
+                                                else if (urlLower.match(/\.(mp3|ogg|wav)$/)) rawType = 'audio';
+                                                else if (urlLower.match(/\.(pdf|doc|docx|xls|xlsx)$/)) rawType = 'document';
+                                            }
+
+                                            const allowedTypes = ['image', 'video', 'audio', 'document'];
+                                            if (allowedTypes.includes(rawType)) {
+                                                finalMediaType = rawType;
+                                            } else {
+                                                if (urlLower.match(/\.(jpg|jpeg|png|gif|webp)$/)) {
+                                                    finalMediaType = 'image';
+                                                } else {
+                                                    console.warn(`⚠️ Unknown media type '${rawType}' and no extension match, defaulting to 'document'`);
+                                                    finalMediaType = 'document';
+                                                }
+                                            }
+
+                                            console.log(`✅ Media will be sent!`);
+                                            console.log(`   URL: ${finalMediaUrl}`);
+                                        } else {
+                                            console.warn(`⚠️ Resource found but media_url is empty/null`);
+                                        }
+                                    } else {
+                                        console.warn(`⚠️ Resource ID ${resourceId} NOT FOUND in ai_knowledge table`);
+                                    }
+                                } catch (dbErr) {
+                                    console.error('❌ Error fetching resource from DB:', dbErr.message);
+                                }
+                            } else {
+                                console.log(`ℹ️ No [ID: ...] pattern found in AI response, sending as text only`);
+                            }
+
+                            // --- DE-DUPLICATION CACHE ---
+                            if (!global.recentAiMessages) global.recentAiMessages = new Set();
+                            const cacheKey = finalMediaType
+                                ? `${phone}:${finalMediaType}:${cleanAiText.trim()}`
+                                : `${phone}:${aiResponseText.trim()}`;
+
+                            global.recentAiMessages.add(cacheKey);
+                            setTimeout(() => global.recentAiMessages.delete(cacheKey), 30000);
+
+                            // 1. Send via WhatsApp
+                            console.log(`\n📨 STEP 1: Sending to WhatsApp`);
+                            let sendingResult = { success: false };
+
+                            if (finalMediaUrl) {
+                                console.log(`   Mode: MULTIMEDIA (${finalMediaType})`);
+                                sendingResult = await evolutionService.sendMedia(getPureDigits(phone), finalMediaUrl, finalMediaType, cleanAiText);
+
+                                if (sendingResult.success) {
+                                    console.log(`   ✅ Multimedia message sent successfully`);
+                                } else {
+                                    console.error(`   ❌ Failed to send multimedia message:`, sendingResult.error);
+                                    console.log(`   ⚠️ Fallback: Reverting to TEXT ONLY`);
+
+                                    const fallbackText = `${cleanAiText}\n\n📷 ${finalMediaUrl}`;
+                                    sendingResult = await evolutionService.sendMessage(getPureDigits(phone), fallbackText);
+
+                                    finalMediaType = null;
+                                    finalMediaUrl = null;
+                                    cleanAiText = fallbackText;
+                                }
+                            } else {
+                                console.log(`   Mode: TEXT ONLY`);
+                                sendingResult = await evolutionService.sendMessage(getPureDigits(phone), aiResponseText);
+                            }
+
+                            // 2. Save in Database
+                            console.log(`\n💾 STEP 2: Saving to Database`);
+                            const agentMessageId = `ai-${Date.now()}`;
+                            const dbText = cleanAiText || (finalMediaUrl ? (finalMediaType === 'image' ? '📷 Imagen' : '📎 Archivo') : '...');
+
+                            await messageService.create({
+                                phone: phone,
+                                sender: 'ai',
+                                text: dbText,
+                                whatsappId: agentMessageId,
+                                mediaType: finalMediaType,
+                                mediaUrl: finalMediaUrl,
+                                status: 'delivered',
+                                senderName: 'Inteligencia Artificial'
                             });
 
-                            if (resource.media_url) {
-                                finalMediaUrl = resource.media_url;
+                            // 3. Update Conversation Last Message
+                            console.log(`\n🔄 STEP 3: Updating conversation`);
+                            await conversationService.updateLastMessage(phone, dbText);
+                            await conversationService.markAsRead(phone);
 
-                                // Convert relative URLs to absolute URLs
-                                if (finalMediaUrl.startsWith('/') && !finalMediaUrl.startsWith('http')) {
-                                    const originalUrl = finalMediaUrl;
-                                    finalMediaUrl = `${config.publicUrl}${finalMediaUrl}`;
-                                    console.log(`🔄 URL conversion:`);
-                                    console.log(`   From: ${originalUrl}`);
-                                    console.log(`   To: ${finalMediaUrl}`);
-                                }
+                            // 4. Emit to Frontend
+                            console.log(`\n📡 STEP 4: Emitting to Frontend`);
+                            const frontendPayload = {
+                                phone: phone,
+                                contact_name: bufferData.pushName, // Get from buffer
+                                message: dbText,
+                                whatsapp_id: agentMessageId,
+                                sender: 'ai',
+                                sender_name: 'Inteligencia Artificial',
+                                timestamp: new Date().toISOString(),
+                                conversation_state: bufferData.currentState, // Get from buffer
+                                ai_enabled: true,
+                                media_type: finalMediaType,
+                                media_url: finalMediaUrl
+                            };
+                            emitToConversation(phone, 'new-message', frontendPayload);
+                            console.log(`   ✅ Message emitted to frontend\n`);
 
-                                // Validate and normalize media type based on DB type AND URL extension
-                                let rawType = (resource.type || '').trim().toLowerCase();
-                                const urlLower = finalMediaUrl.toLowerCase();
-
-                                // If type is 'text' or empty, try to infer from URL
-                                if (!rawType || rawType === 'text') {
-                                    if (urlLower.match(/\.(jpg|jpeg|png|gif|webp)$/)) rawType = 'image';
-                                    else if (urlLower.match(/\.(mp4|avi|mov)$/)) rawType = 'video';
-                                    else if (urlLower.match(/\.(mp3|ogg|wav)$/)) rawType = 'audio';
-                                    else if (urlLower.match(/\.(pdf|doc|docx|xls|xlsx)$/)) rawType = 'document';
-                                }
-
-                                // Allowed types
-                                const allowedTypes = ['image', 'video', 'audio', 'document'];
-                                if (allowedTypes.includes(rawType)) {
-                                    finalMediaType = rawType;
-                                } else {
-                                    // Final check: is it an image URL?
-                                    if (urlLower.match(/\.(jpg|jpeg|png|gif|webp)$/)) {
-                                        finalMediaType = 'image';
-                                    } else {
-                                        console.warn(`⚠️ Unknown media type '${rawType}' and no extension match, defaulting to 'document'`);
-                                        finalMediaType = 'document';
-                                    }
-                                }
-
-                                console.log(`✅ Media will be sent!`);
-                                console.log(`   Original Type: ${resource.type}`);
-                                console.log(`   Inferred Type: ${finalMediaType}`);
-                                console.log(`   URL: ${finalMediaUrl}`);
-                            } else {
-                                console.warn(`⚠️ Resource found but media_url is empty/null`);
-                            }
                         } else {
-                            console.warn(`⚠️ Resource ID ${resourceId} NOT FOUND in ai_knowledge table`);
+                            console.log(`⚠️ No response from AI for ${phone}`);
                         }
-                    } catch (dbErr) {
-                        console.error('❌ Error fetching resource from DB:');
-                        console.error(`   Message: ${dbErr.message}`);
-                        console.error(`   Stack: ${dbErr.stack}`);
+                    } catch (aiErr) {
+                        console.error(`❌ Error in buffered AI run for ${phone}:`, aiErr);
                     }
-                } else {
-                    console.log(`ℹ️ No [ID: ...] pattern found in AI response, sending as text only`);
-                }
-
-                // --- DE-DUPLICATION CACHE ---
-                // Store the content to ignore the next webhook confirmation
-                if (!global.recentAiMessages) global.recentAiMessages = new Set();
-
-                // Use same cache key format as the deduplication check
-                const cacheKey = finalMediaType
-                    ? `${phone}:${finalMediaType}:${cleanAiText.trim()}`
-                    : `${phone}:${aiResponseText.trim()}`;
-
-                global.recentAiMessages.add(cacheKey);
-                setTimeout(() => global.recentAiMessages.delete(cacheKey), 30000);
-
-                // 1. Send via WhatsApp (Evolution API)
-                console.log(`\n📨 STEP 1: Sending to WhatsApp`);
-                let sendingResult = { success: false };
-
-                if (finalMediaUrl) {
-                    console.log(`   Mode: MULTIMEDIA (${finalMediaType})`);
-                    console.log(`   Media URL: ${finalMediaUrl}`);
-                    console.log(`   Caption: ${cleanAiText.substring(0, 50)}...`);
-
-                    sendingResult = await evolutionService.sendMedia(getPureDigits(phone), finalMediaUrl, finalMediaType, cleanAiText);
-
-                    if (sendingResult.success) {
-                        console.log(`   ✅ Multimedia message sent successfully`);
-                        // Keep finalMediaType and finalMediaUrl as is
-                    } else {
-                        console.error(`   ❌ Failed to send multimedia message with all strategies:`, sendingResult.error);
-                        console.log(`   ⚠️ Fallback: Reverting to TEXT ONLY mode for DB and Frontend`);
-
-                        // Fallback: Send text with URL appended
-                        const fallbackText = `${cleanAiText}\n\n📷 ${finalMediaUrl}`;
-                        sendingResult = await evolutionService.sendMessage(getPureDigits(phone), fallbackText);
-
-                        // UPDATE VARIABLES FOR DB/FRONTEND TO MATCH REALITY
-                        // We failed to send media, so we shouldn't claim we did in the DB
-                        finalMediaType = null;
-                        finalMediaUrl = null;
-                        cleanAiText = fallbackText; // Update text to include the URL
-
-                        if (sendingResult && sendingResult.success) {
-                            console.log(`   ✅ Fallback text message sent successfully`);
-                        } else {
-                            console.error(`   ❌ Failed to send fallback text message`);
-                        }
-                    }
-                } else {
-                    console.log(`   Mode: TEXT ONLY`);
-                    console.log(`   Text: ${aiResponseText.substring(0, 50)}...`);
-                    sendingResult = await evolutionService.sendMessage(getPureDigits(phone), aiResponseText);
-                    if (sendingResult && sendingResult.success) {
-                        console.log(`   ✅ Text message sent successfully`);
-                    } else {
-                        console.error(`   ❌ Failed to send text message`);
-                    }
-                }
-
-                // 2. Save in Database
-                console.log(`\n💾 STEP 2: Saving to Database`);
-                const agentMessageId = `ai-${Date.now()}`;
-                const dbText = cleanAiText || (finalMediaUrl ? (finalMediaType === 'image' ? '📷 Imagen' : '📎 Archivo') : '...');
-
-                console.log(`   Message ID: ${agentMessageId}`);
-                console.log(`   Text to save: ${dbText.substring(0, 50)}...`);
-                console.log(`   Media Type: ${finalMediaType || 'null'}`);
-                console.log(`   Media URL: ${finalMediaUrl || 'null'}`);
-
-                await messageService.create({
-                    phone: phone,
-                    sender: 'ai',
-                    text: dbText,
-                    whatsappId: agentMessageId,
-                    mediaType: finalMediaType,
-                    mediaUrl: finalMediaUrl,
-                    status: 'delivered',
-                    senderName: 'Inteligencia Artificial'
                 });
-                console.log(`   ✅ Message saved to database`);
+            }, 30000); // 30 seconds buffer
 
-                // 3. Update Conversation Last Message
-                console.log(`\n🔄 STEP 3: Updating conversation`);
-                await conversationService.updateLastMessage(phone, dbText);
-                await conversationService.markAsRead(phone);
-                console.log(`   ✅ Conversation updated`);
-
-                // 4. Emit to Frontend
-                console.log(`\n📡 STEP 4: Emitting to Frontend`);
-                const frontendPayload = {
-                    phone: phone,
-                    contact_name: conversation?.contact_name || pushName,
-                    message: dbText,
-                    whatsapp_id: agentMessageId,
-                    sender: 'ai',
-                    sender_name: 'Inteligencia Artificial',
-                    timestamp: new Date().toISOString(),
-                    conversation_state: currentState,
-                    ai_enabled: true,
-                    media_type: finalMediaType,
-                    media_url: finalMediaUrl
-                };
-                console.log(`   Payload:`, JSON.stringify(frontendPayload, null, 2));
-                emitToConversation(phone, 'new-message', frontendPayload);
-                console.log(`   ✅ Message emitted to frontend\n`);
-
-            } else {
-                console.log(`⚠️ No response from AI for ${phone}`);
-            }
 
         } else {
             const skipReason = isFromAgent ? 'Message from agent phone' :
