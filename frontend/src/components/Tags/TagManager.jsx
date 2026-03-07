@@ -21,57 +21,75 @@ const TagManager = ({
     bulkPhones = []
 }) => {
     const [searchQuery, setSearchQuery] = useState('');
-    const [pendingAssign, setPendingAssign] = useState(null);   // tagId being processed
-    const [pendingRemove, setPendingRemove] = useState(null);
+    const [pendingId, setPendingId] = useState(null);  // tagId being processed
+    // ── Optimistic local state ─────────────────────────────────────────────────
+    // Mirror the assigned IDs locally so UI updates instantly without waiting
+    // for the parent component to re-render after the API call.
+    const [localAssignedIds, setLocalAssignedIds] = useState(() => new Set(conversationTags.map(t => t.id)));
     const searchRef = useRef(null);
 
-    // Reset search when modal opens
+    // Sync with parent whenever modal opens (reset to current server truth)
     useEffect(() => {
         if (isOpen) {
+            setLocalAssignedIds(new Set(conversationTags.map(t => t.id)));
             setSearchQuery('');
             setTimeout(() => searchRef.current?.focus(), 80);
         }
-    }, [isOpen]);
+    }, [isOpen]); // eslint-disable-line react-hooks/exhaustive-deps
+
 
     if (!isOpen) return null;
 
-    const assignedTagIds = new Set(conversationTags.map(t => t.id));
-
-    // All tags split into assigned / available
+    // Build full tag objects for assigned (from localAssignedIds for instant feedback)
+    const tagsById = new Map(tags.map(t => [t.id, t]));
     const allSorted = [...tags].sort((a, b) => a.name.localeCompare(b.name, 'es'));
     const query = searchQuery.trim().toLowerCase();
     const filtered = query
         ? allSorted.filter(t => t.name.toLowerCase().includes(query))
         : allSorted;
 
-    const assignedFiltered = filtered.filter(t => assignedTagIds.has(t.id));
-    const availableFiltered = filtered.filter(t => !assignedTagIds.has(t.id));
+    const assignedFiltered = filtered.filter(t => localAssignedIds.has(t.id));
+    const availableFiltered = filtered.filter(t => !localAssignedIds.has(t.id));
+
 
     const handleToggle = async (tag) => {
-        if (assignedTagIds.has(tag.id)) {
-            // remove
-            setPendingRemove(tag.id);
+        if (localAssignedIds.has(tag.id)) {
+            // ── Optimistic remove ──
+            setLocalAssignedIds(prev => { const s = new Set(prev); s.delete(tag.id); return s; });
+            setPendingId(tag.id);
             try {
                 if (isBulk && bulkPhones.length > 0) {
                     for (const phone of bulkPhones) await onRemoveTag(phone, tag.id);
                 } else {
                     await onRemoveTag(conversationPhone, tag.id);
                 }
-            } catch (e) { console.error(e); }
-            setPendingRemove(null);
+            } catch (e) {
+                console.error(e);
+                // Revert on error
+                setLocalAssignedIds(prev => new Set([...prev, tag.id]));
+            } finally {
+                setPendingId(null);
+            }
         } else {
-            // assign
-            setPendingAssign(tag.id);
+            // ── Optimistic assign ──
+            setLocalAssignedIds(prev => new Set([...prev, tag.id]));
+            setPendingId(tag.id);
             try {
                 if (isBulk && bulkPhones.length > 0) {
                     for (const phone of bulkPhones) await onAssignTag(phone, tag.id);
                 } else {
                     await onAssignTag(conversationPhone, tag.id);
                 }
-            } catch (e) { console.error(e); }
-            setPendingAssign(null);
+            } catch (e) {
+                console.error(e);
+                // Revert on error
+                setLocalAssignedIds(prev => { const s = new Set(prev); s.delete(tag.id); return s; });
+            } finally {
+                setPendingId(null);
+            }
         }
     };
+
 
     const handleMarkUnread = async () => {
         if (onMarkUnread) {
@@ -127,9 +145,9 @@ const TagManager = ({
                                 {title}
                             </p>
                             <p style={{ margin: 0, fontSize: '11px', color: '#6b7280' }}>
-                                {conversationTags.length === 0
+                                {localAssignedIds.size === 0
                                     ? 'Sin etiquetas asignadas'
-                                    : `${conversationTags.length} asignada${conversationTags.length !== 1 ? 's' : ''}`}
+                                    : `${localAssignedIds.size} asignada${localAssignedIds.size !== 1 ? 's' : ''}`}
                             </p>
                         </div>
                     </div>
@@ -202,7 +220,7 @@ const TagManager = ({
                                     key={tag.id}
                                     tag={tag}
                                     assigned
-                                    loading={pendingRemove === tag.id}
+                                    loading={pendingId === tag.id}
                                     onClick={() => handleToggle(tag)}
                                 />
                             ))}
@@ -230,7 +248,7 @@ const TagManager = ({
                                     key={tag.id}
                                     tag={tag}
                                     assigned={false}
-                                    loading={pendingAssign === tag.id}
+                                    loading={pendingId === tag.id}
                                     onClick={() => handleToggle(tag)}
                                 />
                             ))}

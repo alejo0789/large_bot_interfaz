@@ -64,16 +64,13 @@ const MessageInput = ({ onSend, onSendFile, disabled, isMobile, replyToMessage, 
         setMessage(textBeforeSlash + reply.content + ' ');
         setShowQuickReplies(false);
 
-        // Return focus to the textarea so the user can continue typing or hit enter
-        setTimeout(() => textareaRef.current?.focus(), 0);
-
         // Handle Media Attachment
         if (reply.media_url) {
-            setIsUploading(true); // Show loading state while fetching media
+            setIsUploading(true);
             try {
                 let url = reply.media_url;
 
-                // Fix: If on mobile/remote device and URL is localhost, try to replace with current hostname
+                // Fix: If on mobile/remote device and URL is localhost, replace with current hostname
                 if (url.includes('localhost') && window.location.hostname !== 'localhost') {
                     url = url.replace('localhost', window.location.hostname);
                 }
@@ -103,12 +100,16 @@ const MessageInput = ({ onSend, onSendFile, disabled, isMobile, replyToMessage, 
             } catch (error) {
                 console.error('Error fetching quick reply media:', error);
                 alert(`Error al cargar la imagen: ${error.message}`);
-                // Clear the potentially partial file state
                 setSelectedFile(null);
                 setFilePreview(null);
             } finally {
                 setIsUploading(false);
+                // Focus AFTER isUploading=false so the textarea is no longer disabled
+                setTimeout(() => textareaRef.current?.focus(), 50);
             }
+        } else {
+            // No media — focus immediately
+            setTimeout(() => textareaRef.current?.focus(), 0);
         }
     };
 

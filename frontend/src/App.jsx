@@ -994,7 +994,7 @@ const AuthenticatedApp = () => {
                         isLoading={isLoading}
                         fontSize={fontSize}
                         onFontSizeChange={setFontSize}
-                        onManageTags={handleOpenTagManagerGlobal}
+                        onCreateTag={createTag}
                         onUpdateTag={handleUpdateTag}
                     />
 

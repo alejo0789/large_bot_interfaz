@@ -1,5 +1,6 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { Tag, X, Filter, ChevronDown, Calendar, Check, RotateCw, Type, Plus, Edit2 } from 'lucide-react';
+import CreateTagModal from '../Tags/CreateTagModal';
 
 /**
  * Improved Tag filter component with dropdown and date filter
@@ -18,12 +19,13 @@ const TagFilter = ({
     isLoading,
     fontSize,
     onFontSizeChange,
-    onManageTags,
+    onCreateTag,
     onUpdateTag
 }) => {
     const [showTagDropdown, setShowTagDropdown] = useState(false);
     const [showDateDropdown, setShowDateDropdown] = useState(false);
     const [showFontSizeDropdown, setShowFontSizeDropdown] = useState(false);
+    const [isCreateTagOpen, setIsCreateTagOpen] = useState(false);
 
     // Inline edit state
     const [editingTagId, setEditingTagId] = useState(null);
@@ -281,11 +283,11 @@ const TagFilter = ({
                                 Seleccionar etiquetas
                             </div>
 
-                            {onManageTags && (
+                            {onCreateTag && (
                                 <button
                                     onClick={(e) => {
                                         e.stopPropagation();
-                                        onManageTags();
+                                        setIsCreateTagOpen(true);
                                         setShowTagDropdown(false);
                                     }}
                                     style={{
@@ -690,6 +692,13 @@ const TagFilter = ({
                     })}
                 </div>
             )}
+
+            {/* Create Tag Modal */}
+            <CreateTagModal
+                isOpen={isCreateTagOpen}
+                onClose={() => setIsCreateTagOpen(false)}
+                onCreateTag={onCreateTag}
+            />
         </div>
     );
 };
