@@ -246,6 +246,7 @@ body {
   scrollbar-width: thin;
   max-width: 100%;
   width: 100%;
+  box-sizing: border-box;
 }
 
 .chat-input-container {
@@ -402,6 +403,7 @@ body {
   align-items: flex-start;
   /* overflow: hidden; Removed to allow absolute elements (forward btn) */
   min-width: 0;
+  width: auto;
 }
 
 .message.outgoing .message-container {

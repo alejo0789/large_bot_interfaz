@@ -347,7 +347,7 @@ const MessageBubble = ({ message, onForward, onReact, onDelete, onReply, onEdit,
                                     href={`https://wa.me/${cleanNum}`}
                                     target="_blank"
                                     rel="noopener noreferrer"
-                                    style={{ color: 'var(--color-primary)', textDecoration: 'underline', cursor: 'pointer' }}
+                                    style={{ color: 'var(--color-primary)', textDecoration: 'underline', cursor: 'pointer', wordBreak: 'break-all' }}
                                     onClick={(e) => {
                                         e.preventDefault();
                                         e.stopPropagation();
@@ -371,7 +371,7 @@ const MessageBubble = ({ message, onForward, onReact, onDelete, onReply, onEdit,
 
                 return (
                     <React.Fragment key={`l-${i}-${j}`}>
-                        {processedChunks}
+                        <span style={{ wordBreak: 'break-all' }}>{processedChunks}</span>
                         {j < lineParts.length - 1 && <br />}
                     </React.Fragment>
                 );
@@ -417,7 +417,7 @@ const MessageBubble = ({ message, onForward, onReact, onDelete, onReply, onEdit,
                 onContextMenu={handleContextMenu}
                 style={{ userSelect: 'none' }} // Prevent text selection on long press for better UX on mobile
             >
-                <div className="message-container" style={{ position: 'relative', width: '100%', maxWidth: '100%', overflowX: 'hidden' }}>
+                <div className="message-container" style={{ position: 'relative' }}>
                     <div className="message-bubble" style={{
                         padding: media_url ? 'var(--space-1)' : 'var(--space-2) var(--space-3)',
                         paddingLeft: '32px', // Space for the chevron button on the left
@@ -541,7 +541,6 @@ const MessageBubble = ({ message, onForward, onReact, onDelete, onReply, onEdit,
                                     wordBreak: 'break-all',
                                     whiteSpace: 'pre-wrap',
                                     maxWidth: '100%',
-                                    width: '100%',
                                     boxSizing: 'border-box',
                                     overflow: 'hidden',
                                     userSelect: 'text' // Allow text selection inside bubble

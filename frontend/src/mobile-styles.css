@@ -160,8 +160,8 @@ body {
   margin-bottom: 1rem !important;
   max-width: 80% !important;
   word-wrap: break-word !important;
-  word-break: break-word !important;
-  overflow-wrap: break-word !important;
+  word-break: break-all !important;
+  overflow-wrap: anywhere !important;
 }
 
 /* PASO 13: Orientación - SIMPLE */
