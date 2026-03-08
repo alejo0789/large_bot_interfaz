@@ -417,8 +417,8 @@ body {
   border-radius: var(--radius-lg);
   position: relative;
   word-wrap: break-word !important;
-  overflow-wrap: break-word !important;
-  word-break: break-word !important;
+  overflow-wrap: anywhere !important;
+  word-break: break-all !important;
   display: flex;
   flex-direction: column;
   /* overflow: hidden !important; Removed to allow reactions outside */

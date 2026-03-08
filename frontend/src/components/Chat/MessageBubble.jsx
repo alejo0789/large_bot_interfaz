@@ -136,8 +136,10 @@ const MessageBubble = ({ message, onForward, onReact, onDelete, onReply, onEdit,
                             position: 'relative',
                             display: 'block',
                             width: '100%',
+                            maxWidth: '100%',
                             borderRadius: 'var(--radius-md)',
-                            overflow: 'hidden'
+                            overflow: 'hidden',
+                            boxSizing: 'border-box'
                         }}
                         onClick={() => !isSending && !isFailed && setShowFullImage(true)}
                     >
@@ -148,12 +150,14 @@ const MessageBubble = ({ message, onForward, onReact, onDelete, onReply, onEdit,
                                 onError={() => setImageError(true)}
                                 style={{
                                     maxWidth: '100%',
+                                    width: '100%',
                                     maxHeight: '300px',
                                     borderRadius: 'var(--radius-md)',
                                     objectFit: 'cover',
                                     display: 'block',
                                     filter: isSending ? 'brightness(0.6)' : isFailed ? 'brightness(0.5) sepia(1) hue-rotate(-30deg)' : 'none',
-                                    transition: 'filter 0.2s ease'
+                                    transition: 'filter 0.2s ease',
+                                    boxSizing: 'border-box'
                                 }}
                             />
                         ) : (
@@ -413,7 +417,7 @@ const MessageBubble = ({ message, onForward, onReact, onDelete, onReply, onEdit,
                 onContextMenu={handleContextMenu}
                 style={{ userSelect: 'none' }} // Prevent text selection on long press for better UX on mobile
             >
-                <div className="message-container" style={{ position: 'relative' }}>
+                <div className="message-container" style={{ position: 'relative', width: '100%', maxWidth: '100%', overflowX: 'hidden' }}>
                     <div className="message-bubble" style={{
                         padding: media_url ? 'var(--space-1)' : 'var(--space-2) var(--space-3)',
                         paddingLeft: '32px', // Space for the chevron button on the left
@@ -421,8 +425,10 @@ const MessageBubble = ({ message, onForward, onReact, onDelete, onReply, onEdit,
                         position: 'relative',
                         minWidth: '80px',
                         maxWidth: '100%',
-                        overflowWrap: 'break-word',
-                        wordBreak: 'break-word'
+                        width: 'fit-content',
+                        overflowWrap: 'anywhere',
+                        wordBreak: 'break-all',
+                        boxSizing: 'border-box'
                     }}>
                         {/* Menu Chevron - Visible on bubble hover or swipe */}
                         <button
@@ -491,19 +497,34 @@ const MessageBubble = ({ message, onForward, onReact, onDelete, onReply, onEdit,
                                 fontSize: '11px',
                                 color: 'var(--color-gray-600)',
                                 overflow: 'hidden',
-                                textOverflow: 'ellipsis',
-                                whiteSpace: 'nowrap',
-                                cursor: 'default'
+                                cursor: 'default',
+                                maxWidth: '100%',
+                                display: 'flex',
+                                flexDirection: 'column'
                             }}>
                                 <p style={{
                                     fontWeight: 'bold',
                                     color: 'var(--color-primary)',
                                     marginBottom: '1px',
-                                    fontSize: '10px'
+                                    fontSize: '10px',
+                                    whiteSpace: 'nowrap',
+                                    overflow: 'hidden',
+                                    textOverflow: 'ellipsis',
+                                    width: '100%'
                                 }}>
                                     {message.replyTo.sender}
                                 </p>
-                                <p style={{ margin: 0, textOverflow: 'ellipsis', overflow: 'hidden' }}>
+                                <p style={{
+                                    margin: 0,
+                                    overflow: 'hidden',
+                                    textOverflow: 'ellipsis',
+                                    display: '-webkit-box',
+                                    WebkitLineClamp: 3,
+                                    WebkitBoxOrient: 'vertical',
+                                    whiteSpace: 'pre-wrap',
+                                    wordBreak: 'break-word',
+                                    width: '100%'
+                                }}>
                                     {message.replyTo.text}
                                 </p>
                             </div>
@@ -520,6 +541,8 @@ const MessageBubble = ({ message, onForward, onReact, onDelete, onReply, onEdit,
                                     wordBreak: 'break-all',
                                     whiteSpace: 'pre-wrap',
                                     maxWidth: '100%',
+                                    width: '100%',
+                                    boxSizing: 'border-box',
                                     overflow: 'hidden',
                                     userSelect: 'text' // Allow text selection inside bubble
                                 }}>
