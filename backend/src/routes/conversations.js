@@ -150,7 +150,7 @@ router.post('/:phone/toggle-ai', asyncHandler(async (req, res) => {
     const { aiEnabled } = req.body;
 
     const result = await conversationService.toggleAI(phone, aiEnabled);
-    await n8nService.notifyStateChange(phone, result.state);
+    // await n8nService.notifyStateChange(phone, result.state); // Removed to prevent AI from greeting on toggle
 
     console.log(`✅ AI ${aiEnabled ? 'enabled' : 'disabled'} for ${phone}`);
     res.json({ success: true, ...result });
@@ -162,7 +162,7 @@ router.post('/:phone/take-by-agent', asyncHandler(async (req, res) => {
     const { agent_id } = req.body;
 
     await conversationService.takeByAgent(phone, agent_id);
-    await n8nService.notifyStateChange(phone, 'agent_active');
+    // await n8nService.notifyStateChange(phone, 'agent_active');
 
     console.log(`✅ Conversation taken by agent: ${phone}`);
     res.json({ success: true, state: 'agent_active' });
@@ -173,7 +173,7 @@ router.post('/:phone/activate-ai', asyncHandler(async (req, res) => {
     const { phone } = req.params;
 
     await conversationService.reactivateAI(phone);
-    await n8nService.notifyStateChange(phone, 'ai_active');
+    // await n8nService.notifyStateChange(phone, 'ai_active');
 
     console.log(`✅ AI reactivated for ${phone}`);
     res.json({ success: true, state: 'ai_active' });

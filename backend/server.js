@@ -455,8 +455,8 @@ app.post('/api/conversations/:phone/take-by-agent', async (req, res) => {
 
     console.log(`âœ… ConversaciÃ³n ${phone} tomada por agente: ${agent_id}`);
 
-    // Notificar a n8n que la IA debe desactivarse para esta conversaciÃ³n
-    await notifyN8nStateChange(phone, 'agent_active');
+    // Notificar a n8n que la IA debe desactivarse para esta conversación
+    // await notifyN8nStateChange(phone, 'agent_active');
 
     // Emitir cambio de estado al frontend
     io.to(`tenant:${req.tenant.slug}`).emit('conversation-state-changed', {
@@ -495,7 +495,7 @@ app.post('/api/conversations/:phone/activate-ai', async (req, res) => {
     console.log(`âœ… IA reactivada para conversaciÃ³n: ${phone}`);
 
     // Notificar a n8n que la IA debe reactivarse
-    await notifyN8nStateChange(phone, 'ai_active');
+    // await notifyN8nStateChange(phone, 'ai_active');
 
     // Emitir cambio de estado al frontend
     io.to(`tenant:${req.tenant.slug}`).emit('conversation-state-changed', {
