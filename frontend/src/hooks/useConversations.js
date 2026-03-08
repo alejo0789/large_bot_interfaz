@@ -762,7 +762,7 @@ export const useConversations = (socket) => {
                     lastMessage: data.lastMessage || targetConv.lastMessage,
                     timestamp: timestamp,
                     rawTimestamp: data.timestamp,
-                    unread: (selectedId === cleanPhone) ? 0 : (data.unreadCount ?? targetConv.unread)
+                    unread: (selectedId === cleanPhone) ? 0 : (data.unread !== undefined ? data.unread : (data.unreadCount ?? targetConv.unread))
                 };
 
                 currentConversations.splice(index, 1);
