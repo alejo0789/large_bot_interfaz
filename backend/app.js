@@ -34,6 +34,7 @@ const tagRoutes = require('./src/routes/tags');
 const { router: messageRoutes, setSocketIO: setMessageSocketIO } = require('./src/routes/messages');
 const { router: webhookRoutes, setSocketIO: setWebhookSocketIO } = require('./src/routes/webhooks');
 const { router: evolutionRoutes, setSocketIO: setEvolutionSocketIO } = require('./src/routes/evolution');
+const { router: whatsappOfficialRoutes, setSocketIO: setWhatsappOfficialSocketIO } = require('./src/routes/whatsappOfficial');
 const settingsRoutes = require('./src/routes/settings');
 const quickReplyRoutes = require('./src/routes/quickReplies');
 
@@ -55,6 +56,7 @@ const io = new Server(server, {
 setMessageSocketIO(io);
 setWebhookSocketIO(io);
 setEvolutionSocketIO(io);
+setWhatsappOfficialSocketIO(io);
 
 // =============================================
 // MIDDLEWARE
@@ -110,6 +112,7 @@ app.use('/api/tags', tagRoutes);
 app.use('/api', messageRoutes);
 app.use('/webhook', webhookRoutes);
 app.use('/evolution', evolutionRoutes);
+app.use('/webhook/meta', whatsappOfficialRoutes);
 app.use('/api/settings', settingsRoutes);
 app.use('/api/quick-replies', quickReplyRoutes);
 app.use('/api/bulk-templates', require('./src/routes/bulkTemplates'));

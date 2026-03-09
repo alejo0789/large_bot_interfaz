@@ -254,7 +254,7 @@ router.post('/tenants', asyncHandler(async (req, res) => {
         throw new AppError('Solo SUPER_ADMIN puede crear sedes', 403);
     }
 
-    const { name, slug, dbUrl, evolutionInstance, evolutionApiKey, n8nWebhookUrl } = req.body;
+    const { name, slug, dbUrl, whatsappProvider, waPhoneNumberId, waAccessToken, waVerifyToken, evolutionInstance, evolutionApiKey, n8nWebhookUrl } = req.body;
     if (!name || !slug || !dbUrl) {
         throw new AppError('Faltan campos requeridos: name, slug, dbUrl', 400);
     }
@@ -299,10 +299,10 @@ router.post('/tenants', asyncHandler(async (req, res) => {
 
     // --- 2. RECORD IN MASTER DB ---
     const { rows } = await masterPool.query(
-        `INSERT INTO tenants (name, slug, db_url, evolution_instance, evolution_api_key, n8n_webhook_url, is_active)
-         VALUES ($1, $2, $3, $4, $5, $6, true)
-         RETURNING id, name, slug, evolution_instance, is_active, created_at`,
-        [name, slug, dbUrl, evolutionInstance || null, evolutionApiKey || null, n8nWebhookUrl || null]
+        `INSERT INTO tenants (name, slug, db_url, whatsapp_provider, wa_phone_number_id, wa_access_token, wa_verify_token, evolution_instance, evolution_api_key, n8n_webhook_url, is_active)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, true)
+         RETURNING id, name, slug, whatsapp_provider, evolution_instance, is_active, created_at`,
+        [name, slug, dbUrl, whatsappProvider || 'evolution', waPhoneNumberId || null, waAccessToken || null, waVerifyToken || null, evolutionInstance || null, evolutionApiKey || null, n8nWebhookUrl || null]
     );
 
     res.status(201).json({ success: true, tenant: rows[0] });

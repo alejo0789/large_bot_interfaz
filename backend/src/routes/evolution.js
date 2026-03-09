@@ -7,7 +7,7 @@ const router = express.Router();
 const messageService = require('../services/messageService');
 const conversationService = require('../services/conversationService');
 
-const evolutionService = require('../services/evolutionService');
+const evolutionService = require('../services/whatsappFactory');
 const n8nService = require('../services/n8nService');
 const settingsService = require('../services/settingsService');
 const { saveBase64AsFile } = require('../utils/fileUtils');

@@ -24,7 +24,8 @@ const CreateSedeModal = ({ onClose, onCreated, showToast }) => {
 
     // ── Estado del formulario ──
     const [form, setForm] = useState({
-        name: '', slug: '', dbUrl: '', evolutionInstance: '', n8nWebhookUrl: ''
+        name: '', slug: '', dbUrl: '', evolutionInstance: '', n8nWebhookUrl: '',
+        whatsappProvider: 'evolution', waPhoneNumberId: '', waAccessToken: '', waVerifyToken: ''
     });
     const [testStatus, setTestStatus] = useState(null);
     const [testMsg, setTestMsg] = useState('');
@@ -111,6 +112,13 @@ const CreateSedeModal = ({ onClose, onCreated, showToast }) => {
             const dbData = await dbRes.json();
             if (!dbData.success) throw new Error(`Error DB: ${dbData.error}`);
             markSetup('db', 'ok');
+
+            if (form.whatsappProvider === 'official') {
+                // Skip Evolution API setup
+                setPhase('finish_running');
+                handleFinishSetup();
+                return;
+            }
 
             // Paso 2+3: Crear instancia + configurar webhook
             markSetup('instance', 'running');
@@ -371,17 +379,52 @@ const CreateSedeModal = ({ onClose, onCreated, showToast }) => {
                                     )}
                                 </div>
 
-                                {/* Instancia Evolution */}
+                                {/* Proveedor de WhatsApp */}
                                 <div>
-                                    <label style={labelStyle}>Nombre de instancia Evolution</label>
-                                    <input style={{ ...inputStyle, fontFamily: 'monospace', background: '#f8fafc' }}
-                                        value={form.evolutionInstance}
-                                        onChange={e => setForm(f => ({ ...f, evolutionInstance: e.target.value }))}
-                                        placeholder="large_cali_centro" />
-                                    <p style={{ fontSize: '11px', color: '#64748b', margin: '4px 0 0 0' }}>
-                                        Se genera automáticamente. El webhook se configurará solo.
-                                    </p>
+                                    <label style={labelStyle}>Proveedor de WhatsApp *</label>
+                                    <div style={{ display: 'flex', gap: '12px' }}>
+                                        <label style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '14px', cursor: 'pointer' }}>
+                                            <input type="radio" name="provider" value="evolution" checked={form.whatsappProvider === 'evolution'} onChange={() => setForm(f => ({ ...f, whatsappProvider: 'evolution' }))} />
+                                            Evolution API
+                                        </label>
+                                        <label style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '14px', cursor: 'pointer' }}>
+                                            <input type="radio" name="provider" value="official" checked={form.whatsappProvider === 'official'} onChange={() => setForm(f => ({ ...f, whatsappProvider: 'official' }))} />
+                                            WhatsApp Oficial (Cloud API)
+                                        </label>
+                                    </div>
                                 </div>
+
+                                {/* Instancia Evolution O Cloud API */}
+                                {form.whatsappProvider === 'evolution' ? (
+                                    <div>
+                                        <label style={labelStyle}>Nombre de instancia Evolution</label>
+                                        <input style={{ ...inputStyle, fontFamily: 'monospace', background: '#f8fafc' }}
+                                            value={form.evolutionInstance}
+                                            onChange={e => setForm(f => ({ ...f, evolutionInstance: e.target.value }))}
+                                            placeholder="large_cali_centro" />
+                                        <p style={{ fontSize: '11px', color: '#64748b', margin: '4px 0 0 0' }}>
+                                            Se genera automáticamente. El webhook se configurará solo.
+                                        </p>
+                                    </div>
+                                ) : (
+                                    <div style={{ display: 'flex', flexDirection: 'column', gap: '12px', background: '#f8fafc', padding: '16px', borderRadius: '12px', border: '1px solid #e2e8f0' }}>
+                                        <div>
+                                            <label style={labelStyle}>Phone Number ID *</label>
+                                            <input style={inputStyle} value={form.waPhoneNumberId} onChange={e => setForm(f => ({ ...f, waPhoneNumberId: e.target.value }))} placeholder="Ej: 153xxxxxxxxx" required={form.whatsappProvider === 'official'} />
+                                        </div>
+                                        <div>
+                                            <label style={labelStyle}>Access Token (Permanente/Temporal) *</label>
+                                            <input type="password" style={inputStyle} value={form.waAccessToken} onChange={e => setForm(f => ({ ...f, waAccessToken: e.target.value }))} placeholder="EAALv..." required={form.whatsappProvider === 'official'} />
+                                        </div>
+                                        <div>
+                                            <label style={labelStyle}>Webhook Verify Token *</label>
+                                            <input style={inputStyle} value={form.waVerifyToken} onChange={e => setForm(f => ({ ...f, waVerifyToken: e.target.value }))} placeholder="Tu token secreto" required={form.whatsappProvider === 'official'} />
+                                            <p style={{ fontSize: '11px', color: '#64748b', margin: '4px 0 0 0' }}>
+                                                Usa este token en el dashboard de Meta junto con la URL: <b style={{ userSelect: 'all' }}>{getBackendUrl()}/webhook/meta</b>
+                                            </p>
+                                        </div>
+                                    </div>
+                                )}
 
                                 {/* n8n */}
                                 <div>
@@ -394,8 +437,8 @@ const CreateSedeModal = ({ onClose, onCreated, showToast }) => {
                                 <div style={{ background: '#f0fdf4', border: '1px solid #bbf7d0', borderRadius: '10px', padding: '12px 16px' }}>
                                     <p style={{ margin: '0 0 6px 0', fontWeight: 700, fontSize: '13px', color: '#15803d' }}>🚀 Pasos automáticos al continuar:</p>
                                     <div style={{ fontSize: '12px', color: '#166534', lineHeight: '1.9' }}>
-                                        <b>Fase 1:</b> Verificar DB → Crear instancia → Configurar webhook → Mostrar QR<br />
-                                        <b>Fase 2:</b> (después de escanear) → Crear sede + schema → Sincronizar chats
+                                        <b>Fase 1:</b> Verificar DB {form.whatsappProvider === 'evolution' ? '→ Crear instancia → Configurar webhook → Mostrar QR' : ''}<br />
+                                        <b>Fase 2:</b> {form.whatsappProvider === 'evolution' ? '(después de escanear) → ' : ''}Crear sede + schema → Sincronizar chats
                                     </div>
                                 </div>
 
@@ -408,7 +451,7 @@ const CreateSedeModal = ({ onClose, onCreated, showToast }) => {
                                         display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '10px', width: '100%'
                                     }}>
                                     <Zap size={18} />
-                                    Configurar instancia y continuar
+                                    {form.whatsappProvider === 'evolution' ? 'Configurar instancia y continuar' : 'Crear sede directamente'}
                                 </button>
                             </form>
                         )}

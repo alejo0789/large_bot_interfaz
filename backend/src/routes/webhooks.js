@@ -9,7 +9,7 @@ const { asyncHandler } = require('../middleware/errorHandler');
 const messageService = require('../services/messageService');
 const conversationService = require('../services/conversationService');
 
-const evolutionService = require('../services/evolutionService');
+const evolutionService = require('../services/whatsappFactory');
 const { normalizePhone, getPureDigits } = require('../utils/phoneUtils');
 
 

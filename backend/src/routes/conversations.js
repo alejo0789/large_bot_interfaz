@@ -98,7 +98,7 @@ router.get('/:phone/messages/count', asyncHandler(async (req, res) => {
 // Mark conversation as read
 router.post('/:phone/mark-read', asyncHandler(async (req, res) => {
     const { phone } = req.params;
-    const evolutionService = require('../services/evolutionService');
+    const evolutionService = require('../services/whatsappFactory');
 
     // Local update
     await conversationService.markAsRead(phone);
@@ -115,7 +115,7 @@ router.post('/:phone/mark-read', asyncHandler(async (req, res) => {
 // Mark conversation as unread
 router.post('/:phone/mark-unread', asyncHandler(async (req, res) => {
     const { phone } = req.params;
-    const evolutionService = require('../services/evolutionService');
+    const evolutionService = require('../services/whatsappFactory');
 
     // Local update
     await conversationService.markAsUnread(phone);
@@ -190,7 +190,7 @@ router.post('/:phone/close', asyncHandler(async (req, res) => {
 // Get profile picture (avatar) proxy
 router.get('/:phone/avatar', asyncHandler(async (req, res) => {
     const { phone } = req.params;
-    const evolutionService = require('../services/evolutionService');
+    const evolutionService = require('../services/whatsappFactory');
 
     try {
         const pictureUrl = await evolutionService.getProfilePicture(phone);
@@ -280,7 +280,7 @@ router.post('/start-new', asyncHandler(async (req, res) => {
     }
 
     // Check Evolution
-    const evolutionService = require('../services/evolutionService');
+    const evolutionService = require('../services/whatsappFactory');
     const check = await evolutionService.checkNumber(cleanPhone);
 
     if (!check || !check.exists) {
@@ -307,7 +307,7 @@ router.post('/start-new', asyncHandler(async (req, res) => {
  */
 router.delete('/:phone', asyncHandler(async (req, res) => {
     const { phone } = req.params;
-    const evolutionService = require('../services/evolutionService');
+    const evolutionService = require('../services/whatsappFactory');
 
     // 1. Delete from WhatsApp (non-blocking — don't fail if Evolution can't delete)
     const waResult = await evolutionService.deleteChat(phone).catch(err => ({

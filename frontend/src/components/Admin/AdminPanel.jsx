@@ -419,7 +419,9 @@ const AdminPanel = ({ isMobile }) => {
                             <div key={t.slug} style={{ display: 'flex', alignItems: 'center', gap: '10px', padding: '10px 14px', borderRadius: '10px', background: '#f8fafc', border: '1px solid #e2e8f0', flexWrap: 'wrap' }}>
                                 <div style={{ flex: 1, minWidth: '120px' }}>
                                     <div style={{ fontWeight: 600, fontSize: '14px', color: '#111827' }}>{t.name}</div>
-                                    <div style={{ fontSize: '11px', color: '#6b7280', fontFamily: 'monospace' }}>{t.slug} {t.evolution_instance ? `· ${t.evolution_instance}` : ''}</div>
+                                    <div style={{ fontSize: '11px', color: '#6b7280', fontFamily: 'monospace' }}>
+                                        {t.slug} {t.whatsapp_provider === 'official' ? '· WhatsApp Oficial' : (t.evolution_instance ? `· ${t.evolution_instance}` : '')}
+                                    </div>
                                 </div>
                                 <StatusBadge isActive={t.is_active} />
                                 <button

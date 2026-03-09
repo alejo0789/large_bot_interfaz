@@ -11,7 +11,7 @@ const optimizeMedia = require('../middleware/optimizeMedia');
 const conversationService = require('../services/conversationService');
 
 const n8nService = require('../services/n8nService');
-const evolutionService = require('../services/evolutionService');
+const evolutionService = require('../services/whatsappFactory');
 const { normalizePhone, getPureDigits } = require('../utils/phoneUtils');
 const { config } = require('../config/app');
 
