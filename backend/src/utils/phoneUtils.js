@@ -10,20 +10,37 @@
 function normalizePhone(phone) {
     if (!phone) return phone;
 
-    // Handle special WhatsApp IDs (groups, etc)
-    if (String(phone).includes('@g.us') || String(phone).includes('-')) {
-        return String(phone);
+    const phoneStr = String(phone);
+
+    // Handle groups
+    if (phoneStr.includes('@g.us') || phoneStr.includes('-')) {
+        return phoneStr;
+    }
+
+    // Handle LIDs (WhatsApp Linked Identities) - Usually long numbers that cause duplicates
+    // We keep the suffix to avoid collision with real phone numbers
+    if (phoneStr.includes('@lid')) {
+        return phoneStr;
     }
 
     // For standard numbers, strip everything but digits
-    const digits = String(phone).replace(/\D/g, '');
+    // If it has @s.whatsapp.net, we take only the digits part
+    const cleanPart = phoneStr.includes('@') ? phoneStr.split('@')[0] : phoneStr;
+    const digits = cleanPart.replace(/\D/g, '');
 
     // Return with + prefix for consistency
     if (digits.length > 0) {
         return `+${digits}`;
     }
 
-    return String(phone);
+    return phoneStr;
+}
+
+/**
+ * Checks if a string is a WhatsApp LID
+ */
+function isLid(phone) {
+    return String(phone).includes('@lid');
 }
 
 /**
@@ -38,5 +55,6 @@ function getPureDigits(phone) {
 
 module.exports = {
     normalizePhone,
-    getPureDigits
+    getPureDigits,
+    isLid
 };
