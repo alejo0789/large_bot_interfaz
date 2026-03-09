@@ -30,17 +30,17 @@ async function sync() {
 
         for (const chat of chats) {
             const jid = chat.id || chat.remoteJid;
-
-            // SKIP LIDS - They cause duplicates with fake international numbers
-            if (jid.includes('@lid')) {
-                console.log(`⏩ Saltando LID: ${jid}`);
-                continue;
-            }
-
             const name = chat.name || chat.pushName || jid.split('@')[0];
             const normalizedPhone = normalizePhone(jid);
 
-            if (!normalizedPhone || normalizedPhone.includes('@lid')) {
+            // Si el normalizePhone no pudo sacar un número real de Colombia (10-12 dígitos)
+            // y sigue siendo un LID largo, lo saltamos para evitar basura en la lista
+            if (jid.includes('@lid') && normalizedPhone.length > 13) {
+                console.log(`⏩ Saltando LID no resuelto: ${jid}`);
+                continue;
+            }
+
+            if (!normalizedPhone) {
                 continue;
             }
 

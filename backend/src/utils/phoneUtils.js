@@ -10,23 +10,25 @@
 function normalizePhone(phone) {
     if (!phone) return phone;
 
-    const phoneStr = String(phone);
+    let phoneStr = String(phone);
 
     // Handle groups
     if (phoneStr.includes('@g.us') || phoneStr.includes('-')) {
         return phoneStr;
     }
 
-    // Handle LIDs (WhatsApp Linked Identities) - Usually long numbers that cause duplicates
-    // We keep the suffix to avoid collision with real phone numbers
-    if (phoneStr.includes('@lid')) {
-        return phoneStr;
-    }
+    // Extract digits and remove suffixes like @s.whatsapp.net or @lid
+    let cleanPart = phoneStr.includes('@') ? phoneStr.split('@')[0] : phoneStr;
+    let digits = cleanPart.replace(/\D/g, '');
 
-    // For standard numbers, strip everything but digits
-    // If it has @s.whatsapp.net, we take only the digits part
-    const cleanPart = phoneStr.includes('@') ? phoneStr.split('@')[0] : phoneStr;
-    const digits = cleanPart.replace(/\D/g, '');
+    // ADVANCED COLOMBIAN LID DETECTION
+    // Colombian mobile numbers are exactly 10 digits and start with 3 (300, 310, 320, 350, etc).
+    // WhatsApp LIDs (Linked Identities) often embed these 10 digits inside a longer string.
+    // Example: 14306653515995 -> contains 3066535159
+    const colMatch = digits.match(/3\d{9}/);
+    if (colMatch) {
+        return '+57' + colMatch[0];
+    }
 
     // Return with + prefix for consistency
     if (digits.length > 0) {
