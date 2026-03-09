@@ -55,9 +55,29 @@ const emitToConversation = (phone, event, data) => {
 router.post('/', async (req, res) => {
     try {
         const { event, data, instance } = req.body;
-        console.log(`📨 Evolution Event: ${event}`);
+        // Handle SYNC Events (MESSAGES_SET, CHATS_SET)
+        if (event === 'messages.set' || event === 'MESSAGES_SET') {
+            console.log(`📥 [SYNC] Processing batch messages sync for ${instance}... (${data.length} messages)`);
+            res.sendStatus(200);
 
-        // Only process 'messages.upsert' (check both cases)
+            // Process messages in background to not block webhook
+            processBatchMessages(data).catch(err => console.error('❌ Error in batch sync:', err));
+            return;
+        }
+
+        if (event === 'chats.set' || event === 'CHATS_SET' || event === 'chats.upsert' || event === 'CHATS_UPSERT') {
+            console.log(`📥 [SYNC] Processing chats sync for ${instance}...`);
+            res.sendStatus(200);
+            const chats = Array.isArray(data) ? data : [data];
+            for (const chat of chats) {
+                const phone = normalizePhone(chat.id || chat.remoteJid);
+                if (phone) {
+                    await conversationService.upsert(phone, chat.name || chat.pushName);
+                }
+            }
+            return;
+        }
+
         if (event !== 'messages.upsert' && event !== 'MESSAGES_UPSERT') {
             return res.sendStatus(200);
         }
@@ -698,5 +718,60 @@ router.post('/', async (req, res) => {
         }
     }
 });
+
+/**
+ * Process a batch of messages (from MESSAGES_SET)
+ */
+async function processBatchMessages(messages) {
+    if (!Array.isArray(messages)) return;
+
+    console.log(`🚀 Processing ${messages.length} messages from sync...`);
+
+    // Sort by timestamp if available to process in order
+    const sorted = messages.sort((a, b) => (a.messageTimestamp || 0) - (b.messageTimestamp || 0));
+
+    for (const msg of sorted) {
+        try {
+            const remoteJid = msg.key.remoteJid;
+            const phone = normalizePhone(remoteJid);
+            if (!phone) continue;
+
+            const isFromAgent = msg.key.fromMe === true;
+            const senderType = isFromAgent ? 'agent' : 'user';
+
+            // Extract basic text
+            let text = '';
+            if (msg.message?.conversation) text = msg.message.conversation;
+            else if (msg.message?.extendedTextMessage?.text) text = msg.message.extendedTextMessage.text;
+            else if (msg.message?.imageMessage?.caption) text = msg.message.imageMessage.caption;
+            else if (msg.message?.videoMessage?.caption) text = msg.message.videoMessage.caption;
+
+            if (!text && !msg.message?.imageMessage && !msg.message?.videoMessage && !msg.message?.audioMessage) continue;
+
+            // Check if exists
+            const exists = await messageService.existsByWhatsappId(msg.key.id);
+            if (exists) continue;
+
+            // Upsert conversation
+            await conversationService.upsert(phone, msg.pushName);
+
+            // Save message
+            await messageService.create({
+                phone: phone,
+                sender: senderType,
+                text: text || (msg.message?.imageMessage ? '📷 Imagen' : '📎 Archivo'),
+                whatsappId: msg.key.id,
+                senderName: msg.pushName || (isFromAgent ? 'Tú' : 'Cliente'),
+                timestamp: msg.messageTimestamp ? new Date(msg.messageTimestamp * 1000).toISOString() : null
+            });
+
+            // Update last message (only if it's the newest)
+            await conversationService.updateLastMessage(phone, text || 'Archivo');
+        } catch (err) {
+            // Silently fail individual messages in batch
+        }
+    }
+    console.log(`✅ Batch sync completed.`);
+}
 
 module.exports = { router, setSocketIO };
