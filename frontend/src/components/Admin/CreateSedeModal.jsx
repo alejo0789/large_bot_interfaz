@@ -420,7 +420,7 @@ const CreateSedeModal = ({ onClose, onCreated, showToast }) => {
                                             <label style={labelStyle}>Webhook Verify Token *</label>
                                             <input style={inputStyle} value={form.waVerifyToken} onChange={e => setForm(f => ({ ...f, waVerifyToken: e.target.value }))} placeholder="Tu token secreto" required={form.whatsappProvider === 'official'} />
                                             <p style={{ fontSize: '11px', color: '#64748b', margin: '4px 0 0 0' }}>
-                                                Usa este token en el dashboard de Meta junto con la URL: <b style={{ userSelect: 'all' }}>{getBackendUrl()}/webhook/meta</b>
+                                                Usa este token en el dashboard de Meta junto con la URL: <b style={{ userSelect: 'all' }}>{getBackendUrl()}/webhook/meta?sede={form.slug || 'cali-centro'}</b>
                                             </p>
                                         </div>
                                     </div>

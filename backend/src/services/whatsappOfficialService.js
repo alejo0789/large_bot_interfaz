@@ -177,7 +177,7 @@ class WhatsappOfficialService {
     async fetchGroupInfo(groupJid) { return null; }
     async markAsUnread(phone) { return { success: false, error: 'Not supported' }; }
     async fetchBase64(msg) { return null; }
-    async checkNumber(phone) { return true; } // Might need specialized logic
+    async checkNumber(phone) { return { exists: true, jid: phone }; }
     async sendReaction(phone, messageId, reaction, fromMe = false) { return { success: false, error: 'Not supported in this wrapper yet' }; }
     async updateMessage(phone, messageId, newText, fromMe = true) { return { success: false, error: 'Not supported' }; }
     async deleteMessage(phone, messageId, fromMe) { return { success: false, error: 'Not supported' }; }
