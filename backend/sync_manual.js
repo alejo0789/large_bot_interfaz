@@ -69,11 +69,17 @@ async function sync() {
 
             console.log(`   📥 Recibidos ${messages.length} mensajes.`);
 
+            let bestName = name;
             for (const msg of messages) {
                 const whatsappId = msg.key.id;
                 const isFromMe = msg.key.fromMe;
                 const sender = isFromMe ? 'agent' : 'user';
                 const timestamp = msg.messageTimestamp ? new Date(msg.messageTimestamp * 1000) : new Date();
+
+                // Intentar mejorar el nombre si viene pushName del usuario
+                if (!isFromMe && msg.pushName && msg.pushName !== normalizedPhone && !msg.pushName.includes('@')) {
+                    bestName = msg.pushName;
+                }
 
                 // Extraer texto
                 let text = '';
@@ -94,16 +100,18 @@ async function sync() {
                         INSERT INTO messages (
                             conversation_phone, sender, text_content, whatsapp_id, timestamp, status, sender_name
                         ) VALUES ($1, $2, $3, $4, $5, 'delivered', $6)
-                    `, [normalizedPhone, sender, dbText, whatsappId, timestamp, isFromMe ? 'Tú' : name]);
+                    `, [normalizedPhone, sender, dbText, whatsappId, timestamp, isFromMe ? 'Tú' : (msg.pushName || name)]);
                 }
             }
 
-            // Actualizar el último mensaje de la conversación
+            // Actualizar el último mensaje Y el nombre de la conversación
             if (messages.length > 0) {
                 const lastMsg = messages[0];
                 let lastText = lastMsg.message?.conversation || lastMsg.message?.extendedTextMessage?.text || 'Archivo';
-                await pool.query("UPDATE conversations SET last_message_text = $1, last_message_timestamp = $2 WHERE phone = $3",
-                    [lastText.substring(0, 100), new Date(lastMsg.messageTimestamp * 1000), normalizedPhone]);
+                await pool.query(
+                    "UPDATE conversations SET last_message_text = $1, last_message_timestamp = $2, contact_name = $3 WHERE phone = $4",
+                    [lastText.substring(0, 100), new Date(lastMsg.messageTimestamp * 1000), bestName, normalizedPhone]
+                );
             }
         }
 

@@ -22,10 +22,10 @@ function normalizePhone(phone) {
     let digits = cleanPart.replace(/\D/g, '');
 
     // ADVANCED COLOMBIAN LID DETECTION
-    // Colombian mobile numbers are exactly 10 digits and start with 3 (300, 310, 320, 350, etc).
+    // Colombian mobile numbers are exactly 10 digits and start with 3 (300, 310, 320, 350, ecc).
     // WhatsApp LIDs (Linked Identities) often embed these 10 digits inside a longer string.
-    // Example: 14306653515995 -> contains 3066535159
-    const colMatch = digits.match(/3\d{9}/);
+    // We look specifically for 30x, 31x, 32x, 35x which are the standard mobile prefixes.
+    const colMatch = digits.match(/(30|31|32|35)\d{8}/);
     if (colMatch) {
         return '+57' + colMatch[0];
     }

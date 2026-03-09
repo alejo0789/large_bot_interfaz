@@ -6,8 +6,8 @@ function getStandardPhone(phone) {
     if (!phone) return null;
     let digits = String(phone).replace(/\D/g, '');
 
-    // Colombian mobile search (any 10-digit sequence starting with 3)
-    const colMatch = digits.match(/3\d{9}/);
+    // Colombian mobile search (specifically 30, 31, 32, 35 prefixes)
+    const colMatch = digits.match(/(30|31|32|35)\d{8}/);
     if (colMatch) {
         return '+57' + colMatch[0];
     }
