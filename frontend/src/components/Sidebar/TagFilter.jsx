@@ -1,6 +1,7 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { Tag, X, Filter, ChevronDown, Calendar, Check, RotateCw, Type, Plus, Edit2 } from 'lucide-react';
+import { Tag, X, Filter, ChevronDown, Calendar, Check, RotateCw, Type, Plus, Edit2, Users } from 'lucide-react';
 import CreateTagModal from '../Tags/CreateTagModal';
+import FollowUpModal from './FollowUpModal';
 
 /**
  * Improved Tag filter component with dropdown and date filter
@@ -20,12 +21,16 @@ const TagFilter = ({
     fontSize,
     onFontSizeChange,
     onCreateTag,
-    onUpdateTag
+    onUpdateTag,
+    leadTimeFilter,
+    onLeadTimeFilterChange,
+    onStartBulkSend
 }) => {
     const [showTagDropdown, setShowTagDropdown] = useState(false);
     const [showDateDropdown, setShowDateDropdown] = useState(false);
     const [showFontSizeDropdown, setShowFontSizeDropdown] = useState(false);
     const [isCreateTagOpen, setIsCreateTagOpen] = useState(false);
+    const [isFollowUpOpen, setIsFollowUpOpen] = useState(false);
 
     // Inline edit state
     const [editingTagId, setEditingTagId] = useState(null);
@@ -36,7 +41,7 @@ const TagFilter = ({
     const dateDropdownRef = useRef(null);
     const fontSizeDropdownRef = useRef(null);
 
-    const hasActiveFilters = selectedTagIds.length > 0 || showUnreadOnly || dateFilter;
+    const hasActiveFilters = selectedTagIds.length > 0 || showUnreadOnly || dateFilter || leadTimeFilter;
 
     // Close dropdowns when clicking outside
     useEffect(() => {
@@ -572,6 +577,43 @@ const TagFilter = ({
                     )}
                 </div>
 
+                {/* Seguimiento (Lead Classification) button */}
+                <button
+                    onClick={() => setIsFollowUpOpen(true)}
+                    style={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '4px',
+                        padding: '0 10px',
+                        height: '32px',
+                        fontSize: '11px',
+                        fontWeight: leadTimeFilter ? 600 : 500,
+                        borderRadius: 'var(--radius-md)',
+                        border: leadTimeFilter
+                            ? '1px solid var(--color-primary)'
+                            : '1px solid var(--color-gray-300)',
+                        backgroundColor: leadTimeFilter
+                            ? 'rgba(18, 140, 126, 0.1)'
+                            : 'var(--color-white)',
+                        color: leadTimeFilter
+                            ? 'var(--color-primary)'
+                            : 'var(--color-gray-600)',
+                        cursor: 'pointer',
+                        transition: 'all var(--transition-fast)'
+                    }}
+                >
+                    <Users className="w-3 h-3" />
+                    Seguimiento
+                    {leadTimeFilter && (
+                         <div style={{
+                            width: '8px',
+                            height: '8px',
+                            borderRadius: '50%',
+                            backgroundColor: 'var(--color-primary)'
+                        }} />
+                    )}
+                </button>
+
                 {/* Font Size Selector Dropdown */}
                 <div ref={fontSizeDropdownRef} style={{ position: 'relative' }}>
                     <button
@@ -693,11 +735,56 @@ const TagFilter = ({
                 </div>
             )}
 
+            {/* Lead Classification Active Summary */}
+            {leadTimeFilter && (
+                <div style={{
+                    display: 'flex',
+                    flexWrap: 'wrap',
+                    gap: '4px',
+                    marginTop: 'var(--space-2)'
+                }}>
+                    <span
+                        style={{
+                            display: 'inline-flex',
+                            alignItems: 'center',
+                            gap: '4px',
+                            padding: '2px 8px',
+                            fontSize: '11px',
+                            fontWeight: 500,
+                            borderRadius: 'var(--radius-full)',
+                            backgroundColor: 'var(--color-primary)',
+                            color: 'white'
+                        }}
+                    >
+                        Lead: {leadTimeFilter.replace('LID_', '')}
+                        <X
+                            className="w-3 h-3"
+                            style={{ cursor: 'pointer', opacity: 0.8 }}
+                            onClick={() => onLeadTimeFilterChange(null)}
+                        />
+                    </span>
+                </div>
+            )}
+
             {/* Create Tag Modal */}
             <CreateTagModal
                 isOpen={isCreateTagOpen}
                 onClose={() => setIsCreateTagOpen(false)}
                 onCreateTag={onCreateTag}
+            />
+
+            {/* Follow Up Modal */}
+            <FollowUpModal 
+                isOpen={isFollowUpOpen}
+                onClose={() => setIsFollowUpOpen(false)}
+                onSelectLead={(classification) => {
+                    onLeadTimeFilterChange(classification);
+                    setIsFollowUpOpen(false);
+                }}
+                onBulkAction={(classification) => {
+                    onStartBulkSend({ mode: 'leadTime', leadTime: classification });
+                    setIsFollowUpOpen(false);
+                }}
             />
         </div>
     );

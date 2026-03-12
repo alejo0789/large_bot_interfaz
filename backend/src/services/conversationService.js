@@ -30,7 +30,8 @@ class ConversationService {
             tagId = null, // Added tagId filter
             startDate = null,
             endDate = null,
-            unreadOnly = false
+            unreadOnly = false,
+            leadTime = null
         } = options;
 
         // Sanitize pagination
@@ -83,6 +84,11 @@ class ConversationService {
         if (unreadOnly) {
             conditions.push(`c.unread_count > 0`);
         }
+        
+        if (leadTime) {
+            conditions.push(`c.lead_time = $${paramIndex++}`);
+            params.push(leadTime);
+        }
 
         const whereClause = conditions.length > 0
             ? `WHERE ${conditions.join(' AND ')}`
@@ -107,6 +113,8 @@ class ConversationService {
                 c.created_at,
                 c.updated_at,
                 c.is_pinned,
+                c.lead_intent,
+                c.lead_time,
                 COALESCE(
                     (SELECT json_agg(json_build_object('id', t.id, 'name', t.name, 'color', t.color))
                      FROM tags t
@@ -152,7 +160,9 @@ class ConversationService {
             aiEnabled: conv.ai_enabled !== false,
             state: conv.conversation_state || 'ai_active',
             tags: conv.tags || [],
-            isPinned: conv.is_pinned || false
+            isPinned: conv.is_pinned || false,
+            leadIntent: conv.lead_intent,
+            leadTime: conv.lead_time
         }));
 
         return {
@@ -368,6 +378,21 @@ class ConversationService {
     }
 
     /**
+     * Get statistics for lead classification (Seguimiento)
+     */
+    async getLeadStats() {
+        const { rows } = await pool.query(`
+            SELECT 
+                lead_time as classification,
+                COUNT(*) as total
+            FROM conversations
+            WHERE status = 'active' AND lead_time IS NOT NULL
+            GROUP BY lead_time
+        `);
+        return rows;
+    }
+
+    /**
      * Get recipients for bulk messaging based on filters
      * @param {Object} filters
      */
@@ -376,6 +401,7 @@ class ConversationService {
             tagId = null,
             startDate = null,
             endDate = null,
+            leadTime = null,
             status = 'active'
         } = filters;
 
@@ -404,6 +430,21 @@ class ConversationService {
         if (endDate) {
             conditions.push(` COALESCE(c.last_message_timestamp, c.created_at) <= $${paramIndex++}`);
             params.push(endDate);
+        }
+
+        if (leadTime) {
+            let leadTimes = [];
+            if (Array.isArray(leadTime)) {
+                leadTimes = leadTime;
+            } else if (typeof leadTime === 'string') {
+                leadTimes = leadTime.split(',');
+            }
+            
+            if (leadTimes.length > 0) {
+                const placeholders = leadTimes.map(() => `$${paramIndex++}`).join(', ');
+                conditions.push(`c.lead_time IN (${placeholders})`);
+                params.push(...leadTimes);
+            }
         }
 
         const whereClause = conditions.length > 0
@@ -530,6 +571,46 @@ class ConversationService {
             SET ai_enabled = $1, conversation_state = $2, updated_at = NOW()
         `, [isEnabled, state]);
         return rowCount;
+    }
+
+    /**
+     * Update lead intent
+     */
+    async updateLeadIntent(phone, intent) {
+        await pool.query(
+            'UPDATE conversations SET lead_intent = $1, updated_at = NOW() WHERE phone = $2',
+            [intent, phone]
+        );
+    }
+
+    /**
+     * Update lead time tracking
+     */
+    async updateLeadTime(phone, timeTag) {
+        await pool.query(
+            'UPDATE conversations SET lead_time = $1, updated_at = NOW() WHERE phone = $2',
+            [timeTag, phone]
+        );
+    }
+    /**
+     * Get count of conversations tagged "Agendar" today
+     */
+    async getDailyAgendasCount() {
+        // Find the "Agendar" tag ID first
+        const { rows: tagRows } = await pool.query("SELECT id FROM tags WHERE LOWER(name) = 'agendar'");
+        if (tagRows.length === 0) return 0;
+        
+        const tagId = tagRows[0].id;
+        
+        // Count conversations that have this tag and were assigned today
+        const { rows } = await pool.query(`
+            SELECT COUNT(DISTINCT conversation_phone) as count
+            FROM conversation_tags
+            WHERE tag_id = $1
+            AND assigned_at >= CURRENT_DATE
+        `, [tagId]);
+        
+        return parseInt(rows[0].count) || 0;
     }
 }
 

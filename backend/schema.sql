@@ -118,5 +118,13 @@ INSERT INTO tags (name, color) VALUES
 ('Importante', '#FF0000'), 
 ('Ventas', '#00FF00'), 
 ('Soporte', '#0000FF'), 
-('Seguimiento', '#FFA500')
+('Seguimiento', '#FFA500'),
+('LID_6H', '#E0E0E0'),
+('LID_12H', '#BDBDBD'),
+('LID_1D', '#9E9E9E'),
+('LID_2D', '#757575'),
+('LID_3D_PLUS', '#424242'),
+('LID_INTERESADO', '#4CAF50'),
+('LID_MEDIO', '#FF9800'),
+('LID_NO_INTERESADO', '#F44336')
 ON CONFLICT (name) DO NOTHING;

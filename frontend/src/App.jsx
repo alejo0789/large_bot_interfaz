@@ -1,4 +1,4 @@
-﻿import React, { useState, useEffect, useCallback, useMemo } from 'react';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import apiFetch from './utils/api';
 import { useDrag } from '@use-gesture/react';
 import { io } from 'socket.io-client';
@@ -28,6 +28,7 @@ import AIArea from './components/AI/AIArea';
 import Dashboard from './components/Dashboard/Dashboard';
 import BulkActionsBar from './components/Sidebar/BulkActionsBar';
 import AdminPanel from './components/Admin/AdminPanel';
+import Celebration from './components/UI/Celebration';
 
 // Hooks
 import { useConversations } from './hooks/useConversations';
@@ -73,6 +74,7 @@ const AuthenticatedApp = () => {
     const [selectedTagIds, setSelectedTagIds] = useState([]);
     const [showUnreadOnly, setShowUnreadOnly] = useState(false);
     const [dateFilter, setDateFilter] = useState(null);
+    const [leadTimeFilter, setLeadTimeFilter] = useState(null);
 
     // Modals
     const [showTagManager, setShowTagManager] = useState(false);
@@ -99,17 +101,37 @@ const AuthenticatedApp = () => {
         return localStorage.getItem('chat-font-size') || '16px';
     });
 
+    const [showCelebration, setShowCelebration] = useState(false);
+    const [agendasCount, setAgendasCount] = useState(0);
+
     // Multi-selection state
     const [selectedConversationIds, setSelectedConversationIds] = useState([]);
     const [isSelectionMode, setIsSelectionMode] = useState(false);
     const [bulkMessageInitialPhones, setBulkMessageInitialPhones] = useState([]);
     const [bulkMessageInitialMode, setBulkMessageInitialMode] = useState(null);
+    const [bulkMessageInitialLeadTime, setBulkMessageInitialLeadTime] = useState(null);
 
     // Apply font size to document root
     useEffect(() => {
         document.documentElement.style.fontSize = fontSize;
         localStorage.setItem('chat-font-size', fontSize);
     }, [fontSize]);
+
+    // Fetch daily agendas count
+    useEffect(() => {
+        const fetchAgendasCount = async () => {
+            try {
+                const res = await apiFetch('/api/conversations/agendas-count');
+                if (res.ok) {
+                    const data = await res.json();
+                    setAgendasCount(data.count || 0);
+                }
+            } catch (err) {
+                console.error('Error fetching agendas count:', err);
+            }
+        };
+        fetchAgendasCount();
+    }, []);
 
     // Tags by conversation
     const [tagsByPhone, setTagsByPhone] = useState({});
@@ -285,11 +307,13 @@ const AuthenticatedApp = () => {
                 activeTagId,
                 dateRange.start,
                 dateRange.end,
-                showUnreadOnly
+                showUnreadOnly,
+                false,
+                leadTimeFilter
             );
         }, 100);
         return () => clearTimeout(timeoutId);
-    }, [fetchConversations, activeTab, selectedTagIds, dateFilter, searchQuery, dateRange, showUnreadOnly]);
+    }, [fetchConversations, activeTab, selectedTagIds, dateFilter, searchQuery, dateRange, showUnreadOnly, leadTimeFilter]);
 
     // Filter conversations
     const filteredConversations = useMemo(() => {
@@ -324,6 +348,7 @@ const AuthenticatedApp = () => {
         setSelectedTagIds([]);
         setShowUnreadOnly(false);
         setDateFilter(null);
+        setLeadTimeFilter(null);
     }, []);
 
     const handleSelectConversation = useCallback((conversation) => {
@@ -597,6 +622,13 @@ const AuthenticatedApp = () => {
         setReplyToMessage(message);
     }, []);
 
+    const handleStartBulkSend = useCallback(({ phones = [], mode = null, leadTime = null }) => {
+        setBulkMessageInitialPhones(phones);
+        setBulkMessageInitialMode(mode);
+        setBulkMessageInitialLeadTime(leadTime);
+        setShowBulkMessage(true);
+    }, []);
+
     const handleCreateTag = useCallback(async (name, color) => {
         const newTag = await createTag(name, color);
         return newTag;
@@ -621,18 +653,35 @@ const AuthenticatedApp = () => {
     }, [updateTag]);
 
     const handleAssignTag = useCallback(async (phone, tagId) => {
-        await assignTag(phone, tagId);
+        await assignTag(phone, tagId, user?.id);
         const updatedTags = await getConversationTags(phone);
         setTagsByPhone(prev => ({ ...prev, [phone]: updatedTags }));
-        updateConversationLocal(phone, { tags: updatedTags });
-    }, [assignTag, getConversationTags, updateConversationLocal]);
+        
+        // If it was the "Agendar" tag, the lead_time is cleared on the server
+        const tag = tags.find(t => t.id === tagId);
+        if (tag && tag.name.toLowerCase() === 'agendar') {
+            updateConversationLocal(phone, { leadTime: null, tags: updatedTags });
+            setShowCelebration(true); // Trigger celebration!
+            setAgendasCount(prev => prev + 1); // Increment local counter
+        } else {
+            updateConversationLocal(phone, { tags: updatedTags });
+        }
+    }, [assignTag, getConversationTags, updateConversationLocal, user, tags]);
 
     const handleRemoveTag = useCallback(async (phone, tagId) => {
+        const tag = tags.find(t => t.id === tagId);
         await removeTag(phone, tagId);
         const updatedTags = await getConversationTags(phone);
         setTagsByPhone(prev => ({ ...prev, [phone]: updatedTags }));
-        updateConversationLocal(phone, { tags: updatedTags });
-    }, [removeTag, getConversationTags, updateConversationLocal]);
+        
+        if (tag && tag.name.toLowerCase() === 'agendar') {
+            // Restore AI active state locally if un-scheduling
+            updateConversationLocal(phone, { tags: updatedTags, conversationState: 'ai_active' });
+            setAgendasCount(prev => Math.max(0, prev - 1));
+        } else {
+            updateConversationLocal(phone, { tags: updatedTags });
+        }
+    }, [removeTag, getConversationTags, updateConversationLocal, tags]);
 
     const [conversationToTag, setConversationToTag] = useState(null);
 
@@ -996,6 +1045,9 @@ const AuthenticatedApp = () => {
                         onFontSizeChange={setFontSize}
                         onCreateTag={createTag}
                         onUpdateTag={handleUpdateTag}
+                        leadTimeFilter={leadTimeFilter}
+                        onLeadTimeFilterChange={setLeadTimeFilter}
+                        onStartBulkSend={handleStartBulkSend}
                     />
 
 
@@ -1011,10 +1063,13 @@ const AuthenticatedApp = () => {
                         hasMore={hasMore}
                         onSelect={handleSelectConversation}
                         onTagClick={handleOpenTagManager}
-                        onRefresh={() => fetchConversations(1, searchQuery, false, selectedTagIds[0] || null, dateRange.start, dateRange.end, showUnreadOnly)}
+                        onRefresh={() => {
+                            const activeTagId = selectedTagIds.length === 1 ? selectedTagIds[0] : null;
+                            fetchConversations(1, searchQuery, false, activeTagId, dateRange.start, dateRange.end, showUnreadOnly, false, leadTimeFilter);
+                        }}
                         onLoadMore={() => {
                             const activeTagId = selectedTagIds.length === 1 ? selectedTagIds[0] : null;
-                            loadMoreConversations(activeTagId, dateRange.start, dateRange.end, showUnreadOnly);
+                            loadMoreConversations(activeTagId, dateRange.start, dateRange.end, showUnreadOnly, leadTimeFilter);
                         }}
                         onStartNewChat={handleStartNewChat}
                         onDelete={removeConversation}
@@ -1124,6 +1179,7 @@ const AuthenticatedApp = () => {
                                 isMobile={isMobile}
                                 isSweepMode={isSweepMode}
                                 onNameUpdated={(phone, newName) => updateConversationLocal(phone, { contact: { name: newName } })}
+                                agendasCount={agendasCount}
                             />
 
                             {/* Tags bar */}
@@ -1262,6 +1318,7 @@ const AuthenticatedApp = () => {
                     setShowBulkMessage(false);
                     setBulkMessageInitialPhones([]);
                     setBulkMessageInitialMode(null);
+                    setBulkMessageInitialLeadTime(null);
                 }}
                 conversations={conversations}
                 tags={tags}
@@ -1270,6 +1327,7 @@ const AuthenticatedApp = () => {
                 socket={socket}
                 initialSelectedPhones={bulkMessageInitialPhones}
                 initialSelectionMode={bulkMessageInitialMode}
+                initialSelectedLeadTime={bulkMessageInitialLeadTime}
             />
 
             {/* Forward Message Modal (Reuses BulkMessageModal) */}
@@ -1301,6 +1359,11 @@ const AuthenticatedApp = () => {
             <SettingsModal
                 isOpen={showSettings}
                 onClose={() => setShowSettings(false)}
+            />
+
+            <Celebration 
+                isVisible={showCelebration} 
+                onClose={() => setShowCelebration(false)} 
             />
 
             {activeTab === 'dashboard' && <Dashboard isMobile={isMobile} />}

@@ -23,7 +23,8 @@ const ChatHeader = ({
     onBack,
     isMobile,
     isSweepMode,
-    onNameUpdated   // optional callback: (phone, newName) => void
+    onNameUpdated,   // optional callback: (phone, newName) => void
+    agendasCount = 0 // New prop for agenda counter
 }) => {
     const [isEditOpen, setIsEditOpen] = useState(false);
     const [displayName, setDisplayName] = useState(() => {
@@ -162,6 +163,45 @@ const ChatHeader = ({
                 </div>
 
                 <div className="chat-header-actions" style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-3)' }}>
+                    
+                    {/* Daily Agendas Counter */}
+                    {/* Daily Agendas Counter (Subtle version) */}
+                    {!isMobile && agendasCount > 0 && (
+                        <div style={{
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: '6px',
+                            backgroundColor: 'var(--color-gray-100)',
+                            padding: '4px 10px',
+                            borderRadius: '8px',
+                            border: '1px solid var(--color-gray-200)',
+                        }}>
+                            <div style={{
+                                backgroundColor: 'var(--color-primary)',
+                                color: 'white',
+                                width: '18px',
+                                height: '18px',
+                                borderRadius: '4px',
+                                display: 'flex',
+                                alignItems: 'center',
+                                justifyContent: 'center',
+                                fontSize: '11px',
+                                fontWeight: '700'
+                            }}>
+                                {agendasCount}
+                            </div>
+                            <span style={{ 
+                                fontSize: '11px', 
+                                fontWeight: 600, 
+                                color: 'var(--color-gray-600)',
+                                textTransform: 'uppercase',
+                                letterSpacing: '0.02em',
+                                whiteSpace: 'nowrap'
+                            }}>
+                                Agendas
+                            </span>
+                        </div>
+                    )}
 
                     {/* AI Toggle */}
                     <div className="ai-toggle">

@@ -14,7 +14,7 @@ class MultiTenantManager {
         const masterConfig = masterUrl
             ? {
                 connectionString: masterUrl,
-                ssl: { rejectUnauthorized: false }
+                ssl: (masterUrl.includes('localhost') || masterUrl.includes('127.0.0.1')) ? false : { rejectUnauthorized: false }
             }
             : {
                 user: process.env.DB_USER || 'postgres',

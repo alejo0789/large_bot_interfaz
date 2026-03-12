@@ -10,6 +10,7 @@ const conversationService = require('../services/conversationService');
 const evolutionService = require('../services/whatsappFactory');
 const n8nService = require('../services/n8nService');
 const settingsService = require('../services/settingsService');
+const tagService = require('../services/tagService');
 const { saveBase64AsFile } = require('../utils/fileUtils');
 const { normalizePhone, getPureDigits } = require('../utils/phoneUtils');
 const { tenantContext } = require('../utils/tenantContext');
@@ -132,6 +133,13 @@ router.post('/', async (req, res) => {
         }
 
         console.log(`📋 Message Type: ${isFromAgent ? 'FROM AGENT (your phone)' : 'FROM CLIENT'}`);
+
+        // Helper: detect if a string looks like a raw WhatsApp LID (not a real name)
+        const looksLikeLid = (str) => {
+            if (!str) return true;
+            const digits = str.replace(/\D/g, '');
+            return digits.length > 10 && (digits.length / str.length) > 0.8;
+        };
 
         const remoteJid = msg.key.remoteJid;
         const isGroup = remoteJid.includes('@g.us');
@@ -413,6 +421,9 @@ router.post('/', async (req, res) => {
         if (messageExists) {
             console.log(`⏭️ Message ${msg.key.id} already exists, skipping save.`);
         } else {
+            // Use pushName only if it looks like a real name (not a LID)
+            const cleanSenderName = (!looksLikeLid(msg.pushName) ? msg.pushName : null) ||
+                (isFromAgent ? 'Tú' : conversation?.contact_name || 'Cliente');
             await messageService.create({
                 phone: phone,
                 sender: senderType, // Use dynamic sender type (agent or user)
@@ -420,7 +431,7 @@ router.post('/', async (req, res) => {
                 whatsappId: msg.key.id,
                 mediaType: mediaType,
                 mediaUrl: mediaUrl,
-                senderName: msg.pushName || (isFromAgent ? 'Tú' : 'Cliente'),
+                senderName: cleanSenderName,
                 replyToId: replyToData?.id,
                 replyToText: replyToData?.text,
                 replyToSender: replyToData?.sender
@@ -453,8 +464,8 @@ router.post('/', async (req, res) => {
             whatsapp_id: msg.key.id,
             sender: senderType, // Changed from sender_type for consistency
             sender_type: senderType, // Keep for backward compatibility
-            sender_name: msg.pushName || (isFromAgent ? 'Tú' : 'Cliente'),
-            agent_name: isFromAgent ? (msg.pushName || 'Agente') : null,
+            sender_name: cleanSenderName,
+            agent_name: isFromAgent ? ((!looksLikeLid(msg.pushName) ? msg.pushName : null) || 'Agente') : null,
             unread: isFromAgent ? 0 : 1,
             timestamp: new Date().toISOString(),
             conversation_state: currentState,
@@ -528,10 +539,23 @@ router.post('/', async (req, res) => {
 
                         // Extract text from the response object
                         let aiResponseText = null;
+                        let intentTag = null; // New intent tag extractor
                         if (aiResponse && typeof aiResponse === 'object') {
                             aiResponseText = aiResponse.text || aiResponse.message || null;
+                            intentTag = aiResponse.intent_tag || null;
                         } else if (typeof aiResponse === 'string') {
                             aiResponseText = aiResponse;
+                        }
+
+                        // Apply intent tag if provided by AI
+                        if (intentTag) {
+                            console.log(`🏷️ Lead intent detected from AI: ${intentTag} for ${phone}`);
+                            await conversationService.updateLeadIntent(phone, intentTag);
+                            // Emit update specifically for the new lead field
+                            emitToConversation(phone, 'lead-classification-updated', { 
+                                phone, 
+                                leadIntent: intentTag 
+                            });
                         }
 
                         if (aiResponseText) {

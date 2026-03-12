@@ -19,7 +19,7 @@ const n8nService = require('../services/n8nService');
  *   - legacy: If true, returns flat array (backward compatibility)
  */
 router.get('/', asyncHandler(async (req, res) => {
-    const { page, limit, status, search, tagId, startDate, endDate, legacy, unreadOnly } = req.query;
+    const { page, limit, status, search, tagId, startDate, endDate, legacy, unreadOnly, leadTime } = req.query;
 
     const result = await conversationService.getAll({
         page: parseInt(page) || 1,
@@ -29,7 +29,8 @@ router.get('/', asyncHandler(async (req, res) => {
         tagId: tagId || null,
         startDate: startDate || null,
         endDate: endDate || null,
-        unreadOnly: unreadOnly === 'true'
+        unreadOnly: unreadOnly === 'true',
+        leadTime: leadTime || null
     });
 
     // Support legacy format for backward compatibility
@@ -48,6 +49,22 @@ router.get('/', asyncHandler(async (req, res) => {
 router.get('/stats', asyncHandler(async (req, res) => {
     const stats = await conversationService.getStats();
     res.json(stats);
+}));
+
+/**
+ * Get lead classification statistics
+ */
+router.get('/lead-stats', asyncHandler(async (req, res) => {
+    const stats = await conversationService.getLeadStats();
+    res.json(stats);
+}));
+
+/**
+ * Get daily agendas count
+ */
+router.get('/agendas-count', asyncHandler(async (req, res) => {
+    const count = await conversationService.getDailyAgendasCount();
+    res.json({ count });
 }));
 
 /**
@@ -218,8 +235,8 @@ router.get('/:phone/tags', asyncHandler(async (req, res) => {
 router.post('/:phone/tags', asyncHandler(async (req, res) => {
     const tagService = require('../services/tagService');
     const { phone } = req.params;
-    const { tagId } = req.body;
-    await tagService.assignToConversation(phone, tagId);
+    const { tagId, agentId } = req.body;
+    await tagService.assignToConversation(phone, tagId, agentId);
     res.json({ success: true });
 }));
 
@@ -337,7 +354,7 @@ router.delete('/:phone', asyncHandler(async (req, res) => {
  * Returns total count without pagination limits (for bulk send preview)
  */
 router.get('/recipients-count', asyncHandler(async (req, res) => {
-    const { tagId, startDate, endDate } = req.query;
+    const { tagId, startDate, endDate, leadTime } = req.query;
     const { pool } = require('../config/database');
 
     const conditions = [`c.status = 'active'`];
@@ -361,6 +378,21 @@ router.get('/recipients-count', asyncHandler(async (req, res) => {
         params.push(endDate);
     }
 
+    if (leadTime) {
+        let leadTimes = [];
+        if (Array.isArray(leadTime)) {
+            leadTimes = leadTime;
+        } else if (typeof leadTime === 'string') {
+            leadTimes = leadTime.split(',');
+        }
+        
+        if (leadTimes.length > 0) {
+            const placeholders = leadTimes.map(() => `$${paramIndex++}`).join(', ');
+            conditions.push(`c.lead_time IN (${placeholders})`);
+            params.push(...leadTimes);
+        }
+    }
+
     const query = `
         SELECT COUNT(*) as total
         FROM conversations c
@@ -371,7 +403,7 @@ router.get('/recipients-count', asyncHandler(async (req, res) => {
     const { rows } = await pool.query(query, params);
     const total = parseInt(rows[0].total);
 
-    res.json({ total, tagId: tagId || null, startDate: startDate || null, endDate: endDate || null });
+    res.json({ total, tagId: tagId || null, startDate: startDate || null, endDate: endDate || null, leadTime: leadTime || null });
 }));
 
 module.exports = router;

@@ -42,22 +42,52 @@ class TagService {
     /**
      * Assign tag to conversation
      */
-    async assignToConversation(phone, tagId) {
+    async assignToConversation(phone, tagId, agentId = null) {
         await pool.query(`
-            INSERT INTO conversation_tags (conversation_phone, tag_id)
-            VALUES ($1, $2)
-            ON CONFLICT DO NOTHING
-        `, [phone, tagId]);
+            INSERT INTO conversation_tags (conversation_phone, tag_id, assigned_by)
+            VALUES ($1, $2, $3)
+            ON CONFLICT (conversation_phone, tag_id) DO UPDATE SET assigned_by = EXCLUDED.assigned_by
+        `, [phone, tagId, agentId]);
+
+        // Special logic: If tag is "Agendar", clear lead_time (it's no longer a lead to follow up)
+        const { rows: tagRows } = await pool.query('SELECT name FROM tags WHERE id = $1', [tagId]);
+        if (tagRows.length > 0 && tagRows[0].name.toLowerCase() === 'agendar') {
+            await pool.query(`
+                UPDATE conversations 
+                SET 
+                    lead_time = NULL,
+                    conversation_state = 'agent_active',
+                    agent_id = $1,
+                    updated_at = NOW()
+                WHERE phone = $2
+            `, [agentId || 'system', phone]);
+            console.log(`✅ Conversation ${phone} marked as 'Agendada' (lead_time cleared) by agent ${agentId}`);
+        }
     }
 
     /**
      * Remove tag from conversation
      */
     async removeFromConversation(phone, tagId) {
+        // Get tag name before deleting
+        const { rows: tagRows } = await pool.query('SELECT name FROM tags WHERE id = $1', [tagId]);
+        
         await pool.query(`
             DELETE FROM conversation_tags 
             WHERE conversation_phone = $1 AND tag_id = $2
         `, [phone, tagId]);
+
+        // If tag was "Agendar", restore state to ai_active so it becomes a lead again
+        if (tagRows.length > 0 && tagRows[0].name.toLowerCase() === 'agendar') {
+            await pool.query(`
+                UPDATE conversations 
+                SET 
+                    conversation_state = 'ai_active',
+                    updated_at = NOW()
+                WHERE phone = $1
+            `, [phone]);
+            console.log(`✅ Conversation ${phone} 'Agendada' tag removed. State restored to ai_active.`);
+        }
     }
 
     /**

@@ -80,11 +80,11 @@ export const useTags = () => {
     }, []);
 
     // Assign tag to conversation
-    const assignTag = useCallback(async (phone, tagId) => {
+    const assignTag = useCallback(async (phone, tagId, agentId = null) => {
         try {
             const response = await apiFetch(`/api/conversations/${phone}/tags`, {
                 method: 'POST',
-                body: JSON.stringify({ tagId })
+                body: JSON.stringify({ tagId, agentId })
             });
 
             if (!response.ok) throw new Error('Error assigning tag');

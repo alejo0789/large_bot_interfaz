@@ -154,6 +154,7 @@ const BulkMessageModal = ({
     initialMediaType = null,
     initialSelectedPhones = [],
     initialSelectionMode = null,
+    initialSelectedLeadTime = null,
     title = 'Envío Masivo de Mensajes',
     disableSelectionModeChange = false
 }) => {
@@ -163,6 +164,9 @@ const BulkMessageModal = ({
         initialSelectionMode || (disableSelectionModeChange ? 'manual' : 'all')
     );
     const [selectedTagIds, setSelectedTagIds] = useState([]);
+    const [selectedLeadTime, setSelectedLeadTime] = useState(
+        Array.isArray(initialSelectedLeadTime) ? initialSelectedLeadTime : (initialSelectedLeadTime ? [initialSelectedLeadTime] : [])
+    );
     const [selectedPhones, setSelectedPhones] = useState(initialSelectedPhones);
     const [isSending, setIsSending] = useState(false);
     const [sendResult, setSendResult] = useState(null);
@@ -211,9 +215,12 @@ const BulkMessageModal = ({
     const [isFetchingTagContacts, setIsFetchingTagContacts] = useState(false);
     const [tagContactCount, setTagContactCount] = useState(null);
 
-    // 'All' mode server-side total count
     const [allDbCount, setAllDbCount] = useState(null);
     const [isFetchingAllCount, setIsFetchingAllCount] = useState(false);
+
+    // LeadTime server-fetch state
+    const [isFetchingLeadContacts, setIsFetchingLeadContacts] = useState(false);
+    const [leadContactCount, setLeadContactCount] = useState(null);
 
     const fileInputRef = useRef(null);
     const excelInputRef = useRef(null);
@@ -265,7 +272,11 @@ const BulkMessageModal = ({
         if (initialSelectionMode) {
             setSelectionMode(initialSelectionMode);
         }
-    }, [initialMessage, initialMediaUrl, initialMediaType, disableSelectionModeChange, initialSelectedPhones, initialSelectionMode]);
+        if (initialSelectedLeadTime) {
+            setSelectedLeadTime(Array.isArray(initialSelectedLeadTime) ? initialSelectedLeadTime : [initialSelectedLeadTime]);
+            setSelectionMode('leadTime');
+        }
+    }, [initialMessage, initialMediaUrl, initialMediaType, disableSelectionModeChange, initialSelectedPhones, initialSelectionMode, initialSelectedLeadTime]);
 
     // Helper: build date params string from month filter
     const buildDateParams = useCallback(() => {
@@ -313,6 +324,27 @@ const BulkMessageModal = ({
 
         return () => { cancelled = true; };
     }, [selectedTagIds, selectionMode, buildDateParams]);
+
+    // Fetch count for 'leadTime' mode
+    useEffect(() => {
+        if (selectionMode !== 'leadTime' || !selectedLeadTime || selectedLeadTime.length === 0) {
+            setLeadContactCount(null);
+            return;
+        }
+        let cancelled = false;
+        setIsFetchingLeadContacts(true);
+        setLeadContactCount(null);
+
+        const dateParams = buildDateParams();
+        const leadTimeParam = selectedLeadTime.join(',');
+        apiFetch(`/api/conversations/recipients-count?leadTime=${encodeURIComponent(leadTimeParam)}${dateParams}`)
+            .then(res => res.json())
+            .then(data => { if (!cancelled) setLeadContactCount(data.total ?? null); })
+            .catch(() => { if (!cancelled) setLeadContactCount(null); })
+            .finally(() => { if (!cancelled) setIsFetchingLeadContacts(false); });
+
+        return () => { cancelled = true; };
+    }, [selectedLeadTime, selectionMode, buildDateParams]);
 
     // Socket.IO progress tracking
     useEffect(() => {
@@ -453,6 +485,10 @@ const BulkMessageModal = ({
                 return pastePreview.valid;
             case 'excel':
                 return excelContacts.map(c => c.phone);
+            case 'leadTime':
+                // Will use server-side filter
+                if (!conversations) return [];
+                return conversations.filter(conv => selectedLeadTime.includes(conv.leadTime)).map(c => c.contact.phone);
             default:
                 return [];
         }
@@ -462,7 +498,8 @@ const BulkMessageModal = ({
     const displayCount =
         selectionMode === 'all' && allDbCount !== null ? allDbCount :
             selectionMode === 'tag' && tagContactCount !== null ? tagContactCount :
-                recipients.length;
+                selectionMode === 'leadTime' && leadContactCount !== null ? leadContactCount :
+                    recipients.length;
 
     // ─── Media helpers ───────────────────────────────────────────────────────
     const clearMedia = () => {
@@ -566,6 +603,9 @@ const BulkMessageModal = ({
                 const filters = {};
                 if (selectionMode === 'tag' && selectedTagIds.length > 0) {
                     filters.tagId = selectedTagIds[0];
+                }
+                if (selectionMode === 'leadTime' && selectedLeadTime) {
+                    filters.leadTime = selectedLeadTime;
                 }
                 if (useDateFilter && dateMonth) {
                     const [year, month] = dateMonth.split('-');
@@ -750,6 +790,10 @@ const BulkMessageModal = ({
                                     <Tag style={{ width: 13, height: 13 }} />
                                     Etiqueta
                                 </button>
+                                <button onClick={() => setSelectionMode('leadTime')} style={{ ...tabBtnStyle(selectionMode === 'leadTime'), borderRight: '1px solid var(--color-gray-200)' }}>
+                                    <Users style={{ width: 13, height: 13 }} />
+                                    Seguimiento
+                                </button>
                                 <button onClick={() => setSelectionMode('manual')} style={{ ...tabBtnStyle(selectionMode === 'manual'), borderRight: '1px solid var(--color-gray-200)' }}>
                                     ✓ Manual
                                 </button>
@@ -885,6 +929,76 @@ const BulkMessageModal = ({
                                         onChange={(e) => setDateMonth(e.target.value)}
                                         style={{ padding: 'var(--space-2)', borderRadius: 'var(--radius-md)', border: '1px solid var(--color-gray-300)', fontSize: 'var(--font-size-sm)', width: '100%' }}
                                     />
+                                </div>
+                            )}
+                        </div>
+                    )}
+
+                    {/* ── LeadTime selection panel ── */}
+                    {selectionMode === 'leadTime' && (
+                        <div style={{ marginBottom: 'var(--space-4)' }}>
+                            <h4 style={{ fontSize: 'var(--font-size-sm)', fontWeight: 600, marginBottom: 'var(--space-2)', color: 'var(--color-gray-700)' }}>
+                                Clasificación de Seguimiento
+                            </h4>
+                            <div style={{
+                                display: 'flex', gap: 'var(--space-2)', flexWrap: 'wrap',
+                                padding: 'var(--space-3)', backgroundColor: 'var(--color-gray-50)',
+                                borderRadius: 'var(--radius-lg)', border: '1px solid var(--color-gray-200)'
+                            }}>
+                                {[
+                                    { id: 'LID_6H', label: '6 Horas', color: '#34d399' },
+                                    { id: 'LID_12H', label: '12 Horas', color: '#10b981' },
+                                    { id: 'LID_1D', label: '1 Día', color: '#f59e0b' },
+                                    { id: 'LID_2D', label: '2 Días', color: '#ef4444' },
+                                    { id: 'LID_3D_PLUS', label: '3+ Días', color: '#7f1d1d' }
+                                ].map(lt => (
+                                    <button
+                                        key={lt.id}
+                                        onClick={() => {
+                                            setSelectedLeadTime(prev => {
+                                                const current = Array.isArray(prev) ? prev : [];
+                                                if (current.includes(lt.id)) {
+                                                    return current.filter(id => id !== lt.id);
+                                                } else {
+                                                    return [...current, lt.id];
+                                                }
+                                            });
+                                        }}
+                                        style={{
+                                            padding: 'var(--space-1) var(--space-3)',
+                                            borderRadius: 'var(--radius-full)',
+                                            border: selectedLeadTime.includes(lt.id) ? `2px solid ${lt.color}` : '2px solid transparent',
+                                            backgroundColor: selectedLeadTime.includes(lt.id) ? lt.color : 'white',
+                                            color: selectedLeadTime.includes(lt.id) ? 'white' : 'var(--color-gray-700)',
+                                            cursor: 'pointer',
+                                            fontSize: 'var(--font-size-sm)',
+                                            fontWeight: 500,
+                                            display: 'flex', alignItems: 'center', gap: 'var(--space-1)',
+                                            transition: 'all 0.15s',
+                                            boxShadow: selectedLeadTime.includes(lt.id) ? '0 2px 8px rgba(0,0,0,0.15)' : 'none'
+                                        }}
+                                    >
+                                        <Users style={{ width: 11, height: 11 }} />
+                                        {lt.label}
+                                    </button>
+                                ))}
+                            </div>
+
+                             {/* Count preview */}
+                             {selectedLeadTime.length > 0 && (
+                                <div style={{
+                                    marginTop: 'var(--space-2)',
+                                    padding: 'var(--space-2) var(--space-3)',
+                                    backgroundColor: '#eff6ff', borderRadius: 'var(--radius-md)',
+                                    fontSize: 'var(--font-size-xs)', color: '#1e40af',
+                                    display: 'flex', justifyContent: 'space-between', alignItems: 'center'
+                                }}>
+                                    <span>
+                                        Seleccionados: <b>{selectedLeadTime.map(id => id.replace('LID_', '')).join(', ')}</b>
+                                    </span>
+                                    <span>
+                                        {isFetchingLeadContacts ? 'Calculando...' : <b>{leadContactCount ?? 0} contactos</b>}
+                                    </span>
                                 </div>
                             )}
                         </div>

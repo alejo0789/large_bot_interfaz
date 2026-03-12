@@ -62,25 +62,68 @@ router.get('/stats', async (req, res) => {
             AND ${dateFilterUnread}
         `;
 
-        // 4. Rendimiento por Agente (Incluyendo agentes con 0 mensajes)
+        // 4. Rendimiento por Agente (Asegurando que humanos e IA se cuenten por separado)
+        const dateFilterAgendas = dateFilterMsg.replace(/timestamp/g, 'assigned_at');
         const agentQuery = `
             WITH active_agents AS (
                 SELECT id, name FROM agents WHERE is_active = true
             ),
             message_stats AS (
-                SELECT agent_id, COALESCE(agent_name, 'Sede/Sistema') as name, COUNT(*) as count 
+                -- Primero agrupamos mensajes por quien los enviÃ³
+                -- Para humanos usamos agent_id, para sistemas usamos sender
+                SELECT 
+                    COALESCE(agent_id, sender) as activity_id,
+                    COUNT(*) as msg_count 
                 FROM messages 
-                WHERE sender IN ('agent', 'me') 
+                WHERE sender IN ('agent', 'me', 'bot', 'ai', 'system') 
                 AND ${dateFilterMsg}
-                GROUP BY agent_id, agent_name
+                GROUP BY COALESCE(agent_id, sender)
+            ),
+            agenda_stats AS (
+                -- Contamos agendas asociadas al agente
+                SELECT ct.assigned_by as agent_id, COUNT(*) as agenda_count
+                FROM conversation_tags ct
+                JOIN tags t ON ct.tag_id = t.id
+                WHERE t.name ILIKE 'Agendar'
+                AND ct.${dateFilterAgendas}
+                GROUP BY ct.assigned_by
+            ),
+            combined AS (
+                -- Unimos agentes registrados con sus estadÃ­sticas
+                SELECT 
+                    a.id as agent_id,
+                    a.name as agent_name,
+                    COALESCE(ms.msg_count, 0) as message_count,
+                    COALESCE(ags.agenda_count, 0) as agenda_count,
+                    true as is_human
+                FROM active_agents a
+                LEFT JOIN message_stats ms ON a.id = ms.activity_id
+                LEFT JOIN agenda_stats ags ON a.id = ags.agent_id
+                
+                UNION ALL
+                
+                -- Agregamos actividad de IA y Sistema que no estÃ© asociada a un agente UUID
+                SELECT 
+                    ms.activity_id as agent_id,
+                    CASE 
+                        WHEN ms.activity_id IN ('bot', 'ai') THEN 'IA / Bot'
+                        WHEN ms.activity_id = 'system' THEN 'Sistema'
+                        ELSE 'Sede/Otros'
+                    END as agent_name,
+                    ms.msg_count as message_count,
+                    COALESCE(ags.agenda_count, 0) as agenda_count,
+                    false as is_human
+                FROM message_stats ms
+                LEFT JOIN agenda_stats ags ON ms.activity_id = ags.agent_id
+                WHERE ms.activity_id IN ('bot', 'ai', 'system')
             )
             SELECT 
-                COALESCE(a.name, s.name) as agent_name,
-                SUM(COALESCE(s.count, 0)) as count
-            FROM active_agents a
-            FULL OUTER JOIN message_stats s ON a.id = s.agent_id
-            GROUP BY COALESCE(a.name, s.name)
-            ORDER BY count DESC
+                agent_name,
+                message_count,
+                agenda_count
+            FROM combined
+            WHERE is_human = true OR message_count > 0 OR agenda_count > 0
+            ORDER BY is_human DESC, message_count DESC
         `;
 
         // 5. Nuevas Conversaciones (Filtrado por fecha de creación)
@@ -113,8 +156,9 @@ router.get('/stats', async (req, res) => {
             unanswered: parseInt(unreads.rows[0]?.count || 0),
             newConversations: parseInt(newConversations.rows[0]?.count || 0),
             agents: agents.rows.map(row => ({
-                name: row.agent_name || 'Número Sede',
-                count: parseInt(row.count)
+                name: row.agent_name || 'Agente',
+                count: parseInt(row.message_count),
+                agendas: parseInt(row.agenda_count)
             }))
         };
 

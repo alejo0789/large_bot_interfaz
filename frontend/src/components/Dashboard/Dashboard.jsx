@@ -369,8 +369,14 @@ const Dashboard = ({ isMobile }) => {
                         {stats?.agents?.length > 0 ? (
                             <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
                                 {stats.agents.map((agent, index) => (
-                                    <div key={index} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                                        <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                                    <div key={index} style={{ 
+                                        display: 'flex', 
+                                        alignItems: 'center', 
+                                        justifyContent: 'space-between',
+                                        padding: '8px 0',
+                                        borderBottom: index < stats.agents.length - 1 ? '1px solid #f1f5f9' : 'none'
+                                    }}>
+                                        <div style={{ display: 'flex', alignItems: 'center', gap: '12px', flex: 1 }}>
                                             <div style={{
                                                 width: '32px', height: '32px', borderRadius: '50%',
                                                 backgroundColor: '#f1f5f9', display: 'flex', alignItems: 'center', justifyContent: 'center',
@@ -378,10 +384,17 @@ const Dashboard = ({ isMobile }) => {
                                             }}>
                                                 {agent.name.charAt(0).toUpperCase()}
                                             </div>
-                                            <span style={{ fontWeight: 500, color: '#334155' }}>{agent.name}</span>
+                                            <span style={{ fontWeight: 500, color: '#334155', fontSize: '0.925rem' }}>{agent.name}</span>
                                         </div>
-                                        <div style={{ fontWeight: 600, color: '#1e293b' }}>
-                                            {agent.count} msgs
+                                        <div style={{ display: 'flex', gap: '16px', alignItems: 'center' }}>
+                                            <div style={{ textAlign: 'right' }}>
+                                                <div style={{ fontSize: '0.9rem', fontWeight: 600, color: '#1e293b' }}>{agent.count}</div>
+                                                <div style={{ fontSize: '0.7rem', color: '#64748b', textTransform: 'uppercase' }}>Msgs</div>
+                                            </div>
+                                            <div style={{ textAlign: 'right' }}>
+                                                <div style={{ fontSize: '0.9rem', fontWeight: 600, color: '#059669' }}>{agent.agendas || 0}</div>
+                                                <div style={{ fontSize: '0.7rem', color: '#64748b', textTransform: 'uppercase' }}>Agendas</div>
+                                            </div>
                                         </div>
                                     </div>
                                 ))}

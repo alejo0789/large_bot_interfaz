@@ -1,4 +1,4 @@
-﻿/**
+/**
  * Chatbot Backend Server
  * Refactored with modular architecture
  * 
@@ -22,6 +22,9 @@ const fs = require('fs');
 // Config
 const { config, validateConfig } = require('./src/config/app');
 const { testConnection } = require('./src/config/database');
+
+// Jobs
+const { startTimeTrackerJob } = require('./src/jobs/timeTrackerJob');
 
 // Middleware
 const { errorHandler } = require('./src/middleware/errorHandler');
@@ -205,9 +208,12 @@ const startServer = async () => {
     // Test database connection
     const dbConnected = await testConnection();
     if (!dbConnected) {
-        console.error('âŒ Cannot start server without database connection');
+        console.error('❌ Cannot start server without database connection');
         process.exit(1);
     }
+
+    // Start background jobs
+    startTimeTrackerJob();
 
     // Start listening
     server.listen(config.port, () => {

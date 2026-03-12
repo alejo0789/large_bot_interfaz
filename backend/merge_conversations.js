@@ -27,10 +27,36 @@ async function mergeConversations() {
         const map = new Map(); // targetPhone -> [sourcePhones]
 
         for (const conv of allConvs) {
-            const standard = getStandardPhone(conv.phone);
-            if (standard && standard !== conv.phone) {
-                if (!map.has(standard)) map.set(standard, []);
-                map.get(standard).push(conv.phone);
+            const phone = conv.phone;
+
+            // Si ya es un número corto de Colombia, no es origen
+            if (phone.length <= 13 && phone.startsWith('+573')) continue;
+
+            let target = getStandardPhone(phone);
+
+            // NUEVO: Si no lo encontramos en el JID, buscar en los mensajes
+            if (!target) {
+                const { rows: msgHits } = await pool.query(`
+                    SELECT text_content FROM messages 
+                    WHERE conversation_phone = $1 
+                    AND sender = 'user' 
+                    AND text_content ~ '(30|31|32|35)\\d{8}'
+                    ORDER BY timestamp DESC
+                    LIMIT 1
+                `, [phone]);
+
+                if (msgHits.length > 0) {
+                    const match = msgHits[0].text_content.match(/(30|31|32|35)\d{8}/);
+                    if (match) {
+                        target = '+57' + match[0];
+                        console.log(`🔎 Encontrado número en mensajes para ${phone}: ${target}`);
+                    }
+                }
+            }
+
+            if (target && target !== phone) {
+                if (!map.has(target)) map.set(target, []);
+                map.get(target).push(phone);
             }
         }
 

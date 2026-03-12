@@ -8,7 +8,7 @@
  * @returns {string} The normalized phone number
  */
 function normalizePhone(phone) {
-    if (!phone) return phone;
+    if (!phone) return null;
 
     let phoneStr = String(phone);
 
@@ -17,25 +17,31 @@ function normalizePhone(phone) {
         return phoneStr;
     }
 
-    // Extract digits and remove suffixes like @s.whatsapp.net or @lid
+    // Extract digits and remove suffixes
     let cleanPart = phoneStr.includes('@') ? phoneStr.split('@')[0] : phoneStr;
     let digits = cleanPart.replace(/\D/g, '');
 
-    // ADVANCED COLOMBIAN LID DETECTION
-    // Colombian mobile numbers are exactly 10 digits and start with 3 (300, 310, 320, 350, ecc).
-    // WhatsApp LIDs (Linked Identities) often embed these 10 digits inside a longer string.
-    // We look specifically for 30x, 31x, 32x, 35x which are the standard mobile prefixes.
-    const colMatch = digits.match(/(30|31|32|35)\d{8}/);
-    if (colMatch) {
-        return '+57' + colMatch[0];
+    // 1. WhatsApp LIDs should be kept as JID or explicitly marked
+    if (phoneStr.includes('@lid') || digits.length > 13) {
+        return phoneStr.includes('@') ? phoneStr : `${digits}@lid`;
     }
 
-    // Return with + prefix for consistency
-    if (digits.length > 0) {
+    // 2. Standardize Colombian numbers
+    // Case A: 573123456789 (12 digits)
+    if (digits.startsWith('573') && digits.length === 12) {
+        return '+' + digits;
+    }
+    // Case B: 3123456789 (10 digits)
+    if (digits.startsWith('3') && digits.length === 10) {
+        return '+57' + digits;
+    }
+
+    // 3. Keep other standard numbers (10-13 digits)
+    if (digits.length >= 10 && digits.length <= 13) {
         return `+${digits}`;
     }
 
-    return phoneStr;
+    return null;
 }
 
 /**
