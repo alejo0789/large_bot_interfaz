@@ -65,22 +65,18 @@ router.get('/stats', async (req, res) => {
         // 4. Rendimiento por Agente (Asegurando que humanos e IA se cuenten por separado)
         const dateFilterAgendas = dateFilterMsg.replace(/timestamp/g, 'assigned_at');
         const agentQuery = `
-            WITH active_agents AS (
-                SELECT id, name FROM agents WHERE is_active = true
-            ),
-            message_stats AS (
-                -- Primero agrupamos mensajes por quien los enviÃ³
-                -- Para humanos usamos agent_id, para sistemas usamos sender
+            WITH message_stats AS (
+                -- Agrupamos por agent_id si existe, si no por el nombre o sender
                 SELECT 
-                    COALESCE(agent_id, sender) as activity_id,
+                    COALESCE(agent_id, agent_name, sender) as activity_id,
+                    MAX(COALESCE(agent_name, sender)) as name_display,
                     COUNT(*) as msg_count 
                 FROM messages 
                 WHERE sender IN ('agent', 'me', 'bot', 'ai', 'system') 
                 AND ${dateFilterMsg}
-                GROUP BY COALESCE(agent_id, sender)
+                GROUP BY COALESCE(agent_id, agent_name, sender)
             ),
             agenda_stats AS (
-                -- Contamos agendas asociadas al agente
                 SELECT ct.assigned_by as agent_id, COUNT(*) as agenda_count
                 FROM conversation_tags ct
                 JOIN tags t ON ct.tag_id = t.id
@@ -89,40 +85,41 @@ router.get('/stats', async (req, res) => {
                 GROUP BY ct.assigned_by
             ),
             combined AS (
-                -- Unimos agentes registrados con sus estadÃ­sticas
+                -- Primero: Agentes registrados en la tabla agents
                 SELECT 
-                    a.id as agent_id,
+                    a.id as id,
                     a.name as agent_name,
                     COALESCE(ms.msg_count, 0) as message_count,
                     COALESCE(ags.agenda_count, 0) as agenda_count,
                     true as is_human
-                FROM active_agents a
+                FROM agents a
                 LEFT JOIN message_stats ms ON a.id = ms.activity_id
                 LEFT JOIN agenda_stats ags ON a.id = ags.agent_id
+                WHERE a.is_active = true
                 
                 UNION ALL
                 
-                -- Agregamos actividad de IA y Sistema que no estÃ© asociada a un agente UUID
+                -- Segundo: Mensajes de bot/sistema/otros que no están en la tabla agents
                 SELECT 
-                    ms.activity_id as agent_id,
+                    ms.activity_id as id,
                     CASE 
                         WHEN ms.activity_id IN ('bot', 'ai') THEN 'IA / Bot'
                         WHEN ms.activity_id = 'system' THEN 'Sistema'
-                        ELSE 'Sede/Otros'
+                        ELSE ms.name_display
                     END as agent_name,
                     ms.msg_count as message_count,
                     COALESCE(ags.agenda_count, 0) as agenda_count,
                     false as is_human
                 FROM message_stats ms
                 LEFT JOIN agenda_stats ags ON ms.activity_id = ags.agent_id
-                WHERE ms.activity_id IN ('bot', 'ai', 'system')
+                WHERE NOT EXISTS (SELECT 1 FROM agents WHERE id::text = ms.activity_id OR name = ms.activity_id)
             )
             SELECT 
                 agent_name,
                 message_count,
                 agenda_count
             FROM combined
-            WHERE is_human = true OR message_count > 0 OR agenda_count > 0
+            WHERE message_count > 0 OR agenda_count > 0
             ORDER BY is_human DESC, message_count DESC
         `;
 
