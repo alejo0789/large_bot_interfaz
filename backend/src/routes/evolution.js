@@ -423,14 +423,15 @@ router.post('/', async (req, res) => {
         const currentState = conversation?.conversation_state || 'ai_active';
         const shouldActivateAI = conversation.ai_enabled !== false;
 
+        // Use pushName only if it looks like a real name (not a LID)
+        const cleanSenderName = (!looksLikeLid(msg.pushName) ? msg.pushName : null) ||
+            (isFromAgent ? 'Tú' : conversation?.contact_name || 'Cliente');
+
         // 2. Save Message
         const messageExists = await messageService.existsByWhatsappId(msg.key.id);
         if (messageExists) {
             console.log(`⏭️ Message ${msg.key.id} already exists, skipping save.`);
         } else {
-            // Use pushName only if it looks like a real name (not a LID)
-            const cleanSenderName = (!looksLikeLid(msg.pushName) ? msg.pushName : null) ||
-                (isFromAgent ? 'Tú' : conversation?.contact_name || 'Cliente');
             await messageService.create({
                 phone: phone,
                 sender: senderType, // Use dynamic sender type (agent or user)
