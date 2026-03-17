@@ -69,13 +69,21 @@ router.post('/', async (req, res) => {
         if (event === 'chats.set' || event === 'CHATS_SET' || event === 'chats.upsert' || event === 'CHATS_UPSERT') {
             console.log(`📥 [SYNC] Processing chats sync for ${instance}...`);
             res.sendStatus(200);
+            
+            // Process sync in background
             const chats = Array.isArray(data) ? data : [data];
-            for (const chat of chats) {
-                const phone = normalizePhone(chat.id || chat.remoteJid);
-                if (phone) {
-                    await conversationService.upsert(phone, chat.name || chat.pushName);
+            (async () => {
+                for (const chat of chats) {
+                    try {
+                        const phone = normalizePhone(chat.id || chat.remoteJid);
+                        if (phone) {
+                            await conversationService.upsert(phone, chat.name || chat.pushName);
+                        }
+                    } catch (err) {
+                        // Silent skip
+                    }
                 }
-            }
+            })().catch(err => console.error('❌ Error in background chats sync:', err));
             return;
         }
 
@@ -399,16 +407,15 @@ router.post('/', async (req, res) => {
 
         console.log(`📨 Evolution Msg from ${phone}: ${text}`);
 
-        // Logic from webhooks.js:
         // 1. Get/Create Conversation
-        let conversation = await conversationService.getByPhone(phone);
-        let isNewConversation = false;
+        let existingConversation = await conversationService.getByPhone(phone);
+        let isNewConversation = !existingConversation;
+        let conversation = existingConversation;
 
         if (!conversation || nameToUse) {
             // Upsert will now handle default AI settings internally
             // If nameToUse is null, it will keep existing or use placeholder if new
             conversation = await conversationService.upsert(phone, nameToUse);
-            isNewConversation = !conversation; // If it didn't exist before the call
             // Refresh conversation object
             conversation = await conversationService.getByPhone(phone);
         }
@@ -562,13 +569,12 @@ router.post('/', async (req, res) => {
                             console.log(`🤖 AI Response received for ${phone}:`);
                             console.log(`   Full text length: ${aiResponseText.length} characters`);
                             console.log(`   First 100 chars: ${aiResponseText.substring(0, 100)}`);
-                            console.log(`   Last 100 chars: ${aiResponseText.substring(aiResponseText.length - 100)}`);
-
+                            
                             // --- MULTIMEDIA DETECTION ---
                             const idMatch = aiResponseText.match(/\[ID:\s*([a-f\d-]+)\]/i);
-                            let finalMediaUrl = aiResponse.mediaUrl || null;
-                            let finalMediaType = aiResponse.mediaType || null;
-                            let cleanAiText = aiResponseText.replace(/\[ID:\s*[a-f\d-]+\s*\]/gi, '').trim();
+                            let finalMediaUrl = aiResponse?.mediaUrl || null;
+                            let finalMediaType = aiResponse?.mediaType || null;
+                            let cleanAiText = (aiResponseText || '').replace(/\[ID:\s*[a-f\d-]+\s*\]/gi, '').trim();
 
                             console.log(`🔎 ID Match result: ${idMatch ? `Found - ${idMatch[1]}` : 'Not found'}`);
                             console.log(`✂️ Clean text (without ID): ${cleanAiText.substring(0, 50)}...`);

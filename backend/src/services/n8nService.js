@@ -139,6 +139,7 @@ class N8NService {
                     text: item.output || item.message || item.text || null,
                     mediaUrl: item.media_url || item.mediaUrl || item.image || null,
                     mediaType: item.media_type || item.mediaType || 'image',
+                    intent_tag: item.intent_tag || item.intentTag || null, // Added to support lead classification
                     raw: item
                 };
             }
@@ -149,6 +150,7 @@ class N8NService {
                     text: data.output || data.message || data.text || null,
                     mediaUrl: data.media_url || data.mediaUrl || data.image || null,
                     mediaType: data.media_type || data.mediaType || 'image',
+                    intent_tag: data.intent_tag || data.intentTag || null, // Added to support lead classification
                     raw: data
                 };
             }
