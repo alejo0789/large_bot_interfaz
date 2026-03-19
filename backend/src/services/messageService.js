@@ -237,11 +237,23 @@ class MessageService {
      * Update message status
      */
     async updateStatus(messageId, status) {
+        // messageId can be a wamid string (from webhook) OR a UUID (from internal routes)
+        const { rows } = await pool.query(`
+            SELECT id FROM messages 
+            WHERE whatsapp_id = $1 OR id::text = $1
+            LIMIT 1
+        `, [messageId]);
+
+        if (rows.length === 0) {
+            console.warn(`⚠️ Message not found for id/whatsapp_id: ${messageId}`);
+            return;
+        }
+
         await pool.query(`
             UPDATE messages 
             SET status = $1 
             WHERE id = $2
-        `, [status, messageId]);
+        `, [status, rows[0].id]);
     }
 
     /**
