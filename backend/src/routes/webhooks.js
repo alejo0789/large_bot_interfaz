@@ -75,7 +75,8 @@ router.post('/receive-message', asyncHandler(async (req, res) => {
         sender_type = 'bot', // n8n siempre es bot/IA
         timestamp,
         media_type,
-        media_url
+        media_url,
+        tag
     } = rawBody;
 
     // Normalizar aliases de n8n
@@ -192,8 +193,51 @@ router.post('/receive-message', asyncHandler(async (req, res) => {
         isNewConversation = true;
     }
 
+    // === LÓGICA DE ETIQUETADO POR N8N ===
+    if (tag && typeof tag === 'string') {
+        try {
+            const tagName = tag.trim();
+            console.log(`🏷️ Intentando asignar etiqueta "${tagName}" a la conversación ${dbPhone}`);
+            
+            // 1. Buscar o Crear la etiqueta
+            const tagResult = await pool.query(`
+                INSERT INTO tags (name, color) VALUES ($1, $2) 
+                ON CONFLICT (name) DO UPDATE SET color = EXCLUDED.color
+                RETURNING id, name
+            `, [tagName, '#ff0000']);
+            
+            const createdTag = tagResult.rows[0];
+
+            // 2. Asignar la etiqueta a la conversación
+            await pool.query(`
+                INSERT INTO conversation_tags (conversation_phone, tag_id, assigned_by)
+                VALUES ($1, $2, $3)
+                ON CONFLICT DO NOTHING
+            `, [dbPhone, createdTag.id, 'n8n_agent']);
+
+            // 3. Evaluar si forzamos pasar a agente
+            if (createdTag.name.toLowerCase() === 'agendar') {
+                console.log(`✅ Etiqueta 'Agendar' detectada desde n8n. Forzando a estado AGENTE.`);
+                
+                await pool.query(`
+                    UPDATE conversations 
+                    SET lead_time = NULL, ai_enabled = false, conversation_state = 'agent_active', agent_id = $1, updated_at = NOW()
+                    WHERE phone = $2
+                `, ['system', dbPhone]);
+                
+                // Actualizamos objeto en memoria para la emisión al socket
+                conversation.ai_enabled = false;
+                conversation.conversation_state = 'agent_active';
+            } else {
+                console.log(`✅ Etiqueta "${tagName}" asignada a ${dbPhone} exitosamente.`);
+            }
+        } catch (tagError) {
+            console.error('❌ Error procesando etiqueta desde n8n:', tagError);
+        }
+    }
+
     const currentState = conversation?.conversation_state || 'ai_active';
-    const shouldActivateAI = conversation.ai_enabled !== false;
+    const shouldActivateAI = conversation?.ai_enabled !== false;
 
     // --- NORMALIZACIÓN DE MEDIA TYPE ---
     // Si viene como 'text' o vacío, intentar inferir por extensión ANTES DE GUARDAR
