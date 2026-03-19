@@ -1,4 +1,4 @@
-﻿const express = require('express');
+const express = require('express');
 const http = require('http');
 const socketIo = require('socket.io');
 const cors = require('cors');
@@ -345,7 +345,8 @@ app.post('/receive-message', tenantMiddleware, async (req, res) => {
       message,
       whatsapp_id,
       sender_type,
-      timestamp
+      timestamp,
+      tag
     } = req.body;
 
     if (!phone || !message) {
@@ -354,6 +355,47 @@ app.post('/receive-message', tenantMiddleware, async (req, res) => {
     }
 
     const cleanPhone = phone.replace(/\s+/g, '');
+
+    // === LÓGICA DE ETIQUETADO POR N8N ===
+    let forceAgentState = false;
+    if (tag && typeof tag === 'string') {
+      try {
+        const tagName = tag.trim();
+        console.log(`🏷️ Intentando asignar etiqueta "${tagName}" a la conversación ${cleanPhone}`);
+        
+        // 1. Buscar o Crear la etiqueta
+        const tagResult = await req.db.query(`
+          INSERT INTO tags (name, color) VALUES ($1, $2) 
+          ON CONFLICT (name) DO UPDATE SET color = EXCLUDED.color
+          RETURNING id, name
+        `, [tagName, '#ff0000']);
+        
+        const createdTag = tagResult.rows[0];
+
+        // 2. Asignar la etiqueta a la conversación
+        await req.db.query(`
+          INSERT INTO conversation_tags (conversation_phone, tag_id, assigned_by)
+          VALUES ($1, $2, $3)
+          ON CONFLICT DO NOTHING
+        `, [cleanPhone, createdTag.id, 'n8n_agent']);
+
+        // 3. Evaluar si forzamos pasar a agente
+        if (createdTag.name.toLowerCase() === 'agendar') {
+          console.log(`✅ Etiqueta 'Agendar' detectada desde n8n. Forzando a estado AGENTE.`);
+          forceAgentState = true;
+          
+          await req.db.query(`
+            UPDATE conversations 
+            SET lead_time = NULL, agent_id = $1, updated_at = NOW()
+            WHERE phone = $2
+          `, ['system', cleanPhone]);
+        } else {
+          console.log(`✅ Etiqueta "${tagName}" asignada a ${cleanPhone} exitosamente.`);
+        }
+      } catch (tagError) {
+        console.error('❌ Error procesando etiqueta desde n8n:', tagError);
+      }
+    }
 
     // âœ… LÃ“GICA CORREGIDA: Verificar el estado usando ai_enabled
     const conversationState = await req.db.query(`
@@ -369,10 +411,14 @@ app.post('/receive-message', tenantMiddleware, async (req, res) => {
       const aiEnabled = conversationState.rows[0].ai_enabled;
 
       // Si ai_enabled es false, NO activar la IA
-      if (aiEnabled === false) {
+      if (aiEnabled === false || forceAgentState) {
         shouldActivateAI = false;
         currentState = 'agent_active';
         console.log(`ðŸš« IA desactivada - ConversaciÃ³n en modo agente para ${cleanPhone}`);
+        
+        if (forceAgentState && aiEnabled !== false) {
+           await req.db.query(`UPDATE conversations SET ai_enabled = false WHERE phone = $1`, [cleanPhone]);
+        }
       } else {
         currentState = 'ai_active';
         console.log(`ðŸ¤– IA activada para ${cleanPhone}`);
@@ -389,7 +435,7 @@ app.post('/receive-message', tenantMiddleware, async (req, res) => {
           updated_at
         ) VALUES ($1, $2, $3, NOW(), NOW())
         ON CONFLICT (phone) DO NOTHING
-      `, [cleanPhone, contact_name || `Usuario ${cleanPhone.slice(-4)}`, true]);
+      `, [cleanPhone, contact_name || `Usuario ${cleanPhone.slice(-4)}`, !forceAgentState]);
     }
 
     // Emitir mensaje al frontend en tiempo real
