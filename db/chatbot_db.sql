@@ -74,7 +74,9 @@ CREATE TABLE public.conversations (
     last_message_text text,
     last_message_timestamp timestamp with time zone,
     created_at timestamp with time zone DEFAULT now(),
-    updated_at timestamp with time zone DEFAULT now()
+    updated_at timestamp with time zone DEFAULT now(),
+    lead_intent character varying(50) DEFAULT NULL::character varying,
+    lead_time character varying(50) DEFAULT NULL::character varying
 );
 
 

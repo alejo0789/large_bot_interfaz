@@ -14,14 +14,24 @@ class MultiTenantManager {
         const masterConfig = masterUrl
             ? {
                 connectionString: masterUrl,
-                ssl: (masterUrl.includes('localhost') || masterUrl.includes('127.0.0.1')) ? false : { rejectUnauthorized: false }
+                ssl: (masterUrl.includes('localhost') || masterUrl.includes('127.0.0.1')) ? false : { rejectUnauthorized: false },
+                max: 20,
+                idleTimeoutMillis: 30000,
+                connectionTimeoutMillis: 10000,
+                query_timeout: 15000,
+                statement_timeout: 15000
             }
             : {
                 user: process.env.DB_USER || 'postgres',
                 password: process.env.DB_PASSWORD || 'root',
                 host: process.env.DB_HOST || 'localhost',
                 port: process.env.DB_PORT || 5432,
-                database: process.env.DB_NAME || 'chatbot_master'
+                database: process.env.DB_NAME || 'chatbot_master',
+                max: 20,
+                idleTimeoutMillis: 30000,
+                connectionTimeoutMillis: 10000,
+                query_timeout: 15000,
+                statement_timeout: 15000
             };
 
         console.log(`📡 Initializing Master Database Connection: ${masterUrl ? '(Neon) chatbot_master' : `${masterConfig.host}:${masterConfig.port}/${masterConfig.database}`}`);
@@ -55,7 +65,11 @@ class MultiTenantManager {
             ssl: connectionString.includes('localhost') || connectionString.includes('127.0.0.1') ? false : { rejectUnauthorized: false },
             min: 2,
             max: 20,
-            idleTimeoutMillis: 30000
+            idleTimeoutMillis: 30000,
+            connectionTimeoutMillis: 10000,
+            query_timeout: 15000,
+            statement_timeout: 15000, // aborta las query muy lentas o pegadas a nivel de pg
+            allowExitOnIdle: true
         });
 
         // Set UTF-8 encoding on each connection
