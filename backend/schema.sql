@@ -44,6 +44,7 @@ CREATE TABLE IF NOT EXISTS conversation_tags (
     conversation_phone VARCHAR(50) REFERENCES conversations(phone) ON DELETE CASCADE,
     tag_id INTEGER REFERENCES tags(id) ON DELETE CASCADE,
     assigned_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+    assigned_by VARCHAR(255),
     PRIMARY KEY (conversation_phone, tag_id)
 );
 

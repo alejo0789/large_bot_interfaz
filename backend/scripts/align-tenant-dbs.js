@@ -82,6 +82,8 @@ async function alignDatabases() {
                     CREATE TABLE IF NOT EXISTS conversation_tags (
                         conversation_phone VARCHAR(50) REFERENCES conversations(phone) ON DELETE CASCADE,
                         tag_id INTEGER REFERENCES tags(id) ON DELETE CASCADE,
+                        assigned_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+                        assigned_by VARCHAR(255),
                         PRIMARY KEY (conversation_phone, tag_id)
                     );
 
@@ -232,6 +234,9 @@ async function alignDatabases() {
                     ALTER TABLE messages ADD COLUMN IF NOT EXISTS reply_to_id VARCHAR(255);
                     ALTER TABLE messages ADD COLUMN IF NOT EXISTS reply_to_text TEXT;
                     ALTER TABLE messages ADD COLUMN IF NOT EXISTS reply_to_sender VARCHAR(255);
+                    
+                    ALTER TABLE conversation_tags ADD COLUMN IF NOT EXISTS assigned_at TIMESTAMP WITH TIME ZONE DEFAULT NOW();
+                    ALTER TABLE conversation_tags ADD COLUMN IF NOT EXISTS assigned_by VARCHAR(255);
                 `);
                 console.log('  ✅ Extra columns verified');
 
