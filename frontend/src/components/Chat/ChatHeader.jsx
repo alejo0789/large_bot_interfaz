@@ -29,16 +29,26 @@ const ChatHeader = ({
     const [isEditOpen, setIsEditOpen] = useState(false);
     // Helper para formatear LIDs largos (IDs internos de WA)
     const formatDisplayName = (name, phone) => {
-        let nameToDisplay = name || '';
-        if (!nameToDisplay || nameToDisplay.toLowerCase() === 'unknown' || nameToDisplay.toLowerCase().startsWith('usuario')) {
+        let nameToDisplay = name || phone || '';
+        
+        const isNameLid = typeof nameToDisplay === 'string' && (
+            nameToDisplay.includes('@lid') || 
+            (nameToDisplay.replace(/\D/g, '').length > 13 && !nameToDisplay.startsWith('+')) ||
+            nameToDisplay.includes('@s.whatsapp.net') ||
+            nameToDisplay.includes('@g.us')
+        );
+
+        if (isNameLid || nameToDisplay.toLowerCase() === 'unknown' || nameToDisplay.toLowerCase().startsWith('usuario')) {
             nameToDisplay = phone || '';
         }
-        if (nameToDisplay === phone && typeof phone === 'string') {
-            const digits = phone.replace(/\D/g, '');
-            if (digits.length > 13 && !phone.startsWith('+')) {
+
+        if (typeof nameToDisplay === 'string') {
+            const digits = nameToDisplay.replace(/\D/g, '');
+            if (digits.length > 13 && !nameToDisplay.startsWith('+')) {
                 nameToDisplay = `Usuario ${digits.slice(-4)}`;
             }
         }
+        
         return nameToDisplay;
     };
 

@@ -51,17 +51,28 @@ const ConversationItem = React.memo(({
     
     // Helper para formatear LIDs largos (IDs internos de WA)
     const formatDisplayName = (name, phone) => {
-        let nameToDisplay = name;
-        if (!nameToDisplay || nameToDisplay.toLowerCase() === 'unknown' || nameToDisplay.toLowerCase().startsWith('usuario')) {
+        let nameToDisplay = name || phone;
+        
+        // Si el nombre contiene @lid o es una cadena numérica muy larga sin +, es un LID
+        const isNameLid = typeof nameToDisplay === 'string' && (
+            nameToDisplay.includes('@lid') || 
+            (nameToDisplay.replace(/\\D/g, '').length > 13 && !nameToDisplay.startsWith('+')) ||
+            nameToDisplay.includes('@s.whatsapp.net') ||
+            nameToDisplay.includes('@g.us')
+        );
+
+        if (isNameLid || nameToDisplay.toLowerCase() === 'unknown' || nameToDisplay.toLowerCase().startsWith('usuario')) {
             nameToDisplay = phone;
         }
-        // Si el resultado es el teléfono, y es un ID muy largo (LID o JID sin +), mostrar un alias
-        if (nameToDisplay === phone && typeof phone === 'string') {
-            const digits = phone.replace(/\D/g, '');
-            if (digits.length > 13 && !phone.startsWith('+')) {
+
+        // Si después de todo, el texto a mostrar sigue siendo un ID interno (LID), mostrar un alias
+        if (typeof nameToDisplay === 'string') {
+            const digits = nameToDisplay.replace(/\D/g, '');
+            if (digits.length > 13 && !nameToDisplay.startsWith('+')) {
                 nameToDisplay = `Usuario ${digits.slice(-4)}`;
             }
         }
+        
         return nameToDisplay;
     };
 
