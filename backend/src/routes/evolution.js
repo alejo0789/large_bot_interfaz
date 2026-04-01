@@ -36,13 +36,14 @@ const emitToConversation = (phone, event, data) => {
     const dbPhone = normalizePhone(phone);
     const purePhone = getPureDigits(phone);
 
-    console.log(`📡 [${tenantSlug}] Emitting ${event} to tenant:${tenantSlug}:conversation:${purePhone}`);
+    console.log(`📡 [${tenantSlug}] Emitting ${event} to tenant:${tenantSlug} and conv:${purePhone}`);
 
-    // Emit to conversation room (tenant-scoped)
-    io.to(`tenant:${tenantSlug}:conversation:${purePhone}`).emit(event, data);
+    // Emit primary event to both the global tenant room (for sidebar new-message checks) 
+    // and the specific conversation room
+    io.to(`tenant:${tenantSlug}`).to(`tenant:${tenantSlug}:conv:${purePhone}`).emit(event, data);
 
-    // Also emit to tenant-specific conversations list room
-    io.to(`tenant:${tenantSlug}:conversations:list`).emit('conversation-updated', {
+    // Also emit the specialized conversation-updated event to the global tenant room
+    io.to(`tenant:${tenantSlug}`).emit('conversation-updated', {
         phone: dbPhone,
         lastMessage: data.message,
         timestamp: data.timestamp || new Date().toISOString(),
@@ -263,7 +264,7 @@ router.post('/', async (req, res) => {
                         const context = tenantContext.getStore();
                         const tenantSlug = context?.tenant?.slug;
                         if (tenantSlug) {
-                            io.to(`tenant:${tenantSlug}:conversation:${getPureDigits(phone)}`).emit('message-updated', {
+                            io.to(`tenant:${tenantSlug}`).to(`tenant:${tenantSlug}:conv:${getPureDigits(phone)}`).emit('message-updated', {
                                 id: existingMsg.id,
                                 whatsapp_id: targetId,
                                 status: existingMsg.status,

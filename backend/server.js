@@ -83,6 +83,11 @@ app.use('/api/admin', adminRoutes);
 // --- MIDDLEWARE DE SEDE (Para el resto de la API) ---
 app.use('/api', tenantMiddleware);
 
+// --- RUTAS DE LA EVOLUTION API (WEBHOOKS) ---
+const evolutionModule = require('./src/routes/evolution.js');
+evolutionModule.setSocketIO(io);
+app.use('/evolution', tenantMiddleware, evolutionModule.router);
+
 // --- ENDPOINTS DE LA API (TENANT CONTEXT) ---
 
 // 1. ENDPOINT PARA CARGAR TODAS LAS CONVERSACIONES
