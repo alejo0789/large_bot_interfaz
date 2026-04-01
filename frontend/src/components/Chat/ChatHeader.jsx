@@ -27,20 +27,25 @@ const ChatHeader = ({
     agendasCount = 0 // New prop for agenda counter
 }) => {
     const [isEditOpen, setIsEditOpen] = useState(false);
-    const [displayName, setDisplayName] = useState(() => {
-        let name = conversation?.contact?.name || '';
-        if (!name || name.toLowerCase() === 'unknown' || name.toLowerCase().startsWith('usuario')) {
-            name = conversation?.contact?.phone || '';
+    // Helper para formatear LIDs largos (IDs internos de WA)
+    const formatDisplayName = (name, phone) => {
+        let nameToDisplay = name || '';
+        if (!nameToDisplay || nameToDisplay.toLowerCase() === 'unknown' || nameToDisplay.toLowerCase().startsWith('usuario')) {
+            nameToDisplay = phone || '';
         }
-        return name;
-    });
+        if (nameToDisplay === phone && typeof phone === 'string') {
+            const digits = phone.replace(/\D/g, '');
+            if (digits.length > 13 && !phone.startsWith('+')) {
+                nameToDisplay = `Usuario ${digits.slice(-4)}`;
+            }
+        }
+        return nameToDisplay;
+    };
+
+    const [displayName, setDisplayName] = useState(() => formatDisplayName(conversation?.contact?.name, conversation?.contact?.phone));
 
     useEffect(() => {
-        let name = conversation?.contact?.name || '';
-        if (!name || name.toLowerCase() === 'unknown' || name.toLowerCase().startsWith('usuario')) {
-            name = conversation?.contact?.phone || '';
-        }
-        setDisplayName(name);
+        setDisplayName(formatDisplayName(conversation?.contact?.name, conversation?.contact?.phone));
     }, [conversation?.contact?.name, conversation?.contact?.phone]);
 
     if (!conversation) return null;
@@ -157,7 +162,9 @@ const ChatHeader = ({
                             textOverflow: 'ellipsis',
                             margin: 0
                         }}>
-                            {contact.phone}
+                            {(typeof contact.phone === 'string' && contact.phone.replace(/\D/g, '').length > 13 && !contact.phone.startsWith('+')) 
+                                ? `ID Interno (${contact.phone.slice(-4)})` 
+                                : contact.phone}
                         </p>
                     </div>
                 </div>

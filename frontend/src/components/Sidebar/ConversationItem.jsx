@@ -48,27 +48,31 @@ const ConversationItem = React.memo(({
     // State for name editing
     const [isMenuOpen, setIsMenuOpen] = useState(false);
     const [isEditModalOpen, setIsEditModalOpen] = useState(false);
-    const [displayName, setDisplayName] = useState(() => {
-        let name = contact.name;
-        if (!name || name.toLowerCase() === 'unknown' || name.toLowerCase().startsWith('usuario')) {
-            name = contact.phone;
+    
+    // Helper para formatear LIDs largos (IDs internos de WA)
+    const formatDisplayName = (name, phone) => {
+        let nameToDisplay = name;
+        if (!nameToDisplay || nameToDisplay.toLowerCase() === 'unknown' || nameToDisplay.toLowerCase().startsWith('usuario')) {
+            nameToDisplay = phone;
         }
-        return name;
-    });
+        // Si el resultado es el teléfono, y es un ID muy largo (LID o JID sin +), mostrar un alias
+        if (nameToDisplay === phone && typeof phone === 'string') {
+            const digits = phone.replace(/\D/g, '');
+            if (digits.length > 13 && !phone.startsWith('+')) {
+                nameToDisplay = `Usuario ${digits.slice(-4)}`;
+            }
+        }
+        return nameToDisplay;
+    };
+
+    const [displayName, setDisplayName] = useState(() => formatDisplayName(contact.name, contact.phone));
     const [isDeleting, setIsDeleting] = useState(false);
     const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
     const menuRef = useRef(null);
 
     // Sync state with props
     useEffect(() => {
-        let nameToDisplay = contact.name;
-        if (!nameToDisplay ||
-            nameToDisplay.toLowerCase() === 'unknown' ||
-            nameToDisplay.toLowerCase().startsWith('usuario') ||
-            nameToDisplay.toLowerCase().startsWith('usuarios')) {
-            nameToDisplay = contact.phone;
-        }
-        setDisplayName(nameToDisplay);
+        setDisplayName(formatDisplayName(contact.name, contact.phone));
     }, [contact.name, contact.phone]);
 
     // Close menu when clicking outside
@@ -398,7 +402,9 @@ const ConversationItem = React.memo(({
                         whiteSpace: 'nowrap',
                         flex: 1
                     }}>
-                        {contact.phone}
+                        {(typeof contact.phone === 'string' && contact.phone.replace(/\D/g, '').length > 13 && !contact.phone.startsWith('+')) 
+                            ? `ID Interno (${contact.phone.slice(-4)})` 
+                            : contact.phone}
                     </span>
 
                     {tags.length > 0 && (
