@@ -40,7 +40,7 @@ async function fixLIDs() {
                 const fetchRes = await fetch(url, {
                     method: 'POST',
                     headers: { 'apikey': API_KEY, 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ where: { remoteJid: lidQuery }, limit: 10 })
+                    body: JSON.stringify({ where: { key: { remoteJid: lidQuery } }, limit: 10 })
                 });
 
                 if (!fetchRes.ok) {
@@ -52,8 +52,17 @@ async function fixLIDs() {
                 
                 let realPhone = null;
 
+                let messagesArray = [];
                 if (Array.isArray(data)) {
-                    for (const msg of data) {
+                    messagesArray = data;
+                } else if (data && data.response && data.response.message && data.response.message.records) {
+                    messagesArray = data.response.message.records;
+                } else if (data && data.messages && data.messages.records) {
+                    messagesArray = data.messages.records;
+                }
+                
+                if (messagesArray.length > 0) {
+                    for (const msg of messagesArray) {
                         if (msg.key && msg.key.remoteJidAlt && msg.key.remoteJidAlt.includes('@s.whatsapp.net')) {
                             realPhone = msg.key.remoteJidAlt.split('@')[0];
                             // Clean the phone number (remove + if any)
@@ -83,8 +92,18 @@ async function fixLIDs() {
                         // Move messages
                         await pool.query('UPDATE messages SET conversation_phone = $1 WHERE conversation_phone = $2', [realPhone, rawPhone]);
                         
-                        // Move tags
-                        await pool.query('UPDATE conversation_tags SET conversation_phone = $1 WHERE conversation_phone = $2 ON CONFLICT DO NOTHING', [realPhone, rawPhone]);
+                        // Move tags, ignoring duplicates
+                        await pool.query(`
+                            UPDATE conversation_tags 
+                            SET conversation_phone = $1 
+                            WHERE conversation_phone = $2 
+                            AND NOT EXISTS (
+                                SELECT 1 FROM conversation_tags ct2 
+                                WHERE ct2.conversation_phone = $1 AND ct2.tag_id = conversation_tags.tag_id
+                            )
+                        `, [realPhone, rawPhone]);
+                        
+                        // Delete remaining old tags that couldn't be moved due to uniqueness
                         await pool.query('DELETE FROM conversation_tags WHERE conversation_phone = $1', [rawPhone]);
 
                         // Delete LID conversation

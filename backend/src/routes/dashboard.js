@@ -88,14 +88,15 @@ router.get('/stats', async (req, res) => {
                 -- Primero: Agentes registrados en la tabla agents
                 SELECT 
                     a.id as id,
-                    a.name as agent_name,
-                    COALESCE(ms.msg_count, 0) as message_count,
-                    COALESCE(ags.agenda_count, 0) as agenda_count,
+                    MAX(a.name) as agent_name,
+                    SUM(COALESCE(ms.msg_count, 0)) as message_count,
+                    SUM(COALESCE(ags.agenda_count, 0)) as agenda_count,
                     true as is_human
                 FROM agents a
-                LEFT JOIN message_stats ms ON a.id = ms.activity_id
-                LEFT JOIN agenda_stats ags ON a.id = ags.agent_id
+                LEFT JOIN message_stats ms ON a.id::text = ms.activity_id OR a.name = ms.activity_id OR a.username = ms.activity_id
+                LEFT JOIN agenda_stats ags ON a.id::text = ags.agent_id OR a.name = ags.agent_id OR a.username = ags.agent_id
                 WHERE a.is_active = true
+                GROUP BY a.id
                 
                 UNION ALL
                 
@@ -112,14 +113,20 @@ router.get('/stats', async (req, res) => {
                     false as is_human
                 FROM message_stats ms
                 LEFT JOIN agenda_stats ags ON ms.activity_id = ags.agent_id
-                WHERE NOT EXISTS (SELECT 1 FROM agents WHERE id::text = ms.activity_id OR name = ms.activity_id)
+                WHERE NOT EXISTS (
+                    SELECT 1 FROM agents 
+                    WHERE id::text = ms.activity_id 
+                    OR name = ms.activity_id 
+                    OR username = ms.activity_id
+                )
             )
             SELECT 
                 agent_name,
-                message_count,
-                agenda_count
+                SUM(message_count) as message_count,
+                SUM(agenda_count) as agenda_count
             FROM combined
             WHERE message_count > 0 OR agenda_count > 0
+            GROUP BY agent_name, is_human
             ORDER BY is_human DESC, message_count DESC
         `;
 
