@@ -150,8 +150,25 @@ router.post('/', async (req, res) => {
             return digits.length > 10 && (digits.length / str.length) > 0.8;
         };
 
-        const remoteJid = msg.key.remoteJid;
+        const remoteJidOriginal = msg.key.remoteJid;
+        let remoteJid = remoteJidOriginal;
         const isGroup = remoteJid.includes('@g.us');
+
+        // Resolve WhatsApp LID (Linked Device) to real phone number if possible
+        if (!isGroup) {
+            const isLid = remoteJid.includes('@lid') || (remoteJid.split('@')[0].length > 14);
+            const altJid = msg.key.remoteJidAlt;
+            const participantAlt = msg.key.participantAlt;
+            
+            const potentialAlt = (altJid && !altJid.includes('@lid') && altJid.includes('@s.whatsapp.net')) ? altJid 
+                               : (participantAlt && !participantAlt.includes('@lid') && participantAlt.includes('@s.whatsapp.net')) ? participantAlt 
+                               : null;
+            
+            if (isLid && potentialAlt) {
+                console.log(`🔄 [WEBHOOK] LID Resolved: replacing ${remoteJid} with ${potentialAlt}`);
+                remoteJid = potentialAlt;
+            }
+        }
 
         console.log(`🔍 [WEBHOOK] Processing message from JID: ${remoteJid} (isGroup: ${isGroup})`);
 
