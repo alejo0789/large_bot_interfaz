@@ -23,6 +23,7 @@ import BulkMessageModal from './components/BulkMessaging/BulkMessageModal';
 import N8NTestChat from './components/Testing/N8NTestChat';
 import EditContactModal from './components/Sidebar/EditContactModal';
 import SettingsModal from './components/Settings/SettingsModal';
+import ScheduleModal from './components/Modals/ScheduleModal';
 import MainLayout from './components/MainLayout';
 import AIArea from './components/AI/AIArea';
 import Dashboard from './components/Dashboard/Dashboard';
@@ -81,6 +82,9 @@ const AuthenticatedApp = () => {
     const [showBulkMessage, setShowBulkMessage] = useState(false);
     const [showN8NTest, setShowN8NTest] = useState(false);
     const [showSettings, setShowSettings] = useState(false);
+    const [showScheduleModal, setShowScheduleModal] = useState(false);
+    const [scheduleMessage, setScheduleMessage] = useState(null);
+    const [draftMessage, setDraftMessage] = useState(null);
 
     // Forward Message State
     const [forwardMessage, setForwardMessage] = useState(null);
@@ -932,6 +936,16 @@ const AuthenticatedApp = () => {
         reactToMessage(message.id, emoji, selectedConversation?.contact.phone);
     }, [reactToMessage, selectedConversation]);
 
+    const handleScheduleMessage = useCallback((message) => {
+        setScheduleMessage(message);
+        setShowScheduleModal(true);
+    }, []);
+
+    const handleScheduleSubmit = useCallback((scheduleDetails, rawFormData) => {
+        // En vez de enviar automáticamente, rellenamos el textarea
+        setDraftMessage(scheduleDetails);
+    }, []);
+
     return (
         <MainLayout
             activeTab={activeTab}
@@ -1255,6 +1269,7 @@ const AuthenticatedApp = () => {
                                     onDelete={handleMessageDelete}
                                     onReply={handleReplyMessage}
                                     onEdit={setEditingMessage}
+                                    onSchedule={handleScheduleMessage}
                                     onPhoneClick={handleStartNewChat}
                                 />
                             </div>
@@ -1268,6 +1283,8 @@ const AuthenticatedApp = () => {
                                 onCancelReply={() => setReplyToMessage(null)}
                                 editingMessage={editingMessage}
                                 onCancelEdit={() => setEditingMessage(null)}
+                                draftMessage={draftMessage}
+                                onDraftConsumed={() => setDraftMessage(null)}
                             />
                         </>
                     ) : (
@@ -1364,6 +1381,21 @@ const AuthenticatedApp = () => {
             <Celebration 
                 isVisible={showCelebration} 
                 onClose={() => setShowCelebration(false)} 
+            />
+
+            <ScheduleModal
+                isOpen={showScheduleModal}
+                onClose={() => {
+                    setShowScheduleModal(false);
+                    setScheduleMessage(null);
+                }}
+                initialData={
+                    scheduleMessage ? {
+                        messageText: scheduleMessage.text,
+                        contactName: selectedConversation?.contact?.name
+                    } : null
+                }
+                onSubmit={handleScheduleSubmit}
             />
 
             {activeTab === 'dashboard' && <Dashboard isMobile={isMobile} />}

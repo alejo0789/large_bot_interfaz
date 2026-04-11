@@ -7,7 +7,7 @@ import EmojiPicker from 'emoji-picker-react';
 /**
  * Message input component with file attachment and voice recording
  */
-const MessageInput = ({ onSend, onSendFile, disabled, isMobile, replyToMessage, onCancelReply, editingMessage, onCancelEdit }) => {
+const MessageInput = ({ onSend, onSendFile, disabled, isMobile, replyToMessage, onCancelReply, editingMessage, onCancelEdit, draftMessage, onDraftConsumed }) => {
     const [showEmojiPicker, setShowEmojiPicker] = useState(false);
     const [message, setMessage] = useState('');
     const [selectedFile, setSelectedFile] = useState(null);
@@ -156,6 +156,21 @@ const MessageInput = ({ onSend, onSendFile, disabled, isMobile, replyToMessage, 
             }, 0);
         }
     }, [editingMessage]);
+
+    // Handle draft message injection
+    useEffect(() => {
+        if (draftMessage) {
+            setMessage(draftMessage);
+            if (onDraftConsumed) onDraftConsumed();
+            setTimeout(() => {
+                if (textareaRef.current) {
+                    textareaRef.current.focus();
+                    const length = draftMessage.length;
+                    textareaRef.current.setSelectionRange(length, length);
+                }
+            }, 0);
+        }
+    }, [draftMessage, onDraftConsumed]);
 
     // Auto-resize textarea when message changes (for quick replies or external updates)
     useEffect(() => {

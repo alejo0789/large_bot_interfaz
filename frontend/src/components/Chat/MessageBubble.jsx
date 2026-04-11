@@ -1,11 +1,11 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { CheckCheck, Clock, Download, FileText, Image as ImageIcon, Mic, Forward, Reply, Trash2, Smile, MoreHorizontal, ChevronDown, Copy, Edit2 } from 'lucide-react';
+import { CheckCheck, Clock, Download, FileText, Image as ImageIcon, Mic, Forward, Reply, Trash2, Smile, MoreHorizontal, ChevronDown, Copy, Edit2, Calendar } from 'lucide-react';
 import EmojiPicker from 'emoji-picker-react';
 
 /**
  * Message bubble component with media support, reactions, and actions
  */
-const MessageBubble = ({ message, onForward, onReact, onDelete, onReply, onEdit, onPhoneClick }) => {
+const MessageBubble = ({ message, onForward, onReact, onDelete, onReply, onEdit, onSchedule, onPhoneClick }) => {
     const { text, timestamp, status, id, reactions = [], edited } = message;
     const rawSender = message.sender || message.sender_type || 'customer';
     const sender = String(rawSender).toLowerCase().trim();
@@ -789,6 +789,32 @@ const MessageBubble = ({ message, onForward, onReact, onDelete, onReply, onEdit,
                                 >
                                     <Reply className="w-4 h-4" />
                                     Responder
+                                </button>
+
+                                <button
+                                    onClick={() => {
+                                        onSchedule && onSchedule(message);
+                                        setShowMenu(false);
+                                    }}
+                                    style={{
+                                        display: 'flex',
+                                        alignItems: 'center',
+                                        gap: '8px',
+                                        padding: '8px 12px',
+                                        border: 'none',
+                                        background: 'none',
+                                        width: '100%',
+                                        textAlign: 'left',
+                                        fontSize: '14px',
+                                        color: '#4b5563',
+                                        cursor: 'pointer',
+                                        borderRadius: '6px'
+                                    }}
+                                    onMouseEnter={(e) => e.currentTarget.style.background = '#f3f4f6'}
+                                    onMouseLeave={(e) => e.currentTarget.style.background = 'none'}
+                                >
+                                    <Calendar className="w-4 h-4" />
+                                    Agendar
                                 </button>
 
                                 <button
