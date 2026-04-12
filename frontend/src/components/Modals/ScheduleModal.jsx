@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { X, Calendar, Search, Loader2 } from 'lucide-react';
+import { motion } from 'framer-motion';
 
 // Helper functions for parsing natural text into standard API formats
 const monthMap = { enero: '01', febrero: '02', marzo: '03', abril: '04', mayo: '05', junio: '06', julio: '07', agosto: '08', septiembre: '09', octubre: '10', noviembre: '11', diciembre: '12' };
@@ -242,12 +243,17 @@ const ScheduleModal = ({ isOpen, onClose, initialData, onSubmit }) => {
 
     return (
         <div className="modal-overlay" style={{
-            position: 'fixed', inset: 0, backgroundColor: 'rgba(0,0,0,0.5)',
+            position: 'fixed', inset: 0, backgroundColor: 'rgba(0,0,0,0.1)', pointerEvents: 'none',
             display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 9999
         }}>
-            <div className="modal-content" style={{
-                background: 'white', borderRadius: '8px', width: '100%',
-                maxWidth: '500px', padding: '20px', maxHeight: '90vh', overflowY: 'auto'
+            <motion.div 
+                className="modal-content" 
+                drag
+                dragMomentum={false}
+                style={{
+                background: 'white', borderRadius: '8px', width: '100%', pointerEvents: 'auto',
+                maxWidth: '500px', padding: '20px', maxHeight: '90vh', overflowY: 'auto',
+                boxShadow: '0px 10px 30px rgba(0,0,0,0.2)'
             }}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '15px' }}>
                     <h3 style={{ margin: 0, display: 'flex', alignItems: 'center', gap: '8px' }}>
@@ -368,7 +374,7 @@ const ScheduleModal = ({ isOpen, onClose, initialData, onSubmit }) => {
                     </div>
 
                 </form>
-            </div>
+            </motion.div>
             
             <style>{`
                 .animate-spin { animation: spin 1s linear infinite; }
