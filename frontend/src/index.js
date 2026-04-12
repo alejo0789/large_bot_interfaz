@@ -13,10 +13,45 @@ console.log('🌍 Entorno:', process.env.NODE_ENV);
 // Crear el root de React 18
 const root = ReactDOM.createRoot(document.getElementById('root'));
 
+class AppErrorBoundary extends React.Component {
+  constructor(props) {
+    super(props);
+    this.state = { hasError: false, error: null };
+  }
+
+  static getDerivedStateFromError(error) {
+    return { hasError: true, error };
+  }
+
+  componentDidCatch(error, errorInfo) {
+    console.error('App Uncaught Error:', error, errorInfo);
+  }
+
+  render() {
+    if (this.state.hasError) {
+      return (
+        <div style={{ padding: '20px', textAlign: 'center', marginTop: '50px' }}>
+          <h2 style={{ color: '#ef4444' }}>Ocurrió un error inesperado</h2>
+          <p>{this.state.error?.message || 'Error desconocido'}</p>
+          <button 
+            onClick={() => window.location.reload()}
+            style={{ marginTop: '20px', padding: '10px 20px', background: '#25d366', color: 'white', border: 'none', borderRadius: '5px' }}
+          >
+            Recargar aplicación
+          </button>
+        </div>
+      );
+    }
+    return this.props.children;
+  }
+}
+
 // Renderizar la aplicación
 root.render(
   <React.StrictMode>
-    <App />
+    <AppErrorBoundary>
+      <App />
+    </AppErrorBoundary>
   </React.StrictMode>
 );
 

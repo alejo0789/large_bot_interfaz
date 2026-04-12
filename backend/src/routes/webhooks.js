@@ -216,8 +216,9 @@ router.post('/receive-message', asyncHandler(async (req, res) => {
             `, [dbPhone, createdTag.id, 'n8n_agent']);
 
             // 3. Evaluar si forzamos pasar a agente
-            if (createdTag.name.toLowerCase() === 'agendar') {
-                console.log(`✅ Etiqueta 'Agendar' detectada desde n8n. Forzando a estado AGENTE.`);
+            const normalizedTagName = createdTag.name.toLowerCase();
+            if (normalizedTagName === 'agendar' || normalizedTagName === 'soporte') {
+                console.log(`✅ Etiqueta '${createdTag.name}' detectada desde n8n. Forzando a estado AGENTE.`);
                 
                 await pool.query(`
                     UPDATE conversations 
