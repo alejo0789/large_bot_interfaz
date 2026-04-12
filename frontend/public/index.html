@@ -412,14 +412,31 @@
       document.body.classList.add('mobile-device');
     }
 
-    // Error handling global
+    // Error handling global (Capture phase)
     window.addEventListener('error', function (e) {
+      const msg = (e.message || '').toString();
+      const errText = (e.error && e.error.toString()) || '';
+      if (msg.includes('EmptyRanges') || errText.includes('EmptyRanges') ||
+          msg.includes('played@') || errText.includes('played@') ||
+          msg.includes('syncControl@') || errText.includes('syncControl@') ||
+          msg.includes('handleEvent@') || errText.includes('handleEvent@')) {
+        e.preventDefault();
+        e.stopImmediatePropagation();
+        console.warn('⚠️ Ignorando error nativo de Safari/iOS:', msg || errText);
+        return true;
+      }
       console.error('Error en la aplicación:', e.error);
-    });
+    }, true);
 
     window.addEventListener('unhandledrejection', function (e) {
+      const reason = (e.reason || '').toString();
+      if (reason.includes('EmptyRanges') || reason.includes('syncControl')) {
+        e.preventDefault();
+        e.stopImmediatePropagation();
+        return;
+      }
       console.error('Promise rechazada:', e.reason);
-    });
+    }, true);
 
     // PWA support detection and registration
     if ('serviceWorker' in navigator) {

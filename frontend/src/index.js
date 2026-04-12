@@ -40,16 +40,35 @@ if (process.env.NODE_ENV === 'production') {
   }
 }
 
-// Error boundary global para Railway
 window.addEventListener('unhandledrejection', (event) => {
+  const reason = (event.reason || '').toString();
+  if (reason.includes('EmptyRanges') || reason.includes('syncControl')) {
+    event.preventDefault();
+    event.stopImmediatePropagation();
+    return;
+  }
   console.error('🚨 Promise rechazada:', event.reason);
   // En Railway, estos logs aparecerán en el dashboard
-});
+}, true);
 
 window.addEventListener('error', (event) => {
+  const msg = (event.message || '').toString();
+  const errText = (event.error && event.error.toString()) || '';
+  if (
+    msg.includes('EmptyRanges') || errText.includes('EmptyRanges') ||
+    msg.includes('played@') || errText.includes('played@') ||
+    msg.includes('syncControl@') || errText.includes('syncControl@') ||
+    msg.includes('handleEvent@') || errText.includes('handleEvent@')
+  ) {
+    event.preventDefault();
+    event.stopImmediatePropagation();
+    console.warn('⚠️ Ignorando error nativo de Safari/iOS media:', msg || errText);
+    return true;
+  }
+
   console.error('🚨 Error global:', event.error);
   // Enviar errores a servicio de monitoreo si lo deseas
-});
+}, true);
 
 // Log de información de Railway
 if (window.location.hostname.includes('railway.app')) {
