@@ -77,6 +77,7 @@ async function alignDatabases() {
                         updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
                         is_pinned BOOLEAN DEFAULT FALSE,
                         lead_intent VARCHAR(255),
+                        lead_time VARCHAR(255),
                         metadata JSONB
                     );
 
@@ -229,6 +230,7 @@ async function alignDatabases() {
                     ALTER TABLE conversations ADD COLUMN IF NOT EXISTS unread_count INTEGER DEFAULT 0;
                     ALTER TABLE conversations ADD COLUMN IF NOT EXISTS conversation_state VARCHAR(50) DEFAULT 'ai_active';
                     ALTER TABLE conversations ADD COLUMN IF NOT EXISTS lead_intent VARCHAR(255);
+                    ALTER TABLE conversations ADD COLUMN IF NOT EXISTS lead_time VARCHAR(255);
                     ALTER TABLE conversations ADD COLUMN IF NOT EXISTS metadata JSONB;
                     
                     ALTER TABLE messages ADD COLUMN IF NOT EXISTS agent_id VARCHAR(50);

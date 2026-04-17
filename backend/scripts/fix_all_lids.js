@@ -106,7 +106,7 @@ async function fixLidsAllTenants() {
                     realPhone = realPhone.replace(/\D/g, '');
                     if (realPhone.startsWith('57') && realPhone.length === 12) realPhone = '+' + realPhone;
                     
-                    const checkLid = await tenantPool.query('SELECT * FROM conversations WHERE phone = $1 OR phone = $2', [rawLid, `${rawLid}@lid`]);
+                    const checkLid = await tenantPool.query('SELECT * FROM conversations WHERE phone = $1 OR phone = $2 OR phone = $3', [rawLid, `${rawLid}@lid`, `+${rawLid}`]);
                     
                     if (checkLid.rows.length > 0) {
                         const conv = checkLid.rows[0];

@@ -6,7 +6,21 @@ import { motion } from 'framer-motion';
 const monthMap = { enero: '01', febrero: '02', marzo: '03', abril: '04', mayo: '05', junio: '06', julio: '07', agosto: '08', septiembre: '09', octubre: '10', noviembre: '11', diciembre: '12' };
 
 const parseDateText = (text) => {
-    const match = text.toLowerCase().match(/(\d{1,2})\s*(?:de)?\s*(enero|febrero|marzo|abril|mayo|junio|julio|agosto|septiembre|octubre|noviembre|diciembre)/);
+    if (!text) return '';
+    const lowerText = text.toLowerCase();
+    
+    const isoMatch = text.match(/(\d{4})-(0[1-9]|1[0-2])-(0[1-9]|[12]\d|3[01])/);
+    if (isoMatch) return isoMatch[0];
+    
+    const slashMatch = text.match(/(0?[1-9]|[12]\d|3[01])[\/-](0?[1-9]|1[0-2])[\/-](\d{4})/);
+    if (slashMatch) {
+        const d = slashMatch[1].padStart(2, '0');
+        const m = slashMatch[2].padStart(2, '0');
+        const y = slashMatch[3];
+        return `${y}-${m}-${d}`;
+    }
+
+    const match = lowerText.match(/(\d{1,2})\s*(?:de)?\s*(enero|febrero|marzo|abril|mayo|junio|julio|agosto|septiembre|octubre|noviembre|diciembre)/);
     if (match) {
         const d = match[1].padStart(2, '0');
         const m = monthMap[match[2]];
@@ -17,6 +31,11 @@ const parseDateText = (text) => {
 };
 
 const parseTimeText = (text) => {
+    if (!text) return '';
+    
+    const strictMatch = text.match(/^([01]\d|2[0-3]):([0-5]\d)$/);
+    if (strictMatch) return strictMatch[0];
+
     const match = text.toLowerCase().match(/(\d{1,2})(?::(\d{2}))?\s*(am|pm|hrs|horas)?/);
     if (match) {
         let h = parseInt(match[1]);
@@ -60,36 +79,59 @@ const ScheduleModal = ({ isOpen, onClose, initialData, onSubmit }) => {
             let horaText = '';
 
             if (initialData.messageText) {
-                const lines = initialData.messageText.split('\n').map(l => l.trim()).filter(Boolean);
+                const messageText = initialData.messageText;
                 
-                if (lines.length >= 3) {
-                    extractedName = lines[0]; // Assuming line 1 is Name
-                    
-                    correo = lines.find(l => l.includes('@')) || '';
-                    
-                    const digitLines = lines.filter(l => l.replace(/\D/g, '').length >= 7);
-                    if (digitLines.length >= 2) {
-                        cedula = digitLines[0].replace(/[^\w\s-]/g, '').trim();
-                        telefono = digitLines[1].replace(/[^\w\s-]/g, '').trim();
-                    } else if (digitLines.length === 1) {
-                        telefono = digitLines[0].replace(/[^\w\s-]/g, '').trim();
-                    }
+                const extractValue = (pattern) => {
+                    const match = messageText.match(pattern);
+                    return match ? match[1].trim() : '';
+                };
 
-                    const monthsFilter = ['enero','febrero','marzo','abril','mayo','junio','julio','agosto','septiembre','octubre','noviembre','diciembre'];
-                    const dateLine = lines.find(l => monthsFilter.some(m => l.toLowerCase().includes(m)) || l.includes('/'));
-                    if (dateLine) fechaText = dateLine;
+                const parsedNombre = extractValue(/Nombre Completo:\s*(.+)/i);
+                const parsedCedula = extractValue(/C[eé]dula:\s*(.+)/i);
+                const parsedTelefono = extractValue(/Tel[eé]fono:\s*(.+)/i);
+                const parsedCorreo = extractValue(/Correo:\s*(.+)/i);
+                const parsedFecha = extractValue(/Fecha de tu cita:\s*(.+)/i) || extractValue(/Fecha:\s*(.+)/i);
+                const parsedHora = extractValue(/Hora de tu cita:\s*(.+)/i) || extractValue(/Hora:\s*(.+)/i);
 
-                    const timeLine = lines.find(l => l.toLowerCase().includes('am') || l.toLowerCase().includes('pm') || /^\d{1,2}:\d{2}/.test(l));
-                    if (timeLine && timeLine !== dateLine) {
-                        horaText = timeLine;
-                    } else {
-                        const fallbackTime = lines.find(l => /^\d{1,2}\s?(am|pm|hrs|horas)$/i.test(l));
-                        if (fallbackTime && fallbackTime !== dateLine) {
-                            horaText = fallbackTime;
-                        }
-                    }
+                if (parsedNombre || parsedCedula || parsedTelefono || parsedCorreo || parsedFecha || parsedHora) {
+                    if (parsedNombre) extractedName = parsedNombre;
+                    if (parsedCedula) cedula = parsedCedula;
+                    if (parsedTelefono) telefono = parsedTelefono;
+                    if (parsedCorreo) correo = parsedCorreo;
+                    if (parsedFecha) fechaText = parsedFecha;
+                    if (parsedHora) horaText = parsedHora;
                 } else {
-                     extractedName = lines[0]?.slice(0, 50) || extractedName;
+                    const lines = messageText.split('\n').map(l => l.trim()).filter(Boolean);
+                    
+                    if (lines.length >= 3) {
+                        extractedName = lines[0]; // Assuming line 1 is Name
+                        
+                        correo = lines.find(l => l.includes('@')) || '';
+                        
+                        const digitLines = lines.filter(l => l.replace(/\D/g, '').length >= 7);
+                        if (digitLines.length >= 2) {
+                            cedula = digitLines[0].replace(/[^\w\s-]/g, '').trim();
+                            telefono = digitLines[1].replace(/[^\w\s-]/g, '').trim();
+                        } else if (digitLines.length === 1) {
+                            telefono = digitLines[0].replace(/[^\w\s-]/g, '').trim();
+                        }
+
+                        const monthsFilter = ['enero','febrero','marzo','abril','mayo','junio','julio','agosto','septiembre','octubre','noviembre','diciembre'];
+                        const dateLine = lines.find(l => monthsFilter.some(m => l.toLowerCase().includes(m)) || l.includes('/'));
+                        if (dateLine) fechaText = dateLine;
+
+                        const timeLine = lines.find(l => l.toLowerCase().includes('am') || l.toLowerCase().includes('pm') || /^\d{1,2}:\d{2}/.test(l));
+                        if (timeLine && timeLine !== dateLine) {
+                            horaText = timeLine;
+                        } else {
+                            const fallbackTime = lines.find(l => /^\d{1,2}\s?(am|pm|hrs|horas)$/i.test(l));
+                            if (fallbackTime && fallbackTime !== dateLine) {
+                                horaText = fallbackTime;
+                            }
+                        }
+                    } else if (lines.length > 0) {
+                         extractedName = lines[0]?.slice(0, 50) || extractedName;
+                    }
                 }
             }
 
