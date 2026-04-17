@@ -29,7 +29,15 @@ const LoginPage = () => {
             return;
         }
 
-        // 2. Load only if user previously checked "Remember Me" in this NEW system
+        // 2. Check for session expiration message
+        const urlParams = new URLSearchParams(window.location.search);
+        if (urlParams.get('expired') === 'true') {
+            setError('Su sesión ha expirado por seguridad. Por favor, ingrese de nuevo.');
+            // Clean URL
+            window.history.replaceState({}, document.title, window.location.pathname);
+        }
+
+        // 3. Load only if user previously checked "Remember Me" in this NEW system
         const remUser = localStorage.getItem('rem_u');
         const remPass = localStorage.getItem('rem_p');
 

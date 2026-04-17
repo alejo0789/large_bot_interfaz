@@ -1,13 +1,31 @@
-import React, { useRef, useEffect, useMemo } from 'react';
+import React, { useRef, useEffect, useMemo, useCallback, useState } from 'react';
 import MessageBubble from './MessageBubble';
 import DateSeparator from './DateSeparator';
 import { groupMessagesByDate } from '../../utils/dateUtils';
 
 /**
- * Message list component with date grouping
+ * Message list component with date grouping + scroll-to-top pagination
  */
-const MessageList = ({ messages, isLoading, onForward, onReact, onDelete, onReply, onEdit, onSchedule, onPhoneClick }) => {
+const MessageList = ({
+    messages,
+    isLoading,
+    onForward,
+    onReact,
+    onDelete,
+    onReply,
+    onEdit,
+    onSchedule,
+    onPhoneClick,
+    // Older-message pagination props
+    onLoadOlder,
+    hasMoreOlder,
+    isLoadingOlder
+}) => {
+    const listRef = useRef(null);
     const messagesEndRef = useRef(null);
+    const prevMessageCountRef = useRef(0);
+    const prevScrollHeightRef = useRef(0);
+    const isInitialLoadRef = useRef(true);
 
     // Group messages by date
     const groupedMessages = useMemo(() => {
@@ -24,20 +42,80 @@ const MessageList = ({ messages, isLoading, onForward, onReact, onDelete, onRepl
         });
     }, [groupedMessages]);
 
-    // Auto scroll to bottom when new messages arrive
+    const currentCount = messages?.length || 0;
+
+    // On initial load (or when conversation changes): scroll to bottom
     useEffect(() => {
-        if (!messages || messages.length === 0) return;
+        if (!messages || messages.length === 0) {
+            isInitialLoadRef.current = true;
+            prevMessageCountRef.current = 0;
+            return;
+        }
 
-        // Perform instant scroll first
-        messagesEndRef.current?.scrollIntoView({ behavior: 'auto' });
-
-        // Backup scroll after a short delay for images/layout
-        const timeoutId = setTimeout(() => {
+        if (isInitialLoadRef.current) {
+            // Initial load: scroll to bottom instantly
             messagesEndRef.current?.scrollIntoView({ behavior: 'auto' });
-        }, 100);
+            const t = setTimeout(() => {
+                messagesEndRef.current?.scrollIntoView({ behavior: 'auto' });
+            }, 150);
+            isInitialLoadRef.current = false;
+            prevMessageCountRef.current = currentCount;
+            return () => clearTimeout(t);
+        }
 
-        return () => clearTimeout(timeoutId);
-    }, [messages]);
+        // New messages appended at the bottom (incoming/sent): scroll to bottom
+        if (currentCount > prevMessageCountRef.current) {
+            const added = currentCount - prevMessageCountRef.current;
+            // Only auto-scroll if messages were added at the END (not prepended older ones)
+            // If scroll height changed significantly at the top, it's older messages — don't scroll
+            const list = listRef.current;
+            if (list) {
+                const isNearBottom = list.scrollHeight - list.scrollTop - list.clientHeight < 200;
+                if (isNearBottom || added <= 3) {
+                    // Likely a new incoming/sent message — scroll down
+                    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+                }
+                // else: user scrolled up to read history; don't hijack scroll
+            }
+        }
+
+        prevMessageCountRef.current = currentCount;
+    }, [messages, currentCount]);
+
+    // Scroll anchor: when older messages get prepended, maintain scroll position
+    useEffect(() => {
+        const list = listRef.current;
+        if (!list) return;
+
+        const newScrollHeight = list.scrollHeight;
+        const diff = newScrollHeight - prevScrollHeightRef.current;
+
+        // Only compensate if we were near the top (loading older messages)
+        if (prevScrollHeightRef.current > 0 && diff > 0 && list.scrollTop < 100) {
+            list.scrollTop = diff;
+        }
+
+        prevScrollHeightRef.current = newScrollHeight;
+    }, [currentCount]);
+
+    // Reset on conversation change (detect by message array reference changing to smaller set)
+    useEffect(() => {
+        if (currentCount <= 50) {
+            isInitialLoadRef.current = true;
+        }
+    }, [currentCount]);
+
+    // Detect scroll to top → load older messages
+    const handleScroll = useCallback(() => {
+        const list = listRef.current;
+        if (!list || !onLoadOlder || !hasMoreOlder || isLoadingOlder) return;
+
+        if (list.scrollTop < 80) {
+            // Save scroll height before loading
+            prevScrollHeightRef.current = list.scrollHeight;
+            onLoadOlder();
+        }
+    }, [onLoadOlder, hasMoreOlder, isLoadingOlder]);
 
     if (isLoading) {
         return (
@@ -63,7 +141,33 @@ const MessageList = ({ messages, isLoading, onForward, onReact, onDelete, onRepl
     }
 
     return (
-        <div className="chat-messages">
+        <div
+            className="chat-messages"
+            ref={listRef}
+            onScroll={handleScroll}
+        >
+            {/* Load-older indicator at the top */}
+            {isLoadingOlder && (
+                <div style={{
+                    textAlign: 'center',
+                    padding: '8px',
+                    color: 'var(--color-gray-500)',
+                    fontSize: 'var(--font-size-sm)'
+                }}>
+                    <span>Cargando mensajes anteriores...</span>
+                </div>
+            )}
+            {!hasMoreOlder && currentCount > 0 && (
+                <div style={{
+                    textAlign: 'center',
+                    padding: '6px',
+                    color: 'var(--color-gray-400)',
+                    fontSize: 'var(--font-size-xs)'
+                }}>
+                    Inicio de la conversación
+                </div>
+            )}
+
             {sortedDateKeys.map(dateKey => {
                 const group = groupedMessages[dateKey];
                 return (

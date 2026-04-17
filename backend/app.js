@@ -29,6 +29,7 @@ const { startTimeTrackerJob } = require('./src/jobs/timeTrackerJob');
 // Middleware
 const { errorHandler } = require('./src/middleware/errorHandler');
 const tenantMiddleware = require('./src/middleware/tenantMiddleware');
+const jwtAuth = require('./src/middleware/jwtAuth');
 
 // Routes
 const authRoutes = require('./src/routes/auth');
@@ -110,17 +111,19 @@ app.use('/api/admin', adminRoutes);
 app.use(tenantMiddleware);
 
 // Protected Tenant Routes
-app.use('/api/conversations', conversationRoutes);
-app.use('/api/tags', tagRoutes);
-app.use('/api', messageRoutes);
+app.use('/api/conversations', jwtAuth, conversationRoutes);
+app.use('/api/tags', jwtAuth, tagRoutes);
+app.use('/api/settings', jwtAuth, settingsRoutes);
+app.use('/api/quick-replies', jwtAuth, quickReplyRoutes);
+app.use('/api/bulk-templates', jwtAuth, require('./src/routes/bulkTemplates'));
+app.use('/api/ai-knowledge', jwtAuth, require('./src/routes/ai_knowledge'));
+app.use('/api/dashboard', jwtAuth, require('./src/routes/dashboard'));
+app.use('/api', jwtAuth, messageRoutes);
+
+// External Webhooks and Integration Routes (Not always using JWT)
 app.use('/webhook', webhookRoutes);
 app.use('/evolution', evolutionRoutes);
 app.use('/webhook/meta', whatsappOfficialRoutes);
-app.use('/api/settings', settingsRoutes);
-app.use('/api/quick-replies', quickReplyRoutes);
-app.use('/api/bulk-templates', require('./src/routes/bulkTemplates'));
-app.use('/api/ai-knowledge', require('./src/routes/ai_knowledge'));
-app.use('/api/dashboard', require('./src/routes/dashboard'));
 
 // Health check
 app.get('/health', (req, res) => {

@@ -8,7 +8,7 @@ const BASE_URL = 'https://evolution-api-production-8e62.up.railway.app';
 const API_KEY = 'hash_12345';
 const INSTANCE = 'distribuidores_ventas';
 
-const DAYS_AGO = 20;
+const DAYS_AGO = 2;
 const cutoffDate = new Date();
 cutoffDate.setDate(cutoffDate.getDate() - DAYS_AGO);
 const cutoffTimestamp = Math.floor(cutoffDate.getTime() / 1000);
@@ -53,7 +53,10 @@ async function syncRecent() {
 
     for (let i = 0; i < chats.length; i++) {
         const chat = chats[i];
-        const lastActive = chat.conversationTimestamp || 0;
+        
+        // Use lastMessage timestamp or updatedAt as fallback
+        const lastActive = chat.lastMessage?.messageTimestamp || 
+                          (chat.updatedAt ? Math.floor(new Date(chat.updatedAt).getTime() / 1000) : 0);
 
         // Stop once we're past the cutoff (they're ordered desc)
         if (lastActive < cutoffTimestamp && lastActive !== 0) {

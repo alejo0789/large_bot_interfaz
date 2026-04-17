@@ -3,7 +3,7 @@ const jwt = require('jsonwebtoken');
 const { dbManager } = require('../config/database');
 
 const JWT_SECRET = process.env.JWT_SECRET || 'chatbot_secret_key_change_in_production';
-const JWT_EXPIRES_IN = '2h';
+const JWT_EXPIRES_IN = '12h';
 const SALT_ROUNDS = 10;
 
 class AuthService {

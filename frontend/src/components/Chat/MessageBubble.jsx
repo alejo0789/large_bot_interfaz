@@ -5,7 +5,7 @@ import EmojiPicker from 'emoji-picker-react';
 /**
  * Message bubble component with media support, reactions, and actions
  */
-const MessageBubble = ({ message, onForward, onReact, onDelete, onReply, onEdit, onSchedule, onPhoneClick }) => {
+const MessageBubble = React.memo(({ message, onForward, onReact, onDelete, onReply, onEdit, onSchedule, onPhoneClick }) => {
     const { text, timestamp, status, id, reactions = [], edited } = message;
     const rawSender = message.sender || message.sender_type || 'customer';
     const sender = String(rawSender).toLowerCase().trim();
@@ -918,7 +918,19 @@ const MessageBubble = ({ message, onForward, onReact, onDelete, onReply, onEdit,
             }
         </>
     );
-};
+}, (prevProps, nextProps) => {
+    // Only re-render if the message data has changed (status, text, reactions, etc.)
+    const pm = prevProps.message;
+    const nm = nextProps.message;
+    return (
+        pm.id === nm.id &&
+        pm.status === nm.status &&
+        pm.text === nm.text &&
+        pm.media_url === nm.media_url &&
+        pm.edited === nm.edited &&
+        JSON.stringify(pm.reactions) === JSON.stringify(nm.reactions)
+    );
+});
 
 export default MessageBubble;
 

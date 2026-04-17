@@ -72,15 +72,20 @@ const optimizeMedia = async (req, res, next) => {
                 .on('end', () => {
                     try {
                         if (fs.existsSync(filePath)) fs.unlinkSync(filePath); // Eliminar original
-                        fs.renameSync(optimizedPath, filePath); // Reemplazar con el comprimido manteniendo el nombre original
+                        
+                        // Update req.file details so the correct mp3 path and extension is used downstream
+                        req.file.path = optimizedPath;
+                        req.file.filename = path.basename(optimizedPath);
+                        req.file.mimetype = 'audio/mpeg';
+                        req.file.originalname = req.file.originalname.replace(ext, '.mp3');
 
-                        const stats = fs.statSync(filePath);
+                        const stats = fs.statSync(optimizedPath);
                         req.file.size = stats.size;
                         const savedPercentage = ((oldSize - stats.size) / oldSize * 100).toFixed(1);
-                        console.log(`✅ Audio optimizado: ${filename} (De ${(oldSize / 1024).toFixed(1)}KB a ${(stats.size / 1024).toFixed(1)}KB - Ahorro: ${savedPercentage}%)`);
+                        console.log(`✅ Audio optimizado: ${req.file.filename} (De ${(oldSize / 1024).toFixed(1)}KB a ${(stats.size / 1024).toFixed(1)}KB - Ahorro: ${savedPercentage}%)`);
                         return next();
                     } catch (err) {
-                        console.error('❌ Error al reemplazar audio optimizado:', err);
+                        console.error('❌ Error al manejar audio optimizado:', err);
                         return next();
                     }
                 })

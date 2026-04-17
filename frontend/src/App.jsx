@@ -175,7 +175,10 @@ const AuthenticatedApp = () => {
         removeConversation,
         togglePin,
         globalDefaultAi,
-        updateConversationLocal
+        updateConversationLocal,
+        messagePaginationByPhone,
+        isLoadingOlderMessages,
+        loadOlderMessages
     } = useConversations(socket);
 
     const {
@@ -1271,6 +1274,9 @@ const AuthenticatedApp = () => {
                                     onEdit={setEditingMessage}
                                     onSchedule={handleScheduleMessage}
                                     onPhoneClick={handleStartNewChat}
+                                    onLoadOlder={selectedConversation ? () => loadOlderMessages(selectedConversation.contact.phone) : undefined}
+                                    hasMoreOlder={selectedConversation ? (messagePaginationByPhone[selectedConversation.contact.phone]?.hasMore ?? false) : false}
+                                    isLoadingOlder={isLoadingOlderMessages}
                                 />
                             </div>
 

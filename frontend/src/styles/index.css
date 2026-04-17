@@ -203,6 +203,10 @@ body {
   overflow-x: hidden;
   scrollbar-width: thin;
   scrollbar-color: var(--color-gray-300) transparent;
+  /* GPU acceleration for smooth scroll on mobile */
+  -webkit-overflow-scrolling: touch;
+  overscroll-behavior: contain;
+  will-change: scroll-position;
 }
 
 .conversation-list::-webkit-scrollbar {
@@ -245,6 +249,9 @@ body {
   max-width: 100%;
   width: 100%;
   box-sizing: border-box;
+  /* Smooth momentum scrolling on iOS */
+  -webkit-overflow-scrolling: touch;
+  overscroll-behavior: contain;
 }
 
 .chat-input-container {
@@ -268,8 +275,10 @@ body {
   cursor: pointer;
   background-color: var(--color-white);
   border-bottom: 1px solid var(--color-gray-100);
-  transition: all var(--transition-fast);
+  transition: background-color var(--transition-fast);
   border-left: 3px solid transparent;
+  /* Isolate reflows to each item */
+  contain: layout style;
 }
 
 .conversation-item.unread {

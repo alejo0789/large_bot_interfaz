@@ -79,9 +79,7 @@ router.get('/:phone/messages', asyncHandler(async (req, res) => {
     const { phone } = req.params;
     const { limit, before, after, legacy } = req.query;
 
-    const result = await messageService.getInitialMessages(phone, parseInt(limit) || 50);
-
-    // If cursor is provided, use pagination
+    // If cursor is provided, use cursor-based pagination only (no initial load)
     if (before || after) {
         const cursorResult = await messageService.getByConversation(phone, {
             limit: parseInt(limit) || 30,
@@ -89,9 +87,11 @@ router.get('/:phone/messages', asyncHandler(async (req, res) => {
             after: after || null
         });
 
-        console.log(`✅ Loaded ${cursorResult.data.length} messages for ${phone} (paginated)`);
+        console.log(`✅ Loaded ${cursorResult.data.length} messages for ${phone} (cursor: before=${before}, after=${after})`);
         return res.json(cursorResult);
     }
+
+    const result = await messageService.getInitialMessages(phone, parseInt(limit) || 50);
 
     // Support legacy format for backward compatibility
     if (legacy === 'true') {

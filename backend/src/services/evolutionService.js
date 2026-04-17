@@ -158,7 +158,10 @@ class EvolutionService {
 
             const cleanNumber = phone.replace(/\D/g, '');
             const isJID = phone.includes('-') || phone.includes('@');
-            const url = `${this.baseUrl}/message/sendMedia/${instance}`;
+            
+            // Si es audio, usamos sendWhatsAppAudio para que se envíe como nota de voz
+            const endpoint = validMediaType === 'audio' ? 'sendWhatsAppAudio' : 'sendMedia';
+            const url = `${this.baseUrl}/message/${endpoint}/${instance}`;
 
             // Extract replyMessageId from arguments if provided
             const replyMessageId = arguments.length > 5 ? arguments[5] : null;
@@ -201,32 +204,58 @@ class EvolutionService {
                 };
             }
 
-            const attempts = [
-                {
-                    name: 'standard (media + mediatype)',
-                    body: {
-                        number: isJID ? phone : `${cleanNumber}@s.whatsapp.net`,
-                        mediatype: validMediaType,
-                        media: finalMediaUrl,
-                        caption: caption || '',
-                        fileName: finalFileName,
-                        quoted: options.quoted,
-                        ...options
+            let attempts = [];
+
+            if (validMediaType === 'audio') {
+                // Para sendWhatsAppAudio el payload principal usa 'audio' en vez de 'media'
+                attempts = [
+                    {
+                        name: 'whatsappAudio (JID)',
+                        body: {
+                            number: isJID ? phone : `${cleanNumber}@s.whatsapp.net`,
+                            audio: finalMediaUrl,
+                            quoted: options.quoted,
+                            ...options
+                        }
+                    },
+                    {
+                        name: 'whatsappAudio (Clean Number)',
+                        body: {
+                            number: isJID ? phone : cleanNumber,
+                            audio: finalMediaUrl,
+                            quoted: options.quoted,
+                            ...options
+                        }
                     }
-                },
-                {
-                    name: 'standard (clean number)',
-                    body: {
-                        number: isJID ? phone : cleanNumber,
-                        mediatype: validMediaType,
-                        media: finalMediaUrl,
-                        caption: caption || '',
-                        fileName: finalFileName,
-                        quoted: options.quoted,
-                        ...options
+                ];
+            } else {
+                attempts = [
+                    {
+                        name: 'standard (media + mediatype)',
+                        body: {
+                            number: isJID ? phone : `${cleanNumber}@s.whatsapp.net`,
+                            mediatype: validMediaType,
+                            media: finalMediaUrl,
+                            caption: caption || '',
+                            fileName: finalFileName,
+                            quoted: options.quoted,
+                            ...options
+                        }
+                    },
+                    {
+                        name: 'standard (clean number)',
+                        body: {
+                            number: isJID ? phone : cleanNumber,
+                            mediatype: validMediaType,
+                            media: finalMediaUrl,
+                            caption: caption || '',
+                            fileName: finalFileName,
+                            quoted: options.quoted,
+                            ...options
+                        }
                     }
-                }
-            ];
+                ];
+            }
 
             let lastError = null;
 

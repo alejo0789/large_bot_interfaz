@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import apiFetch from '../utils/api';
 
 const sortConversations = (conversations) => {
@@ -16,6 +16,9 @@ const sortConversations = (conversations) => {
  * @param {Object} socket - Socket.IO instance
  * @returns {Object} Conversation state and handlers
  */
+// Maximum number of conversations to keep messages in memory
+const MAX_CACHED_CONVERSATIONS = 5;
+
 export const useConversations = (socket) => {
     const [conversations, setConversations] = useState([]);
     const [selectedConversation, setSelectedConversation] = useState(null);
@@ -26,11 +29,17 @@ export const useConversations = (socket) => {
     const [aiStatesByPhone, setAiStatesByPhone] = useState({});
     const [globalDefaultAi, setGlobalDefaultAi] = useState(true);
 
-    // Pagination state
+    // Conversation list pagination state
     const [currentPage, setCurrentPage] = useState(1);
     const [hasMore, setHasMore] = useState(true);
     const [isLoadingMore, setIsLoadingMore] = useState(false);
     const [searchQuery, setSearchQuery] = useState('');
+
+    // Message pagination state (per conversation)
+    const [messagePaginationByPhone, setMessagePaginationByPhone] = useState({});
+    const [isLoadingOlderMessages, setIsLoadingOlderMessages] = useState(false);
+    // Track order of conversation access for cache eviction (LRU)
+    const conversationAccessOrder = React.useRef([]);
 
     // Fetch global settings
     useEffect(() => {
@@ -152,31 +161,57 @@ export const useConversations = (socket) => {
         await fetchConversations(1, query, false);
     }, [fetchConversations]);
 
-    // Fetch messages for a specific conversation
+    // Fetch messages for a specific conversation (initial load, most recent)
     const fetchMessages = useCallback(async (phone) => {
         try {
             setIsLoadingMessages(true);
             console.log(`🔄 Fetching messages for ${phone}...`);
 
-            const response = await apiFetch(`/api/conversations/${phone}/messages`);
+            const response = await apiFetch(`/api/conversations/${phone}/messages?limit=50`);
             if (!response.ok) throw new Error('Error fetching messages');
 
             const data = await response.json();
             // Handle both paginated and legacy response formats
             const messages = Array.isArray(data) ? data : (data.data || []);
+            const pagination = Array.isArray(data) ? null : data.pagination;
 
             // Log first message for debugging
             if (messages.length > 0) {
                 console.log('📅 First message rawTimestamp:', messages[0].rawTimestamp);
             }
 
-            // Messages already have rawTimestamp from backend, just use them directly
-            setMessagesByConversation(prev => ({
-                ...prev,
-                [phone]: messages
-            }));
+            // Store pagination info for this conversation
+            if (pagination) {
+                setMessagePaginationByPhone(prev => ({
+                    ...prev,
+                    [phone]: {
+                        hasMore: pagination.hasMore,
+                        // oldest message timestamp = cursor for loading even older messages
+                        oldestCursor: messages.length > 0 ? messages[0].rawTimestamp : null
+                    }
+                }));
+            }
 
-            console.log(`✅ Loaded ${messages.length} messages for ${phone}`);
+            // Update LRU access order
+            conversationAccessOrder.current = [
+                phone,
+                ...conversationAccessOrder.current.filter(p => p !== phone)
+            ].slice(0, MAX_CACHED_CONVERSATIONS);
+
+            // Evict oldest conversation from message cache if over limit
+            setMessagesByConversation(prev => {
+                const next = { ...prev, [phone]: messages };
+                const accessOrder = conversationAccessOrder.current;
+                // Remove conversations not in the recent access order
+                Object.keys(next).forEach(p => {
+                    if (!accessOrder.includes(p)) {
+                        delete next[p];
+                    }
+                });
+                return next;
+            });
+
+            console.log(`✅ Loaded ${messages.length} messages for ${phone} (hasMore: ${pagination?.hasMore})`);
             return data;
         } catch (error) {
             console.error(`❌ Error fetching messages for ${phone}:`, error);
@@ -185,6 +220,64 @@ export const useConversations = (socket) => {
             setIsLoadingMessages(false);
         }
     }, []);
+
+    // Load older messages (scroll-to-top infinite scroll)
+    const loadOlderMessages = useCallback(async (phone) => {
+        const paginationInfo = messagePaginationByPhone[phone];
+        if (!paginationInfo?.hasMore || isLoadingOlderMessages) return false;
+        if (!paginationInfo?.oldestCursor) return false;
+
+        try {
+            setIsLoadingOlderMessages(true);
+            console.log(`🔄 Loading older messages for ${phone} before ${paginationInfo.oldestCursor}...`);
+
+            const response = await apiFetch(
+                `/api/conversations/${phone}/messages?limit=30&before=${encodeURIComponent(paginationInfo.oldestCursor)}`
+            );
+            if (!response.ok) throw new Error('Error fetching older messages');
+
+            const data = await response.json();
+            const olderMessages = Array.isArray(data) ? data : (data.data || []);
+            const pagination = Array.isArray(data) ? null : data.pagination;
+
+            if (olderMessages.length === 0) {
+                setMessagePaginationByPhone(prev => ({
+                    ...prev,
+                    [phone]: { ...prev[phone], hasMore: false }
+                }));
+                return false;
+            }
+
+            // Prepend older messages to existing ones
+            setMessagesByConversation(prev => {
+                const current = prev[phone] || [];
+                // Deduplicate by id
+                const existingIds = new Set(current.map(m => m.id));
+                const uniqueOlder = olderMessages.filter(m => !existingIds.has(m.id));
+                return { ...prev, [phone]: [...uniqueOlder, ...current] };
+            });
+
+            // Update cursor to the oldest of the new batch
+            if (pagination) {
+                const newOldest = olderMessages.length > 0 ? olderMessages[0].rawTimestamp : null;
+                setMessagePaginationByPhone(prev => ({
+                    ...prev,
+                    [phone]: {
+                        hasMore: pagination.hasMore,
+                        oldestCursor: newOldest || prev[phone]?.oldestCursor
+                    }
+                }));
+            }
+
+            console.log(`✅ Loaded ${olderMessages.length} older messages for ${phone}`);
+            return true;
+        } catch (error) {
+            console.error(`❌ Error loading older messages for ${phone}:`, error);
+            return false;
+        } finally {
+            setIsLoadingOlderMessages(false);
+        }
+    }, [messagePaginationByPhone, isLoadingOlderMessages]);
 
     // Mark conversation as read
     const markConversationAsRead = useCallback(async (phone) => {
@@ -973,6 +1066,8 @@ export const useConversations = (socket) => {
         searchQuery,
         aiStatesByPhone,
         globalDefaultAi,
+        messagePaginationByPhone,
+        isLoadingOlderMessages,
         fetchConversations,
         loadMoreConversations,
         searchConversations,
@@ -988,7 +1083,8 @@ export const useConversations = (socket) => {
         removeConversation,
         markConversationAsRead,
         markConversationAsUnread,
-        updateConversationLocal
+        updateConversationLocal,
+        loadOlderMessages
     };
 };
 
