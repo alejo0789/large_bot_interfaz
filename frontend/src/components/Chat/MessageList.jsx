@@ -118,8 +118,18 @@ const MessageList = ({
     const handleQuoteClick = useCallback((messageId) => {
         if (!messageId) return;
         
-        // Find the element with the message ID
-        const element = document.getElementById(`msg-${messageId}`);
+        // 1. Try direct DOM lookup first (msg-ID)
+        let element = document.getElementById(`msg-${messageId}`);
+        
+        // 2. Fallback: Search in the actual messages array for ID match
+        // (Maybe the element exists but with the other ID format)
+        if (!element) {
+            const foundMessage = messages.find(m => m.whatsapp_id === messageId || m.id === messageId);
+            if (foundMessage) {
+                const targetId = foundMessage.whatsapp_id || foundMessage.id;
+                element = document.getElementById(`msg-${targetId}`);
+            }
+        }
         
         if (element) {
             element.scrollIntoView({ behavior: 'smooth', block: 'center' });
@@ -132,9 +142,18 @@ const MessageList = ({
                 setHighlightedId(null);
             }, 2500);
         } else {
-            console.warn(`🔍 Message ${messageId} not found in current view`);
+            // 3. Not found in current list
+            console.log(`🔍 Message ${messageId} not found in current view`);
+            
+            // Check if it's in our data but just not in DOM (shouldn't happen but safe)
+            const existsInState = messages.some(m => m.whatsapp_id === messageId || m.id === messageId);
+            
+            if (!existsInState) {
+                // Determine if it was an older message (likely)
+                alert("Este mensaje es antiguo y no se encuentra cargado en la vista actual. Desplázate hacia arriba para cargarlos.");
+            }
         }
-    }, []);
+    }, [messages]);
 
     if (isLoading) {
         return (

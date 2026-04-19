@@ -493,6 +493,7 @@ const MessageBubble = React.memo(({ message, onForward, onReact, onDelete, onRep
                                     e.stopPropagation();
                                     onQuoteClick && onQuoteClick(message.replyTo.id);
                                 }}
+                                title={message.replyTo.text || 'Mensaje original'}
                                 style={{
                                     backgroundColor: 'rgba(0,0,0,0.06)',
                                     borderLeft: '3px solid var(--color-primary)',
