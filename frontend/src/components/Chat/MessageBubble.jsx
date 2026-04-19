@@ -5,7 +5,7 @@ import EmojiPicker from 'emoji-picker-react';
 /**
  * Message bubble component with media support, reactions, and actions
  */
-const MessageBubble = React.memo(({ message, onForward, onReact, onDelete, onReply, onEdit, onSchedule, onPhoneClick }) => {
+const MessageBubble = React.memo(({ message, onForward, onReact, onDelete, onReply, onEdit, onSchedule, onPhoneClick, onQuoteClick }) => {
     const { text, timestamp, status, id, reactions = [], edited } = message;
     const rawSender = message.sender || message.sender_type || 'customer';
     const sender = String(rawSender).toLowerCase().trim();
@@ -487,21 +487,31 @@ const MessageBubble = React.memo(({ message, onForward, onReact, onDelete, onRep
                         )}
 
                         {/* Reply Preview in Bubble */}
-                        {message.replyTo && (
-                            <div style={{
-                                backgroundColor: 'rgba(0,0,0,0.05)',
-                                borderLeft: '3px solid var(--color-primary)',
-                                borderRadius: '4px',
-                                padding: '4px 8px',
-                                marginBottom: '6px',
-                                fontSize: '11px',
-                                color: 'var(--color-gray-600)',
-                                overflow: 'hidden',
-                                cursor: 'default',
-                                maxWidth: '100%',
-                                display: 'flex',
-                                flexDirection: 'column'
-                            }}>
+                         {message.replyTo && (
+                            <div 
+                                onClick={(e) => {
+                                    e.stopPropagation();
+                                    onQuoteClick && onQuoteClick(message.replyTo.id);
+                                }}
+                                style={{
+                                    backgroundColor: 'rgba(0,0,0,0.06)',
+                                    borderLeft: '3px solid var(--color-primary)',
+                                    borderRadius: '4px',
+                                    padding: '6px 8px',
+                                    marginBottom: '6px',
+                                    fontSize: '11px',
+                                    color: 'var(--color-gray-600)',
+                                    overflow: 'hidden',
+                                    cursor: 'pointer',
+                                    maxWidth: '100%',
+                                    display: 'flex',
+                                    flexDirection: 'column',
+                                    transition: 'background-color 0.2s',
+                                    userSelect: 'none'
+                                }}
+                                onMouseEnter={(e) => e.currentTarget.style.backgroundColor = 'rgba(0,0,0,0.1)'}
+                                onMouseLeave={(e) => e.currentTarget.style.backgroundColor = 'rgba(0,0,0,0.06)'}
+                            >
                                 <p style={{
                                     fontWeight: 'bold',
                                     color: 'var(--color-primary)',

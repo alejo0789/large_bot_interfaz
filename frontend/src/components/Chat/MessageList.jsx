@@ -45,7 +45,7 @@ const MessageList = ({
     // --- SCROLL MANAGEMENT ---
     
     // To maintain scroll position when prepending messages, we use useLayoutEffect
-    // to adjust the scrollTop BEFORE the browser paints.
+    const [highlightedId, setHighlightedId] = useState(null);
     const isAddingOlderRef = useRef(false);
 
     // Detect when messages are prepended (length increase)
@@ -114,6 +114,28 @@ const MessageList = ({
         }
     }, [onLoadOlder, hasMoreOlder, isLoadingOlder]);
 
+    // Handle clicking a quote to scroll to original message
+    const handleQuoteClick = useCallback((messageId) => {
+        if (!messageId) return;
+        
+        // Find the element with the message ID
+        const element = document.getElementById(`msg-${messageId}`);
+        
+        if (element) {
+            element.scrollIntoView({ behavior: 'smooth', block: 'center' });
+            
+            // Apply highlight
+            setHighlightedId(messageId);
+            
+            // Clear highlight after animation
+            setTimeout(() => {
+                setHighlightedId(null);
+            }, 2500);
+        } else {
+            console.warn(`🔍 Message ${messageId} not found in current view`);
+        }
+    }, []);
+
     if (isLoading) {
         return (
             <div className="chat-messages flex-center" style={{ height: '100%' }}>
@@ -170,19 +192,29 @@ const MessageList = ({
                 return (
                     <div key={dateKey} className="message-group">
                         <DateSeparator label={group.label} />
-                        {group.messages.map((message, index) => (
-                            <MessageBubble
-                                key={message.id || `${dateKey}-${index}`}
-                                message={message}
-                                onForward={onForward}
-                                onReact={onReact}
-                                onDelete={onDelete}
-                                onReply={onReply}
-                                onEdit={onEdit}
-                                onSchedule={onSchedule}
-                                onPhoneClick={onPhoneClick}
-                            />
-                        ))}
+                        {group.messages.map((message, index) => {
+                            const msgId = message.whatsapp_id || message.id;
+                            return (
+                                <div 
+                                    key={msgId || `${dateKey}-${index}`}
+                                    id={`msg-${msgId}`}
+                                    className={highlightedId === msgId ? 'message-highlight' : ''}
+                                    style={{ borderRadius: '8px', transition: 'transform 0.3s ease' }}
+                                >
+                                    <MessageBubble
+                                        message={message}
+                                        onForward={onForward}
+                                        onReact={onReact}
+                                        onDelete={onDelete}
+                                        onReply={onReply}
+                                        onEdit={onEdit}
+                                        onSchedule={onSchedule}
+                                        onPhoneClick={onPhoneClick}
+                                        onQuoteClick={handleQuoteClick}
+                                    />
+                                </div>
+                            );
+                        })}
                     </div>
                 );
             })}
