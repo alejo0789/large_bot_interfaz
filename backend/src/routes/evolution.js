@@ -32,19 +32,18 @@ const emitToConversation = (phone, event, data) => {
         return;
     }
 
-    // Normalize phone to ensure delivery to formatted rooms
-    const dbPhone = normalizePhone(phone);
-    const purePhone = getPureDigits(phone);
-
-    console.log(`📡 [${tenantSlug}] Emitting ${event} to tenant:${tenantSlug} and conv:${purePhone}`);
-
-    // Emit primary event to both the global tenant room (for sidebar new-message checks) 
-    // and the specific conversation room
-    io.to(`tenant:${tenantSlug}`).to(`tenant:${tenantSlug}:conv:${purePhone}`).emit(event, data);
+    // Normalize phone to ensure delivery to both formats
+    const purePhone = String(phone).replace(/\D/g, '');
+    
+    // Emit to specific conversation room (consistent with messages.js and app.js)
+    io.to(`tenant:${tenantSlug}:conversation:${purePhone}`).emit(event, data);
+    
+    // Also emit to tenant global room as fallback
+    io.to(`tenant:${tenantSlug}`).emit(event, data);
 
     // Also emit the specialized conversation-updated event to the global tenant room
     io.to(`tenant:${tenantSlug}`).emit('conversation-updated', {
-        phone: dbPhone,
+        phone: normalizePhone(phone),
         lastMessage: data.message,
         timestamp: data.timestamp || new Date().toISOString(),
         contact_name: data.contact_name,
@@ -141,7 +140,13 @@ router.post('/', async (req, res) => {
             }
         }
 
-        console.log(`📋 Message Type: ${isFromAgent ? 'FROM AGENT (your phone)' : 'FROM CLIENT'}`);
+        console.log(`📋 [WEBHOOK] Processing: ${isFromAgent ? 'AGENT' : 'CLIENT'} | Event: ${event}`);
+        // DEBUG: Save a sample of the last raw message object to a global for inspection if needed 
+        // or just log a snippet of keys
+        console.log(`🔍 [WEBHOOK] msg.message keys: ${msg.message ? Object.keys(msg.message).join(', ') : 'none'}`);
+        if (msg.message?.extendedTextMessage) {
+             console.log(`🔍 [WEBHOOK] ExtendedTextMessage detected. contextInfo present: ${!!msg.message.extendedTextMessage.contextInfo}`);
+        }
 
         // Helper: detect if a string looks like a raw WhatsApp LID (not a real name)
         const looksLikeLid = (str) => {
@@ -250,25 +255,26 @@ router.post('/', async (req, res) => {
     const extractText = (m) => {
         const unwrapped = unwrapMessage(m);
         if (!unwrapped) return '';
-        return unwrapped.conversation || unwrapped.extendedTextMessage?.text || unwrapped.imageMessage?.caption || unwrapped.videoMessage?.caption || '';
+        return unwrapped.conversation || unwrapped.extendedTextMessage?.text || unwrapped.imageMessage?.caption || unwrapped.videoMessage?.caption || (unwrapped.stickerMessage ? '🎭 Sticker' : '');
     };
 
     // Robust helper to extract replyTo data from any message structure
-    const extractQuotedData = (m) => {
+    const extractQuotedData = (m, root = null) => {
         const unwrapped = unwrapMessage(m);
-        if (!unwrapped) return null;
+        if (!unwrapped && !root) return null;
 
-        // Hunt for contextInfo in common places
-        const contextInfo = unwrapped.contextInfo || 
-            unwrapped.extendedTextMessage?.contextInfo ||
-            unwrapped.imageMessage?.contextInfo ||
-            unwrapped.videoMessage?.contextInfo ||
-            unwrapped.audioMessage?.contextInfo ||
-            unwrapped.documentMessage?.contextInfo ||
-            unwrapped.stickerMessage?.contextInfo ||
-            unwrapped.buttonsResponseMessage?.contextInfo ||
-            unwrapped.templateButtonReplyMessage?.contextInfo ||
-            unwrapped.interactiveResponseMessage?.contextInfo;
+        // Hunt for contextInfo in common places (unwrapped msg, or root msg as fallback)
+        const contextInfo = (unwrapped && unwrapped.contextInfo) || 
+            (root && root.contextInfo) ||
+            unwrapped?.extendedTextMessage?.contextInfo ||
+            unwrapped?.imageMessage?.contextInfo ||
+            unwrapped?.videoMessage?.contextInfo ||
+            unwrapped?.audioMessage?.contextInfo ||
+            unwrapped?.documentMessage?.contextInfo ||
+            unwrapped?.stickerMessage?.contextInfo ||
+            unwrapped?.buttonsResponseMessage?.contextInfo ||
+            unwrapped?.templateButtonReplyMessage?.contextInfo ||
+            unwrapped?.interactiveResponseMessage?.contextInfo;
 
         if (!contextInfo?.quotedMessage) return null;
 
@@ -286,7 +292,7 @@ router.post('/', async (req, res) => {
         const senderPhone = senderJid.split('@')[0];
 
         return {
-            id: contextInfo.stanzaId,
+            id: contextInfo.stanzaId || contextInfo.id || contextInfo.remoteJid,
             text,
             sender: senderPhone || 'Alguien'
         };
@@ -295,6 +301,11 @@ router.post('/', async (req, res) => {
     // Get the core message content
     const unwrappedMsg = unwrapMessage(msg.message);
     const text = extractText(unwrappedMsg);
+    // FALLBACK for flattened Evolution V2 if text is still empty
+    if (!text && msg.content) {
+        console.log('📝 detected flattened Evolution V2 message content');
+    }
+
     let mediaType = null;
     let mediaUrl = null;
     let mimetype = null;
@@ -319,6 +330,10 @@ router.post('/', async (req, res) => {
         mediaType = 'document';
         mediaUrl = unwrappedMsg.documentMessage.url;
         mimetype = unwrappedMsg.documentMessage.mimetype || 'application/octet-stream';
+    } else if (unwrappedMsg?.stickerMessage) {
+        mediaType = 'sticker';
+        mediaUrl = unwrappedMsg.stickerMessage.url;
+        mimetype = unwrappedMsg.stickerMessage.mimetype || 'image/webp';
     } else if (unwrappedMsg?.protocolMessage && unwrappedMsg.protocolMessage.type === "MESSAGE_EDIT") {
 
             console.log("✏️ [WEBHOOK] Received MESSAGE_EDIT protocol message.");
@@ -353,7 +368,7 @@ router.post('/', async (req, res) => {
         }
 
         // --- ROBUST REPLY EXTRACTION ---
-        const replyToData = extractQuotedData(msg.message);
+        const replyToData = extractQuotedData(msg.message, msg);
         if (replyToData) {
             console.log(`💬 Webhook detected REPLY to: ${replyToData.id} | text: "${replyToData.text?.substring(0, 40)}" | sender: ${replyToData.sender}`);
         }
@@ -838,7 +853,7 @@ async function processBatchMessages(messages) {
             await conversationService.upsert(phone, msg.pushName);
 
             // Extract quoted/reply data using the shared helper
-            const batchReplyToData = extractQuotedData(msg.message);
+            const batchReplyToData = extractQuotedData(msg.message, msg);
 
 
             // Save message
