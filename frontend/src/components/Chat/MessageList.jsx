@@ -46,6 +46,7 @@ const MessageList = ({
     
     // To maintain scroll position when prepending messages, we use useLayoutEffect
     const [highlightedId, setHighlightedId] = useState(null);
+    const [previewQuote, setPreviewQuote] = useState(null);
     const isAddingOlderRef = useRef(false);
 
     // Detect when messages are prepended (length increase)
@@ -115,14 +116,15 @@ const MessageList = ({
     }, [onLoadOlder, hasMoreOlder, isLoadingOlder]);
 
     // Handle clicking a quote to scroll to original message
-    const handleQuoteClick = useCallback((messageId) => {
-        if (!messageId) return;
+    const handleQuoteClick = useCallback((replyTo) => {
+        if (!replyTo || !replyTo.id) return;
+        
+        const messageId = replyTo.id;
         
         // 1. Try direct DOM lookup first (msg-ID)
         let element = document.getElementById(`msg-${messageId}`);
         
         // 2. Fallback: Search in the actual messages array for ID match
-        // (Maybe the element exists but with the other ID format)
         if (!element) {
             const foundMessage = messages.find(m => m.whatsapp_id === messageId || m.id === messageId);
             if (foundMessage) {
@@ -142,16 +144,9 @@ const MessageList = ({
                 setHighlightedId(null);
             }, 2500);
         } else {
-            // 3. Not found in current list
-            console.log(`🔍 Message ${messageId} not found in current view`);
-            
-            // Check if it's in our data but just not in DOM (shouldn't happen but safe)
-            const existsInState = messages.some(m => m.whatsapp_id === messageId || m.id === messageId);
-            
-            if (!existsInState) {
-                // Determine if it was an older message (likely)
-                alert("Este mensaje es antiguo y no se encuentra cargado en la vista actual. Desplázate hacia arriba para cargarlos.");
-            }
+            // 3. Not found in current list - Show the "Floating Window" instead of alert
+            console.log(`🔍 Message ${messageId} not found in current view. Showing preview.`);
+            setPreviewQuote(replyTo);
         }
     }, [messages]);
 
@@ -238,6 +233,99 @@ const MessageList = ({
                 );
             })}
             <div ref={messagesEndRef} />
+
+            {/* Floating Quote Preview Modal */}
+            {previewQuote && (
+                <div 
+                    style={{
+                        position: 'absolute',
+                        top: 0,
+                        left: 0,
+                        right: 0,
+                        bottom: 0,
+                        backgroundColor: 'rgba(0,0,0,0.3)',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        zIndex: 1000,
+                        backdropFilter: 'blur(2px)',
+                        padding: '20px'
+                    }}
+                    onClick={() => setPreviewQuote(null)}
+                >
+                    <div 
+                        style={{
+                            backgroundColor: 'white',
+                            borderRadius: '16px',
+                            padding: '20px',
+                            maxWidth: '400px',
+                            width: '100%',
+                            boxShadow: '0 10px 25px rgba(0,0,0,0.2)',
+                            animation: 'slideUp 0.3s ease-out',
+                            position: 'relative'
+                        }}
+                        onClick={(e) => e.stopPropagation()}
+                    >
+                        <div style={{ 
+                            display: 'flex', 
+                            justifyContent: 'space-between', 
+                            alignItems: 'center',
+                            marginBottom: '12px',
+                            borderBottom: '1px solid var(--color-gray-100)',
+                            paddingBottom: '8px'
+                        }}>
+                            <span style={{ 
+                                fontWeight: '600', 
+                                color: 'var(--color-primary)',
+                                fontSize: 'var(--font-size-sm)'
+                            }}>
+                                📝 Mensaje Original
+                            </span>
+                            <button 
+                                onClick={() => setPreviewQuote(null)}
+                                style={{
+                                    border: 'none',
+                                    background: 'none',
+                                    cursor: 'pointer',
+                                    fontSize: '20px',
+                                    color: 'var(--color-gray-400)'
+                                }}
+                            >
+                                ×
+                            </button>
+                        </div>
+                        
+                        <div style={{ 
+                            fontSize: 'var(--font-size-md)',
+                            lineHeight: '1.5',
+                            color: 'var(--color-gray-800)',
+                            maxHeight: '300px',
+                            overflowY: 'auto',
+                            whiteSpace: 'pre-wrap'
+                        }}>
+                            <div style={{ 
+                                fontSize: 'var(--font-size-xs)', 
+                                color: 'var(--color-gray-500)',
+                                marginBottom: '4px',
+                                fontWeight: '500'
+                            }}>
+                                {previewQuote.sender || 'Usuario'} escribió:
+                            </div>
+                            {previewQuote.text || 'Archivo multimedia'}
+                        </div>
+                        
+                        <div style={{ marginTop: '16px', textAlign: 'right' }}>
+                            <button 
+                                className="btn btn-primary"
+                                style={{ padding: '6px 16px', fontSize: '13px' }}
+                                onClick={() => setPreviewQuote(null)}
+                            >
+                                Entendido
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
         </div>
     );
 };

@@ -491,7 +491,7 @@ const MessageBubble = React.memo(({ message, onForward, onReact, onDelete, onRep
                             <div 
                                 onClick={(e) => {
                                     e.stopPropagation();
-                                    onQuoteClick && onQuoteClick(message.replyTo.id);
+                                    onQuoteClick && onQuoteClick(message.replyTo);
                                 }}
                                 title={message.replyTo.text || 'Mensaje original'}
                                 style={{
