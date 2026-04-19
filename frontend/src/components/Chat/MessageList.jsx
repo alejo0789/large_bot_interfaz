@@ -119,33 +119,45 @@ const MessageList = ({
     const handleQuoteClick = useCallback((replyTo) => {
         if (!replyTo || !replyTo.id) return;
         
-        const messageId = replyTo.id;
+        // Clean ID (remove @s.whatsapp.net suffix and trim)
+        const rawId = String(replyTo.id).split('@')[0].trim();
         
-        // 1. Try direct DOM lookup first (msg-ID)
-        let element = document.getElementById(`msg-${messageId}`);
+        console.log(`🎯 Attempting to scroll to message: ${rawId}`);
         
-        // 2. Fallback: Search in the actual messages array for ID match
+        // 1. Direct DOM lookup
+        let element = document.getElementById(`msg-${rawId}`);
+        
+        // 2. Search in state with flexible matching (handling both WA ID and DB ID)
         if (!element) {
-            const foundMessage = messages.find(m => m.whatsapp_id === messageId || m.id === messageId);
+            const foundMessage = messages.find(m => {
+                const waId = m.whatsapp_id ? String(m.whatsapp_id).split('@')[0].trim() : null;
+                const dbId = m.id ? String(m.id).trim() : null;
+                return waId === rawId || dbId === rawId;
+            });
+            
             if (foundMessage) {
-                const targetId = foundMessage.whatsapp_id || foundMessage.id;
+                const targetId = String(foundMessage.whatsapp_id || foundMessage.id).split('@')[0].trim();
                 element = document.getElementById(`msg-${targetId}`);
+                console.log(`📍 Found in state. Target DOM ID: msg-${targetId}`);
             }
         }
         
-        if (element) {
-            element.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        if (element && listRef.current) {
+            console.log('✨ Message element found! Scrolling...');
             
-            // Apply highlight
-            setHighlightedId(messageId);
+            // Highlight original message ID
+            const elementMsgId = element.id.replace('msg-', '');
+            setHighlightedId(elementMsgId);
+
+            // Robust scroll logic
+            element.scrollIntoView({ behavior: 'smooth', block: 'center' });
             
             // Clear highlight after animation
             setTimeout(() => {
                 setHighlightedId(null);
             }, 2500);
         } else {
-            // 3. Not found in current list - Show the "Floating Window" instead of alert
-            console.log(`🔍 Message ${messageId} not found in current view. Showing preview.`);
+            console.log(`❌ Message ${rawId} not found in DOM or state. Showing modal.`);
             setPreviewQuote(replyTo);
         }
     }, [messages]);
@@ -207,7 +219,8 @@ const MessageList = ({
                     <div key={dateKey} className="message-group">
                         <DateSeparator label={group.label} />
                         {group.messages.map((message, index) => {
-                            const msgId = message.whatsapp_id || message.id;
+                            // Clean the ID for matching (important for WhatsApp suffixes)
+                            const msgId = String(message.whatsapp_id || message.id).split('@')[0].trim();
                             return (
                                 <div 
                                     key={msgId || `${dateKey}-${index}`}
