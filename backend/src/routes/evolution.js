@@ -243,31 +243,38 @@ router.post('/', async (req, res) => {
         let mediaUrl = null;
         let mimetype = null;
 
-        if (msg.message.conversation) {
-            text = msg.message.conversation;
-        } else if (msg.message.extendedTextMessage?.text) {
-            text = msg.message.extendedTextMessage.text;
-        } else if (msg.message.imageMessage) {
-            text = msg.message.imageMessage.caption || null;
+        // --- ROBUST MESSAGE UNWRAPPING for Text Extraction ---
+        let mainMsg = msg.message;
+        if (mainMsg?.ephemeralMessage) mainMsg = mainMsg.ephemeralMessage.message;
+        if (mainMsg?.viewOnceMessage) mainMsg = mainMsg.viewOnceMessage.message;
+        if (mainMsg?.viewOnceMessageV2) mainMsg = mainMsg.viewOnceMessageV2.message;
+        if (mainMsg?.documentWithCaptionMessage) mainMsg = mainMsg.documentWithCaptionMessage.message;
+
+        if (mainMsg?.conversation) {
+            text = mainMsg.conversation;
+        } else if (mainMsg?.extendedTextMessage?.text) {
+            text = mainMsg.extendedTextMessage.text;
+        } else if (mainMsg?.imageMessage) {
+            text = mainMsg.imageMessage.caption || null;
             mediaType = 'image';
-            mediaUrl = msg.message.imageMessage.url;
-            mimetype = msg.message.imageMessage.mimetype || 'image/jpeg';
-        } else if (msg.message.videoMessage) {
-            text = msg.message.videoMessage.caption || null;
+            mediaUrl = mainMsg.imageMessage.url;
+            mimetype = mainMsg.imageMessage.mimetype || 'image/jpeg';
+        } else if (mainMsg?.videoMessage) {
+            text = mainMsg.videoMessage.caption || null;
             mediaType = 'video';
-            mediaUrl = msg.message.videoMessage.url;
-            mimetype = msg.message.videoMessage.mimetype || 'video/mp4';
-        } else if (msg.message.audioMessage) {
+            mediaUrl = mainMsg.videoMessage.url;
+            mimetype = mainMsg.videoMessage.mimetype || 'video/mp4';
+        } else if (mainMsg?.audioMessage) {
             text = null;
             mediaType = 'audio';
-            mediaUrl = msg.message.audioMessage.url;
-            mimetype = msg.message.audioMessage.mimetype || 'audio/ogg; codecs=opus';
-        } else if (msg.message.documentMessage) {
-            text = msg.message.documentMessage.fileName || '📄 Documento';
+            mediaUrl = mainMsg.audioMessage.url;
+            mimetype = mainMsg.audioMessage.mimetype || 'audio/ogg; codecs=opus';
+        } else if (mainMsg?.documentMessage) {
+            text = mainMsg.documentMessage.fileName || '📄 Documento';
             mediaType = 'document';
-            mediaUrl = msg.message.documentMessage.url;
-            mimetype = msg.message.documentMessage.mimetype || 'application/octet-stream';
-        } else if (msg.message.protocolMessage && msg.message.protocolMessage.type === "MESSAGE_EDIT") {
+            mediaUrl = mainMsg.documentMessage.url;
+            mimetype = mainMsg.documentMessage.mimetype || 'application/octet-stream';
+        } else if (mainMsg?.protocolMessage && mainMsg.protocolMessage.type === "MESSAGE_EDIT") {
             console.log("✏️ [WEBHOOK] Received MESSAGE_EDIT protocol message.");
             const editedMsg = msg.message.protocolMessage;
             const targetId = editedMsg.key.id;
@@ -299,22 +306,38 @@ router.post('/', async (req, res) => {
             return res.sendStatus(200);
         }
 
+        // --- ROBUST MESSAGE UNWRAPPING ---
+        // Some messages are wrapped in ephemeralMessage or viewOnceMessage
+        let realMessage = msg.message;
+        if (realMessage?.ephemeralMessage) realMessage = realMessage.ephemeralMessage.message;
+        if (realMessage?.viewOnceMessage) realMessage = realMessage.viewOnceMessage.message;
+        if (realMessage?.viewOnceMessageV2) realMessage = realMessage.viewOnceMessageV2.message;
+        if (realMessage?.documentWithCaptionMessage) realMessage = realMessage.documentWithCaptionMessage.message;
+
         // --- REPLY / QUOTED MESSAGE EXTRACTION ---
         let replyToData = null;
-        // Extract contextInfo from all supported message types (WhatsApp sends quoted info here)
-        const contextInfo = msg.message?.extendedTextMessage?.contextInfo ||
-            msg.message?.imageMessage?.contextInfo ||
-            msg.message?.videoMessage?.contextInfo ||
-            msg.message?.audioMessage?.contextInfo ||
-            msg.message?.documentMessage?.contextInfo ||
-            msg.message?.stickerMessage?.contextInfo ||
-            msg.message?.buttonsResponseMessage?.contextInfo ||
-            msg.message?.templateButtonReplyMessage?.contextInfo ||
-            msg.message?.interactiveResponseMessage?.contextInfo ||
+        
+        // Extract contextInfo: check root and all common message types
+        const contextInfo = realMessage?.contextInfo ||
+            realMessage?.extendedTextMessage?.contextInfo ||
+            realMessage?.imageMessage?.contextInfo ||
+            realMessage?.videoMessage?.contextInfo ||
+            realMessage?.audioMessage?.contextInfo ||
+            realMessage?.documentMessage?.contextInfo ||
+            realMessage?.stickerMessage?.contextInfo ||
+            realMessage?.buttonsResponseMessage?.contextInfo ||
+            realMessage?.templateButtonReplyMessage?.contextInfo ||
+            realMessage?.interactiveResponseMessage?.contextInfo ||
             null;
 
         if (contextInfo?.quotedMessage) {
-            const quotedMsg = contextInfo.quotedMessage;
+            let quotedMsg = contextInfo.quotedMessage;
+            
+            // Unwrap quoted message too if needed
+            if (quotedMsg?.ephemeralMessage) quotedMsg = quotedMsg.ephemeralMessage.message;
+            if (quotedMsg?.viewOnceMessage) quotedMsg = quotedMsg.viewOnceMessage.message;
+            if (quotedMsg?.viewOnceMessageV2) quotedMsg = quotedMsg.viewOnceMessageV2.message;
+
             const quotedId = contextInfo.stanzaId;
             const quotedText = quotedMsg.conversation ||
                 quotedMsg.extendedTextMessage?.text ||
@@ -326,8 +349,7 @@ router.post('/', async (req, res) => {
                 '📎 Archivo';
 
             // Resolve sender name: participant is usually a JID like "573001234567@s.whatsapp.net"
-            // For 1-to-1 chats the participant field may be absent; fall back to whom sent the message
-            const senderJid = contextInfo.participant || contextInfo.remoteJid || '';
+            const senderJid = contextInfo.participant || contextInfo.remoteJid || msg.key.remoteJid || '';
             const senderPhone = senderJid.split('@')[0];
 
             replyToData = {
