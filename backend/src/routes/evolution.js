@@ -236,45 +236,91 @@ router.post('/', async (req, res) => {
             nameToUse = pushName;
         }
 
-        // Extract text
-        // Extract text
-        let text = '';
-        let mediaType = null;
-        let mediaUrl = null;
-        let mimetype = null;
+        // Helper to unwrap ephemeral/view-once messages
+    const unwrapMessage = (m) => {
+        if (!m) return m;
+        if (m.ephemeralMessage) return unwrapMessage(m.ephemeralMessage.message);
+        if (m.viewOnceMessage) return unwrapMessage(m.viewOnceMessage.message);
+        if (m.viewOnceMessageV2) return unwrapMessage(m.viewOnceMessageV2.message);
+        if (m.documentWithCaptionMessage) return unwrapMessage(m.documentWithCaptionMessage.message);
+        return m;
+    };
 
-        // --- ROBUST MESSAGE UNWRAPPING for Text Extraction ---
-        let mainMsg = msg.message;
-        if (mainMsg?.ephemeralMessage) mainMsg = mainMsg.ephemeralMessage.message;
-        if (mainMsg?.viewOnceMessage) mainMsg = mainMsg.viewOnceMessage.message;
-        if (mainMsg?.viewOnceMessageV2) mainMsg = mainMsg.viewOnceMessageV2.message;
-        if (mainMsg?.documentWithCaptionMessage) mainMsg = mainMsg.documentWithCaptionMessage.message;
+    // Helper clean text extraction
+    const extractText = (m) => {
+        const unwrapped = unwrapMessage(m);
+        if (!unwrapped) return '';
+        return unwrapped.conversation || unwrapped.extendedTextMessage?.text || unwrapped.imageMessage?.caption || unwrapped.videoMessage?.caption || '';
+    };
 
-        if (mainMsg?.conversation) {
-            text = mainMsg.conversation;
-        } else if (mainMsg?.extendedTextMessage?.text) {
-            text = mainMsg.extendedTextMessage.text;
-        } else if (mainMsg?.imageMessage) {
-            text = mainMsg.imageMessage.caption || null;
-            mediaType = 'image';
-            mediaUrl = mainMsg.imageMessage.url;
-            mimetype = mainMsg.imageMessage.mimetype || 'image/jpeg';
-        } else if (mainMsg?.videoMessage) {
-            text = mainMsg.videoMessage.caption || null;
-            mediaType = 'video';
-            mediaUrl = mainMsg.videoMessage.url;
-            mimetype = mainMsg.videoMessage.mimetype || 'video/mp4';
-        } else if (mainMsg?.audioMessage) {
-            text = null;
-            mediaType = 'audio';
-            mediaUrl = mainMsg.audioMessage.url;
-            mimetype = mainMsg.audioMessage.mimetype || 'audio/ogg; codecs=opus';
-        } else if (mainMsg?.documentMessage) {
-            text = mainMsg.documentMessage.fileName || '📄 Documento';
-            mediaType = 'document';
-            mediaUrl = mainMsg.documentMessage.url;
-            mimetype = mainMsg.documentMessage.mimetype || 'application/octet-stream';
-        } else if (mainMsg?.protocolMessage && mainMsg.protocolMessage.type === "MESSAGE_EDIT") {
+    // Robust helper to extract replyTo data from any message structure
+    const extractQuotedData = (m) => {
+        const unwrapped = unwrapMessage(m);
+        if (!unwrapped) return null;
+
+        // Hunt for contextInfo in common places
+        const contextInfo = unwrapped.contextInfo || 
+            unwrapped.extendedTextMessage?.contextInfo ||
+            unwrapped.imageMessage?.contextInfo ||
+            unwrapped.videoMessage?.contextInfo ||
+            unwrapped.audioMessage?.contextInfo ||
+            unwrapped.documentMessage?.contextInfo ||
+            unwrapped.stickerMessage?.contextInfo ||
+            unwrapped.buttonsResponseMessage?.contextInfo ||
+            unwrapped.templateButtonReplyMessage?.contextInfo ||
+            unwrapped.interactiveResponseMessage?.contextInfo;
+
+        if (!contextInfo?.quotedMessage) return null;
+
+        const quoted = unwrapMessage(contextInfo.quotedMessage);
+        const text = quoted.conversation || 
+            quoted.extendedTextMessage?.text || 
+            quoted.imageMessage?.caption || 
+            quoted.videoMessage?.caption || 
+            (quoted.audioMessage ? '🎤 Nota de voz' : null) ||
+            (quoted.stickerMessage ? '🎭 Sticker' : null) ||
+            (quoted.documentMessage ? `📄 ${quoted.documentMessage.fileName || 'Documento'}` : null) ||
+            '📎 Archivo';
+
+        const senderJid = contextInfo.participant || contextInfo.remoteJid || '';
+        const senderPhone = senderJid.split('@')[0];
+
+        return {
+            id: contextInfo.stanzaId,
+            text,
+            sender: senderPhone || 'Alguien'
+        };
+    };
+
+    // Get the core message content
+    const unwrappedMsg = unwrapMessage(msg.message);
+    const text = extractText(unwrappedMsg);
+    let mediaType = null;
+    let mediaUrl = null;
+    let mimetype = null;
+
+    if (unwrappedMsg?.conversation) {
+        // text already set
+    } else if (unwrappedMsg?.extendedTextMessage?.text) {
+        // text already set
+    } else if (unwrappedMsg?.imageMessage) {
+        mediaType = 'image';
+        mediaUrl = unwrappedMsg.imageMessage.url;
+        mimetype = unwrappedMsg.imageMessage.mimetype || 'image/jpeg';
+    } else if (unwrappedMsg?.videoMessage) {
+        mediaType = 'video';
+        mediaUrl = unwrappedMsg.videoMessage.url;
+        mimetype = unwrappedMsg.videoMessage.mimetype || 'video/mp4';
+    } else if (unwrappedMsg?.audioMessage) {
+        mediaType = 'audio';
+        mediaUrl = unwrappedMsg.audioMessage.url;
+        mimetype = unwrappedMsg.audioMessage.mimetype || 'audio/ogg; codecs=opus';
+    } else if (unwrappedMsg?.documentMessage) {
+        mediaType = 'document';
+        mediaUrl = unwrappedMsg.documentMessage.url;
+        mimetype = unwrappedMsg.documentMessage.mimetype || 'application/octet-stream';
+    } else if (unwrappedMsg?.protocolMessage && unwrappedMsg.protocolMessage.type === "MESSAGE_EDIT") {
+
             console.log("✏️ [WEBHOOK] Received MESSAGE_EDIT protocol message.");
             const editedMsg = msg.message.protocolMessage;
             const targetId = editedMsg.key.id;
@@ -306,59 +352,12 @@ router.post('/', async (req, res) => {
             return res.sendStatus(200);
         }
 
-        // --- ROBUST MESSAGE UNWRAPPING ---
-        // Some messages are wrapped in ephemeralMessage or viewOnceMessage
-        let realMessage = msg.message;
-        if (realMessage?.ephemeralMessage) realMessage = realMessage.ephemeralMessage.message;
-        if (realMessage?.viewOnceMessage) realMessage = realMessage.viewOnceMessage.message;
-        if (realMessage?.viewOnceMessageV2) realMessage = realMessage.viewOnceMessageV2.message;
-        if (realMessage?.documentWithCaptionMessage) realMessage = realMessage.documentWithCaptionMessage.message;
-
-        // --- REPLY / QUOTED MESSAGE EXTRACTION ---
-        let replyToData = null;
-        
-        // Extract contextInfo: check root and all common message types
-        const contextInfo = realMessage?.contextInfo ||
-            realMessage?.extendedTextMessage?.contextInfo ||
-            realMessage?.imageMessage?.contextInfo ||
-            realMessage?.videoMessage?.contextInfo ||
-            realMessage?.audioMessage?.contextInfo ||
-            realMessage?.documentMessage?.contextInfo ||
-            realMessage?.stickerMessage?.contextInfo ||
-            realMessage?.buttonsResponseMessage?.contextInfo ||
-            realMessage?.templateButtonReplyMessage?.contextInfo ||
-            realMessage?.interactiveResponseMessage?.contextInfo ||
-            null;
-
-        if (contextInfo?.quotedMessage) {
-            let quotedMsg = contextInfo.quotedMessage;
-            
-            // Unwrap quoted message too if needed
-            if (quotedMsg?.ephemeralMessage) quotedMsg = quotedMsg.ephemeralMessage.message;
-            if (quotedMsg?.viewOnceMessage) quotedMsg = quotedMsg.viewOnceMessage.message;
-            if (quotedMsg?.viewOnceMessageV2) quotedMsg = quotedMsg.viewOnceMessageV2.message;
-
-            const quotedId = contextInfo.stanzaId;
-            const quotedText = quotedMsg.conversation ||
-                quotedMsg.extendedTextMessage?.text ||
-                quotedMsg.imageMessage?.caption ||
-                quotedMsg.videoMessage?.caption ||
-                (quotedMsg.audioMessage ? '🎤 Nota de voz' : null) ||
-                (quotedMsg.stickerMessage ? '🎭 Sticker' : null) ||
-                (quotedMsg.documentMessage ? `📄 ${quotedMsg.documentMessage.fileName || 'Documento'}` : null) ||
-                '📎 Archivo';
-
-            // Resolve sender name: participant is usually a JID like "573001234567@s.whatsapp.net"
-            const senderJid = contextInfo.participant || contextInfo.remoteJid || msg.key.remoteJid || '';
-            const senderPhone = senderJid.split('@')[0];
-
-            replyToData = {
-                id: quotedId,
-                text: quotedText,
-                sender: senderPhone || 'Alguien'
-            };
-            console.log(`💬 Webhook detected REPLY to: ${quotedId} | text: "${quotedText?.substring(0, 40)}" | sender: ${replyToData.sender}`);
+        // --- ROBUST REPLY EXTRACTION ---
+        const replyToData = extractQuotedData(msg.message);
+        if (replyToData) {
+            console.log(`💬 Webhook detected REPLY to: ${replyToData.id} | text: "${replyToData.text?.substring(0, 40)}" | sender: ${replyToData.sender}`);
         }
+
 
         // --- MEDIA HANDLING: BASE64 PRIORITY ---
         // Try to find base64 in common locations (Evolution v1 vs v2)
@@ -838,31 +837,9 @@ async function processBatchMessages(messages) {
             // Upsert conversation
             await conversationService.upsert(phone, msg.pushName);
 
-            // Extract quoted/reply data from contextInfo (same logic as live webhook)
-            let batchReplyToData = null;
-            const batchContextInfo = msg.message?.extendedTextMessage?.contextInfo ||
-                msg.message?.imageMessage?.contextInfo ||
-                msg.message?.videoMessage?.contextInfo ||
-                msg.message?.audioMessage?.contextInfo ||
-                msg.message?.documentMessage?.contextInfo ||
-                null;
+            // Extract quoted/reply data using the shared helper
+            const batchReplyToData = extractQuotedData(msg.message);
 
-            if (batchContextInfo?.quotedMessage) {
-                const quotedMsg = batchContextInfo.quotedMessage;
-                const batchQuotedText = quotedMsg.conversation ||
-                    quotedMsg.extendedTextMessage?.text ||
-                    quotedMsg.imageMessage?.caption ||
-                    quotedMsg.videoMessage?.caption ||
-                    (quotedMsg.audioMessage ? '🎤 Nota de voz' : null) ||
-                    (quotedMsg.documentMessage ? `📄 ${quotedMsg.documentMessage.fileName || 'Documento'}` : null) ||
-                    '📎 Archivo';
-                const batchSenderJid = batchContextInfo.participant || batchContextInfo.remoteJid || '';
-                batchReplyToData = {
-                    id: batchContextInfo.stanzaId,
-                    text: batchQuotedText,
-                    sender: batchSenderJid.split('@')[0] || 'Alguien'
-                };
-            }
 
             // Save message
             await messageService.create({
