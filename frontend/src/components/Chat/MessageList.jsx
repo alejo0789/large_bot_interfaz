@@ -1,4 +1,4 @@
-import React, { useRef, useEffect, useMemo, useCallback, useState } from 'react';
+import React, { useRef, useEffect, useLayoutEffect, useMemo, useCallback, useState } from 'react';
 import MessageBubble from './MessageBubble';
 import DateSeparator from './DateSeparator';
 import { groupMessagesByDate } from '../../utils/dateUtils';
@@ -42,68 +42,65 @@ const MessageList = ({
         });
     }, [groupedMessages]);
 
-    const currentCount = messages?.length || 0;
+    // --- SCROLL MANAGEMENT ---
+    
+    // To maintain scroll position when prepending messages, we use useLayoutEffect
+    // to adjust the scrollTop BEFORE the browser paints.
+    const isAddingOlderRef = useRef(false);
 
-    // On initial load (or when conversation changes): scroll to bottom
+    // Detect when messages are prepended (length increase)
+    useEffect(() => {
+        if (isLoadingOlder) {
+            isAddingOlderRef.current = true;
+        }
+    }, [isLoadingOlder]);
+
+    useLayoutEffect(() => {
+        const list = listRef.current;
+        if (!list) return;
+
+        // Initial load: scroll to bottom
+        if (isInitialLoadRef.current && messages && messages.length > 0) {
+            list.scrollTop = list.scrollHeight;
+            isInitialLoadRef.current = false;
+            prevScrollHeightRef.current = list.scrollHeight;
+            prevMessageCountRef.current = messages.length;
+            return;
+        }
+
+        const currentCount = messages ? messages.length : 0;
+        const newScrollHeight = list.scrollHeight;
+        const countDiff = currentCount - prevMessageCountRef.current;
+        const heightDiff = newScrollHeight - prevScrollHeightRef.current;
+
+        // Case 1: Older messages loaded (prepended)
+        if (countDiff > 0 && isAddingOlderRef.current) {
+            list.scrollTop = list.scrollTop + heightDiff;
+            isAddingOlderRef.current = false;
+        } 
+        // Case 2: New messages arrived (appended)
+        else if (countDiff > 0) {
+            const isNearBottom = list.scrollHeight - list.scrollTop - list.clientHeight < 300;
+            const lastMsg = messages[messages.length - 1];
+            const wasSentByMe = lastMsg?.sender === 'agent' || lastMsg?.agentId;
+
+            if (isNearBottom || wasSentByMe) {
+                list.scrollTo({ top: list.scrollHeight, behavior: 'smooth' });
+            }
+        }
+
+        prevScrollHeightRef.current = newScrollHeight;
+        prevMessageCountRef.current = currentCount;
+    }, [messages, isLoadingOlder]);
+
+    // Reset initial load status when the message list becomes empty (new conversation)
     useEffect(() => {
         if (!messages || messages.length === 0) {
             isInitialLoadRef.current = true;
             prevMessageCountRef.current = 0;
-            return;
+            prevScrollHeightRef.current = 0;
         }
-
-        if (isInitialLoadRef.current) {
-            // Initial load: scroll to bottom instantly
-            messagesEndRef.current?.scrollIntoView({ behavior: 'auto' });
-            const t = setTimeout(() => {
-                messagesEndRef.current?.scrollIntoView({ behavior: 'auto' });
-            }, 150);
-            isInitialLoadRef.current = false;
-            prevMessageCountRef.current = currentCount;
-            return () => clearTimeout(t);
-        }
-
-        // New messages appended at the bottom (incoming/sent): scroll to bottom
-        if (currentCount > prevMessageCountRef.current) {
-            const added = currentCount - prevMessageCountRef.current;
-            // Only auto-scroll if messages were added at the END (not prepended older ones)
-            // If scroll height changed significantly at the top, it's older messages — don't scroll
-            const list = listRef.current;
-            if (list) {
-                const isNearBottom = list.scrollHeight - list.scrollTop - list.clientHeight < 200;
-                if (isNearBottom || added <= 3) {
-                    // Likely a new incoming/sent message — scroll down
-                    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
-                }
-                // else: user scrolled up to read history; don't hijack scroll
-            }
-        }
-
-        prevMessageCountRef.current = currentCount;
-    }, [messages, currentCount]);
-
-    // Scroll anchor: when older messages get prepended, maintain scroll position
-    useEffect(() => {
-        const list = listRef.current;
-        if (!list) return;
-
-        const newScrollHeight = list.scrollHeight;
-        const diff = newScrollHeight - prevScrollHeightRef.current;
-
-        // Only compensate if we were near the top (loading older messages)
-        if (prevScrollHeightRef.current > 0 && diff > 0 && list.scrollTop < 100) {
-            list.scrollTop = diff;
-        }
-
-        prevScrollHeightRef.current = newScrollHeight;
-    }, [currentCount]);
-
-    // Reset on conversation change (detect by message array reference changing to smaller set)
-    useEffect(() => {
-        if (currentCount <= 50) {
-            isInitialLoadRef.current = true;
-        }
-    }, [currentCount]);
+    }, [messages]);
 
     // Detect scroll to top → load older messages
     const handleScroll = useCallback(() => {
@@ -157,7 +154,7 @@ const MessageList = ({
                     <span>Cargando mensajes anteriores...</span>
                 </div>
             )}
-            {!hasMoreOlder && currentCount > 0 && (
+            {!hasMoreOlder && messages?.length > 0 && (
                 <div style={{
                     textAlign: 'center',
                     padding: '6px',

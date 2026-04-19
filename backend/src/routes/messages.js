@@ -184,7 +184,10 @@ router.post('/send-message', requireApiKey, asyncHandler(async (req, res) => {
         success: true,
         message: 'Mensaje enviado',
         result: sendResult,
-        newMessage: savedMessage
+        newMessage: {
+            ...savedMessage,
+            replyTo: replyToData || null
+        }
     });
 }));
 

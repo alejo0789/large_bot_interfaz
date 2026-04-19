@@ -512,7 +512,7 @@ const MessageBubble = React.memo(({ message, onForward, onReact, onDelete, onRep
                                     textOverflow: 'ellipsis',
                                     width: '100%'
                                 }}>
-                                    {message.replyTo.sender}
+                                    {message.replyTo.sender || 'Mensaje'}
                                 </p>
                                 <p style={{
                                     margin: 0,
@@ -523,9 +523,11 @@ const MessageBubble = React.memo(({ message, onForward, onReact, onDelete, onRep
                                     WebkitBoxOrient: 'vertical',
                                     whiteSpace: 'pre-wrap',
                                     wordBreak: 'break-word',
-                                    width: '100%'
+                                    width: '100%',
+                                    fontStyle: message.replyTo.text ? 'normal' : 'italic',
+                                    opacity: message.replyTo.text ? 1 : 0.6
                                 }}>
-                                    {message.replyTo.text}
+                                    {message.replyTo.text || '📎 Archivo multimedia'}
                                 </p>
                             </div>
                         )}

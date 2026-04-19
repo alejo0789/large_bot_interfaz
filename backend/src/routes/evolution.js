@@ -301,11 +301,17 @@ router.post('/', async (req, res) => {
 
         // --- REPLY / QUOTED MESSAGE EXTRACTION ---
         let replyToData = null;
+        // Extract contextInfo from all supported message types (WhatsApp sends quoted info here)
         const contextInfo = msg.message?.extendedTextMessage?.contextInfo ||
             msg.message?.imageMessage?.contextInfo ||
             msg.message?.videoMessage?.contextInfo ||
             msg.message?.audioMessage?.contextInfo ||
-            msg.message?.documentMessage?.contextInfo;
+            msg.message?.documentMessage?.contextInfo ||
+            msg.message?.stickerMessage?.contextInfo ||
+            msg.message?.buttonsResponseMessage?.contextInfo ||
+            msg.message?.templateButtonReplyMessage?.contextInfo ||
+            msg.message?.interactiveResponseMessage?.contextInfo ||
+            null;
 
         if (contextInfo?.quotedMessage) {
             const quotedMsg = contextInfo.quotedMessage;
@@ -315,15 +321,21 @@ router.post('/', async (req, res) => {
                 quotedMsg.imageMessage?.caption ||
                 quotedMsg.videoMessage?.caption ||
                 (quotedMsg.audioMessage ? '🎤 Nota de voz' : null) ||
-                (quotedMsg.documentMessage ? '📄 Documento' : null) ||
-                'Archivo';
+                (quotedMsg.stickerMessage ? '🎭 Sticker' : null) ||
+                (quotedMsg.documentMessage ? `📄 ${quotedMsg.documentMessage.fileName || 'Documento'}` : null) ||
+                '📎 Archivo';
+
+            // Resolve sender name: participant is usually a JID like "573001234567@s.whatsapp.net"
+            // For 1-to-1 chats the participant field may be absent; fall back to whom sent the message
+            const senderJid = contextInfo.participant || contextInfo.remoteJid || '';
+            const senderPhone = senderJid.split('@')[0];
 
             replyToData = {
                 id: quotedId,
                 text: quotedText,
-                sender: contextInfo.participant?.split('@')[0] || 'Alguien'
+                sender: senderPhone || 'Alguien'
             };
-            console.log(`💬 Webhook detected REPLY to: ${quotedId} from ${replyToData.sender}`);
+            console.log(`💬 Webhook detected REPLY to: ${quotedId} | text: "${quotedText?.substring(0, 40)}" | sender: ${replyToData.sender}`);
         }
 
         // --- MEDIA HANDLING: BASE64 PRIORITY ---
@@ -804,6 +816,32 @@ async function processBatchMessages(messages) {
             // Upsert conversation
             await conversationService.upsert(phone, msg.pushName);
 
+            // Extract quoted/reply data from contextInfo (same logic as live webhook)
+            let batchReplyToData = null;
+            const batchContextInfo = msg.message?.extendedTextMessage?.contextInfo ||
+                msg.message?.imageMessage?.contextInfo ||
+                msg.message?.videoMessage?.contextInfo ||
+                msg.message?.audioMessage?.contextInfo ||
+                msg.message?.documentMessage?.contextInfo ||
+                null;
+
+            if (batchContextInfo?.quotedMessage) {
+                const quotedMsg = batchContextInfo.quotedMessage;
+                const batchQuotedText = quotedMsg.conversation ||
+                    quotedMsg.extendedTextMessage?.text ||
+                    quotedMsg.imageMessage?.caption ||
+                    quotedMsg.videoMessage?.caption ||
+                    (quotedMsg.audioMessage ? '🎤 Nota de voz' : null) ||
+                    (quotedMsg.documentMessage ? `📄 ${quotedMsg.documentMessage.fileName || 'Documento'}` : null) ||
+                    '📎 Archivo';
+                const batchSenderJid = batchContextInfo.participant || batchContextInfo.remoteJid || '';
+                batchReplyToData = {
+                    id: batchContextInfo.stanzaId,
+                    text: batchQuotedText,
+                    sender: batchSenderJid.split('@')[0] || 'Alguien'
+                };
+            }
+
             // Save message
             await messageService.create({
                 phone: phone,
@@ -811,7 +849,10 @@ async function processBatchMessages(messages) {
                 text: text || (msg.message?.imageMessage ? '📷 Imagen' : '📎 Archivo'),
                 whatsappId: msg.key.id,
                 senderName: msg.pushName || (isFromAgent ? 'Tú' : 'Cliente'),
-                timestamp: msg.messageTimestamp ? new Date(msg.messageTimestamp * 1000).toISOString() : null
+                timestamp: msg.messageTimestamp ? new Date(msg.messageTimestamp * 1000).toISOString() : null,
+                replyToId: batchReplyToData?.id,
+                replyToText: batchReplyToData?.text,
+                replyToSender: batchReplyToData?.sender
             });
 
             // Update last message (only if it's the newest)
