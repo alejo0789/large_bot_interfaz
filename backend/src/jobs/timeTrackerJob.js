@@ -58,15 +58,30 @@ async function updateTimeTags() {
                     try {
                         await client.query('BEGIN');
 
-                        // Find all active conversations and their hours since the last message
+                        // STEP 1: Bulk clear lead_time for all conversations that:
+                        // - Were answered by us (last_message_from_me = true)
+                        // - OR have no data yet (last_message_from_me IS NULL)
+                        // This is a fast SQL operation, no per-row loop needed.
+                        const clearResult = await client.query(`
+                            UPDATE conversations 
+                            SET lead_time = NULL, updated_at = NOW()
+                            WHERE status = 'active'
+                            AND lead_time IS NOT NULL
+                            AND (last_message_from_me = true OR last_message_from_me IS NULL)
+                        `);
+                        if (clearResult.rowCount > 0) {
+                            console.log(`   🧹 Cleared lead_time for ${clearResult.rowCount} answered/unknown conversations in ${tenant.slug}.`);
+                        }
+
+                        // STEP 2: For conversations where client was last, assign the correct SLA bucket
                         const { rows: conversations } = await client.query(`
                             SELECT 
                                 c.phone,
                                 c.lead_time,
-                                c.last_message_from_me,
                                 EXTRACT(EPOCH FROM (NOW() - COALESCE(c.last_message_timestamp, c.created_at))) / 3600 AS hours_since
                             FROM conversations c
                             WHERE c.status = 'active'
+                            AND c.last_message_from_me = false
                             AND NOT EXISTS (
                                 SELECT 1 FROM conversation_tags ct 
                                 JOIN tags t ON ct.tag_id = t.id 
@@ -80,18 +95,14 @@ async function updateTimeTags() {
                         for (const conv of conversations) {
                             let targetTag = null;
 
-                            // Only calculate SLA tags if the LAST message was from the client (not from me)
-                            // "desde el cliente envia el mensaje y no se ha respondido"
-                            if (conv.last_message_from_me === false) {
-                                for (const threshold of TIME_THRESHOLDS) {
-                                    if (conv.hours_since >= threshold.hours) {
-                                        targetTag = threshold.tag;
-                                        break;
-                                    }
+                            for (const threshold of TIME_THRESHOLDS) {
+                                if (conv.hours_since >= threshold.hours) {
+                                    targetTag = threshold.tag;
+                                    break;
                                 }
                             }
 
-                            // If targetTag changed, or if it was answered and needs to be cleared
+                            // Only update if the SLA bucket changed
                             if (conv.lead_time !== targetTag) {
                                 await client.query(`
                                     UPDATE conversations 
