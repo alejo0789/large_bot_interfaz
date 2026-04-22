@@ -508,5 +508,81 @@ router.patch('/tenants/:id/status', asyncHandler(async (req, res) => {
     res.json({ success: true, tenant: rows[0] });
 }));
 
+// ─────────────────────────────────────────────
+// POST /api/admin/cleanup-media
+// Trigger cleanup of files older than 30 days (SUPER_ADMIN only)
+// ─────────────────────────────────────────────
+router.post('/cleanup-media', asyncHandler(async (req, res) => {
+    if (req.adminUser.role !== 'SUPER_ADMIN') {
+        throw new AppError('Solo SUPER_ADMIN puede ejecutar la limpieza de volumen', 403);
+    }
+
+    const fs = require('fs');
+    const path = require('path');
+    const { config } = require('../config/app');
+
+    const DAYS_TO_KEEP = 30;
+    const THRESHOLD_MS = DAYS_TO_KEEP * 24 * 60 * 60 * 1000;
+    const NOW = Date.now();
+    const TARGET_DIR = config.uploadDir;
+
+    if (!fs.existsSync(TARGET_DIR)) {
+        return res.status(404).json({ success: false, error: 'Directorio de uploads no encontrado' });
+    }
+
+    let deletedFilesCount = 0;
+    let deletedBytesCount = 0;
+    let scannedFilesCount = 0;
+
+    function cleanupDir(dirPath) {
+        const items = fs.readdirSync(dirPath);
+
+        items.forEach(item => {
+            const fullPath = path.join(dirPath, item);
+            const stats = fs.statSync(fullPath);
+
+            if (stats.isDirectory()) {
+                cleanupDir(fullPath);
+                try {
+                    if (fs.readdirSync(fullPath).length === 0) {
+                        fs.rmdirSync(fullPath);
+                    }
+                } catch (err) { }
+            } else {
+                scannedFilesCount++;
+                const ageMs = NOW - stats.mtimeMs;
+                if (ageMs > THRESHOLD_MS) {
+                    try {
+                        const fileSize = stats.size;
+                        fs.unlinkSync(fullPath);
+                        deletedFilesCount++;
+                        deletedBytesCount += fileSize;
+                    } catch (err) {
+                        console.error(`❌ Failed to delete ${fullPath}:`, err.message);
+                    }
+                }
+            }
+        });
+    }
+
+    try {
+        cleanupDir(TARGET_DIR);
+        const totalMB = (deletedBytesCount / (1024 * 1024)).toFixed(2);
+        
+        res.json({
+            success: true,
+            message: 'Limpieza completada exitosamente',
+            stats: {
+                scannedFiles: scannedFilesCount,
+                deletedFiles: deletedFilesCount,
+                recoveredMB: totalMB
+            }
+        });
+    } catch (err) {
+        throw new AppError(`Error durante la limpieza: ${err.message}`, 500);
+    }
+}));
+
 module.exports = router;
+
 

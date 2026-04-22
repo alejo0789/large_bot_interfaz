@@ -223,6 +223,8 @@ const AdminPanel = ({ isMobile }) => {
     const [toast, setToast] = useState(null);
     const [confirmDelete, setConfirmDelete] = useState(null);
     const [syncingSlug, setSyncingSlug] = useState(null);
+    const [cleaningVolume, setCleaningVolume] = useState(false);
+    const [cleanupResult, setCleanupResult] = useState(null);
 
     const isSuperAdmin = user?.role === 'SUPER_ADMIN';
     const isSedeAdmin = user?.role === 'SEDE_ADMIN';
@@ -308,6 +310,30 @@ const AdminPanel = ({ isMobile }) => {
             showToast('Error de conexión', 'error');
         } finally {
             setSyncingSlug(null);
+        }
+    };
+
+    const handleCleanupMedia = async () => {
+        if (!window.confirm('¿Estás seguro de que deseas limpiar el volumen? Se eliminarán permanentemente todos los archivos (imágenes, audios, videos) con más de 30 días de antigüedad.')) return;
+        
+        setCleaningVolume(true);
+        setCleanupResult(null);
+        try {
+            const res = await fetch(`${API_URL}/api/admin/cleanup-media`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` }
+            });
+            const data = await res.json();
+            if (data.success) {
+                setCleanupResult(data.stats);
+                showToast(`✅ Limpieza exitosa: ${data.stats.deletedFiles} archivos eliminados.`, 'success');
+            } else {
+                showToast(data.error || 'Error en la limpieza', 'error');
+            }
+        } catch (err) {
+            showToast('Error de conexión', 'error');
+        } finally {
+            setCleaningVolume(false);
         }
     };
 
@@ -406,6 +432,52 @@ const AdminPanel = ({ isMobile }) => {
                 </button>
             </div>
 
+            {/* ── Mantenimiento (SUPER_ADMIN only) ── */}
+            {isSuperAdmin && (
+                <div style={{ background: 'white', borderRadius: '12px', padding: '16px', marginBottom: '20px', boxShadow: '0 1px 3px rgba(0,0,0,0.06)' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '14px' }}>
+                        <AlertCircle size={16} color="#4338ca" />
+                        <span style={{ fontWeight: 700, fontSize: '14px', color: '#111827' }}>Mantenimiento del Sistema</span>
+                    </div>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '16px', flexWrap: 'wrap' }}>
+                        <div style={{ flex: 1, minWidth: '200px' }}>
+                            <div style={{ fontWeight: 600, fontSize: '14px', color: '#374151' }}>Limpieza de Volumen (Archivos > 30 días)</div>
+                            <div style={{ fontSize: '12px', color: '#6b7280' }}>
+                                Elimina imágenes, videos y audios antiguos para liberar espacio en Railway.
+                            </div>
+                        </div>
+                        
+                        {cleanupResult && (
+                            <div style={{ fontSize: '12px', background: '#f0f9ff', padding: '8px 12px', borderRadius: '8px', border: '1px solid #bae6fd', color: '#0369a1' }}>
+                                <strong>Último resultado:</strong> {cleanupResult.deletedFiles} archivos borrados ({cleanupResult.recoveredMB} MB recuperados)
+                            </div>
+                        )}
+
+                        <button
+                            onClick={handleCleanupMedia}
+                            disabled={cleaningVolume}
+                            style={{ 
+                                display: 'flex', 
+                                alignItems: 'center', 
+                                gap: '8px', 
+                                padding: '10px 20px', 
+                                borderRadius: '8px', 
+                                border: 'none', 
+                                background: cleaningVolume ? '#94a3b8' : '#4338ca', 
+                                color: 'white', 
+                                cursor: cleaningVolume ? 'wait' : 'pointer', 
+                                fontSize: '13px', 
+                                fontWeight: 700,
+                                boxShadow: '0 4px 10px rgba(67, 56, 202, 0.2)'
+                            }}
+                        >
+                            {cleaningVolume ? <RotateCw size={15} style={{ animation: 'spin 1s linear infinite' }} /> : <Trash2 size={15} />}
+                            {cleaningVolume ? 'Limpiando...' : 'Ejecutar Limpieza'}
+                        </button>
+                    </div>
+                </div>
+            )}
+
             {/* ── Sedes (SUPER_ADMIN only) ── */}
             {isSuperAdmin && tenants.length > 0 && (
                 <div style={{ background: 'white', borderRadius: '12px', padding: '16px', marginBottom: '20px', boxShadow: '0 1px 3px rgba(0,0,0,0.06)' }}>
@@ -438,6 +510,7 @@ const AdminPanel = ({ isMobile }) => {
                     </div>
                 </div>
             )}
+
 
             {/* Tabla de usuarios */}
             <div style={{ background: 'white', borderRadius: '12px', boxShadow: '0 1px 3px rgba(0,0,0,0.06)', overflow: 'hidden' }}>
