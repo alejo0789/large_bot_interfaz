@@ -388,7 +388,10 @@ export const useConversations = (socket) => {
                     ...targetConv,
                     lastMessage: message,
                     timestamp: newMessage.timestamp,
-                    rawTimestamp: newMessage.rawTimestamp
+                    rawTimestamp: newMessage.rawTimestamp,
+                    // When WE respond, clear SLA tracking immediately (don't wait for job)
+                    leadTime: null,
+                    lastMessageFromMe: true
                 };
 
                 currentConversations.splice(conversationIndex, 1);
@@ -551,7 +554,10 @@ export const useConversations = (socket) => {
                             hour: '2-digit',
                             minute: '2-digit'
                         }),
-                        rawTimestamp: new Date().toISOString()
+                        rawTimestamp: new Date().toISOString(),
+                        // Clear SLA tracking when agent sends a file
+                        leadTime: null,
+                        lastMessageFromMe: true
                     };
                     currentConversations.splice(conversationIndex, 1);
                     return sortConversations([updatedConv, ...currentConversations]);

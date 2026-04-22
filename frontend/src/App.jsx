@@ -326,8 +326,14 @@ const AuthenticatedApp = () => {
                 );
             });
         }
+        // When a lead time filter is active, only show conversations
+        // where the CLIENT was the last to write (lastMessageFromMe !== true)
+        // This is a safety net on top of the backend filter for real-time updates
+        if (leadTimeFilter) {
+            result = result.filter(conv => conv.lastMessageFromMe !== true);
+        }
         return result;
-    }, [conversations, showUnreadOnly, selectedTagIds, tagsByPhone]);
+    }, [conversations, showUnreadOnly, selectedTagIds, tagsByPhone, leadTimeFilter]);
 
     // Count unread (total visible)
     const unreadCount = useMemo(() => {
