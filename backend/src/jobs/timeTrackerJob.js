@@ -1,26 +1,22 @@
 /**
  * Background Time Tracker Job
- * Automatically updates lead classification tags recursively based on time since their last message.
- * Only applies to Active conversations.
+ * Automatically updates lead classification tags based on time since client's last message.
+ * Only applies to Active conversations where last_message_from_me = false.
  */
 
 const { pool } = require('../config/database');
 
-const TIME_TAGS = ['LID_6H', 'LID_12H', 'LID_1D', 'LID_2D', 'LID_3D_PLUS'];
-
-// Maps hour threshold to tag name
 const TIME_THRESHOLDS = [
     { hours: 72, tag: 'LID_3D_PLUS' }, // 3 days
     { hours: 48, tag: 'LID_2D' },      // 2 days
     { hours: 24, tag: 'LID_1D' },      // 1 day
     { hours: 12, tag: 'LID_12H' },     // 12 hours
-    { hours: 6, tag: 'LID_6H' }        // 6 hours
+    { hours: 6,  tag: 'LID_6H' }       // 6 hours
 ];
 
 async function updateTimeTags() {
     console.log(`⏱️  [Job] Running time tracker for lead classifications across all tenants...`);
     
-    // First, get all tenants from the master DB
     let tenants = [];
     const masterClient = await pool.connect();
     try {
@@ -38,7 +34,6 @@ async function updateTimeTags() {
         return;
     }
 
-    // Now loop through each tenant and update their respective lead_time columns
     const { dbManager } = require('../config/database');
     const { tenantContext } = require('../utils/tenantContext');
 
@@ -58,10 +53,7 @@ async function updateTimeTags() {
                     try {
                         await client.query('BEGIN');
 
-                        // STEP 1: Bulk clear lead_time for all conversations that:
-                        // - Were answered by us (last_message_from_me = true)
-                        // - OR have no data yet (last_message_from_me IS NULL)
-                        // This is a fast SQL operation, no per-row loop needed.
+                        // STEP 1: Clear SLA tags for conversations we already answered
                         const clearResult = await client.query(`
                             UPDATE conversations 
                             SET lead_time = NULL, updated_at = NOW()
@@ -70,53 +62,52 @@ async function updateTimeTags() {
                             AND (last_message_from_me = true OR last_message_from_me IS NULL)
                         `);
                         if (clearResult.rowCount > 0) {
-                            console.log(`   🧹 Cleared lead_time for ${clearResult.rowCount} answered/unknown conversations in ${tenant.slug}.`);
+                            console.log(`   🧹 Cleared ${clearResult.rowCount} answered conversations in ${tenant.slug}.`);
                         }
 
-                        // STEP 2: For conversations where client was last, assign the correct SLA bucket
-                        const { rows: conversations } = await client.query(`
-                            SELECT 
-                                c.phone,
-                                c.lead_time,
-                                EXTRACT(EPOCH FROM (NOW() - COALESCE(c.last_message_timestamp, c.created_at))) / 3600 AS hours_since
-                            FROM conversations c
-                            WHERE c.status = 'active'
-                            AND c.last_message_from_me = false
-                            AND NOT EXISTS (
-                                SELECT 1 FROM conversation_tags ct 
-                                JOIN tags t ON ct.tag_id = t.id 
-                                WHERE ct.conversation_phone = c.phone 
-                                AND t.name ILIKE 'agendar'
-                            )
-                        `);
+                        // STEP 2: Bulk-assign SLA buckets using pure SQL (no per-row loop)
+                        // Process thresholds from largest to smallest so each conversation
+                        // gets the most specific bucket.
+                        let totalUpdated = 0;
+                        for (let i = 0; i < TIME_THRESHOLDS.length; i++) {
+                            const threshold = TIME_THRESHOLDS[i];
+                            const nextThreshold = i > 0 ? TIME_THRESHOLDS[i - 1] : null;
 
-                        let updatedCount = 0;
-
-                        for (const conv of conversations) {
-                            let targetTag = null;
-
-                            for (const threshold of TIME_THRESHOLDS) {
-                                if (conv.hours_since >= threshold.hours) {
-                                    targetTag = threshold.tag;
-                                    break;
-                                }
+                            let timeCondition;
+                            if (nextThreshold) {
+                                timeCondition = `
+                                    EXTRACT(EPOCH FROM (NOW() - COALESCE(last_message_timestamp, created_at))) / 3600 >= ${threshold.hours}
+                                    AND EXTRACT(EPOCH FROM (NOW() - COALESCE(last_message_timestamp, created_at))) / 3600 < ${nextThreshold.hours}
+                                `;
+                            } else {
+                                timeCondition = `
+                                    EXTRACT(EPOCH FROM (NOW() - COALESCE(last_message_timestamp, created_at))) / 3600 >= ${threshold.hours}
+                                `;
                             }
 
-                            // Only update if the SLA bucket changed
-                            if (conv.lead_time !== targetTag) {
-                                await client.query(`
-                                    UPDATE conversations 
-                                    SET lead_time = $1, updated_at = NOW()
-                                    WHERE phone = $2
-                                `, [targetTag, conv.phone]);
-                                
-                                updatedCount++;
-                            }
+                            const result = await client.query(`
+                                UPDATE conversations 
+                                SET lead_time = $1, updated_at = NOW()
+                                WHERE status = 'active'
+                                AND last_message_from_me = false
+                                AND (lead_time IS NULL OR lead_time != $1)
+                                AND (${timeCondition})
+                                AND NOT EXISTS (
+                                    SELECT 1 FROM conversation_tags ct 
+                                    JOIN tags t ON ct.tag_id = t.id 
+                                    WHERE ct.conversation_phone = phone 
+                                    AND t.name ILIKE 'agendar'
+                                )
+                            `, [threshold.tag]);
+
+                            totalUpdated += result.rowCount;
                         }
 
                         await client.query('COMMIT');
-                        if (updatedCount > 0) {
-                            console.log(`   ✅ Updated lead_time for ${updatedCount} conversations in ${tenant.slug}.`);
+                        if (totalUpdated > 0) {
+                            console.log(`   ✅ Updated SLA tags for ${totalUpdated} conversations in ${tenant.slug}.`);
+                        } else {
+                            console.log(`   ✓ No changes needed for ${tenant.slug}.`);
                         }
                         resolve();
                     } catch (err) {
@@ -134,7 +125,7 @@ async function updateTimeTags() {
     }
 }
 
-// Start tracking immediately to catch up, then run every 1 hour
+// Start tracking immediately, then run every 1 hour
 function startTimeTrackerJob() {
     console.log('⏰ Starting Time Tracker Job (Runs every 1 hour)');
     

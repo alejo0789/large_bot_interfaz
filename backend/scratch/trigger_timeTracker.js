@@ -1,10 +1,11 @@
 require('dotenv').config();
-const { updateTimeTags } = require('./src/jobs/timeTrackerJob');
+const { updateTimeTags } = require('../src/jobs/timeTrackerJob');
 
-async function test() {
-  await updateTimeTags();
-  console.log('Done test');
-  process.exit(0);
-}
-
-test();
+console.log('🚀 Triggering time tracker job manually...');
+updateTimeTags().then(() => {
+    console.log('✅ Job completed. Check the output above for corrections made.');
+    process.exit(0);
+}).catch(err => {
+    console.error('❌ Job failed:', err);
+    process.exit(1);
+});
