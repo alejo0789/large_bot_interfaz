@@ -115,6 +115,7 @@ class ConversationService {
                 c.is_pinned,
                 c.lead_intent,
                 c.lead_time,
+                c.last_message_from_me,
                 COALESCE(
                     (SELECT json_agg(json_build_object('id', t.id, 'name', t.name, 'color', t.color))
                      FROM tags t
@@ -162,7 +163,8 @@ class ConversationService {
             tags: conv.tags || [],
             isPinned: conv.is_pinned || false,
             leadIntent: conv.lead_intent,
-            leadTime: conv.lead_time
+            leadTime: conv.lead_time,
+            lastMessageFromMe: conv.last_message_from_me
         }));
 
         return {
@@ -266,15 +268,16 @@ class ConversationService {
     /**
      * Update last message
      */
-    async updateLastMessage(phone, message) {
+    async updateLastMessage(phone, message, isFromMe = false) {
         await pool.query(`
             UPDATE conversations 
             SET 
                 last_message_text = $1,
                 last_message_timestamp = NOW(),
+                last_message_from_me = $2,
                 updated_at = NOW()
-            WHERE phone = $2
-        `, [message, phone]);
+            WHERE phone = $3
+        `, [message, isFromMe, phone]);
     }
 
     /**
@@ -371,6 +374,7 @@ class ConversationService {
                 COUNT(*) FILTER (WHERE status = 'archived') as archived_count,
                 COUNT(*) FILTER (WHERE ai_enabled = true) as ai_enabled_count,
                 COUNT(*) FILTER (WHERE ai_enabled = false) as manual_count,
+                COUNT(*) FILTER (WHERE last_message_from_me = false AND status = 'active') as unanswered_count,
                 SUM(unread_count) as total_unread
             FROM conversations
         `);

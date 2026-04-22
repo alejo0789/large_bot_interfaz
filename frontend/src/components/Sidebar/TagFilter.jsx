@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { Tag, X, Filter, ChevronDown, Calendar, Check, RotateCw, Type, Plus, Edit2, Users } from 'lucide-react';
+import { Tag, X, Filter, ChevronDown, Calendar, Check, RotateCw, Plus, Edit2, Users } from 'lucide-react';
 import CreateTagModal from '../Tags/CreateTagModal';
 import FollowUpModal from './FollowUpModal';
 
@@ -18,8 +18,6 @@ const TagFilter = ({
     unreadCount = 0,
     onRefresh,
     isLoading,
-    fontSize,
-    onFontSizeChange,
     onCreateTag,
     onUpdateTag,
     leadTimeFilter,
@@ -28,7 +26,7 @@ const TagFilter = ({
 }) => {
     const [showTagDropdown, setShowTagDropdown] = useState(false);
     const [showDateDropdown, setShowDateDropdown] = useState(false);
-    const [showFontSizeDropdown, setShowFontSizeDropdown] = useState(false);
+    const dropdownRef = useRef(null);
     const [isCreateTagOpen, setIsCreateTagOpen] = useState(false);
     const [isFollowUpOpen, setIsFollowUpOpen] = useState(false);
 
@@ -39,7 +37,6 @@ const TagFilter = ({
 
     const tagDropdownRef = useRef(null);
     const dateDropdownRef = useRef(null);
-    const fontSizeDropdownRef = useRef(null);
 
     const hasActiveFilters = selectedTagIds.length > 0 || showUnreadOnly || dateFilter || leadTimeFilter;
 
@@ -51,9 +48,6 @@ const TagFilter = ({
             }
             if (dateDropdownRef.current && !dateDropdownRef.current.contains(event.target)) {
                 setShowDateDropdown(false);
-            }
-            if (fontSizeDropdownRef.current && !fontSizeDropdownRef.current.contains(event.target)) {
-                setShowFontSizeDropdown(false);
             }
         };
 
@@ -614,87 +608,6 @@ const TagFilter = ({
                     )}
                 </button>
 
-                {/* Font Size Selector Dropdown */}
-                <div ref={fontSizeDropdownRef} style={{ position: 'relative' }}>
-                    <button
-                        onClick={() => setShowFontSizeDropdown(!showFontSizeDropdown)}
-                        title="Cambiar tamaño de letra"
-                        style={{
-                            display: 'flex',
-                            alignItems: 'center',
-                            justifyContent: 'center',
-                            padding: '0 10px',
-                            borderRadius: 'var(--radius-md)',
-                            border: '1px solid var(--color-gray-300)',
-                            backgroundColor: 'white',
-                            color: 'var(--color-gray-600)',
-                            cursor: 'pointer',
-                            height: '32px',
-                            width: '48px', // Increased from 40px
-                            whiteSpace: 'nowrap'
-                        }}
-                    >
-                        <Type className="w-6 h-6" />
-                        <ChevronDown className="w-3 h-3 ml-0.5" />
-                    </button>
-
-                    {showFontSizeDropdown && (
-                        <div style={{
-                            position: 'absolute',
-                            top: '100%',
-                            right: 0, // Changed back to right: 0 per user preference
-                            marginTop: '4px',
-                            minWidth: '150px',
-                            backgroundColor: 'white',
-                            borderRadius: 'var(--radius-lg)',
-                            boxShadow: '0 4px 20px rgba(0,0,0,0.15)',
-                            border: '1px solid var(--color-gray-200)',
-                            zIndex: 1000 // Higher z-index
-                        }}>
-                            <div style={{
-                                padding: '8px',
-                                borderBottom: '1px solid var(--color-gray-100)',
-                                fontSize: '11px',
-                                fontWeight: 600,
-                                color: 'var(--color-gray-500)'
-                            }}>
-                                Tamaño de letra
-                            </div>
-                            {[
-                                { val: '16px', label: 'Pequeño (A)', iconSize: '12px' },
-                                { val: '18px', label: 'Normal (A+)', iconSize: '14px' },
-                                { val: '22px', label: 'Grande (A++)', iconSize: '17px' },
-                                { val: '26px', label: 'Muy Grande (A+++)', iconSize: '20px' }
-                            ].map(opt => (
-                                <button
-                                    key={opt.val}
-                                    onClick={() => {
-                                        onFontSizeChange(opt.val);
-                                        setShowFontSizeDropdown(false);
-                                    }}
-                                    style={{
-                                        display: 'flex',
-                                        alignItems: 'center',
-                                        gap: '10px',
-                                        width: '100%',
-                                        padding: '10px 12px',
-                                        fontSize: '13px',
-                                        backgroundColor: fontSize === opt.val ? 'var(--color-gray-50)' : 'transparent',
-                                        border: 'none',
-                                        cursor: 'pointer',
-                                        textAlign: 'left',
-                                        color: fontSize === opt.val ? 'var(--color-primary)' : 'var(--color-gray-700)',
-                                        fontWeight: fontSize === opt.val ? 600 : 400
-                                    }}
-                                >
-                                    <Type style={{ width: opt.iconSize, height: opt.iconSize }} />
-                                    <span style={{ flex: 1 }}>{opt.label}</span>
-                                    {fontSize === opt.val && <Check className="w-3 h-3" />}
-                                </button>
-                            ))}
-                        </div>
-                    )}
-                </div>
             </div>
 
             {/* Active filters summary */}

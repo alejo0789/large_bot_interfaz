@@ -519,7 +519,7 @@ router.post('/', async (req, res) => {
                 mediaType === 'video' ? '🎥 Video' :
                     mediaType === 'audio' ? '🎵 Audio' : '📎 Archivo'
         );
-        await conversationService.updateLastMessage(phone, previewText);
+        await conversationService.updateLastMessage(phone, previewText, isFromAgent);
 
         if (!isFromAgent) {
             await conversationService.incrementUnread(phone);
@@ -765,7 +765,7 @@ router.post('/', async (req, res) => {
 
                             // 3. Update Conversation Last Message
                             console.log(`\n🔄 STEP 3: Updating conversation`);
-                            await conversationService.updateLastMessage(phone, dbText);
+                            await conversationService.updateLastMessage(phone, dbText, true);
                             await conversationService.markAsRead(phone);
 
                             // 4. Emit to Frontend
@@ -870,7 +870,7 @@ async function processBatchMessages(messages) {
             });
 
             // Update last message (only if it's the newest)
-            await conversationService.updateLastMessage(phone, text || 'Archivo');
+            await conversationService.updateLastMessage(phone, text || 'Archivo', isFromAgent);
         } catch (err) {
             // Silently fail individual messages in batch
         }

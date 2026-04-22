@@ -123,7 +123,7 @@ router.post('/send-message', requireApiKey, asyncHandler(async (req, res) => {
     });
 
     // Update conversation
-    await conversationService.updateLastMessage(normalizedPhone, message);
+    await conversationService.updateLastMessage(normalizedPhone, message, true);
     await conversationService.markAsRead(normalizedPhone);
 
     // Send Message Logic (Evolution > N8N)
@@ -248,7 +248,7 @@ router.post('/send-file', requireApiKey, upload.single('file'), restoreTenantCon
     });
 
     // Update conversation
-    await conversationService.updateLastMessage(phone, caption || `📎 ${file.originalname}`);
+    await conversationService.updateLastMessage(phone, caption || `📎 ${file.originalname}`, true);
     await conversationService.markAsRead(phone);
 
     // Send Media Logic
@@ -517,7 +517,7 @@ router.post('/bulk-send', requireApiKey, asyncHandler(async (req, res) => {
         }
 
         // Update conversation
-        await conversationService.updateLastMessage(normalizedPhone, media && !msg ? '📎 Media' : (msg || '📎 Media'));
+        await conversationService.updateLastMessage(normalizedPhone, media && !msg ? '📎 Media' : (msg || '📎 Media'), true);
         await conversationService.markAsRead(normalizedPhone);
 
         // Send Logic (Evolution > N8N)

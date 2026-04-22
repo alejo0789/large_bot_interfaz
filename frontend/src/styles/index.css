@@ -1227,3 +1227,27 @@ body {
     15% { background-color: rgba(18, 140, 126, 0.1); transform: scale(1); }
     100% { background-color: transparent; }
 }
+
+/* =============================================
+   MESSAGE BUBBLE INTERACTIVE ELEMENTS
+   (global rules — avoid per-message style tags)
+   ============================================= */
+
+/* Show chevron menu button on bubble hover */
+.message-bubble:hover .menu-chevron {
+    opacity: 1 !important;
+}
+
+/* Always show chevron on touch devices */
+@media (hover: none) {
+    .menu-chevron {
+        opacity: 1 !important;
+        background: rgba(255,255,255,0.9) !important;
+    }
+}
+
+/* Show forward button on message hover */
+.message:hover .forward-btn {
+    opacity: 1 !important;
+    pointer-events: auto !important;
+}

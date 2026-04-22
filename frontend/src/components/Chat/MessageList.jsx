@@ -26,6 +26,7 @@ const MessageList = ({
     const prevMessageCountRef = useRef(0);
     const prevScrollHeightRef = useRef(0);
     const isInitialLoadRef = useRef(true);
+    const scrollThrottleRef = useRef(null);
 
     // Group messages by date
     const groupedMessages = useMemo(() => {
@@ -103,16 +104,18 @@ const MessageList = ({
         }
     }, [messages]);
 
-    // Detect scroll to top → load older messages
     const handleScroll = useCallback(() => {
-        const list = listRef.current;
-        if (!list || !onLoadOlder || !hasMoreOlder || isLoadingOlder) return;
-
-        if (list.scrollTop < 80) {
-            // Save scroll height before loading
-            prevScrollHeightRef.current = list.scrollHeight;
-            onLoadOlder();
-        }
+        // Throttle scroll handler to max once per 150ms to prevent perf issues
+        if (scrollThrottleRef.current) return;
+        scrollThrottleRef.current = setTimeout(() => {
+            scrollThrottleRef.current = null;
+            const list = listRef.current;
+            if (!list || !onLoadOlder || !hasMoreOlder || isLoadingOlder) return;
+            if (list.scrollTop < 80) {
+                prevScrollHeightRef.current = list.scrollHeight;
+                onLoadOlder();
+            }
+        }, 150);
     }, [onLoadOlder, hasMoreOlder, isLoadingOlder]);
 
     // Handle clicking a quote to scroll to original message
@@ -190,6 +193,7 @@ const MessageList = ({
             className="chat-messages"
             ref={listRef}
             onScroll={handleScroll}
+            style={{ willChange: 'transform' }}
         >
             {/* Load-older indicator at the top */}
             {isLoadingOlder && (

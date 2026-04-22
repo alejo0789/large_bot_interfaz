@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { CheckCheck, Clock, Download, FileText, Image as ImageIcon, Mic, Forward, Reply, Trash2, Smile, MoreHorizontal, ChevronDown, Copy, Edit2, Calendar } from 'lucide-react';
 import EmojiPicker from 'emoji-picker-react';
 
@@ -379,6 +379,12 @@ const MessageBubble = React.memo(({ message, onForward, onReact, onDelete, onRep
         });
     };
 
+    // Memoize expensive text formatting - only recalculates when text changes
+    const formattedText = useMemo(() => formatText(text), [text]);
+
+    // Memoize message class name
+    const messageClassName = useMemo(() => getMessageClass(), [isOutgoing, isAgent, isBot, isSystem, status, text]);
+
     const handleMenuButton = (e) => {
         e.stopPropagation();
         const rect = e.currentTarget.getBoundingClientRect();
@@ -391,7 +397,7 @@ const MessageBubble = React.memo(({ message, onForward, onReact, onDelete, onRep
 
     if (isDeleted) {
         return (
-            <div className={getMessageClass()} style={{ userSelect: 'none' }}>
+            <div className={messageClassName} style={{ userSelect: 'none' }}>
                 <div className="message-container">
                     <div className="message-bubble" style={{
                         fontStyle: 'italic',
@@ -413,7 +419,7 @@ const MessageBubble = React.memo(({ message, onForward, onReact, onDelete, onRep
     return (
         <>
             <div
-                className={getMessageClass()}
+                className={messageClassName}
                 onContextMenu={handleContextMenu}
                 style={{ userSelect: 'none' }} // Prevent text selection on long press for better UX on mobile
             >
@@ -458,17 +464,7 @@ const MessageBubble = React.memo(({ message, onForward, onReact, onDelete, onRep
                         >
                             <ChevronDown size={14} />
                         </button>
-                        <style>{`
-                            .message-bubble:hover .menu-chevron {
-                                opacity: 1 !important;
-                            }
-                            @media (hover: none) {
-                                .menu-chevron {
-                                    opacity: 1 !important; /* Always visible on mobile */
-                                    background: rgba(255,255,255,0.9);
-                                }
-                            }
-                        `}</style>
+
                         {(message.sender_name || message.agent_name) && (
                             <div style={{
                                 fontSize: '10px',
@@ -558,7 +554,7 @@ const MessageBubble = React.memo(({ message, onForward, onReact, onDelete, onRep
                                     overflow: 'hidden',
                                     userSelect: 'text' // Allow text selection inside bubble
                                 }}>
-                                    {formatText(text)}
+                                    {formattedText}
                                 </p>
                             )
                         }
@@ -660,13 +656,7 @@ const MessageBubble = React.memo(({ message, onForward, onReact, onDelete, onRep
                     }
                 </div >
 
-                {/* CSS to show forward button on hover - Scoped to this message item */}
-                < style > {`
-                    .message:hover .forward-btn {
-                        opacity: 1 !important;
-                        pointer-events: auto !important;
-                    }
-                `}</style >
+
             </div >
 
             {/* Context Menu Modal */}

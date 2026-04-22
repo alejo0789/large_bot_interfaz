@@ -101,10 +101,6 @@ const AuthenticatedApp = () => {
     // Editing Message State
     const [editingMessage, setEditingMessage] = useState(null);
 
-    const [fontSize, setFontSize] = useState(() => {
-        return localStorage.getItem('chat-font-size') || '16px';
-    });
-
     const [showCelebration, setShowCelebration] = useState(false);
     const [agendasCount, setAgendasCount] = useState(0);
 
@@ -114,12 +110,6 @@ const AuthenticatedApp = () => {
     const [bulkMessageInitialPhones, setBulkMessageInitialPhones] = useState([]);
     const [bulkMessageInitialMode, setBulkMessageInitialMode] = useState(null);
     const [bulkMessageInitialLeadTime, setBulkMessageInitialLeadTime] = useState(null);
-
-    // Apply font size to document root
-    useEffect(() => {
-        document.documentElement.style.fontSize = fontSize;
-        localStorage.setItem('chat-font-size', fontSize);
-    }, [fontSize]);
 
     // Fetch daily agendas count
     useEffect(() => {
@@ -339,10 +329,11 @@ const AuthenticatedApp = () => {
         return result;
     }, [conversations, showUnreadOnly, selectedTagIds, tagsByPhone]);
 
-    // Count unread
+    // Count unread (total visible)
     const unreadCount = useMemo(() => {
         return conversations.filter(c => c.unread > 0).length;
     }, [conversations]);
+
 
     // Handlers
     const handleToggleTag = useCallback((tagId) => {
@@ -1058,8 +1049,6 @@ const AuthenticatedApp = () => {
                         unreadCount={unreadCount}
                         onRefresh={fetchConversations}
                         isLoading={isLoading}
-                        fontSize={fontSize}
-                        onFontSizeChange={setFontSize}
                         onCreateTag={createTag}
                         onUpdateTag={handleUpdateTag}
                         leadTimeFilter={leadTimeFilter}

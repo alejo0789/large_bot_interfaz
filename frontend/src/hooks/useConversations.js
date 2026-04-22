@@ -38,6 +38,7 @@ export const useConversations = (socket) => {
     // Message pagination state (per conversation)
     const [messagePaginationByPhone, setMessagePaginationByPhone] = useState({});
     const [isLoadingOlderMessages, setIsLoadingOlderMessages] = useState(false);
+    const isLoadingOlderRef = React.useRef(false); // ref for use inside callbacks without stale closure
     // Track order of conversation access for cache eviction (LRU)
     const conversationAccessOrder = React.useRef([]);
 
@@ -224,10 +225,11 @@ export const useConversations = (socket) => {
     // Load older messages (scroll-to-top infinite scroll)
     const loadOlderMessages = useCallback(async (phone) => {
         const paginationInfo = messagePaginationByPhone[phone];
-        if (!paginationInfo?.hasMore || isLoadingOlderMessages) return false;
+        if (!paginationInfo?.hasMore || isLoadingOlderRef.current) return false;
         if (!paginationInfo?.oldestCursor) return false;
 
         try {
+            isLoadingOlderRef.current = true;
             setIsLoadingOlderMessages(true);
             console.log(`🔄 Loading older messages for ${phone} before ${paginationInfo.oldestCursor}...`);
 
@@ -275,9 +277,10 @@ export const useConversations = (socket) => {
             console.error(`❌ Error loading older messages for ${phone}:`, error);
             return false;
         } finally {
+            isLoadingOlderRef.current = false;
             setIsLoadingOlderMessages(false);
         }
-    }, [messagePaginationByPhone, isLoadingOlderMessages]);
+    }, [messagePaginationByPhone]);
 
     // Mark conversation as read
     const markConversationAsRead = useCallback(async (phone) => {
