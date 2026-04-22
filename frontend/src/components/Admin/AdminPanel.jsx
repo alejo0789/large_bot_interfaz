@@ -225,6 +225,8 @@ const AdminPanel = ({ isMobile }) => {
     const [syncingSlug, setSyncingSlug] = useState(null);
     const [cleaningVolume, setCleaningVolume] = useState(false);
     const [cleanupResult, setCleanupResult] = useState(null);
+    const [cleanupDays, setCleanupDays] = useState(30);
+    const [cleanupTypes, setCleanupTypes] = useState(['image', 'audio', 'video']);
 
     const isSuperAdmin = user?.role === 'SUPER_ADMIN';
     const isSedeAdmin = user?.role === 'SEDE_ADMIN';
@@ -314,14 +316,15 @@ const AdminPanel = ({ isMobile }) => {
     };
 
     const handleCleanupMedia = async () => {
-        if (!window.confirm('¿Estás seguro de que deseas limpiar el volumen? Se eliminarán permanentemente todos los archivos (imágenes, audios, videos) con más de 30 días de antigüedad.')) return;
+        if (!window.confirm(`¿Estás seguro de que deseas limpiar el volumen?\nSe eliminarán los archivos (${cleanupTypes.join(', ')}) con más de ${cleanupDays} días de antigüedad.`)) return;
         
         setCleaningVolume(true);
         setCleanupResult(null);
         try {
             const res = await fetch(`${API_URL}/api/admin/cleanup-media`, {
                 method: 'POST',
-                headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` }
+                headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+                body: JSON.stringify({ daysToKeep: cleanupDays, types: cleanupTypes })
             });
             const data = await res.json();
             if (data.success) {
@@ -439,41 +442,78 @@ const AdminPanel = ({ isMobile }) => {
                         <AlertCircle size={16} color="#4338ca" />
                         <span style={{ fontWeight: 700, fontSize: '14px', color: '#111827' }}>Mantenimiento del Sistema</span>
                     </div>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '16px', flexWrap: 'wrap' }}>
-                        <div style={{ flex: 1, minWidth: '200px' }}>
-                            <div style={{ fontWeight: 600, fontSize: '14px', color: '#374151' }}>Limpieza de Volumen (Archivos > 30 días)</div>
-                            <div style={{ fontSize: '12px', color: '#6b7280' }}>
-                                Elimina imágenes, videos y audios antiguos para liberar espacio en Railway.
+                    
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+                        <div style={{ display: 'flex', flexWrap: 'wrap', gap: '16px', alignItems: 'center' }}>
+                            <div style={{ flex: 1, minWidth: '200px' }}>
+                                <div style={{ fontWeight: 600, fontSize: '14px', color: '#374151', marginBottom: '8px' }}>Limpieza de Volumen (Archivos Antiguos)</div>
+                                <div style={{ fontSize: '12px', color: '#6b7280', marginBottom: '12px' }}>
+                                    Libera espacio en Railway eliminando multimedia. Configura los parámetros:
+                                </div>
+                                <div style={{ display: 'flex', gap: '16px', flexWrap: 'wrap' }}>
+                                    <label style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '13px', color: '#4b5563' }}>
+                                        Antigüedad:
+                                        <select 
+                                            value={cleanupDays} 
+                                            onChange={e => setCleanupDays(Number(e.target.value))}
+                                            style={{ padding: '4px 8px', borderRadius: '6px', border: '1px solid #d1d5db', outline: 'none' }}
+                                        >
+                                            <option value={7}>Más de 7 días</option>
+                                            <option value={15}>Más de 15 días</option>
+                                            <option value={30}>Más de 30 días</option>
+                                            <option value={60}>Más de 60 días</option>
+                                            <option value={90}>Más de 90 días</option>
+                                        </select>
+                                    </label>
+
+                                    <div style={{ display: 'flex', gap: '12px', alignItems: 'center', fontSize: '13px', color: '#4b5563' }}>
+                                        Tipos:
+                                        {['image', 'video', 'audio', 'document'].map(type => (
+                                            <label key={type} style={{ display: 'flex', alignItems: 'center', gap: '4px', cursor: 'pointer' }}>
+                                                <input 
+                                                    type="checkbox" 
+                                                    checked={cleanupTypes.includes(type)} 
+                                                    onChange={e => {
+                                                        if (e.target.checked) setCleanupTypes([...cleanupTypes, type]);
+                                                        else setCleanupTypes(cleanupTypes.filter(t => t !== type));
+                                                    }} 
+                                                />
+                                                {type === 'image' ? 'Imágenes' : type === 'video' ? 'Videos' : type === 'audio' ? 'Audios' : 'Docs'}
+                                            </label>
+                                        ))}
+                                    </div>
+                                </div>
+                            </div>
+                            
+                            <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', alignItems: 'flex-end' }}>
+                                <button
+                                    onClick={handleCleanupMedia}
+                                    disabled={cleaningVolume || cleanupTypes.length === 0}
+                                    style={{ 
+                                        display: 'flex', 
+                                        alignItems: 'center', 
+                                        gap: '8px', 
+                                        padding: '10px 20px', 
+                                        borderRadius: '8px', 
+                                        border: 'none', 
+                                        background: cleaningVolume || cleanupTypes.length === 0 ? '#94a3b8' : '#4338ca', 
+                                        color: 'white', 
+                                        cursor: cleaningVolume || cleanupTypes.length === 0 ? 'not-allowed' : 'pointer', 
+                                        fontSize: '13px', 
+                                        fontWeight: 700,
+                                        boxShadow: '0 4px 10px rgba(67, 56, 202, 0.2)'
+                                    }}
+                                >
+                                    {cleaningVolume ? <RotateCw size={15} style={{ animation: 'spin 1s linear infinite' }} /> : <Trash2 size={15} />}
+                                    {cleaningVolume ? 'Limpiando...' : 'Ejecutar Limpieza'}
+                                </button>
+                                {cleanupResult && (
+                                    <div style={{ fontSize: '12px', background: '#f0f9ff', padding: '6px 10px', borderRadius: '8px', border: '1px solid #bae6fd', color: '#0369a1' }}>
+                                        <strong>Última:</strong> {cleanupResult.deletedFiles} borrados ({cleanupResult.recoveredMB} MB)
+                                    </div>
+                                )}
                             </div>
                         </div>
-                        
-                        {cleanupResult && (
-                            <div style={{ fontSize: '12px', background: '#f0f9ff', padding: '8px 12px', borderRadius: '8px', border: '1px solid #bae6fd', color: '#0369a1' }}>
-                                <strong>Último resultado:</strong> {cleanupResult.deletedFiles} archivos borrados ({cleanupResult.recoveredMB} MB recuperados)
-                            </div>
-                        )}
-
-                        <button
-                            onClick={handleCleanupMedia}
-                            disabled={cleaningVolume}
-                            style={{ 
-                                display: 'flex', 
-                                alignItems: 'center', 
-                                gap: '8px', 
-                                padding: '10px 20px', 
-                                borderRadius: '8px', 
-                                border: 'none', 
-                                background: cleaningVolume ? '#94a3b8' : '#4338ca', 
-                                color: 'white', 
-                                cursor: cleaningVolume ? 'wait' : 'pointer', 
-                                fontSize: '13px', 
-                                fontWeight: 700,
-                                boxShadow: '0 4px 10px rgba(67, 56, 202, 0.2)'
-                            }}
-                        >
-                            {cleaningVolume ? <RotateCw size={15} style={{ animation: 'spin 1s linear infinite' }} /> : <Trash2 size={15} />}
-                            {cleaningVolume ? 'Limpiando...' : 'Ejecutar Limpieza'}
-                        </button>
                     </div>
                 </div>
             )}
