@@ -141,7 +141,10 @@ const MessageBubble = React.memo(({ message, onForward, onReact, onDelete, onRep
                             overflow: 'hidden',
                             boxSizing: 'border-box'
                         }}
-                        onClick={() => !isSending && !isFailed && setShowFullImage(true)}
+                        onClick={(e) => {
+                            e.stopPropagation();
+                            if (!isSending && !isFailed) setShowFullImage(true);
+                        }}
                     >
                         {!imageError ? (
                             <img
@@ -876,16 +879,16 @@ const MessageBubble = React.memo(({ message, onForward, onReact, onDelete, onRep
 
             {/* Full screen image modal */}
             {
-                showFullImage && media_type === 'image' && (
+                showFullImage && String(media_type).toLowerCase() === 'image' && (
                     <div
                         style={{
                             position: 'fixed',
                             inset: 0,
-                            backgroundColor: 'rgba(0,0,0,0.9)',
+                            backgroundColor: 'rgba(0,0,0,0.95)',
                             display: 'flex',
                             alignItems: 'center',
                             justifyContent: 'center',
-                            zIndex: 1000,
+                            zIndex: 10000,
                             cursor: 'pointer'
                         }}
                         onClick={() => setShowFullImage(false)}
@@ -896,7 +899,8 @@ const MessageBubble = React.memo(({ message, onForward, onReact, onDelete, onRep
                             style={{
                                 maxWidth: '95%',
                                 maxHeight: '95%',
-                                objectFit: 'contain'
+                                objectFit: 'contain',
+                                boxShadow: '0 0 40px rgba(0,0,0,0.5)'
                             }}
                         />
                         <button
@@ -910,9 +914,17 @@ const MessageBubble = React.memo(({ message, onForward, onReact, onDelete, onRep
                                 width: '40px',
                                 height: '40px',
                                 cursor: 'pointer',
-                                fontSize: '20px'
+                                fontSize: '24px',
+                                display: 'flex',
+                                alignItems: 'center',
+                                justifyContent: 'center',
+                                boxShadow: '0 2px 10px rgba(0,0,0,0.3)',
+                                zIndex: 10001
                             }}
-                            onClick={() => setShowFullImage(false)}
+                            onClick={(e) => {
+                                e.stopPropagation();
+                                setShowFullImage(false);
+                            }}
                         >
                             ×
                         </button>
