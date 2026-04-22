@@ -2,7 +2,10 @@ const { Pool } = require('pg');
 require('dotenv').config();
 
 const masterPool = process.env.MASTER_DATABASE_URL
-    ? new Pool({ connectionString: process.env.MASTER_DATABASE_URL, ssl: { rejectUnauthorized: false } })
+    ? new Pool({ 
+        connectionString: process.env.MASTER_DATABASE_URL, 
+        ssl: process.env.MASTER_DATABASE_URL.includes('localhost') || process.env.MASTER_DATABASE_URL.includes('127.0.0.1') ? false : { rejectUnauthorized: false } 
+      })
     : new Pool({
         user: process.env.DB_USER || 'postgres',
         password: process.env.DB_PASSWORD || 'root',

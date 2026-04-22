@@ -63,6 +63,7 @@ async function updateTimeTags() {
                             SELECT 
                                 c.phone,
                                 c.lead_time,
+                                c.last_message_from_me,
                                 EXTRACT(EPOCH FROM (NOW() - COALESCE(c.last_message_timestamp, c.created_at))) / 3600 AS hours_since
                             FROM conversations c
                             WHERE c.status = 'active'
@@ -79,15 +80,19 @@ async function updateTimeTags() {
                         for (const conv of conversations) {
                             let targetTag = null;
 
-                            for (const threshold of TIME_THRESHOLDS) {
-                                if (conv.hours_since >= threshold.hours) {
-                                    targetTag = threshold.tag;
-                                    break;
+                            // Only calculate SLA tags if the LAST message was from the client (not from me)
+                            // "desde el cliente envia el mensaje y no se ha respondido"
+                            if (conv.last_message_from_me === false) {
+                                for (const threshold of TIME_THRESHOLDS) {
+                                    if (conv.hours_since >= threshold.hours) {
+                                        targetTag = threshold.tag;
+                                        break;
+                                    }
                                 }
                             }
 
-                            // If we have a new classification or it changed, update the column directly
-                            if (targetTag && conv.lead_time !== targetTag) {
+                            // If targetTag changed, or if it was answered and needs to be cleared
+                            if (conv.lead_time !== targetTag) {
                                 await client.query(`
                                     UPDATE conversations 
                                     SET lead_time = $1, updated_at = NOW()
