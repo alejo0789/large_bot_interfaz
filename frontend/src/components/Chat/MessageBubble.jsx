@@ -665,18 +665,18 @@ const MessageBubble = React.memo(({ message, onForward, onReact, onDelete, onRep
 
             </div >
 
-            {/* Context Menu Modal */}
+            {/* Context Menu Modal - RENDERED VIA PORTAL TO BODY */}
             {
-                showMenu && (
+                showMenu && createPortal(
                     <div
                         className="modal-overlay"
-                        style={{ alignItems: 'flex-start', paddingTop: '0', background: 'rgba(0,0,0,0.1)' }}
+                        style={{ alignItems: 'flex-start', paddingTop: '0', background: 'rgba(0,0,0,0.1)', zIndex: 999998 }}
                         onClick={() => setShowMenu(false)}
                     >
                         <div
                             ref={menuRef}
                             style={{
-                                position: 'absolute',
+                                position: 'fixed',
                                 top: Math.min(window.innerHeight - 320, Math.max(10, menuPosition.y)),
                                 left: Math.min(window.innerWidth - 300, Math.max(10, menuPosition.x)),
                                 background: 'white',
@@ -876,7 +876,8 @@ const MessageBubble = React.memo(({ message, onForward, onReact, onDelete, onRep
                                 </button>
                             </div>
                         </div>
-                    </div>
+                    </div>,
+                    document.body
                 )
             }
 
