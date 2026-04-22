@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef, useMemo } from 'react';
+import { createPortal } from 'react-dom';
 import { CheckCheck, Clock, Download, FileText, Image as ImageIcon, Mic, Forward, Reply, Trash2, Smile, MoreHorizontal, ChevronDown, Copy, Edit2, Calendar } from 'lucide-react';
 import EmojiPicker from 'emoji-picker-react';
 
@@ -143,7 +144,8 @@ const MessageBubble = React.memo(({ message, onForward, onReact, onDelete, onRep
                         }}
                         onClick={(e) => {
                             e.stopPropagation();
-                            if (!isSending && !isFailed) setShowFullImage(true);
+                            // Allow opening even if "sending" as long as we have a URL (optimistic)
+                            if (!isFailed) setShowFullImage(true);
                         }}
                     >
                         {!imageError ? (
@@ -160,7 +162,8 @@ const MessageBubble = React.memo(({ message, onForward, onReact, onDelete, onRep
                                     display: 'block',
                                     filter: isSending ? 'brightness(0.6)' : isFailed ? 'brightness(0.5) sepia(1) hue-rotate(-30deg)' : 'none',
                                     transition: 'filter 0.2s ease',
-                                    boxSizing: 'border-box'
+                                    boxSizing: 'border-box',
+                                    cursor: 'pointer' // Explicit cursor on image
                                 }}
                             />
                         ) : (
@@ -873,13 +876,9 @@ const MessageBubble = React.memo(({ message, onForward, onReact, onDelete, onRep
                                 </button>
                             </div>
                         </div>
-                    </div>
-                )
-            }
-
-            {/* Full screen image modal */}
+                    </div>            {/* Full screen image modal - RENDERED VIA PORTAL TO BODY */}
             {
-                showFullImage && String(media_type).toLowerCase() === 'image' && (
+                showFullImage && String(media_type || '').toLowerCase() === 'image' && createPortal(
                     <div
                         style={{
                             position: 'fixed',
@@ -888,10 +887,14 @@ const MessageBubble = React.memo(({ message, onForward, onReact, onDelete, onRep
                             display: 'flex',
                             alignItems: 'center',
                             justifyContent: 'center',
-                            zIndex: 10000,
-                            cursor: 'pointer'
+                            zIndex: 999999, // Extremely high to be above everything
+                            cursor: 'pointer',
+                            pointerEvents: 'auto'
                         }}
-                        onClick={() => setShowFullImage(false)}
+                        onClick={(e) => {
+                            e.stopPropagation();
+                            setShowFullImage(false);
+                        }}
                     >
                         <img
                             src={media_url}
@@ -900,7 +903,8 @@ const MessageBubble = React.memo(({ message, onForward, onReact, onDelete, onRep
                                 maxWidth: '95%',
                                 maxHeight: '95%',
                                 objectFit: 'contain',
-                                boxShadow: '0 0 40px rgba(0,0,0,0.5)'
+                                boxShadow: '0 0 50px rgba(0,0,0,0.8)',
+                                pointerEvents: 'auto'
                             }}
                         />
                         <button
@@ -911,24 +915,26 @@ const MessageBubble = React.memo(({ message, onForward, onReact, onDelete, onRep
                                 background: 'white',
                                 border: 'none',
                                 borderRadius: '50%',
-                                width: '40px',
-                                height: '40px',
+                                width: '44px',
+                                height: '44px',
                                 cursor: 'pointer',
-                                fontSize: '24px',
+                                fontSize: '28px',
                                 display: 'flex',
                                 alignItems: 'center',
                                 justifyContent: 'center',
-                                boxShadow: '0 2px 10px rgba(0,0,0,0.3)',
-                                zIndex: 10001
+                                boxShadow: '0 4px 15px rgba(0,0,0,0.4)',
+                                zIndex: 1000000,
+                                color: '#1f2937'
                             }}
                             onClick={(e) => {
                                 e.stopPropagation();
                                 setShowFullImage(false);
                             }}
                         >
-                            ×
+                            &times;
                         </button>
-                    </div>
+                    </div>,
+                    document.body
                 )
             }
         </>
