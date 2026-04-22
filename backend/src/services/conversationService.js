@@ -87,6 +87,7 @@ class ConversationService {
         
         if (leadTime) {
             conditions.push(`c.lead_time = $${paramIndex++}`);
+            conditions.push(`c.last_message_from_me = false`);
             params.push(leadTime);
         }
 
@@ -275,6 +276,7 @@ class ConversationService {
                 last_message_text = $1,
                 last_message_timestamp = NOW(),
                 last_message_from_me = $2,
+                lead_time = CASE WHEN $2 = true THEN NULL ELSE lead_time END,
                 updated_at = NOW()
             WHERE phone = $3
         `, [message, isFromMe, phone]);
@@ -390,7 +392,7 @@ class ConversationService {
                 lead_time as classification,
                 COUNT(*) as total
             FROM conversations
-            WHERE status = 'active' AND lead_time IS NOT NULL
+            WHERE status = 'active' AND lead_time IS NOT NULL AND last_message_from_me = false
             GROUP BY lead_time
         `);
         return rows;
@@ -447,6 +449,7 @@ class ConversationService {
             if (leadTimes.length > 0) {
                 const placeholders = leadTimes.map(() => `$${paramIndex++}`).join(', ');
                 conditions.push(`c.lead_time IN (${placeholders})`);
+                conditions.push(`c.last_message_from_me = false`);
                 params.push(...leadTimes);
             }
         }

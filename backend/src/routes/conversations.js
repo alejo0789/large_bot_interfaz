@@ -389,6 +389,7 @@ router.get('/recipients-count', asyncHandler(async (req, res) => {
         if (leadTimes.length > 0) {
             const placeholders = leadTimes.map(() => `$${paramIndex++}`).join(', ');
             conditions.push(`c.lead_time IN (${placeholders})`);
+            conditions.push(`c.last_message_from_me = false`);
             params.push(...leadTimes);
         }
     }
