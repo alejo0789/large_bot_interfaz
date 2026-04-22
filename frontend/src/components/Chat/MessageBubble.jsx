@@ -876,7 +876,11 @@ const MessageBubble = React.memo(({ message, onForward, onReact, onDelete, onRep
                                 </button>
                             </div>
                         </div>
-                    </div>            {/* Full screen image modal - RENDERED VIA PORTAL TO BODY */}
+                    </div>
+                )
+            }
+
+            {/* Full screen image modal - RENDERED VIA PORTAL TO BODY */}
             {
                 showFullImage && String(media_type || '').toLowerCase() === 'image' && createPortal(
                     <div
