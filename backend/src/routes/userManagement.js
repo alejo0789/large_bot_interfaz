@@ -521,14 +521,36 @@ router.post('/cleanup-media', asyncHandler(async (req, res) => {
     const path = require('path');
     const { config } = require('../config/app');
 
-    const DAYS_TO_KEEP = 30;
-    const THRESHOLD_MS = DAYS_TO_KEEP * 24 * 60 * 60 * 1000;
+    // Extract options from body or use defaults
+    const { daysToKeep = 30, types = ['image', 'audio', 'video', 'document'] } = req.body;
+    
+    if (isNaN(daysToKeep) || daysToKeep < 0) {
+        throw new AppError('Días debe ser un número válido', 400);
+    }
+
+    const THRESHOLD_MS = parseInt(daysToKeep) * 24 * 60 * 60 * 1000;
     const NOW = Date.now();
     const TARGET_DIR = config.uploadDir;
 
     if (!fs.existsSync(TARGET_DIR)) {
         return res.status(404).json({ success: false, error: 'Directorio de uploads no encontrado' });
     }
+
+    // Helper to map type to extensions
+    const extMapping = {
+        'image': ['.jpg', '.jpeg', '.png', '.gif', '.webp'],
+        'audio': ['.mp3', '.ogg', '.wav', '.opus', '.m4a'],
+        'video': ['.mp4', '.avi', '.mov', '.webm'],
+        'document': ['.pdf', '.doc', '.docx', '.xls', '.xlsx', '.txt', '.csv']
+    };
+
+    // Build list of allowed extensions to delete based on selected types
+    let allowedExts = [];
+    types.forEach(t => {
+        if (extMapping[t]) {
+            allowedExts = allowedExts.concat(extMapping[t]);
+        }
+    });
 
     let deletedFilesCount = 0;
     let deletedBytesCount = 0;
@@ -551,14 +573,22 @@ router.post('/cleanup-media', asyncHandler(async (req, res) => {
             } else {
                 scannedFilesCount++;
                 const ageMs = NOW - stats.mtimeMs;
+                
                 if (ageMs > THRESHOLD_MS) {
-                    try {
-                        const fileSize = stats.size;
-                        fs.unlinkSync(fullPath);
-                        deletedFilesCount++;
-                        deletedBytesCount += fileSize;
-                    } catch (err) {
-                        console.error(`❌ Failed to delete ${fullPath}:`, err.message);
+                    const ext = path.extname(item).toLowerCase();
+                    // Si seleccionaron tipos y la extensión no coincide con los elegidos, la omitimos
+                    // Si allowedExts está vacío (no pasaron nada o pasaron un tipo raro), borramos todo (legacy fallback)
+                    const shouldDelete = allowedExts.length === 0 || allowedExts.includes(ext);
+
+                    if (shouldDelete) {
+                        try {
+                            const fileSize = stats.size;
+                            fs.unlinkSync(fullPath);
+                            deletedFilesCount++;
+                            deletedBytesCount += fileSize;
+                        } catch (err) {
+                            console.error(`❌ Failed to delete ${fullPath}:`, err.message);
+                        }
                     }
                 }
             }
