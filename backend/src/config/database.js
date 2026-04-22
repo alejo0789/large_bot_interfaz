@@ -8,13 +8,22 @@ const { tenantContext } = require('../utils/tenantContext');
 class MultiTenantManager {
     constructor() {
         this.pools = new Map();
-        // Master connection configuration
         // Prefer MASTER_DATABASE_URL (Neon cloud) over individual local vars
-        const masterUrl = process.env.MASTER_DATABASE_URL;
+        const masterUrl = process.env.MASTER_DATABASE_URL || process.env.DATABASE_URL;
+        
+        // Determine if SSL should be used based on URL
+        // Neon requires SSL, Railway internal often doesn't.
+        let useSsl = false;
+        if (masterUrl) {
+            if (!masterUrl.includes('localhost') && !masterUrl.includes('127.0.0.1') && !masterUrl.includes('rlwy.net') && !masterUrl.includes('railway')) {
+                useSsl = { rejectUnauthorized: false };
+            }
+        }
+
         const masterConfig = masterUrl
             ? {
                 connectionString: masterUrl,
-                ssl: (masterUrl.includes('localhost') || masterUrl.includes('127.0.0.1')) ? false : { rejectUnauthorized: false },
+                ssl: useSsl,
                 max: 20,
                 idleTimeoutMillis: 30000,
                 connectionTimeoutMillis: 10000,
@@ -59,10 +68,18 @@ class MultiTenantManager {
         }
 
         console.log(`📡 Creating new connection pool for tenant: ${tenantId}`);
+        
+        let useSsl = false;
+        if (connectionString) {
+            if (!connectionString.includes('localhost') && !connectionString.includes('127.0.0.1') && !connectionString.includes('rlwy.net') && !connectionString.includes('railway')) {
+                useSsl = { rejectUnauthorized: false };
+            }
+        }
+
         // Ensure connectionString is valid or fallback to local if same host but different DB
         const pool = new Pool({
             connectionString: connectionString,
-            ssl: connectionString.includes('localhost') || connectionString.includes('127.0.0.1') ? false : { rejectUnauthorized: false },
+            ssl: useSsl,
             min: 2,
             max: 20,
             idleTimeoutMillis: 30000,
