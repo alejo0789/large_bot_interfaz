@@ -1,6 +1,7 @@
-import React, { useMemo, useRef, useEffect, useLayoutEffect } from 'react';
+import React, { useMemo, useRef, useEffect } from 'react';
 import ConversationItem from './ConversationItem';
 import { UserPlus } from 'lucide-react';
+import { Virtuoso } from 'react-virtuoso';
 
 /**
  * Conversation list component with infinite scroll
@@ -28,95 +29,41 @@ const ConversationList = React.memo(({
     onToggleSelection,
     onEnterSelectionMode
 }) => {
-    const listRef = useRef(null);
     const [refreshing, setRefreshing] = React.useState(false);
     const [pullDistance, setPullDistance] = React.useState(0);
     const touchStartRef = useRef(0);
     const isPullingRef = useRef(false);
+    const virtuosoRef = useRef(null);
+    const listContainerRef = useRef(null);
 
     // Filter conversations based on search (handled by backend now)
     const filteredConversations = useMemo(() => {
         return conversations;
     }, [conversations]);
 
-    const sentinelRef = useRef(null);
-
-    // Infinite scroll using IntersectionObserver
-    useEffect(() => {
-        if (!hasMore || isLoadingMore || !onLoadMore || !listRef.current) return;
-
-        const observer = new IntersectionObserver(
-            (entries) => {
-                if (entries[0].isIntersecting) {
-                    console.log('🔄 Sentinel visible - loading more conversations...');
-                    onLoadMore();
-                }
-            },
-            {
-                root: listRef.current, // Use the scrollable list as root
-                rootMargin: '400px',   // Start loading when within 400px of bottom
-                threshold: 0
-            }
-        );
-
-        if (sentinelRef.current) {
-            observer.observe(sentinelRef.current);
-        }
-
-        return () => observer.disconnect();
-    }, [hasMore, isLoadingMore, onLoadMore, conversations.length]); // Re-observe when conversations change
-
     const previousSelectedIdRef = useRef(null);
 
     // Auto-scroll to selected conversation - ONLY when selecting a NEW one
     useEffect(() => {
-        if (selectedId && listRef.current && selectedId !== previousSelectedIdRef.current) {
+        if (selectedId && selectedId !== previousSelectedIdRef.current) {
             const currentSelected = selectedId;
             const prevSelected = previousSelectedIdRef.current;
 
             // Only scroll if it's a truly different conversation being selected
             if (currentSelected !== prevSelected) {
-                const timeout = setTimeout(() => {
-                    if (listRef.current) {
-                        const activeItem = listRef.current.querySelector('.conversation-item.active');
-                        if (activeItem) {
-                            activeItem.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
-                        }
-                    }
-                }, 100);
-
+                const index = filteredConversations.findIndex(c => c.id === currentSelected);
+                if (index !== -1 && virtuosoRef.current) {
+                    // Small timeout to ensure Virtuoso has processed items
+                    setTimeout(() => {
+                        virtuosoRef.current?.scrollToIndex({ index, align: 'center', behavior: 'smooth' });
+                    }, 50);
+                }
                 previousSelectedIdRef.current = currentSelected;
-                return () => clearTimeout(timeout);
             }
         } else if (!selectedId) {
             previousSelectedIdRef.current = null;
         }
-    }, [selectedId]);
-
-    // Scroll Anchoring: keep the sidebar "quiet" when items move to top
-    const prevTopConversationId = useRef(conversations[0]?.id || conversations[0]?.contact?.phone);
-    const prevConversationsCount = useRef(conversations.length);
-
-    useLayoutEffect(() => {
-        if (listRef.current && conversations.length > 0 && conversations.length === prevConversationsCount.current) {
-            const currentTopId = conversations[0]?.id || conversations[0]?.contact?.phone;
-
-            // If the top item changed, but it wasn't a new fetch (same count),
-            // it means a conversation reordered to the top.
-            if (currentTopId !== prevTopConversationId.current && listRef.current.scrollTop > 20) {
-                // Get the height of the first item to compensate exactly
-                if (listRef.current) {
-                    const firstItem = listRef.current.querySelector('.conversation-item-wrapper');
-                    if (firstItem) {
-                        const height = firstItem.offsetHeight;
-                        listRef.current.scrollTop += height;
-                    }
-                }
-            }
-        }
-        prevTopConversationId.current = conversations[0]?.id || conversations[0]?.contact?.phone;
-        prevConversationsCount.current = conversations.length;
-    }, [conversations]);
+    }, [selectedId, filteredConversations]);
 
     if (isLoading) {
         return (
@@ -167,7 +114,9 @@ const ConversationList = React.memo(({
     }
 
     const handleTouchStart = (e) => {
-        if (listRef.current.scrollTop === 0) {
+        // Solo permitir pull-to-refresh si el scroll principal está arriba
+        const scrollContainer = listContainerRef.current?.querySelector('[data-virtuoso-scroller]');
+        if (scrollContainer && scrollContainer.scrollTop <= 0) {
             touchStartRef.current = e.touches[0].clientY;
             isPullingRef.current = true;
         }
@@ -179,14 +128,11 @@ const ConversationList = React.memo(({
         const touchY = e.touches[0].clientY;
         const distance = touchY - touchStartRef.current;
 
-        if (distance > 0 && listRef.current.scrollTop === 0) {
-            // Prevent default to avoid browser's native pull-to-refresh if possible
-            // and apply a resistance factor
+        if (distance > 0) {
             const pull = Math.min(distance * 0.4, 80);
             setPullDistance(pull);
 
             if (pull > 10) {
-                // Prevent standard scroll when pulling down
                 if (e.cancelable) e.preventDefault();
             }
         } else if (distance < 0) {
@@ -218,14 +164,20 @@ const ConversationList = React.memo(({
         setRefreshing(false);
     };
 
+    const loadMore = () => {
+        if (hasMore && !isLoadingMore && onLoadMore) {
+            onLoadMore();
+        }
+    };
+
     return (
         <div
             className="conversation-list"
-            ref={listRef}
+            ref={listContainerRef}
             onTouchStart={handleTouchStart}
             onTouchMove={handleTouchMove}
             onTouchEnd={handleTouchEnd}
-            style={{ position: 'relative', overflowAnchor: 'none' }}
+            style={{ position: 'relative', overflowAnchor: 'none', display: 'flex', flexDirection: 'column' }}
         >
             {/* Pull-to-refresh indicator */}
             <div style={{
@@ -239,55 +191,70 @@ const ConversationList = React.memo(({
                 opacity: pullDistance / 60,
                 fontSize: '0.8rem',
                 color: 'var(--color-primary)',
-                fontWeight: '600'
+                fontWeight: '600',
+                flexShrink: 0
             }}>
                 {pullDistance > 55 ? 'Suelta para actualizar' : 'Tira para actualizar'}
             </div>
-            {filteredConversations.map(conversation => (
-                <div key={conversation.id} data-id={conversation.id} className="conversation-item-wrapper">
-                    <ConversationItem
-                        conversation={conversation}
-                        isSelected={selectedId === conversation.id}
-                        isMultiSelected={selectedIds.includes(conversation.id)}
-                        isSelectionMode={isSelectionMode}
-                        onToggleSelection={onToggleSelection}
-                        onEnterSelectionMode={onEnterSelectionMode}
-                        aiEnabled={aiStatesByPhone[conversation.contact.phone] ?? globalDefaultAi}
-                        tags={conversation.tags || tagsByPhone[conversation.contact.phone] || []}
-                        onClick={() => isSelectionMode ? onToggleSelection(conversation.id) : onSelect(conversation)}
-                        onTagClick={onTagClick}
-                        onDelete={onDelete}
-                        onTogglePin={onTogglePin}
-                    />
-                </div>
-            ))}
 
-            {/* Sentinel for infinite scroll */}
-            {hasMore && <div ref={sentinelRef} style={{ height: '20px' }} />}
-
-            {/* Loading more indicator */}
-            {isLoadingMore && (
-                <div style={{
-                    padding: 'var(--space-4)',
-                    textAlign: 'center',
-                    color: 'var(--color-gray-500)',
-                    fontSize: 'var(--font-size-sm)'
-                }}>
-                    <div className="loading">Cargando más...</div>
-                </div>
-            )}
-
-            {/* End of list indicator */}
-            {!hasMore && filteredConversations.length > 0 && (
-                <div style={{
-                    padding: 'var(--space-4)',
-                    textAlign: 'center',
-                    color: 'var(--color-gray-400)',
-                    fontSize: 'var(--font-size-xs)'
-                }}>
-                    No hay más conversaciones
-                </div>
-            )}
+            <div style={{ flex: 1, minHeight: 0 }}>
+                <Virtuoso
+                    ref={virtuosoRef}
+                    style={{ height: '100%' }}
+                    data={filteredConversations}
+                    endReached={loadMore}
+                    overscan={200} // Cargar algo más para smooth scroll
+                    itemContent={(index, conversation) => (
+                        <div data-id={conversation.id} className="conversation-item-wrapper" style={{ paddingBottom: '1px' }}>
+                            <ConversationItem
+                                conversation={conversation}
+                                isSelected={selectedId === conversation.id}
+                                isMultiSelected={selectedIds.includes(conversation.id)}
+                                isSelectionMode={isSelectionMode}
+                                onToggleSelection={onToggleSelection}
+                                onEnterSelectionMode={onEnterSelectionMode}
+                                aiEnabled={aiStatesByPhone[conversation.contact.phone] ?? globalDefaultAi}
+                                tags={conversation.tags || tagsByPhone[conversation.contact.phone] || []}
+                                onClick={() => isSelectionMode ? onToggleSelection(conversation.id) : onSelect(conversation)}
+                                onTagClick={onTagClick}
+                                onDelete={onDelete}
+                                onTogglePin={onTogglePin}
+                            />
+                        </div>
+                    )}
+                    components={{
+                        Footer: () => {
+                            if (!hasMore && filteredConversations.length > 0) {
+                                return (
+                                    <div style={{
+                                        padding: 'var(--space-4)',
+                                        textAlign: 'center',
+                                        color: 'var(--color-gray-400)',
+                                        fontSize: 'var(--font-size-xs)'
+                                    }}>
+                                        No hay más conversaciones
+                                    </div>
+                                );
+                            }
+                            
+                            if (isLoadingMore) {
+                                return (
+                                    <div style={{
+                                        padding: 'var(--space-4)',
+                                        textAlign: 'center',
+                                        color: 'var(--color-gray-500)',
+                                        fontSize: 'var(--font-size-sm)'
+                                    }}>
+                                        <div className="loading">Cargando más...</div>
+                                    </div>
+                                );
+                            }
+                            
+                            return null;
+                        }
+                    }}
+                />
+            </div>
         </div>
     );
 });

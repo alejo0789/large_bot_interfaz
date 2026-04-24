@@ -1,4 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
+import { createPortal } from 'react-dom';
 import { User, Bot, UserCheck, Tag, MoreVertical, Edit2, Trash2, Pin, CheckSquare } from 'lucide-react';
 import EditContactModal from './EditContactModal';
 import { getShortDate } from '../../utils/dateUtils';
@@ -47,6 +48,7 @@ const ConversationItem = React.memo(({
 
     // State for name editing
     const [isMenuOpen, setIsMenuOpen] = useState(false);
+    const [menuPosition, setMenuPosition] = useState({ top: 0, left: 0 });
     const [isEditModalOpen, setIsEditModalOpen] = useState(false);
     
     // Helper para formatear LIDs largos (IDs internos de WA)
@@ -80,6 +82,7 @@ const ConversationItem = React.memo(({
     const [isDeleting, setIsDeleting] = useState(false);
     const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
     const menuRef = useRef(null);
+    const buttonRef = useRef(null);
 
     // Sync state with props
     useEffect(() => {
@@ -89,13 +92,26 @@ const ConversationItem = React.memo(({
     // Close menu when clicking outside
     useEffect(() => {
         const handleClickOutside = (event) => {
-            if (menuRef.current && !menuRef.current.contains(event.target)) {
+            if (
+                menuRef.current && !menuRef.current.contains(event.target) &&
+                buttonRef.current && !buttonRef.current.contains(event.target)
+            ) {
                 setIsMenuOpen(false);
             }
         };
+        const handleScroll = () => {
+            if (isMenuOpen) setIsMenuOpen(false);
+        };
+        
         document.addEventListener('mousedown', handleClickOutside);
-        return () => document.removeEventListener('mousedown', handleClickOutside);
-    }, []);
+        // Usar capture phase (true) para detectar scroll en cualquier contenedor
+        window.addEventListener('scroll', handleScroll, true); 
+        
+        return () => {
+            document.removeEventListener('mousedown', handleClickOutside);
+            window.removeEventListener('scroll', handleScroll, true);
+        };
+    }, [isMenuOpen]);
 
     const handleSaveName = async (newName) => {
         try {
@@ -217,11 +233,19 @@ const ConversationItem = React.memo(({
                         </button>
 
                         {/* More Options Menu */}
-                        <div style={{ position: 'relative' }} ref={menuRef}>
+                        <div style={{ position: 'relative' }}>
                             <button
+                                ref={buttonRef}
                                 className="btn-icon"
                                 onClick={(e) => {
                                     e.stopPropagation();
+                                    if (!isMenuOpen) {
+                                        const rect = e.currentTarget.getBoundingClientRect();
+                                        setMenuPosition({
+                                            top: rect.bottom,
+                                            left: rect.right - 150
+                                        });
+                                    }
                                     setIsMenuOpen(!isMenuOpen);
                                 }}
                                 title="Opciones"
@@ -234,19 +258,23 @@ const ConversationItem = React.memo(({
                                 <MoreVertical className="w-3 h-3" />
                             </button>
 
-                            {isMenuOpen && (
-                                <div style={{
-                                    position: 'absolute',
-                                    top: '100%',
-                                    right: 0,
-                                    zIndex: 100,
-                                    backgroundColor: 'white',
-                                    border: '1px solid var(--color-gray-200)',
-                                    borderRadius: '8px',
-                                    boxShadow: '0 4px 6px rgba(0,0,0,0.1)',
-                                    minWidth: '120px',
-                                    padding: '4px 0'
-                                }} onClick={e => e.stopPropagation()}>
+                            {isMenuOpen && createPortal(
+                                <div 
+                                    ref={menuRef}
+                                    style={{
+                                        position: 'fixed',
+                                        top: menuPosition.top,
+                                        left: menuPosition.left,
+                                        zIndex: 999999,
+                                        backgroundColor: 'white',
+                                        border: '1px solid var(--color-gray-200)',
+                                        borderRadius: '8px',
+                                        boxShadow: '0 4px 12px rgba(0,0,0,0.15)',
+                                        minWidth: '150px',
+                                        padding: '4px 0'
+                                    }} 
+                                    onClick={e => e.stopPropagation()}
+                                >
                                     <button
                                         onClick={() => {
                                             setIsEditModalOpen(true);
@@ -355,7 +383,8 @@ const ConversationItem = React.memo(({
                                             </div>
                                         </div>
                                     )}
-                                </div>
+                                </div>,
+                                document.body
                             )}
                         </div>
 
