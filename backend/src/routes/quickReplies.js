@@ -1,7 +1,7 @@
 const express = require('express');
 const router = express.Router();
 const quickReplyService = require('../services/quickReplyService');
-const { upload, getUploadUrl } = require('../middleware/upload');
+const { upload, getUploadUrlFromFile } = require('../middleware/upload');
 const { config } = require('../config/app');
 
 /**
@@ -14,9 +14,8 @@ router.post('/upload', upload.single('file'), (req, res) => {
             return res.status(400).json({ error: 'No se recibió ningún archivo' });
         }
 
-        // Use the configured public URL (derived from WEBHOOK_URL in production)
-        // This ensures proper HTTPS and domain usage when behind a proxy
-        const fileUrl = getUploadUrl(req.file.filename);
+        // Use the reliable method to get the URL from the actual saved file path
+        const fileUrl = getUploadUrlFromFile(req.file);
 
         res.json({
             url: fileUrl,
