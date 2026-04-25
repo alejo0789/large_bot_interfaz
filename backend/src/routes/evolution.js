@@ -302,7 +302,7 @@ router.post('/', async (req, res) => {
 
     // Get the core message content
     const unwrappedMsg = unwrapMessage(msg.message);
-    const text = extractText(unwrappedMsg);
+    let text = extractText(unwrappedMsg);
     // FALLBACK for flattened Evolution V2 if text is still empty
     if (!text && msg.content) {
         console.log('📝 detected flattened Evolution V2 message content');
