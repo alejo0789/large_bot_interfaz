@@ -2,12 +2,25 @@ import React, { useState, useEffect, useCallback } from 'react';
 import apiFetch from '../utils/api';
 
 const sortConversations = (conversations) => {
+    if (!conversations || conversations.length <= 1) return conversations;
+    
+    // Use a more stable sort that prioritizes pins, then timestamp
     return [...conversations].sort((a, b) => {
-        if (a.isPinned && !b.isPinned) return -1;
-        if (!a.isPinned && b.isPinned) return 1;
-        const dateA = new Date(a.rawTimestamp || 0).getTime();
-        const dateB = new Date(b.rawTimestamp || 0).getTime();
-        return dateB - dateA;
+        // Pin priority
+        if (a.isPinned !== b.isPinned) {
+            return a.isPinned ? -1 : 1;
+        }
+        
+        // Timestamp priority (newest first)
+        const timeA = a.rawTimestamp ? new Date(a.rawTimestamp).getTime() : 0;
+        const timeB = b.rawTimestamp ? new Date(b.rawTimestamp).getTime() : 0;
+        
+        if (timeB !== timeA) {
+            return timeB - timeA;
+        }
+        
+        // Final tie-breaker (id)
+        return String(b.id).localeCompare(String(a.id));
     });
 };
 
@@ -787,7 +800,6 @@ export const useConversations = (socket) => {
                                         };
                                     }
                                 }
-
                                 return msg;
                             })
                         };
@@ -795,37 +807,52 @@ export const useConversations = (socket) => {
                     return prev;
                 }
 
-                return {
-                    ...prev,
-                    [phone]: [...existingMessages, formattedMessage]
-                };
+                return { ...prev, [phone]: [...existingMessages, formattedMessage] };
             });
 
-            // Update conversation in list and reorder
             setConversations(prev => {
-                const currentConversations = [...prev];
-                const index = currentConversations.findIndex(conv =>
+                const index = prev.findIndex(conv =>
                     String(conv.contact.phone).replace(/\D/g, '') === cleanIncomingPhone
                 );
-
+ 
                 if (index !== -1) {
-                    const targetConv = currentConversations[index];
-                    if (!targetConv || !targetConv.contact) return currentConversations;
-
+                    const targetConv = prev[index];
+                    if (!targetConv || !targetConv.contact) return prev;
+ 
                     const updatedConv = {
                         ...targetConv,
-                        lastMessage: formattedMessage.text,
+                        lastMessage: formattedMessage.text || targetConv.lastMessage,
                         timestamp: formattedMessage.timestamp,
                         rawTimestamp: formattedMessage.rawTimestamp,
                         unread: (selectedId === cleanIncomingPhone || isAgent)
                             ? 0
                             : (targetConv.unread || 0) + 1
                     };
+ 
+                    if (index === 0 && !isAgent && !targetConv.isPinned) {
+                        const next = [...prev];
+                        next[0] = updatedConv;
+                        return next;
+                    }
 
-                    currentConversations.splice(index, 1);
-                    return sortConversations([updatedConv, ...currentConversations]);
+                    const next = prev.filter((_, i) => i !== index);
+                    return sortConversations([updatedConv, ...next]).slice(0, 500);
                 }
-                return currentConversations;
+                
+                const newConv = {
+                    id: phone,
+                    contact: {
+                        name: messageData.pushName || messageData.contact_name || `Usuario ${phone.slice(-4)}`,
+                        phone: phone
+                    },
+                    lastMessage: formattedMessage.text,
+                    timestamp: formattedMessage.timestamp,
+                    rawTimestamp: formattedMessage.rawTimestamp,
+                    unread: 1,
+                    status: 'active',
+                    aiEnabled: globalDefaultAi
+                };
+                return sortConversations([newConv, ...prev]).slice(0, 500);
             });
         };
 
@@ -849,7 +876,7 @@ export const useConversations = (socket) => {
                     const newConv = {
                         id: data.phone,
                         contact: {
-                            name: data.contact_name || `Usuario ${data.phone.slice(-4)} `,
+                            name: data.contact_name || `Usuario ${data.phone.slice(-4)}`,
                             phone: data.phone
                         },
                         lastMessage: data.lastMessage,
@@ -858,7 +885,7 @@ export const useConversations = (socket) => {
                         unread: (selectedId === cleanPhone) ? 0 : 1,
                         status: 'active'
                     };
-                    return sortConversations([newConv, ...currentConversations]);
+                    return sortConversations([newConv, ...currentConversations]).slice(0, 500);
                 }
 
                 // Update existing
@@ -872,7 +899,7 @@ export const useConversations = (socket) => {
                 };
 
                 currentConversations.splice(index, 1);
-                return sortConversations([updatedConv, ...currentConversations]);
+                return sortConversations([updatedConv, ...currentConversations]).slice(0, 500);
             });
         };
 

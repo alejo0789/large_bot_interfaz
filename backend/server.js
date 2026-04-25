@@ -998,14 +998,16 @@ io.on('connection', (socket) => {
 
   socket.on('join-conversation', (phone) => {
     if (tenantSlug) {
-      socket.join(`tenant:${tenantSlug}:conv:${phone}`);
-      console.log(`ðŸ“± Usuario unido a conversaciÃ³n ${phone} en sede ${tenantSlug}`);
+      const purePhone = String(phone).replace(/\D/g, '');
+      socket.join(`tenant:${tenantSlug}:conversation:${purePhone}`);
+      console.log(`📱 Usuario unido a conversación ${phone} (room: ${purePhone}) en sede ${tenantSlug}`);
     }
   });
 
   socket.on('leave-conversation', (phone) => {
     if (tenantSlug) {
-      socket.leave(`tenant:${tenantSlug}:conv:${phone}`);
+      const purePhone = String(phone).replace(/\D/g, '');
+      socket.leave(`tenant:${tenantSlug}:conversation:${purePhone}`);
     }
   });
 

@@ -103,9 +103,11 @@ const ConversationItem = React.memo(({
             if (isMenuOpen) setIsMenuOpen(false);
         };
         
-        document.addEventListener('mousedown', handleClickOutside);
-        // Usar capture phase (true) para detectar scroll en cualquier contenedor
-        window.addEventListener('scroll', handleScroll, true); 
+        if (isMenuOpen) {
+            document.addEventListener('mousedown', handleClickOutside);
+            // Use capture phase (true) to detect scroll in any container
+            window.addEventListener('scroll', handleScroll, true); 
+        }
         
         return () => {
             document.removeEventListener('mousedown', handleClickOutside);
@@ -233,7 +235,7 @@ const ConversationItem = React.memo(({
                         </button>
 
                         {/* More Options Menu */}
-                        <div style={{ position: 'relative' }}>
+                        <div style={{ position: 'relative', display: 'flex' }}>
                             <button
                                 ref={buttonRef}
                                 className="btn-icon"
@@ -241,40 +243,59 @@ const ConversationItem = React.memo(({
                                     e.stopPropagation();
                                     if (!isMenuOpen) {
                                         const rect = e.currentTarget.getBoundingClientRect();
+                                        // Calculate position to keep it within viewport
+                                        const menuHeight = 120;
+                                        const menuWidth = 180;
+                                        const spaceBelow = window.innerHeight - rect.bottom;
+                                        
+                                        let top = rect.bottom + 5;
+                                        if (spaceBelow < menuHeight) {
+                                            top = rect.top - menuHeight - 5;
+                                        }
+
                                         setMenuPosition({
-                                            top: rect.bottom,
-                                            left: rect.right - 150
+                                            top: top,
+                                            left: Math.max(10, rect.right - menuWidth)
                                         });
                                     }
                                     setIsMenuOpen(!isMenuOpen);
                                 }}
                                 title="Opciones"
                                 style={{
-                                    padding: '2px',
-                                    color: 'var(--color-gray-500)',
-                                    opacity: 0.7
+                                    padding: '4px',
+                                    color: isMenuOpen ? 'var(--color-primary)' : 'var(--color-gray-500)',
+                                    backgroundColor: isMenuOpen ? 'var(--color-gray-100)' : 'transparent',
+                                    borderRadius: '50%',
+                                    transition: 'all 0.2s'
                                 }}
                             >
-                                <MoreVertical className="w-3 h-3" />
+                                <MoreVertical className="w-4 h-4" />
                             </button>
 
                             {isMenuOpen && createPortal(
                                 <div 
                                     ref={menuRef}
+                                    className="glass-morphism"
                                     style={{
                                         position: 'fixed',
                                         top: menuPosition.top,
                                         left: menuPosition.left,
                                         zIndex: 999999,
-                                        backgroundColor: 'white',
+                                        backgroundColor: 'rgba(255, 255, 255, 0.95)',
                                         border: '1px solid var(--color-gray-200)',
-                                        borderRadius: '8px',
-                                        boxShadow: '0 4px 12px rgba(0,0,0,0.15)',
-                                        minWidth: '150px',
-                                        padding: '4px 0'
+                                        borderRadius: '12px',
+                                        boxShadow: '0 10px 25px -5px rgba(0,0,0,0.1), 0 8px 10px -6px rgba(0,0,0,0.1)',
+                                        minWidth: '180px',
+                                        padding: '6px',
+                                        animation: 'fadeIn 0.15s ease-out',
+                                        pointerEvents: 'auto'
                                     }} 
                                     onClick={e => e.stopPropagation()}
                                 >
+                                    <div style={{ padding: '4px 8px', fontSize: '10px', color: 'var(--color-gray-400)', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+                                        Opciones
+                                    </div>
+                                    
                                     <button
                                         onClick={() => {
                                             setIsEditModalOpen(true);
@@ -283,20 +304,23 @@ const ConversationItem = React.memo(({
                                         style={{
                                             display: 'flex',
                                             alignItems: 'center',
-                                            gap: '8px',
+                                            gap: '10px',
                                             width: '100%',
-                                            padding: '8px 12px',
+                                            padding: '10px 12px',
                                             border: 'none',
                                             background: 'none',
-                                            fontSize: '12px',
+                                            fontSize: '13px',
+                                            fontWeight: 500,
                                             color: 'var(--color-gray-700)',
                                             cursor: 'pointer',
-                                            textAlign: 'left'
+                                            textAlign: 'left',
+                                            borderRadius: '8px',
+                                            transition: 'background 0.2s'
                                         }}
                                         className="hover:bg-gray-50"
                                     >
-                                        <Edit2 size={12} />
-                                        Editar nombre
+                                        <Edit2 size={14} className="text-gray-400" />
+                                        <span>Editar nombre</span>
                                     </button>
 
                                     <button
@@ -307,24 +331,27 @@ const ConversationItem = React.memo(({
                                         style={{
                                             display: 'flex',
                                             alignItems: 'center',
-                                            gap: '8px',
+                                            gap: '10px',
                                             width: '100%',
-                                            padding: '8px 12px',
+                                            padding: '10px 12px',
                                             border: 'none',
                                             background: 'none',
-                                            fontSize: '12px',
+                                            fontSize: '13px',
+                                            fontWeight: 500,
                                             color: 'var(--color-gray-700)',
                                             cursor: 'pointer',
-                                            textAlign: 'left'
+                                            textAlign: 'left',
+                                            borderRadius: '8px',
+                                            transition: 'background 0.2s'
                                         }}
                                         className="hover:bg-gray-50"
                                     >
-                                        <CheckSquare size={12} />
-                                        Seleccionar
+                                        <CheckSquare size={14} className="text-gray-400" />
+                                        <span>Seleccionar</span>
                                     </button>
 
                                     {/* Separator */}
-                                    <div style={{ height: '1px', backgroundColor: 'var(--color-gray-100)', margin: '2px 0' }} />
+                                    <div style={{ height: '1px', backgroundColor: 'var(--color-gray-100)', margin: '4px 8px' }} />
 
                                     {/* Delete conversation */}
                                     {!showDeleteConfirm ? (
@@ -335,50 +362,54 @@ const ConversationItem = React.memo(({
                                             style={{
                                                 display: 'flex',
                                                 alignItems: 'center',
-                                                gap: '8px',
+                                                gap: '10px',
                                                 width: '100%',
-                                                padding: '8px 12px',
+                                                padding: '10px 12px',
                                                 border: 'none',
                                                 background: 'none',
-                                                fontSize: '12px',
-                                                color: '#dc2626',
+                                                fontSize: '13px',
+                                                fontWeight: 500,
+                                                color: '#ef4444',
                                                 cursor: 'pointer',
-                                                textAlign: 'left'
+                                                textAlign: 'left',
+                                                borderRadius: '8px',
+                                                transition: 'background 0.2s'
                                             }}
+                                            className="hover:bg-red-50"
                                         >
-                                            <Trash2 size={12} />
-                                            Borrar conversación
+                                            <Trash2 size={14} />
+                                            <span>Borrar chat</span>
                                         </button>
                                     ) : (
-                                        <div style={{ padding: '8px 12px' }}>
-                                            <p style={{ fontSize: '11px', color: '#374151', margin: '0 0 8px', fontWeight: 600 }}>
-                                                ¿Seguro? Esto borrará todos los mensajes.
+                                        <div style={{ padding: '10px 12px', backgroundColor: 'rgba(239, 68, 68, 0.05)', borderRadius: '8px', margin: '2px' }}>
+                                            <p style={{ fontSize: '11px', color: '#b91c1c', margin: '0 0 10px', fontWeight: 600 }}>
+                                                ¿Confirmas borrar todo?
                                             </p>
-                                            <div style={{ display: 'flex', gap: '6px' }}>
+                                            <div style={{ display: 'flex', gap: '8px' }}>
                                                 <button
                                                     onClick={handleDeleteConversation}
                                                     disabled={isDeleting}
                                                     style={{
-                                                        flex: 1, padding: '5px 0',
-                                                        backgroundColor: '#dc2626', color: 'white',
+                                                        flex: 1, padding: '6px 0',
+                                                        backgroundColor: '#ef4444', color: 'white',
                                                         border: 'none', borderRadius: '6px',
-                                                        fontSize: '11px', fontWeight: 600,
+                                                        fontSize: '11px', fontWeight: 700,
                                                         cursor: isDeleting ? 'not-allowed' : 'pointer',
-                                                        opacity: isDeleting ? 0.7 : 1
+                                                        boxShadow: '0 2px 4px rgba(239, 68, 68, 0.2)'
                                                     }}
                                                 >
-                                                    {isDeleting ? 'Borrando...' : 'Sí, borrar'}
+                                                    {isDeleting ? '...' : 'Sí'}
                                                 </button>
                                                 <button
                                                     onClick={() => setShowDeleteConfirm(false)}
                                                     style={{
-                                                        flex: 1, padding: '5px 0',
-                                                        backgroundColor: 'var(--color-gray-100)', color: '#374151',
-                                                        border: 'none', borderRadius: '6px',
+                                                        flex: 1, padding: '6px 0',
+                                                        backgroundColor: 'white', color: '#4b5563',
+                                                        border: '1px solid var(--color-gray-200)', borderRadius: '6px',
                                                         fontSize: '11px', fontWeight: 600, cursor: 'pointer'
                                                     }}
                                                 >
-                                                    Cancelar
+                                                    No
                                                 </button>
                                             </div>
                                         </div>

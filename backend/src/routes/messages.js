@@ -129,7 +129,7 @@ router.post('/send-message', requireApiKey, asyncHandler(async (req, res) => {
     // Send Message Logic (Evolution > N8N)
     let sendResult;
     if (config.evolutionApiUrl) {
-        const result = await evolutionService.sendText(getPureDigits(normalizedPhone), message, reply_to);
+        const result = await evolutionService.sendText(normalizedPhone, message, reply_to);
         sendResult = { sent: result.success, platform: 'evolution', ...result };
     } else {
         const result = await n8nService.sendMessage({
@@ -255,7 +255,7 @@ router.post('/send-file', requireApiKey, upload.single('file'), restoreTenantCon
     let sendResult = { sent: false };
 
     if (config.evolutionApiUrl) {
-        const result = await evolutionService.sendMedia(getPureDigits(normalizedPhone), fileUrl, mediaType, caption || '', file.originalname, reply_to);
+        const result = await evolutionService.sendMedia(normalizedPhone, fileUrl, mediaType, caption || '', file.originalname, reply_to);
         sendResult = { sent: result && result.success, platform: 'evolution', ...result };
 
     } else {
@@ -526,9 +526,9 @@ router.post('/bulk-send', requireApiKey, asyncHandler(async (req, res) => {
                 const m = messagesToSend[i];
                 let result;
                 if (m.isMedia) {
-                    result = await evolutionService.sendMedia(getPureDigits(normalizedPhone), m.mediaUrl, m.mediaType, m.text, 'file');
+                    result = await evolutionService.sendMedia(normalizedPhone, m.mediaUrl, m.mediaType, m.text, 'file');
                 } else {
-                    result = await evolutionService.sendText(getPureDigits(normalizedPhone), m.text);
+                    result = await evolutionService.sendText(normalizedPhone, m.text);
                 }
 
 
@@ -570,33 +570,39 @@ router.post('/bulk-send', requireApiKey, asyncHandler(async (req, res) => {
         // Emit to frontend (OPTIMIZED: uses rooms)
         // This ensures the sender sees the message immediately correctly
         if (io) {
+            const context = tenantContext.getStore();
+            const tenantSlug = context?.tenant?.slug;
+            
             for (let i = 0; i < messagesToSend.length; i++) {
                 const m = messagesToSend[i];
                 const saved = savedMessages[i];
+                const purePhone = getPureDigits(normalizedPhone);
 
-                io.to(`conversation:${normalizedPhone}`).emit('agent-message', {
-                    id: saved.id,
-                    phone: normalizedPhone,
-                    message: m.text || (m.isMedia ? 'Evaluando archivo...' : ''),
-                    media_type: m.mediaType,
-                    media_url: m.mediaUrl,
-                    sender_type: 'agent',
-                    timestamp: new Date().toLocaleString("en-US", { timeZone: "America/Bogota" }),
-                    agent_id: finalAgentId,
-                    agent_name: finalAgentName,
-                    sender_name: finalAgentName,
-                    status: 'delivered'
-                });
+                if (tenantSlug) {
+                    io.to(`tenant:${tenantSlug}:conversation:${purePhone}`).emit('agent-message', {
+                        id: saved.id,
+                        phone: normalizedPhone,
+                        message: m.text || (m.isMedia ? 'Archivo enviado' : ''),
+                        media_type: m.mediaType,
+                        media_url: m.mediaUrl,
+                        sender_type: 'agent',
+                        timestamp: new Date().toISOString(),
+                        agent_id: finalAgentId,
+                        agent_name: finalAgentName,
+                        sender_name: finalAgentName,
+                        status: 'delivered'
+                    });
+
+                    // Also emit to global list
+                    io.to(`tenant:${tenantSlug}`).emit('conversation-updated', {
+                        phone: normalizedPhone,
+                        lastMessage: media ? '📎 Media' : msg,
+                        timestamp: new Date().toISOString(),
+                        unread: 0,
+                        sender_type: 'agent'
+                    });
+                }
             }
-
-            // Also emit to global list
-            io.to('conversations:list').emit('conversation-updated', {
-                phone: normalizedPhone,
-                lastMessage: media ? '📎 Media' : msg,
-                timestamp: new Date().toLocaleString("en-US", { timeZone: "America/Bogota" }),
-                unread: 0,
-                sender_type: 'agent'
-            });
         }
     };
 

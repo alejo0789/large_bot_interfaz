@@ -299,9 +299,9 @@ router.post('/receive-message', asyncHandler(async (req, res) => {
                 }
 
                 console.log(`🖼️ Enviando multimedia: ${media_url} (Tipo Original: ${media_type}, Final: ${type})`);
-                result = await evolutionService.sendMedia(purePhone, media_url, type, message);
+                result = await evolutionService.sendMedia(dbPhone, media_url, type, message);
             } else {
-                result = await evolutionService.sendText(purePhone, message);
+                result = await evolutionService.sendText(dbPhone, message);
             }
 
             if (result && result.success) {

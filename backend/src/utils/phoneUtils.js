@@ -22,8 +22,12 @@ function normalizePhone(phone) {
     let digits = cleanPart.replace(/\D/g, '');
 
     // 1. WhatsApp LIDs should be kept as JID or explicitly marked
+    // Groups are handled above. If it's 18+ digits, it's likely a group ID or LID.
     if (phoneStr.includes('@lid') || digits.length > 13) {
-        return phoneStr.includes('@') ? phoneStr : `${digits}@lid`;
+        // If it's already a JID, return it. If not, and it's 18+ digits, it's a group or LID.
+        if (phoneStr.includes('@')) return phoneStr;
+        // Default to @lid for long numeric IDs without domain, as Evolution expects JIDs
+        return `${digits}@lid`;
     }
 
     // 2. Standardize Colombian numbers

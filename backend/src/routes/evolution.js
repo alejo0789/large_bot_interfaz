@@ -56,6 +56,8 @@ const emitToConversation = (phone, event, data) => {
 router.post('/', async (req, res) => {
     try {
         const { event, data, instance } = req.body;
+        console.log(`🔌 [WEBHOOK] Incoming Event: ${event} | Instance: ${instance}`);
+        
         // Handle SYNC Events (MESSAGES_SET, CHATS_SET)
         if (event === 'messages.set' || event === 'MESSAGES_SET') {
             console.log(`📥 [SYNC] Processing batch messages sync for ${instance}... (${data.length} messages)`);
@@ -343,25 +345,27 @@ router.post('/', async (req, res) => {
 
             if (newText && targetId) {
                 const existingMsg = await messageService.getMessageById(targetId);
-                if (existingMsg) {
-                    await messageService.updateMessageText(existingMsg.id, newText);
-                    if (io) {
-                        const context = tenantContext.getStore();
-                        const tenantSlug = context?.tenant?.slug;
-                        if (tenantSlug) {
-                            io.to(`tenant:${tenantSlug}`).to(`tenant:${tenantSlug}:conv:${getPureDigits(phone)}`).emit('message-updated', {
-                                id: existingMsg.id,
-                                whatsapp_id: targetId,
-                                status: existingMsg.status,
-                                text: newText,
-                                media_url: existingMsg.media_url,
-                                media_type: existingMsg.media_type,
-                                phone: phone,
-                                edited: true
-                            });
+                    if (existingMsg) {
+                        await messageService.updateMessageText(existingMsg.id, newText);
+                        if (io) {
+                            const context = tenantContext.getStore();
+                            const tenantSlug = context?.tenant?.slug;
+                            if (tenantSlug) {
+                                // Unified room name: tenant:slug:conversation:purePhone
+                                const purePhone = getPureDigits(phone);
+                                io.to(`tenant:${tenantSlug}`).to(`tenant:${tenantSlug}:conversation:${purePhone}`).emit('message-updated', {
+                                    id: existingMsg.id,
+                                    whatsapp_id: targetId,
+                                    status: existingMsg.status,
+                                    text: newText,
+                                    media_url: existingMsg.media_url,
+                                    media_type: existingMsg.media_type,
+                                    phone: phone,
+                                    edited: true
+                                });
+                            }
                         }
                     }
-                }
             }
             // Protocol messages (like edit) should NOT be saved as new messages
             return res.sendStatus(200);
@@ -727,7 +731,7 @@ router.post('/', async (req, res) => {
 
                             if (finalMediaUrl) {
                                 console.log(`   Mode: MULTIMEDIA (${finalMediaType})`);
-                                sendingResult = await evolutionService.sendMedia(getPureDigits(phone), finalMediaUrl, finalMediaType, cleanAiText);
+                                sendingResult = await evolutionService.sendMedia(phone, finalMediaUrl, finalMediaType, cleanAiText);
 
                                 if (sendingResult.success) {
                                     console.log(`   ✅ Multimedia message sent successfully`);
@@ -736,7 +740,7 @@ router.post('/', async (req, res) => {
                                     console.log(`   ⚠️ Fallback: Reverting to TEXT ONLY`);
 
                                     const fallbackText = `${cleanAiText}\n\n📷 ${finalMediaUrl}`;
-                                    sendingResult = await evolutionService.sendMessage(getPureDigits(phone), fallbackText);
+                                    sendingResult = await evolutionService.sendMessage(phone, fallbackText);
 
                                     finalMediaType = null;
                                     finalMediaUrl = null;
@@ -744,7 +748,7 @@ router.post('/', async (req, res) => {
                                 }
                             } else {
                                 console.log(`   Mode: TEXT ONLY`);
-                                sendingResult = await evolutionService.sendMessage(getPureDigits(phone), aiResponseText);
+                                sendingResult = await evolutionService.sendMessage(phone, aiResponseText);
                             }
 
                             // 2. Save in Database
