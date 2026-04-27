@@ -56,21 +56,20 @@ const ConversationItem = React.memo(({
         let nameToDisplay = name || phone;
         
         // Si el nombre contiene @lid o es una cadena numérica muy larga sin +, es un LID
-        const isNameLid = typeof nameToDisplay === 'string' && (
-            nameToDisplay.includes('@lid') || 
-            (nameToDisplay.replace(/\\D/g, '').length > 13 && !nameToDisplay.startsWith('+')) ||
-            nameToDisplay.includes('@s.whatsapp.net') ||
-            nameToDisplay.includes('@g.us')
+        const isJid = typeof nameToDisplay === 'string' && (
+            nameToDisplay.includes('@') || 
+            nameToDisplay.includes('-')
         );
 
-        if (isNameLid || nameToDisplay.toLowerCase() === 'unknown' || nameToDisplay.toLowerCase().startsWith('usuario')) {
+        if (isJid || nameToDisplay.toLowerCase() === 'unknown' || nameToDisplay.toLowerCase().startsWith('usuario')) {
             nameToDisplay = phone;
         }
 
         // Si después de todo, el texto a mostrar sigue siendo un ID interno (LID), mostrar un alias
         if (typeof nameToDisplay === 'string') {
             const digits = nameToDisplay.replace(/\D/g, '');
-            if (digits.length > 13 && !nameToDisplay.startsWith('+')) {
+            // Si tiene más de 12 dígitos y no empieza con + (o es igual al teléfono), es probablemente un LID
+            if (digits.length > 12 && (!nameToDisplay.startsWith('+') || nameToDisplay === phone)) {
                 nameToDisplay = `Usuario ${digits.slice(-4)}`;
             }
         }

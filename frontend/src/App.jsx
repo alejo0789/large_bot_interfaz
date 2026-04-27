@@ -130,6 +130,9 @@ const AuthenticatedApp = () => {
     // Tags by conversation
     const [tagsByPhone, setTagsByPhone] = useState({});
 
+    const { currentTenant } = useTenant();
+    const hideLead = false; // Se mantiene visible para todas las sedes
+
     // Socket connection
     const { socket, isConnected } = useSocket();
 

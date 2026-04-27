@@ -24,27 +24,27 @@ const ChatHeader = ({
     isMobile,
     isSweepMode,
     onNameUpdated,   // optional callback: (phone, newName) => void
-    agendasCount = 0 // New prop for agenda counter
+    agendasCount = 0, // New prop for agenda counter
+    hideLead
 }) => {
     const [isEditOpen, setIsEditOpen] = useState(false);
     // Helper para formatear LIDs largos (IDs internos de WA)
     const formatDisplayName = (name, phone) => {
         let nameToDisplay = name || phone || '';
         
-        const isNameLid = typeof nameToDisplay === 'string' && (
-            nameToDisplay.includes('@lid') || 
-            (nameToDisplay.replace(/\D/g, '').length > 13 && !nameToDisplay.startsWith('+')) ||
-            nameToDisplay.includes('@s.whatsapp.net') ||
-            nameToDisplay.includes('@g.us')
+        const isJid = typeof nameToDisplay === 'string' && (
+            nameToDisplay.includes('@') || 
+            nameToDisplay.includes('-')
         );
 
-        if (isNameLid || nameToDisplay.toLowerCase() === 'unknown' || nameToDisplay.toLowerCase().startsWith('usuario')) {
+        if (isJid || nameToDisplay.toLowerCase() === 'unknown') {
             nameToDisplay = phone || '';
         }
 
         if (typeof nameToDisplay === 'string') {
             const digits = nameToDisplay.replace(/\D/g, '');
-            if (digits.length > 13 && !nameToDisplay.startsWith('+')) {
+            // Si tiene más de 12 dígitos y no tiene + (o es igual al teléfono), es un LID
+            if (digits.length > 12 && (!nameToDisplay.startsWith('+') || nameToDisplay === phone)) {
                 nameToDisplay = `Usuario ${digits.slice(-4)}`;
             }
         }

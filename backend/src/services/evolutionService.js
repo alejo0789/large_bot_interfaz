@@ -422,7 +422,7 @@ class EvolutionService {
     async fetchBase64(msg) {
         try {
             const { instance, apiKey } = this.getConfig();
-            const url = `${this.baseUrl}/chat/getBase64FromMessage/${instance}`;
+            const url = `${this.baseUrl}/chat/getBase64FromMediaMessage/${instance}`;
 
             // Evolution v2 expects the message object that contains 'key' and 'message'
             const response = await fetch(url, {

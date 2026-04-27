@@ -22,7 +22,8 @@ const TagFilter = ({
     onUpdateTag,
     leadTimeFilter,
     onLeadTimeFilterChange,
-    onStartBulkSend
+    onStartBulkSend,
+    hideLead
 }) => {
     const [showTagDropdown, setShowTagDropdown] = useState(false);
     const [showDateDropdown, setShowDateDropdown] = useState(false);
@@ -572,41 +573,43 @@ const TagFilter = ({
                 </div>
 
                 {/* Seguimiento (Lead Classification) button */}
-                <button
-                    onClick={() => setIsFollowUpOpen(true)}
-                    style={{
-                        display: 'flex',
-                        alignItems: 'center',
-                        gap: '4px',
-                        padding: '0 10px',
-                        height: '32px',
-                        fontSize: '11px',
-                        fontWeight: leadTimeFilter ? 600 : 500,
-                        borderRadius: 'var(--radius-md)',
-                        border: leadTimeFilter
-                            ? '1px solid var(--color-primary)'
-                            : '1px solid var(--color-gray-300)',
-                        backgroundColor: leadTimeFilter
-                            ? 'rgba(18, 140, 126, 0.1)'
-                            : 'var(--color-white)',
-                        color: leadTimeFilter
-                            ? 'var(--color-primary)'
-                            : 'var(--color-gray-600)',
-                        cursor: 'pointer',
-                        transition: 'all var(--transition-fast)'
-                    }}
-                >
-                    <Users className="w-3 h-3" />
-                    Seguimiento
-                    {leadTimeFilter && (
-                         <div style={{
-                            width: '8px',
-                            height: '8px',
-                            borderRadius: '50%',
-                            backgroundColor: 'var(--color-primary)'
-                        }} />
-                    )}
-                </button>
+                { (true) && (
+                    <button
+                        onClick={() => setIsFollowUpOpen(true)}
+                        style={{
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: '4px',
+                            padding: '0 10px',
+                            height: '32px',
+                            fontSize: '11px',
+                            fontWeight: leadTimeFilter ? 600 : 500,
+                            borderRadius: 'var(--radius-md)',
+                            border: leadTimeFilter
+                                ? '1px solid var(--color-primary)'
+                                : '1px solid var(--color-gray-300)',
+                            backgroundColor: leadTimeFilter
+                                ? 'rgba(18, 140, 126, 0.1)'
+                                : 'var(--color-white)',
+                            color: leadTimeFilter
+                                ? 'var(--color-primary)'
+                                : 'var(--color-gray-600)',
+                            cursor: 'pointer',
+                            transition: 'all var(--transition-fast)'
+                        }}
+                    >
+                        <Users className="w-3 h-3" />
+                        Seguimiento
+                        {leadTimeFilter && (
+                             <div style={{
+                                width: '8px',
+                                height: '8px',
+                                borderRadius: '50%',
+                                backgroundColor: 'var(--color-primary)'
+                            }} />
+                        )}
+                    </button>
+                )}
 
             </div>
 
