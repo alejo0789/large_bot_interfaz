@@ -15,6 +15,8 @@ const TagFilter = ({
     onToggleUnreadOnly,
     dateFilter,
     onDateFilterChange,
+    customDateRange,
+    onCustomDateRangeChange,
     unreadCount = 0,
     onRefresh,
     isLoading,
@@ -62,7 +64,8 @@ const TagFilter = ({
         { id: 'yesterday', label: 'Ayer', days: 1 },
         { id: 'last7', label: 'Últimos 7 días', days: 7 },
         { id: 'last30', label: 'Últimos 30 días', days: 30 },
-        { id: 'last90', label: 'Últimos 90 días', days: 90 }
+        { id: 'last90', label: 'Últimos 90 días', days: 90 },
+        { id: 'custom', label: 'Personalizado', days: null }
     ];
 
     const selectedDateOption = dateOptions.find(opt => opt.id === dateFilter);
@@ -478,7 +481,11 @@ const TagFilter = ({
                         }}
                     >
                         <Calendar className="w-3 h-3" />
-                        {selectedDateOption ? selectedDateOption.label : 'Fecha'}
+                        {selectedDateOption 
+                            ? (selectedDateOption.id === 'custom' && customDateRange.start && customDateRange.end
+                                ? `${customDateRange.start.split('-').reverse().slice(0, 2).join('/')} - ${customDateRange.end.split('-').reverse().slice(0, 2).join('/')}`
+                                : selectedDateOption.label)
+                            : 'Fecha'}
                         <ChevronDown className="w-3 h-3" style={{
                             transform: showDateDropdown ? 'rotate(180deg)' : 'rotate(0)',
                             transition: 'transform 0.2s'
@@ -541,7 +548,9 @@ const TagFilter = ({
                                     key={option.id}
                                     onClick={() => {
                                         onDateFilterChange && onDateFilterChange(option.id);
-                                        setShowDateDropdown(false);
+                                        if (option.id !== 'custom') {
+                                            setShowDateDropdown(false);
+                                        }
                                     }}
                                     style={{
                                         display: 'flex',
@@ -568,6 +577,63 @@ const TagFilter = ({
                                     )}
                                 </button>
                             ))}
+
+                            {dateFilter === 'custom' && (
+                                <div style={{
+                                    padding: '12px',
+                                    borderTop: '1px solid var(--color-gray-100)',
+                                    display: 'flex',
+                                    flexDirection: 'column',
+                                    gap: '8px'
+                                }}>
+                                    <div style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
+                                        <label style={{ fontSize: '10px', color: 'var(--color-gray-500)', fontWeight: 600 }}>Desde</label>
+                                        <input
+                                            type="date"
+                                            value={customDateRange.start}
+                                            onChange={(e) => onCustomDateRangeChange({ ...customDateRange, start: e.target.value })}
+                                            style={{
+                                                padding: '4px 8px',
+                                                fontSize: '12px',
+                                                border: '1px solid var(--color-gray-200)',
+                                                borderRadius: '4px',
+                                                outline: 'none'
+                                            }}
+                                        />
+                                    </div>
+                                    <div style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
+                                        <label style={{ fontSize: '10px', color: 'var(--color-gray-500)', fontWeight: 600 }}>Hasta</label>
+                                        <input
+                                            type="date"
+                                            value={customDateRange.end}
+                                            onChange={(e) => onCustomDateRangeChange({ ...customDateRange, end: e.target.value })}
+                                            style={{
+                                                padding: '4px 8px',
+                                                fontSize: '12px',
+                                                border: '1px solid var(--color-gray-200)',
+                                                borderRadius: '4px',
+                                                outline: 'none'
+                                            }}
+                                        />
+                                    </div>
+                                    <button
+                                        onClick={() => setShowDateDropdown(false)}
+                                        style={{
+                                            marginTop: '4px',
+                                            padding: '6px',
+                                            backgroundColor: 'var(--color-primary)',
+                                            color: 'white',
+                                            border: 'none',
+                                            borderRadius: '4px',
+                                            fontSize: '12px',
+                                            fontWeight: 600,
+                                            cursor: 'pointer'
+                                        }}
+                                    >
+                                        Aplicar
+                                    </button>
+                                </div>
+                            )}
                         </div>
                     )}
                 </div>

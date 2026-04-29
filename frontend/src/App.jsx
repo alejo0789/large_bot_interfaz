@@ -75,6 +75,7 @@ const AuthenticatedApp = () => {
     const [selectedTagIds, setSelectedTagIds] = useState([]);
     const [showUnreadOnly, setShowUnreadOnly] = useState(false);
     const [dateFilter, setDateFilter] = useState(null);
+    const [customDateRange, setCustomDateRange] = useState({ start: '', end: '' });
     const [leadTimeFilter, setLeadTimeFilter] = useState(null);
 
     // Modals
@@ -286,6 +287,13 @@ const AuthenticatedApp = () => {
                 start.setDate(start.getDate() - 90);
                 start.setHours(0, 0, 0, 0);
                 break;
+            case 'custom':
+                if (customDateRange.start && customDateRange.end) {
+                    const s = new Date(customDateRange.start + 'T00:00:00');
+                    const e = new Date(customDateRange.end + 'T23:59:59');
+                    return { start: s.toISOString(), end: e.toISOString() };
+                }
+                return { start: null, end: null };
             default:
                 return { start: null, end: null };
         }
@@ -294,7 +302,7 @@ const AuthenticatedApp = () => {
             start: start.toISOString(),
             end: end.toISOString()
         };
-    }, [dateFilter]);
+    }, [dateFilter, customDateRange]);
 
     // Primary fetch controller
     useEffect(() => {
@@ -355,6 +363,7 @@ const AuthenticatedApp = () => {
         setSelectedTagIds([]);
         setShowUnreadOnly(false);
         setDateFilter(null);
+        setCustomDateRange({ start: '', end: '' });
         setLeadTimeFilter(null);
     }, []);
 
@@ -1055,6 +1064,8 @@ const AuthenticatedApp = () => {
                         onToggleUnreadOnly={() => setShowUnreadOnly(!showUnreadOnly)}
                         dateFilter={dateFilter}
                         onDateFilterChange={setDateFilter}
+                        customDateRange={customDateRange}
+                        onCustomDateRangeChange={setCustomDateRange}
                         unreadCount={unreadCount}
                         onRefresh={fetchConversations}
                         isLoading={isLoading}
