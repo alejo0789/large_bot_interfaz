@@ -732,27 +732,32 @@ export const useConversations = (socket) => {
 
                 // Duplicate check by ID or content/timestamp
                 // Priority:
-                // 1. Check by temp_id (most reliable)
-                // 2. Check by media_type if present (for media messages with or without caption)
-                // 3. Check by text content (for text-only messages)
+                // 1. Check by ID (whatsapp_id or id)
+                // 2. Check by temp_id (most reliable for outgoing)
+                // 3. For OUTGOING messages without temp_id, check by content (legacy fallback)
                 const isDuplicate = existingMessages.some(msg => {
                     // Check by ID
                     if (msg.id === formattedMessage.id) return true;
+                    if (msg.whatsapp_id && formattedMessage.whatsapp_id && msg.whatsapp_id === formattedMessage.whatsapp_id) return true;
 
-                    // Check by temp_id
+                    // Check by temp_id for outgoing optimistic messages
                     if (formattedMessage.temp_id && msg.id === formattedMessage.temp_id) return true;
+                    if (msg.temp_id && formattedMessage.id === msg.temp_id) return true;
 
-                    // Only check content if same sender
-                    if (msg.sender !== formattedMessage.sender) return false;
+                    // STRICTER FALLBACK: Only use loose content matching for agent/outgoing messages
+                    // to match a local optimistic message with an incoming socket event
+                    if (isAgent && msg.status === 'sending' && msg.sender === formattedMessage.sender) {
+                        // Check by media type if either message has media
+                        if (msg.media_type && formattedMessage.media_type) {
+                            return msg.media_type === formattedMessage.media_type &&
+                                Math.abs(new Date(msg.rawTimestamp) - new Date(formattedMessage.rawTimestamp)) < 20000;
+                        }
 
-                    // Check by media type if either message has media
-                    if (msg.media_type || formattedMessage.media_type) {
-                        return msg.media_type === formattedMessage.media_type &&
-                            Math.abs(new Date(msg.rawTimestamp) - new Date(formattedMessage.rawTimestamp)) < 20000;
+                        // Check by text content
+                        return msg.text && msg.text === formattedMessage.text;
                     }
-
-                    // Check by text content
-                    return msg.text && msg.text === formattedMessage.text;
+                    
+                    return false;
                 });
 
                 if (isDuplicate) {
