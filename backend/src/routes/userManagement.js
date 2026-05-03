@@ -274,7 +274,7 @@ router.post('/tenants', asyncHandler(async (req, res) => {
         throw new AppError(`Ya existe una sede con el slug "${slug}"`, 409);
     }
 
-    // --- 1. PROVISIONING TEANT DATABASE ---
+    // --- 1. PROVISIONING TENANT DATABASE ---
     const fs = require('fs');
     const path = require('path');
     const { Pool } = require('pg');
@@ -290,6 +290,41 @@ router.post('/tenants', asyncHandler(async (req, res) => {
 
         console.log(`📡 Initializing schema for new tenant at: ${dbUrl}`);
         await tempPool.query(schemaSql);
+        console.log(`✅ Base schema applied for ${slug}`);
+
+        // --- SAFETY NET: Ensure ALL columns exist (handles partial/old schemas) ---
+        const alignmentSql = `
+            -- conversations: ensure all columns
+            ALTER TABLE conversations ADD COLUMN IF NOT EXISTS last_message_from_me BOOLEAN DEFAULT FALSE;
+            ALTER TABLE conversations ADD COLUMN IF NOT EXISTS lead_intent VARCHAR(255);
+            ALTER TABLE conversations ADD COLUMN IF NOT EXISTS lead_time VARCHAR(255);
+            ALTER TABLE conversations ADD COLUMN IF NOT EXISTS metadata JSONB;
+            ALTER TABLE conversations ADD COLUMN IF NOT EXISTS is_pinned BOOLEAN DEFAULT FALSE;
+            ALTER TABLE conversations ADD COLUMN IF NOT EXISTS unread_count INTEGER DEFAULT 0;
+            ALTER TABLE conversations ADD COLUMN IF NOT EXISTS conversation_state VARCHAR(50) DEFAULT 'ai_active';
+            ALTER TABLE conversations ADD COLUMN IF NOT EXISTS taken_by_agent_at TIMESTAMP WITH TIME ZONE;
+
+            -- messages: ensure all columns
+            ALTER TABLE messages ADD COLUMN IF NOT EXISTS agent_id VARCHAR(50);
+            ALTER TABLE messages ADD COLUMN IF NOT EXISTS agent_name VARCHAR(100);
+            ALTER TABLE messages ADD COLUMN IF NOT EXISTS sender_name VARCHAR(255);
+            ALTER TABLE messages ADD COLUMN IF NOT EXISTS reactions JSONB DEFAULT '[]';
+            ALTER TABLE messages ADD COLUMN IF NOT EXISTS reply_to_id VARCHAR(255);
+            ALTER TABLE messages ADD COLUMN IF NOT EXISTS reply_to_text TEXT;
+            ALTER TABLE messages ADD COLUMN IF NOT EXISTS reply_to_sender VARCHAR(255);
+
+            -- conversation_tags: ensure all columns
+            ALTER TABLE conversation_tags ADD COLUMN IF NOT EXISTS assigned_at TIMESTAMP WITH TIME ZONE DEFAULT NOW();
+            ALTER TABLE conversation_tags ADD COLUMN IF NOT EXISTS assigned_by VARCHAR(255);
+
+            -- indexes
+            CREATE INDEX IF NOT EXISTS idx_messages_conversation ON messages(conversation_phone);
+            CREATE INDEX IF NOT EXISTS idx_messages_timestamp ON messages(timestamp);
+            CREATE INDEX IF NOT EXISTS idx_conversations_last_msg ON conversations(last_message_timestamp);
+        `;
+        await tempPool.query(alignmentSql);
+        console.log(`✅ Column alignment verified for ${slug}`);
+
         await tempPool.end();
         console.log(`✅ Schema initialized successfully for ${slug}`);
     } catch (err) {
