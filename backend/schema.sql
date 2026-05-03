@@ -34,9 +34,13 @@ CREATE TABLE IF NOT EXISTS conversations (
     unread_count INTEGER DEFAULT 0,
     last_message_text TEXT,
     last_message_timestamp TIMESTAMP WITH TIME ZONE,
+    last_message_from_me BOOLEAN DEFAULT FALSE,
     created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
     updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
-    is_pinned BOOLEAN DEFAULT FALSE
+    is_pinned BOOLEAN DEFAULT FALSE,
+    lead_intent VARCHAR(255),
+    lead_time VARCHAR(255),
+    metadata JSONB
 );
 
 -- 4. CONVERSATION_TAGS
