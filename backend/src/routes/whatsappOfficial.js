@@ -174,14 +174,12 @@ router.post('/', async (req, res) => {
                 try {
                     // This uses your custom n8n integration structure
                     if (tenant && tenant.n8n_webhook_url) {
-                        await n8nService.sendToWebhook(tenant.n8n_webhook_url, {
+                        await n8nService.triggerAIProcessing({
                             phone: dbPhone,
-                            name: contact_name,
-                            message: messageText,
-                            whatsapp_id,
-                            mediaUrl,
-                            mediaType,
-                            sender_type: 'user'
+                            text: messageText,
+                            contactName: contact_name,
+                            mediaType: mediaType,
+                            mediaUrl: mediaUrl
                         });
                     } else {
                         console.warn(`⚠️ No n8n_webhook_url defined for tenant ${tenant?.slug}`);

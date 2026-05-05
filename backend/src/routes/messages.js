@@ -119,7 +119,8 @@ router.post('/send-message', requireApiKey, asyncHandler(async (req, res) => {
         senderName: finalAgentName,
         replyToId: replyToData?.id,
         replyToText: replyToData?.text,
-        replyToSender: replyToData?.sender
+        replyToSender: replyToData?.sender,
+        tempId: temp_id
     });
 
     // Update conversation
@@ -177,7 +178,8 @@ router.post('/send-message', requireApiKey, asyncHandler(async (req, res) => {
         agent_name: finalAgentName,
         sender_name: finalAgentName,
         status: sendResult.sent ? 'delivered' : 'failed',
-        replyTo: replyToData
+        replyTo: replyToData,
+        temp_id: temp_id
     });
 
     res.json({
@@ -244,7 +246,8 @@ router.post('/send-file', requireApiKey, upload.single('file'), restoreTenantCon
         timestamp: new Date().toISOString(),
         replyToId: replyToData?.id,
         replyToText: replyToData?.text,
-        replyToSender: replyToData?.sender
+        replyToSender: replyToData?.sender,
+        tempId: temp_id
     });
 
     // Update conversation

@@ -435,7 +435,7 @@ export const useConversations = (socket) => {
             setMessagesByConversation(prev => ({
                 ...prev,
                 [phone]: prev[phone].map(msg =>
-                    msg.id === tempId ? {
+                    (msg.id === tempId || String(msg.id) === String(tempId)) ? {
                         ...msg,
                         status: 'delivered',
                         id: data.newMessage?.id || msg.id,
@@ -526,7 +526,7 @@ export const useConversations = (socket) => {
                 return {
                     ...prev,
                     [phone]: msgs.map(m =>
-                        m.id === tempId
+                        (m.id === tempId || String(m.id) === String(tempId))
                             ? {
                                 ...m,
                                 id: realId,
@@ -588,7 +588,7 @@ export const useConversations = (socket) => {
                 return {
                     ...prev,
                     [phone]: msgs.map(m =>
-                        m.id === tempId
+                        (m.id === tempId || String(m.id) === String(tempId))
                             ? { ...m, status: 'failed', _errorText: 'No se pudo enviar' }
                             : m
                     )
@@ -741,8 +741,8 @@ export const useConversations = (socket) => {
                     if (msg.whatsapp_id && formattedMessage.whatsapp_id && msg.whatsapp_id === formattedMessage.whatsapp_id) return true;
 
                     // Check by temp_id for outgoing optimistic messages
-                    if (formattedMessage.temp_id && msg.id === formattedMessage.temp_id) return true;
-                    if (msg.temp_id && formattedMessage.id === msg.temp_id) return true;
+                    if (formattedMessage.temp_id && String(msg.id) === String(formattedMessage.temp_id)) return true;
+                    if (msg.temp_id && String(formattedMessage.id) === String(msg.temp_id)) return true;
 
                     // STRICTER FALLBACK: Only use loose content matching for agent/outgoing messages
                     // to match a local optimistic message with an incoming socket event
@@ -767,7 +767,7 @@ export const useConversations = (socket) => {
                             ...prev,
                             [phone]: existingMessages.map(msg => {
                                 // Check by temp_id if available
-                                if (formattedMessage.temp_id && msg.id === formattedMessage.temp_id) {
+                                if (formattedMessage.temp_id && String(msg.id) === String(formattedMessage.temp_id)) {
                                     return {
                                         ...msg,
                                         status: 'delivered',

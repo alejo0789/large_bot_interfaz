@@ -14,7 +14,7 @@ class N8NService {
         const tenant = context?.tenant;
 
         return {
-            webhookUrl: tenant?.n8n_webhook_url || config.n8nWebhookUrl,
+            webhookUrl: tenant?.n8n_webhook_url, // No fallback to ensure isolation between sedes
             slug: tenant?.slug || 'default'
         };
     }

@@ -497,14 +497,13 @@ router.post('/', async (req, res) => {
         const cleanSenderName = (!looksLikeLid(msg.pushName) ? msg.pushName : null) ||
             (isFromAgent ? 'Tú' : conversation?.contact_name || 'Cliente');
 
-        // 2. Save Message
-        const messageExists = await messageService.existsByWhatsappId(msg.key.id);
-        if (messageExists) {
-            console.log(`⏭️ Message ${msg.key.id} already exists, skipping save.`);
-        } else {
-            await messageService.create({
+        // 2. Save/Get Message
+        let dbMessage = await messageService.getMessageById(msg.key.id);
+        
+        if (!dbMessage) {
+            dbMessage = await messageService.create({
                 phone: phone,
-                sender: senderType, // Use dynamic sender type (agent or user)
+                sender: senderType,
                 text: text,
                 whatsappId: msg.key.id,
                 mediaType: mediaType,
@@ -515,6 +514,8 @@ router.post('/', async (req, res) => {
                 replyToSender: replyToData?.sender
             });
             console.log(`💾 Saved message as '${senderType}' from ${isFromAgent ? 'your phone' : 'client'}`);
+        } else {
+            console.log(`⏭️ Message ${msg.key.id} already exists in DB.`);
         }
 
         // 3. Update Conversation (use placeholder if text is null due to media)
@@ -532,16 +533,14 @@ router.post('/', async (req, res) => {
             await conversationService.markAsRead(phone);
         }
 
-        // 4. Emit
-        // 4. Emit to Frontend (Socket.IO)
         // 4. Emit to Frontend (Socket.IO)
         emitToConversation(phone, 'new-message', {
             phone: phone,
             contact_name: conversation.contact_name,
             message: text,
             whatsapp_id: msg.key.id,
-            sender: senderType, // Changed from sender_type for consistency
-            sender_type: senderType, // Keep for backward compatibility
+            sender: senderType,
+            sender_type: senderType,
             sender_name: cleanSenderName,
             agent_name: isFromAgent ? ((!looksLikeLid(msg.pushName) ? msg.pushName : null) || 'Agente') : null,
             unread: isFromAgent ? 0 : 1,
@@ -551,7 +550,8 @@ router.post('/', async (req, res) => {
             media_type: mediaType,
             media_url: mediaUrl,
             isNew: isNewConversation,
-            replyTo: replyToData
+            replyTo: replyToData,
+            temp_id: dbMessage?.temp_id // Key for frontend deduplication
         });
 
         // 5. AUTO-TRIGGER N8N IF AI IS ENABLED
