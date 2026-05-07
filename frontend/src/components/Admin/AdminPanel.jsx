@@ -55,17 +55,24 @@ const CreateUserModal = ({ tenants, callerRole, callerTenants, currentSede, onCl
     const hideSedeField = callerRole === 'SEDE_ADMIN' && availableSedesForCreate.length === 1;
     const sedeAdminPreset = hideSedeField ? availableSedesForCreate[0].slug : '';
 
-    const [form, setForm] = useState({ username: '', password: '', name: '', email: '', role: 'OPERATOR', sede: sedeAdminPreset || currentSede || '' });
+    const [form, setForm] = useState({ 
+        username: '', 
+        password: '', 
+        name: '', 
+        email: '', 
+        role: 'OPERATOR', 
+        sede: hideSedeField ? [sedeAdminPreset] : (currentSede ? [currentSede] : []) 
+    });
     const [showPass, setShowPass] = useState(false);
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState(null);
 
     // Keep sede in sync if currentSede changes (e.g. panel filter changes while modal is open)
     useEffect(() => {
-        if (!hideSedeField) {
-            setForm(f => ({ ...f, sede: currentSede || '' }));
+        if (!hideSedeField && form.sede.length === 0) {
+            setForm(f => ({ ...f, sede: currentSede ? [currentSede] : [] }));
         }
-    }, [currentSede, hideSedeField]);
+    }, [currentSede, hideSedeField, form.sede.length]);
 
     // SEDE_ADMIN can create OPERATORs and other SEDE_ADMINs
     const availableRoles = callerRole === 'SUPER_ADMIN'
@@ -169,12 +176,28 @@ const CreateUserModal = ({ tenants, callerRole, callerTenants, currentSede, onCl
                             </div>
                             {/* SUPER_ADMIN: dropdown editable, pre-filled from filter */}
                             {!hideSedeField && (
-                                <div style={cellStyle}>
-                                    <label style={labelStyle}>Sede *</label>
-                                    <select style={inputStyle} required value={form.sede} onChange={e => setForm(f => ({ ...f, sede: e.target.value }))}>
-                                        <option value="">-- Seleccionar --</option>
-                                        {availableSedesForCreate.map(t => <option key={t.slug} value={t.slug}>{t.name}</option>)}
-                                    </select>
+                                <div style={{ ...cellStyle, gridColumn: 'span 2' }}>
+                                    <label style={labelStyle}>Sedes (puedes seleccionar varias) *</label>
+                                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px', padding: '10px', border: '1px solid #d1d5db', borderRadius: '8px', background: '#f9fafb' }}>
+                                        {availableSedesForCreate.map(t => (
+                                            <label key={t.slug} style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '13px', background: 'white', padding: '5px 10px', borderRadius: '6px', border: '1px solid #e5e7eb', cursor: 'pointer' }}>
+                                                <input
+                                                    type="checkbox"
+                                                    checked={form.sede.includes(t.slug)}
+                                                    onChange={e => {
+                                                        const val = t.slug;
+                                                        setForm(f => {
+                                                            const newSedes = e.target.checked
+                                                                ? [...f.sede, val]
+                                                                : f.sede.filter(s => s !== val);
+                                                            return { ...f, sede: newSedes };
+                                                        });
+                                                    }}
+                                                />
+                                                {t.name}
+                                            </label>
+                                        ))}
+                                    </div>
                                 </div>
                             )}
                         </div>
@@ -183,7 +206,7 @@ const CreateUserModal = ({ tenants, callerRole, callerTenants, currentSede, onCl
                         {hideSedeField && fixedSedeName && (
                             <div style={{ fontSize: '12px', color: '#6b7280', display: 'flex', alignItems: 'center', gap: '6px' }}>
                                 <Building2 size={13} />
-                                Usuario será registrado en la sede: <strong style={{ color: '#374151' }}>{fixedSedeName}</strong>
+                                Usuario será registrado en sede: <strong style={{ color: '#374151' }}>{fixedSedeName}</strong>
                             </div>
                         )}
 

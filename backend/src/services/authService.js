@@ -210,9 +210,16 @@ class AuthService {
     }
 
     /** Create user and assign to sede */
-    async createUserForSede(userData, sedeSlug, callerRole, callerUserId) {
+    async createUserForSede(userData, sedeSlugs, callerRole, callerUserId) {
         const masterPool = dbManager.masterPool;
         const { username, password, name, email, role = 'OPERATOR' } = userData;
+
+        // Ensure sedeSlugs is an array
+        const slugs = Array.isArray(sedeSlugs) ? sedeSlugs : [sedeSlugs];
+
+        if (slugs.length === 0) {
+            return { success: false, error: 'Debes seleccionar al menos una sede' };
+        }
 
         const allowedRoles = callerRole === 'SUPER_ADMIN'
             ? ['OPERATOR', 'SEDE_ADMIN', 'SUPER_ADMIN']
@@ -222,17 +229,25 @@ class AuthService {
             return { success: false, error: 'No tienes permiso para asignar este rol' };
         }
 
+        // Get all requested tenants
         const { rows: tenantRows } = await masterPool.query(
-            'SELECT id, name, slug FROM tenants WHERE slug = $1 AND is_active = TRUE', [sedeSlug]
+            'SELECT id, name, slug FROM tenants WHERE slug = ANY($1) AND is_active = TRUE', [slugs]
         );
-        if (tenantRows.length === 0) return { success: false, error: 'Sede no encontrada' };
-        const tenant = tenantRows[0];
+        
+        if (tenantRows.length === 0) return { success: false, error: 'Sede(s) no encontrada(s)' };
 
+        // Verify permissions for each tenant if SEDE_ADMIN
         if (callerRole === 'SEDE_ADMIN') {
-            const { rows: m } = await masterPool.query(
-                'SELECT 1 FROM user_tenants WHERE user_id = $1 AND tenant_id = $2', [callerUserId, tenant.id]
+            const { rows: allowedAssociations } = await masterPool.query(
+                'SELECT tenant_id FROM user_tenants WHERE user_id = $1', [callerUserId]
             );
-            if (m.length === 0) return { success: false, error: 'No puedes crear usuarios en esta sede', code: 403 };
+            const allowedTenantIds = new Set(allowedAssociations.map(a => a.tenant_id));
+            
+            for (const tenant of tenantRows) {
+                if (!allowedTenantIds.has(tenant.id)) {
+                    return { success: false, error: `No tienes permiso para crear usuarios en la sede: ${tenant.name}`, code: 403 };
+                }
+            }
         }
 
         const { rows: existing } = await masterPool.query('SELECT id FROM users WHERE username = $1', [username]);
@@ -253,9 +268,14 @@ class AuthService {
                 [username, passwordHash, name, email || null, role]
             );
             const newUser = rows[0];
-            await client.query('INSERT INTO user_tenants (user_id, tenant_id) VALUES ($1, $2)', [newUser.id, tenant.id]);
+
+            // Assign to all selected tenants
+            for (const tenant of tenantRows) {
+                await client.query('INSERT INTO user_tenants (user_id, tenant_id) VALUES ($1, $2)', [newUser.id, tenant.id]);
+            }
+
             await client.query('COMMIT');
-            return { success: true, user: { ...newUser, sede: tenant } };
+            return { success: true, user: { ...newUser, sedes: tenantRows } };
         } catch (err) {
             await client.query('ROLLBACK');
             console.error('❌ createUserForSede error:', err);
