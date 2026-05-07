@@ -113,7 +113,8 @@ async function alignDatabases() {
                         reactions JSONB DEFAULT '[]',
                         reply_to_id VARCHAR(255),
                         reply_to_text TEXT,
-                        reply_to_sender VARCHAR(255)
+                        reply_to_sender VARCHAR(255),
+                        temp_id VARCHAR(255)
                     );
 
                     -- QUICK REPLIES
@@ -245,6 +246,7 @@ async function alignDatabases() {
                     ALTER TABLE messages ADD COLUMN IF NOT EXISTS reply_to_id VARCHAR(255);
                     ALTER TABLE messages ADD COLUMN IF NOT EXISTS reply_to_text TEXT;
                     ALTER TABLE messages ADD COLUMN IF NOT EXISTS reply_to_sender VARCHAR(255);
+                    ALTER TABLE messages ADD COLUMN IF NOT EXISTS temp_id VARCHAR(255);
                     
                     ALTER TABLE conversation_tags ADD COLUMN IF NOT EXISTS assigned_at TIMESTAMP WITH TIME ZONE DEFAULT NOW();
                     ALTER TABLE conversation_tags ADD COLUMN IF NOT EXISTS assigned_by VARCHAR(255);

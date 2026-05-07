@@ -238,6 +238,24 @@ class MessageService {
     }
 
     /**
+     * Find an optimistic message for reconciliation
+     * @param {string} phone - Conversation phone
+     * @param {string} text - Message text
+     */
+    async getOptimisticMessage(phone, text) {
+        const { rows } = await pool.query(`
+            SELECT id, temp_id FROM messages 
+            WHERE conversation_phone = $1 
+            AND sender = 'agent' 
+            AND status = 'sending' 
+            AND text_content = $2
+            ORDER BY timestamp DESC
+            LIMIT 1
+        `, [phone, text]);
+        return rows[0] || null;
+    }
+
+    /**
      * Update message status
      */
     async updateStatus(messageId, status) {

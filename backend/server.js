@@ -241,7 +241,8 @@ app.post('/api/send-message', async (req, res) => {
                 timestamp,
                 agent_id,
                 agent_name,
-                sender_type
+                sender_type,
+                temp_id
             ) VALUES (
                 uuid_generate_v4(),
                 $1,
@@ -252,14 +253,16 @@ app.post('/api/send-message', async (req, res) => {
                 NOW(),
                 $4,
                 $5,
-                'text'
+                'text',
+                $6
             )
         `, [
         `temp_${temp_id || Date.now()}`,
         phone,
         message,
         agent_id,
-        agent_name
+        agent_name,
+        temp_id ? String(temp_id) : null
       ]);
 
       // Update conversation last message
@@ -624,10 +627,11 @@ app.post('/api/send-file', upload.single('file'), async (req, res) => {
         status, 
         timestamp,
         agent_id,
-        agent_name
-      ) VALUES ($1, $2, $3, $4, $5, $6, $7, NOW(), $8, $9)
-      RETURNING id, whatsapp_id
-    `, [temp_id || `temp_${Date.now()}`, phone, 'agent', caption || '', mediaType, fileUrl, 'sending', agent_id, agent_name]);
+        agent_name,
+        temp_id
+      ) VALUES ($1, $2, $3, $4, $5, $6, $7, NOW(), $8, $9, $10)
+      RETURNING id, whatsapp_id, temp_id
+    `, [temp_id || `temp_${Date.now()}`, phone, 'agent', caption || '', mediaType, fileUrl, 'sending', agent_id, agent_name, temp_id ? String(temp_id) : null]);
 
     const savedId = messageResult.rows[0].id;
     const savedWhatsappId = messageResult.rows[0].whatsapp_id;

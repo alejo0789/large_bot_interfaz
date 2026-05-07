@@ -46,11 +46,14 @@ const ToggleSwitch = ({ checked, onChange, disabled }) => (
 const CreateUserModal = ({ tenants, callerRole, callerTenants, currentSede, onClose, onCreated, showToast }) => {
     const { token } = useAuth();
 
-    // SEDE_ADMIN: sede field is hidden and fixed to their own sede
-    // SUPER_ADMIN: sede dropdown is shown, pre-filled from panel filter but editable
-    const sedeAdminPreset = callerRole === 'SEDE_ADMIN' && callerTenants.length > 0
-        ? callerTenants[0].slug : '';
-    const hideSedeField = callerRole === 'SEDE_ADMIN';
+    // Calculate available sedes first
+    const availableSedesForCreate = callerRole === 'SUPER_ADMIN'
+        ? tenants
+        : tenants.filter(t => callerTenants.some(ct => ct.slug === t.slug));
+
+    // SEDE_ADMIN: if they have ONLY 1 sede available, hide field and preset it.
+    const hideSedeField = callerRole === 'SEDE_ADMIN' && availableSedesForCreate.length === 1;
+    const sedeAdminPreset = hideSedeField ? availableSedesForCreate[0].slug : '';
 
     const [form, setForm] = useState({ username: '', password: '', name: '', email: '', role: 'OPERATOR', sede: sedeAdminPreset || currentSede || '' });
     const [showPass, setShowPass] = useState(false);
@@ -59,21 +62,18 @@ const CreateUserModal = ({ tenants, callerRole, callerTenants, currentSede, onCl
 
     // Keep sede in sync if currentSede changes (e.g. panel filter changes while modal is open)
     useEffect(() => {
-        const initial = sedeAdminPreset || currentSede || '';
-        setForm(f => ({ ...f, sede: initial }));
-    }, [sedeAdminPreset, currentSede]);
+        if (!hideSedeField) {
+            setForm(f => ({ ...f, sede: currentSede || '' }));
+        }
+    }, [currentSede, hideSedeField]);
 
-    const availableSedesForCreate = callerRole === 'SUPER_ADMIN'
-        ? tenants
-        : tenants.filter(t => callerTenants.some(ct => ct.slug === t.slug));
-
-    // SEDE_ADMIN can only create OPERATORs
+    // SEDE_ADMIN can create OPERATORs and other SEDE_ADMINs
     const availableRoles = callerRole === 'SUPER_ADMIN'
         ? [{ v: 'OPERATOR', l: 'Operador' }, { v: 'SEDE_ADMIN', l: 'Admin Sede' }, { v: 'SUPER_ADMIN', l: 'Super Admin' }]
-        : [{ v: 'OPERATOR', l: 'Operador' }];
+        : [{ v: 'OPERATOR', l: 'Operador' }, { v: 'SEDE_ADMIN', l: 'Admin Sede' }];
 
     const fixedSedeName = hideSedeField
-        ? (tenants.find(t => t.slug === sedeAdminPreset)?.name || sedeAdminPreset)
+        ? (availableSedesForCreate[0]?.name || availableSedesForCreate[0]?.slug)
         : null;
 
     const handleSubmit = async (e) => {
@@ -209,7 +209,7 @@ const Portal = ({ children }) => ReactDOM.createPortal(children, document.body);
 
 // ─── AdminPanel Principal ─────────────────────────────────────────────────────
 const AdminPanel = ({ isMobile }) => {
-    const { user, token } = useAuth();
+    const { user, token, refreshUser } = useAuth();
     const { currentTenant } = useTenant();
 
     const [users, setUsers] = useState([]);
@@ -236,7 +236,10 @@ const AdminPanel = ({ isMobile }) => {
         setTimeout(() => setToast(null), 3000);
     }, []);
 
-    // Cargar sedes disponibles
+    // Refresh user info to catch up with DB changes (like new sede assignments)
+    useEffect(() => {
+        refreshUser();
+    }, [refreshUser]);
     useEffect(() => {
         fetch(`${API_URL}/api/admin/tenants`, { headers: { 'Authorization': `Bearer ${token}` } })
             .then(r => r.json())
@@ -397,14 +400,22 @@ const AdminPanel = ({ isMobile }) => {
             {/* Barra de controles */}
             <div style={{ background: 'white', borderRadius: '12px', padding: '16px', marginBottom: '20px', boxShadow: '0 1px 3px rgba(0,0,0,0.06)', display: 'flex', flexWrap: 'wrap', gap: '12px', alignItems: 'center' }}>
                 {/* Filtro de sede */}
-                <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flex: '1', minWidth: '180px' }}>
-                    <Building2 size={16} color="#6b7280" />
-                    <select value={selectedSede} onChange={e => setSelectedSede(e.target.value)} disabled={isSedeAdmin}
-                        style={{ border: '1px solid #e5e7eb', borderRadius: '8px', padding: '8px 12px', fontSize: '14px', outline: 'none', color: '#374151', cursor: isSedeAdmin ? 'not-allowed' : 'pointer', background: 'white', flex: 1 }}>
-                        {isSuperAdmin && <option value="">Todas las sedes</option>}
-                        {tenants.map(t => <option key={t.slug} value={t.slug}>{t.name}</option>)}
-                    </select>
-                </div>
+                {(isSuperAdmin || (isSedeAdmin && callerTenants.length > 1)) && (
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flex: '1', minWidth: '180px' }}>
+                        <Building2 size={16} color="#6b7280" />
+                        <select 
+                            value={selectedSede} 
+                            onChange={e => setSelectedSede(e.target.value)}
+                            style={{ border: '1px solid #e5e7eb', borderRadius: '8px', padding: '8px 12px', fontSize: '14px', outline: 'none', color: '#374151', cursor: 'pointer', background: 'white', flex: 1 }}
+                        >
+                            {isSuperAdmin && <option value="">Todas las sedes</option>}
+                            {tenants
+                                .filter(t => isSuperAdmin || callerTenants.some(ct => ct.slug === t.slug))
+                                .map(t => <option key={t.slug} value={t.slug}>{t.name}</option>)
+                            }
+                        </select>
+                    </div>
+                )}
 
                 {/* Búsqueda */}
                 <div style={{ position: 'relative', flex: '1', minWidth: '200px' }}>

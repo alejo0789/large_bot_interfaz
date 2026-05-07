@@ -28,6 +28,29 @@ export const AuthProvider = ({ children }) => {
         }
     }, [API_URL]);
 
+    const refreshUser = useCallback(async () => {
+        const storedToken = sessionStorage.getItem('auth_token') || localStorage.getItem('auth_token');
+        if (!storedToken) return;
+
+        try {
+            const res = await fetch(`${API_URL}/api/auth/me`, {
+                headers: { 'Authorization': `Bearer ${storedToken}` }
+            });
+            const data = await res.json();
+            if (data.success) {
+                setUser(data.user);
+                if (sessionStorage.getItem('auth_token')) {
+                    sessionStorage.setItem('auth_user', JSON.stringify(data.user));
+                } else if (localStorage.getItem('auth_token')) {
+                    localStorage.setItem('auth_user', JSON.stringify(data.user));
+                }
+                return data.user;
+            }
+        } catch (err) {
+            console.error('Error refreshing user:', err);
+        }
+    }, [API_URL]);
+
     // Check for existing session on mount
     useEffect(() => {
         const storedToken = sessionStorage.getItem('auth_token') || localStorage.getItem('auth_token');
@@ -36,30 +59,11 @@ export const AuthProvider = ({ children }) => {
         if (storedToken && storedUser) {
             setToken(storedToken);
             setUser(JSON.parse(storedUser));
-
-            // Verify token validity
-            fetch(`${API_URL}/api/auth/me`, {
-                headers: { 'Authorization': `Bearer ${storedToken}` }
-            })
-                .then(res => res.json())
-                .then(data => {
-                    if (data.success) {
-                        setUser(data.user);
-                        if (sessionStorage.getItem('auth_token')) {
-                            sessionStorage.setItem('auth_user', JSON.stringify(data.user));
-                        } else if (localStorage.getItem('auth_token')) {
-                            localStorage.setItem('auth_user', JSON.stringify(data.user));
-                        }
-                    } else {
-                        logout();
-                    }
-                })
-                .catch(() => logout())
-                .finally(() => setLoading(false));
+            refreshUser().finally(() => setLoading(false));
         } else {
             setLoading(false);
         }
-    }, [API_URL, logout]);
+    }, [refreshUser]);
 
     const login = async (username, password, rememberMe = false) => {
         try {
@@ -133,7 +137,8 @@ export const AuthProvider = ({ children }) => {
             login,
             register,
             logout,
-            updateProfile
+            updateProfile,
+            refreshUser
         }}>
             {children}
         </AuthContext.Provider>

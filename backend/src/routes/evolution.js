@@ -498,8 +498,27 @@ router.post('/', async (req, res) => {
             (isFromAgent ? 'Tú' : conversation?.contact_name || 'Cliente');
 
         // 2. Save/Get Message
+        // First try to find by real WhatsApp ID
         let dbMessage = await messageService.getMessageById(msg.key.id);
         
+        // If not found and it's from me, it might be an optimistic message waiting for reconciliation
+        if (!dbMessage && isFromAgent) {
+            console.log(`🔍 [WEBHOOK] Message from agent not found by ID. Checking for optimistic message...`);
+            
+            // Search for a 'sending' message with same content and phone
+            const optimisticMsg = await messageService.getOptimisticMessage(phone, text);
+
+            if (optimisticMsg) {
+                dbMessage = optimisticMsg;
+                console.log(`🎯 [WEBHOOK] Optimistic message matched! ID: ${dbMessage.id}, temp_id: ${dbMessage.temp_id}`);
+                
+                // Update the optimistic message with the real WhatsApp ID
+                await messageService.updateWhatsappId(dbMessage.id, msg.key.id, 'delivered');
+                // Reload to get full object
+                dbMessage = await messageService.getMessageById(msg.key.id);
+            }
+        }
+
         if (!dbMessage) {
             dbMessage = await messageService.create({
                 phone: phone,
@@ -515,7 +534,7 @@ router.post('/', async (req, res) => {
             });
             console.log(`💾 Saved message as '${senderType}' from ${isFromAgent ? 'your phone' : 'client'}`);
         } else {
-            console.log(`⏭️ Message ${msg.key.id} already exists in DB.`);
+            console.log(`⏭️ Message ${msg.key.id} already exists or was reconciled.`);
         }
 
         // 3. Update Conversation (use placeholder if text is null due to media)
