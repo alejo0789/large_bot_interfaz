@@ -215,7 +215,7 @@ const ConversationList = React.memo(({
                                 onEnterSelectionMode={onEnterSelectionMode}
                                 aiEnabled={aiStatesByPhone[conversation.contact.phone] ?? globalDefaultAi}
                                 tags={conversation.tags || tagsByPhone[conversation.contact.phone] || []}
-                                onClick={() => isSelectionMode ? onToggleSelection(conversation.id) : onSelect(conversation)}
+                                onClick={() => onSelect(conversation)}
                                 onTagClick={onTagClick}
                                 onDelete={onDelete}
                                 onTogglePin={onTogglePin}

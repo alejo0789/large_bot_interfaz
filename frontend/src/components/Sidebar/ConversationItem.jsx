@@ -165,20 +165,62 @@ const ConversationItem = React.memo(({
             onClick={onClick}
             style={{ position: 'relative' }}
         >
-            {/* Selection Checkbox */}
+            {/* Selection Checkbox — independent click zone */}
             {(isSelectionMode || isMultiSelected) && (
                 <div
                     className="selection-checkbox-container"
+                    title={isMultiSelected ? 'Quitar de selección' : 'Agregar a selección'}
                     onClick={(e) => {
-                        e.stopPropagation();
+                        e.stopPropagation(); // prevent opening the conversation
                         onToggleSelection(conversation.id);
                     }}
+                    style={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        width: '40px',
+                        minWidth: '40px',
+                        alignSelf: 'stretch',
+                        cursor: 'pointer',
+                        zIndex: 2,
+                        borderRight: '1px solid var(--color-gray-100)',
+                        backgroundColor: isMultiSelected
+                            ? 'rgba(18, 140, 126, 0.06)'
+                            : 'transparent',
+                        transition: 'background-color 0.15s',
+                        marginLeft: '-12px', // compensate item padding
+                        paddingLeft: '12px',
+                        marginRight: '8px',
+                    }}
+                    onMouseEnter={e => e.currentTarget.style.backgroundColor = isMultiSelected ? 'rgba(18, 140, 126, 0.12)' : 'rgba(0,0,0,0.04)'}
+                    onMouseLeave={e => e.currentTarget.style.backgroundColor = isMultiSelected ? 'rgba(18, 140, 126, 0.06)' : 'transparent'}
                 >
-                    <div className={`selection-checkbox ${isMultiSelected ? 'checked' : ''}`}>
-                        {isMultiSelected && <div className="inner-check" />}
+                    <div className={`selection-checkbox ${isMultiSelected ? 'checked' : ''}`}
+                        style={{
+                            width: '20px',
+                            height: '20px',
+                            borderRadius: '50%',
+                            border: isMultiSelected
+                                ? '2px solid var(--color-primary)'
+                                : '2px solid var(--color-gray-400)',
+                            backgroundColor: isMultiSelected ? 'var(--color-primary)' : 'white',
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            transition: 'all 0.15s',
+                            flexShrink: 0,
+                            boxShadow: isMultiSelected ? '0 0 0 3px rgba(18,140,126,0.15)' : 'none',
+                        }}
+                    >
+                        {isMultiSelected && (
+                            <svg width="11" height="9" viewBox="0 0 11 9" fill="none">
+                                <path d="M1 4L4 7L10 1" stroke="white" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+                            </svg>
+                        )}
                     </div>
                 </div>
             )}
+
             <div style={{ position: 'relative' }}>
                 <div className="conversation-avatar" style={{ padding: 0, overflow: 'hidden', display: 'flex', alignItems: 'center', justifyContent: 'center', backgroundColor: '#e2e8f0' }}>
                     <img

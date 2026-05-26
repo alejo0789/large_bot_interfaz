@@ -260,51 +260,66 @@ const AuthenticatedApp = () => {
     const dateRange = useMemo(() => {
         if (!dateFilter) return { start: null, end: null };
 
-        const start = new Date();
-        const end = new Date();
-        end.setHours(23, 59, 59, 999);
+        const now = new Date();
 
         switch (dateFilter) {
-            case 'today':
+            case 'today': {
+                const start = new Date(now);
                 start.setHours(0, 0, 0, 0);
-                break;
-            case 'yesterday':
+                const end = new Date(now);
+                end.setHours(23, 59, 59, 999);
+                return { start: start.toISOString(), end: end.toISOString() };
+            }
+            case 'yesterday': {
+                const start = new Date(now);
                 start.setDate(start.getDate() - 1);
                 start.setHours(0, 0, 0, 0);
-                const prevDayEnd = new Date();
-                prevDayEnd.setDate(prevDayEnd.getDate() - 1);
-                prevDayEnd.setHours(23, 59, 59, 999);
-                return { start: start.toISOString(), end: prevDayEnd.toISOString() };
-            case 'last7':
+                const end = new Date(now);
+                end.setDate(end.getDate() - 1);
+                end.setHours(23, 59, 59, 999);
+                return { start: start.toISOString(), end: end.toISOString() };
+            }
+            case 'last7': {
+                const start = new Date(now);
                 start.setDate(start.getDate() - 7);
                 start.setHours(0, 0, 0, 0);
-                break;
-            case 'last30':
+                const end = new Date(now);
+                end.setHours(23, 59, 59, 999);
+                return { start: start.toISOString(), end: end.toISOString() };
+            }
+            case 'last30': {
+                const start = new Date(now);
                 start.setDate(start.getDate() - 30);
                 start.setHours(0, 0, 0, 0);
-                break;
-            case 'last90':
+                const end = new Date(now);
+                end.setHours(23, 59, 59, 999);
+                return { start: start.toISOString(), end: end.toISOString() };
+            }
+            case 'last90': {
+                const start = new Date(now);
                 start.setDate(start.getDate() - 90);
                 start.setHours(0, 0, 0, 0);
-                break;
-            case 'custom':
+                const end = new Date(now);
+                end.setHours(23, 59, 59, 999);
+                return { start: start.toISOString(), end: end.toISOString() };
+            }
+            case 'custom': {
                 if (customDateRange.start && customDateRange.end) {
                     const s = new Date(customDateRange.start + 'T00:00:00');
                     const e = new Date(customDateRange.end + 'T23:59:59');
                     return { start: s.toISOString(), end: e.toISOString() };
                 }
                 return { start: null, end: null };
+            }
             default:
                 return { start: null, end: null };
         }
-
-        return {
-            start: start.toISOString(),
-            end: end.toISOString()
-        };
     }, [dateFilter, customDateRange]);
 
     // Primary fetch controller
+    // NOTE: dateRange already reacts to dateFilter changes (via useMemo), so we
+    // intentionally omit dateFilter here to avoid a double-fetch race condition
+    // that causes the conversation list to "jump" when a date filter is applied.
     useEffect(() => {
         const activeTagId = selectedTagIds.length === 1 ? selectedTagIds[0] : null;
         const timeoutId = setTimeout(() => {
@@ -319,9 +334,10 @@ const AuthenticatedApp = () => {
                 false,
                 leadTimeFilter
             );
-        }, 100);
+        }, 150);
         return () => clearTimeout(timeoutId);
-    }, [fetchConversations, activeTab, selectedTagIds, dateFilter, searchQuery, dateRange, showUnreadOnly, leadTimeFilter]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [fetchConversations, activeTab, selectedTagIds, dateRange, searchQuery, showUnreadOnly, leadTimeFilter]);
 
     // Filter conversations
     const filteredConversations = useMemo(() => {
@@ -337,6 +353,20 @@ const AuthenticatedApp = () => {
                 );
             });
         }
+        // Client-side date guard: when a date filter is active, socket events can
+        // re-insert conversations whose last message is outside the selected range.
+        // This filters them out so the list doesn't "jump" with unexpected entries.
+        if (dateRange.start || dateRange.end) {
+            const rangeStart = dateRange.start ? new Date(dateRange.start).getTime() : null;
+            const rangeEnd   = dateRange.end   ? new Date(dateRange.end).getTime()   : null;
+            result = result.filter(conv => {
+                const ts = conv.rawTimestamp ? new Date(conv.rawTimestamp).getTime() : null;
+                if (!ts) return true; // Keep if no timestamp (edge case)
+                if (rangeStart && ts < rangeStart) return false;
+                if (rangeEnd   && ts > rangeEnd)   return false;
+                return true;
+            });
+        }
         // When a lead time filter is active, only show conversations
         // where the CLIENT was the last to write (lastMessageFromMe !== true)
         // This is a safety net on top of the backend filter for real-time updates
@@ -344,7 +374,7 @@ const AuthenticatedApp = () => {
             result = result.filter(conv => conv.lastMessageFromMe !== true);
         }
         return result;
-    }, [conversations, showUnreadOnly, selectedTagIds, tagsByPhone, leadTimeFilter]);
+    }, [conversations, showUnreadOnly, selectedTagIds, tagsByPhone, leadTimeFilter, dateRange]);
 
     // Count unread (total visible)
     const unreadCount = useMemo(() => {

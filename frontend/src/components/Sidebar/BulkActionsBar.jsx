@@ -24,6 +24,9 @@ const BulkActionsBar = ({
                     <div className="pill-count-badge">
                         {selectedCount}
                     </div>
+                    <span style={{ fontSize: '11px', color: 'var(--color-gray-500)', fontWeight: 500, whiteSpace: 'nowrap' }}>
+                        seleccionado{selectedCount !== 1 ? 's' : ''}
+                    </span>
                 </div>
 
                 <div className="pill-divider" />
@@ -46,6 +49,16 @@ const BulkActionsBar = ({
                     </button>
                 </div>
             </div>
+            <div style={{
+                textAlign: 'center',
+                fontSize: '10px',
+                color: 'var(--color-gray-400)',
+                paddingTop: '4px',
+                letterSpacing: '0.02em'
+            }}>
+                Toca el chat para leer · Toca ○ para seleccionar
+            </div>
+
 
             <style jsx>{`
                 .bulk-actions-pill {
