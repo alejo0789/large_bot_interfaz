@@ -76,7 +76,8 @@ router.post('/receive-message', asyncHandler(async (req, res) => {
         timestamp,
         media_type,
         media_url,
-        tag
+        tag,
+        channel         // Added for multi-channel support
     } = rawBody;
 
     // Normalizar aliases de n8n
@@ -204,7 +205,7 @@ router.post('/receive-message', asyncHandler(async (req, res) => {
     let isNewConversation = false;
     if (!conversation) {
         console.log(`➕ Creando nueva conversación para ${dbPhone}`);
-        conversation = await conversationService.upsert(dbPhone, contact_name || `Usuario ${dbPhone.slice(-4)}`);
+        conversation = await conversationService.upsert(dbPhone, contact_name || `Usuario ${dbPhone.slice(-4)}`, channel || 'whatsapp_evolution');
         isNewConversation = true;
     }
 

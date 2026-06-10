@@ -213,7 +213,7 @@ class ConversationService {
     /**
      * Create or update conversation
      */
-    async upsert(phone, contactName) {
+    async upsert(phone, contactName, channel = 'whatsapp_evolution') {
         const normalizedPhone = normalizePhone(phone);
         // Fetch default AI setting
         const defaultAiEnabledStr = await settingsService.get('default_ai_enabled', 'false');
@@ -240,13 +240,13 @@ class ConversationService {
             // Use placeholder if no name provided for new conversation
             const finalName = contactName || `Usuario ${normalizedPhone.slice(-4)}`;
 
-            // Insert new with default setting
+            // Insert new with default setting and channel
             const { rows } = await pool.query(`
-                INSERT INTO conversations (phone, contact_name, ai_enabled, conversation_state, created_at, updated_at)
-                VALUES ($1, $2, $3, $4, NOW(), NOW())
+                INSERT INTO conversations (phone, contact_name, ai_enabled, conversation_state, channel, created_at, updated_at)
+                VALUES ($1, $2, $3, $4, $5, NOW(), NOW())
                 ON CONFLICT (phone) DO UPDATE SET updated_at = NOW()
                 RETURNING *
-            `, [normalizedPhone, finalName, defaultAiEnabled, defaultAiEnabled ? 'ai_active' : 'agent_active']);
+            `, [normalizedPhone, finalName, defaultAiEnabled, defaultAiEnabled ? 'ai_active' : 'agent_active', channel || 'whatsapp_evolution']);
             return rows[0];
         }
     }

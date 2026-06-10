@@ -144,7 +144,7 @@ router.post('/', async (req, res) => {
             let isNewConversation = false;
 
             if (!conversation) {
-                conversation = await conversationService.upsert(dbPhone, contact_name);
+                conversation = await conversationService.upsert(dbPhone, contact_name, 'whatsapp_official');
                 isNewConversation = true;
             } else if (conversation.contact_name === `Usuario ${dbPhone.slice(-4)}` || !conversation.contact_name) {
                 await conversationService.updateContactName(dbPhone, contact_name);
