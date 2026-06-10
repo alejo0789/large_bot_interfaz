@@ -31,7 +31,8 @@ class ConversationService {
             startDate = null,
             endDate = null,
             unreadOnly = false,
-            leadTime = null
+            leadTime = null,
+            channel = null
         } = options;
 
         // Sanitize pagination
@@ -91,6 +92,11 @@ class ConversationService {
             params.push(leadTime);
         }
 
+        if (channel && channel !== 'all') {
+            conditions.push(`c.channel = $${paramIndex++}`);
+            params.push(channel);
+        }
+
         const whereClause = conditions.length > 0
             ? `WHERE ${conditions.join(' AND ')}`
             : '';
@@ -117,6 +123,7 @@ class ConversationService {
                 c.lead_intent,
                 c.lead_time,
                 c.last_message_from_me,
+                c.channel,
                 COALESCE(
                     (SELECT json_agg(json_build_object('id', t.id, 'name', t.name, 'color', t.color))
                      FROM tags t
@@ -165,7 +172,8 @@ class ConversationService {
             isPinned: conv.is_pinned || false,
             leadIntent: conv.lead_intent,
             leadTime: conv.lead_time,
-            lastMessageFromMe: conv.last_message_from_me
+            lastMessageFromMe: conv.last_message_from_me,
+            channel: conv.channel || 'whatsapp_evolution'
         }));
 
         return {

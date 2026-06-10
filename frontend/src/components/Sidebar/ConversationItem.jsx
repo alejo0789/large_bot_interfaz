@@ -1,9 +1,20 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { createPortal } from 'react-dom';
-import { User, Bot, UserCheck, Tag, MoreVertical, Edit2, Trash2, Pin, CheckSquare } from 'lucide-react';
+import { User, Bot, UserCheck, Tag, MoreVertical, Edit2, Trash2, Pin, CheckSquare, MessageCircle, Instagram } from 'lucide-react';
 import EditContactModal from './EditContactModal';
 import { getShortDate } from '../../utils/dateUtils';
 import apiFetch from '../../utils/api';
+
+const TikTokIcon = ({ className, style }) => (
+    <svg 
+        viewBox="0 0 24 24" 
+        fill="currentColor" 
+        className={className} 
+        style={style}
+    >
+        <path d="M12.525.02c1.31-.02 2.61-.01 3.91-.02.08 1.53.63 3.09 1.75 4.17 1.12 1.11 2.7 1.62 4.24 1.79v4.03c-1.44-.17-2.89-.74-3.94-1.78-.22-.22-.41-.47-.58-.73v7.02c.01 2.1-.77 4.16-2.22 5.61-1.45 1.47-3.53 2.29-5.63 2.3-2.1.02-4.19-.78-5.65-2.23-1.48-1.46-2.29-3.54-2.29-5.64 0-2.11.81-4.19 2.29-5.65 1.44-1.44 3.52-2.25 5.6-2.24 1.2.01 2.39.31 3.43.89v4.22c-.89-.58-1.97-.87-3.04-.81-1.16.05-2.29.58-3.06 1.45-.77.87-1.15 2.06-1.07 3.22.08 1.17.65 2.26 1.55 3 .9.73 2.08 1.08 3.24 1 .94-.07 1.83-.51 2.44-1.22.56-.66.86-1.52.84-2.39V0h.03z"/>
+    </svg>
+);
 
 /**
  * Conversation item component
@@ -236,6 +247,54 @@ const ConversationItem = React.memo(({
                     />
                     <User className="w-6 h-6 text-gray-400" style={{ display: 'none', color: '#9ca3af' }} />
                 </div>
+                {/* Channel Indicator Badge */}
+                {(() => {
+                    const channel = conversation.channel || 'whatsapp_evolution';
+                    let icon = null;
+                    let bgColor = '#6b7280';
+                    let title = '';
+
+                    if (channel === 'whatsapp_evolution') {
+                        icon = <MessageCircle size={10} style={{ color: 'white' }} />;
+                        bgColor = '#25d366';
+                        title = 'WhatsApp (Evolution)';
+                    } else if (channel === 'whatsapp_official') {
+                        icon = <MessageCircle size={10} style={{ color: 'white' }} />;
+                        bgColor = '#0084ff';
+                        title = 'WhatsApp Oficial';
+                    } else if (channel === 'instagram') {
+                        icon = <Instagram size={10} style={{ color: 'white' }} />;
+                        bgColor = '#e1306c';
+                        title = 'Instagram';
+                    } else if (channel === 'tiktok') {
+                        icon = <TikTokIcon size={10} style={{ color: 'white' }} />;
+                        bgColor = '#0f1419';
+                        title = 'TikTok';
+                    }
+
+                    return (
+                        <div 
+                            title={title}
+                            style={{
+                                position: 'absolute',
+                                bottom: '-2px',
+                                right: '-2px',
+                                width: '18px',
+                                height: '18px',
+                                backgroundColor: bgColor,
+                                borderRadius: '50%',
+                                display: 'flex',
+                                alignItems: 'center',
+                                justifyContent: 'center',
+                                border: '2px solid white',
+                                boxShadow: '0 1px 3px rgba(0,0,0,0.15)',
+                                zIndex: 1
+                            }}
+                        >
+                            {icon}
+                        </div>
+                    );
+                })()}
                 {hasUnread && (
                     <div style={{
                         position: 'absolute',
@@ -245,7 +304,8 @@ const ConversationItem = React.memo(({
                         height: '12px',
                         backgroundColor: 'var(--color-primary-light)',
                         borderRadius: '50%',
-                        border: '2px solid var(--color-white)'
+                        border: '2px solid var(--color-white)',
+                        zIndex: 1
                     }} />
                 )}
             </div>

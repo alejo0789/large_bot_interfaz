@@ -19,7 +19,7 @@ const n8nService = require('../services/n8nService');
  *   - legacy: If true, returns flat array (backward compatibility)
  */
 router.get('/', asyncHandler(async (req, res) => {
-    const { page, limit, status, search, tagId, startDate, endDate, legacy, unreadOnly, leadTime } = req.query;
+    const { page, limit, status, search, tagId, startDate, endDate, legacy, unreadOnly, leadTime, channel } = req.query;
 
     const result = await conversationService.getAll({
         page: parseInt(page) || 1,
@@ -30,7 +30,8 @@ router.get('/', asyncHandler(async (req, res) => {
         startDate: startDate || null,
         endDate: endDate || null,
         unreadOnly: unreadOnly === 'true',
-        leadTime: leadTime || null
+        leadTime: leadTime || null,
+        channel: channel || null
     });
 
     // Support legacy format for backward compatibility

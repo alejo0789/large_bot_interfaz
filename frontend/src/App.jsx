@@ -15,6 +15,7 @@ import SearchBar from './components/Sidebar/SearchBar';
 import SedeSelector from './components/Navigation/SedeSelector';
 import ConversationList from './components/Sidebar/ConversationList';
 import TagFilter from './components/Sidebar/TagFilter';
+import ChannelSelector from './components/Sidebar/ChannelSelector';
 import ChatHeader from './components/Chat/ChatHeader';
 import MessageList from './components/Chat/MessageList';
 import MessageInput from './components/Chat/MessageInput';
@@ -77,6 +78,7 @@ const AuthenticatedApp = () => {
     const [dateFilter, setDateFilter] = useState(null);
     const [customDateRange, setCustomDateRange] = useState({ start: '', end: '' });
     const [leadTimeFilter, setLeadTimeFilter] = useState(null);
+    const [selectedChannel, setSelectedChannel] = useState('all');
 
     // Modals
     const [showTagManager, setShowTagManager] = useState(false);
@@ -332,12 +334,13 @@ const AuthenticatedApp = () => {
                 dateRange.end,
                 showUnreadOnly,
                 false,
-                leadTimeFilter
+                leadTimeFilter,
+                selectedChannel
             );
         }, 150);
         return () => clearTimeout(timeoutId);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [fetchConversations, activeTab, selectedTagIds, dateRange, searchQuery, showUnreadOnly, leadTimeFilter]);
+    }, [fetchConversations, activeTab, selectedTagIds, dateRange, searchQuery, showUnreadOnly, leadTimeFilter, selectedChannel]);
 
     // Filter conversations
     const filteredConversations = useMemo(() => {
@@ -373,8 +376,11 @@ const AuthenticatedApp = () => {
         if (leadTimeFilter) {
             result = result.filter(conv => conv.lastMessageFromMe !== true);
         }
+        if (selectedChannel && selectedChannel !== 'all') {
+            result = result.filter(conv => (conv.channel || 'whatsapp_evolution') === selectedChannel);
+        }
         return result;
-    }, [conversations, showUnreadOnly, selectedTagIds, tagsByPhone, leadTimeFilter, dateRange]);
+    }, [conversations, showUnreadOnly, selectedTagIds, tagsByPhone, leadTimeFilter, dateRange, selectedChannel]);
 
     // Count unread (total visible)
     const unreadCount = useMemo(() => {
@@ -395,6 +401,7 @@ const AuthenticatedApp = () => {
         setDateFilter(null);
         setCustomDateRange({ start: '', end: '' });
         setLeadTimeFilter(null);
+        setSelectedChannel('all');
     }, []);
 
     const handleSelectConversation = useCallback((conversation) => {
@@ -1084,6 +1091,14 @@ const AuthenticatedApp = () => {
                         />
                     </div>
 
+                    {/* Channels Filter */}
+                    <div style={{ paddingRight: '12px' }}>
+                        <ChannelSelector
+                            selectedChannel={selectedChannel}
+                            onSelectChannel={setSelectedChannel}
+                        />
+                    </div>
+
                     {/* Tag Filter */}
                     <TagFilter
                         tags={tags}
@@ -1121,11 +1136,11 @@ const AuthenticatedApp = () => {
                         onTagClick={handleOpenTagManager}
                         onRefresh={() => {
                             const activeTagId = selectedTagIds.length === 1 ? selectedTagIds[0] : null;
-                            fetchConversations(1, searchQuery, false, activeTagId, dateRange.start, dateRange.end, showUnreadOnly, false, leadTimeFilter);
+                            fetchConversations(1, searchQuery, false, activeTagId, dateRange.start, dateRange.end, showUnreadOnly, false, leadTimeFilter, selectedChannel);
                         }}
                         onLoadMore={() => {
                             const activeTagId = selectedTagIds.length === 1 ? selectedTagIds[0] : null;
-                            loadMoreConversations(activeTagId, dateRange.start, dateRange.end, showUnreadOnly, leadTimeFilter);
+                            loadMoreConversations(activeTagId, dateRange.start, dateRange.end, showUnreadOnly, leadTimeFilter, selectedChannel);
                         }}
                         onStartNewChat={handleStartNewChat}
                         onDelete={removeConversation}

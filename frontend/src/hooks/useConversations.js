@@ -76,7 +76,7 @@ export const useConversations = (socket) => {
     }, []);
 
     // Fetch all conversations with pagination
-    const fetchConversations = useCallback(async (page = 1, search = '', append = false, tagId = null, startDate = null, endDate = null, unreadOnly = false, silent = false, leadTime = null) => {
+    const fetchConversations = useCallback(async (page = 1, search = '', append = false, tagId = null, startDate = null, endDate = null, unreadOnly = false, silent = false, leadTime = null, channel = null) => {
         try {
             if (!append && !silent) setIsLoading(true);
             else if (append) setIsLoadingMore(true);
@@ -111,6 +111,10 @@ export const useConversations = (socket) => {
 
             if (leadTime) {
                 params.append('leadTime', leadTime);
+            }
+
+            if (channel && channel !== 'all') {
+                params.append('channel', channel);
             }
 
             const response = await apiFetch(`/api/conversations?${params}`, {
@@ -164,9 +168,9 @@ export const useConversations = (socket) => {
     }, []);
 
     // Load more conversations (for infinite scroll)
-    const loadMoreConversations = useCallback(async (tagId = null, startDate = null, endDate = null, unreadOnly = false, leadTime = null) => {
+    const loadMoreConversations = useCallback(async (tagId = null, startDate = null, endDate = null, unreadOnly = false, leadTime = null, channel = null) => {
         if (!hasMore || isLoadingMore) return;
-        await fetchConversations(currentPage + 1, searchQuery, true, tagId, startDate, endDate, unreadOnly, false, leadTime);
+        await fetchConversations(currentPage + 1, searchQuery, true, tagId, startDate, endDate, unreadOnly, false, leadTime, channel);
     }, [currentPage, hasMore, isLoadingMore, searchQuery, fetchConversations]);
 
     // Search conversations (server-side)
