@@ -251,6 +251,10 @@ async function alignDatabases() {
                     ALTER TABLE conversation_tags ADD COLUMN IF NOT EXISTS assigned_at TIMESTAMP WITH TIME ZONE DEFAULT NOW();
                     ALTER TABLE conversation_tags ADD COLUMN IF NOT EXISTS assigned_by VARCHAR(255);
                 `);
+                
+                // Ensure embedding column exists in ai_knowledge (if vector extension is available)
+                await tenantPool.query('ALTER TABLE ai_knowledge ADD COLUMN IF NOT EXISTS embedding vector(3072)').catch(e => console.warn(`  ⚠️ Could not add embedding column to ai_knowledge: ${e.message}`));
+
                 console.log('  ✅ Extra columns verified');
 
             } catch (err) {

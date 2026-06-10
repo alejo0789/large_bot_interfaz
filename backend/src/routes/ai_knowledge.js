@@ -8,9 +8,12 @@ const { config } = require('../config/app');
 const { tenantContext } = require('../utils/tenantContext');
 
 // Helper to get tenant-specific knowledge upload directory
-const getKnowledgeDir = () => {
-    const context = tenantContext.getStore();
-    const slug = context?.tenant?.slug;
+const getKnowledgeDir = (req) => {
+    let slug = req?.tenant?.slug;
+    if (!slug) {
+        const context = tenantContext.getStore();
+        slug = context?.tenant?.slug;
+    }
 
     let baseDir = config.uploadDir;
     if (slug) {
@@ -38,7 +41,7 @@ const getKnowledgeDir = () => {
 const storage = multer.diskStorage({
     destination: function (req, file, cb) {
         try {
-            const { dir } = getKnowledgeDir();
+            const { dir } = getKnowledgeDir(req);
             cb(null, dir);
         } catch (err) {
             cb(err);
@@ -93,7 +96,8 @@ router.get('/', async (req, res, next) => {
 
         query += ' ORDER BY created_at DESC';
 
-        const result = await pool.query(query, params);
+        const activePool = req.db || pool;
+        const result = await activePool.query(query, params);
 
         // Mapear resultados para incluir URL completa si es necesario
         const resources = result.rows.map(row => {
@@ -159,6 +163,20 @@ async function getEmbedding(text) {
     }
 }
 
+// Helper to check if embedding column exists in the database
+async function checkEmbeddingColumn(poolInstance) {
+    try {
+        const checkCol = await poolInstance.query(`
+            SELECT 1 FROM information_schema.columns 
+            WHERE table_name='ai_knowledge' AND column_name='embedding'
+        `);
+        return checkCol.rows.length > 0;
+    } catch (e) {
+        console.warn('⚠️ Error checking embedding column:', e.message);
+        return false;
+    }
+}
+
 /**
  * POST /api/ai-knowledge/upload
  * Subir archivo (imagen, audio, video)
@@ -170,35 +188,38 @@ router.post('/upload', upload.single('file'), async (req, res, next) => {
         }
 
         const { description, keywords, title, price, active } = req.body;
+        const descriptionVal = description || req.body.content || '';
         let type = 'image';
         if (req.file.mimetype.startsWith('audio/')) type = 'audio';
         if (req.file.mimetype.startsWith('video/')) type = 'video';
 
-        const { slug } = getKnowledgeDir();
+        const { slug } = getKnowledgeDir(req);
         const mediaUrl = slug
             ? `/uploads/${slug}/ai_knowledge/${req.file.filename}`
             : `/uploads/ai_knowledge/${req.file.filename}`;
         const keywordArray = keywords ? (Array.isArray(keywords) ? keywords : keywords.split(',').map(k => k.trim())) : [];
 
         // Generar embedding automático (opcional — no falla si la columna no existe)
-        const embeddingText = `${title || ''} ${description || ''}`.trim();
+        const embeddingText = `${title || ''} ${descriptionVal}`.trim();
         let embedding = null;
         try { embedding = await getEmbedding(embeddingText); } catch (e) { console.warn('⚠️ Embedding no generado:', e.message); }
 
         const priceVal = price ? parseFloat(price) : null;
         const activeVal = active === 'false' ? false : true;
 
-        // Construir query dinámico según si el embedding está disponible
+        const activePool = req.db || pool;
+        // Construir query dinámico según si el embedding está disponible y la columna existe en BD
+        const hasEmbedCol = await checkEmbeddingColumn(activePool);
         let columns = '(type, title, content, media_url, filename, keywords, price, active)';
         let placeholders = 'VALUES ($1, $2, $3, $4, $5, $6, $7, $8)';
-        let values = [type, title || '', description || '', mediaUrl, req.file.originalname, keywordArray, priceVal, activeVal];
-        if (embedding) {
+        let values = [type, title || '', descriptionVal, mediaUrl, req.file.originalname, keywordArray, priceVal, activeVal];
+        if (embedding && hasEmbedCol) {
             columns = '(type, title, content, media_url, filename, keywords, embedding, price, active)';
             placeholders = 'VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)';
-            values = [type, title || '', description || '', mediaUrl, req.file.originalname, keywordArray, embedding, priceVal, activeVal];
+            values = [type, title || '', descriptionVal, mediaUrl, req.file.originalname, keywordArray, embedding, priceVal, activeVal];
         }
 
-        const result = await pool.query(`INSERT INTO ai_knowledge ${columns} ${placeholders} RETURNING *`, values);
+        const result = await activePool.query(`INSERT INTO ai_knowledge ${columns} ${placeholders} RETURNING *`, values);
         res.status(201).json(result.rows[0]);
     } catch (error) {
         if (req.file && req.file.path) {
@@ -225,7 +246,7 @@ router.post('/text', upload.single('file'), async (req, res, next) => {
         // Si se subió un archivo, generamos la URL, de lo contrario usamos la URL del body si existe
         let finalMediaUrl = null;
         if (req.file) {
-            const { slug } = getKnowledgeDir();
+            const { slug } = getKnowledgeDir(req);
             finalMediaUrl = slug
                 ? `/uploads/${slug}/ai_knowledge/${req.file.filename}`
                 : `/uploads/ai_knowledge/${req.file.filename}`;
@@ -247,17 +268,19 @@ router.post('/text', upload.single('file'), async (req, res, next) => {
             embedding = await getEmbedding(embeddingText);
         } catch (e) { console.warn('⚠️ Embedding no generado:', e.message); }
 
-        // Construir query dinámico según si el embedding está disponible
+        const activePool = req.db || pool;
+        // Construir query dinámico según si el embedding está disponible y la columna existe en BD
+        const hasEmbedCol = await checkEmbeddingColumn(activePool);
         let columns = '(type, title, content, keywords, media_url, price, active)';
         let placeholders = 'VALUES ($1, $2, $3, $4, $5, $6, $7)';
         let values = ['text', title || '', content, keywordArray, finalMediaUrl, priceVal, activeVal];
-        if (embedding) {
+        if (embedding && hasEmbedCol) {
             columns = '(type, title, content, keywords, embedding, media_url, price, active)';
             placeholders = 'VALUES ($1, $2, $3, $4, $5, $6, $7, $8)';
             values = ['text', title || '', content, keywordArray, embedding, finalMediaUrl, priceVal, activeVal];
         }
 
-        const result = await pool.query(`INSERT INTO ai_knowledge ${columns} ${placeholders} RETURNING *`, values);
+        const result = await activePool.query(`INSERT INTO ai_knowledge ${columns} ${placeholders} RETURNING *`, values);
         res.status(201).json(result.rows[0]);
     } catch (error) {
         // Si hubo error, borrar el archivo subido si existe
@@ -279,8 +302,9 @@ router.put('/:id', upload.single('file'), async (req, res, next) => {
         const { id } = req.params;
         const { title, content, keywords, media_url, price, active } = req.body;
 
+        const activePool = req.db || pool;
         // Verificar si existe
-        const checkResult = await pool.query('SELECT * FROM ai_knowledge WHERE id = $1', [id]);
+        const checkResult = await activePool.query('SELECT * FROM ai_knowledge WHERE id = $1', [id]);
         if (checkResult.rows.length === 0) {
             return res.status(404).json({ error: 'Recurso no encontrado' });
         }
@@ -290,7 +314,7 @@ router.put('/:id', upload.single('file'), async (req, res, next) => {
 
         // Si se subió un nuevo archivo o se envió una nueva URL
         if (req.file) {
-            const { slug } = getKnowledgeDir();
+            const { slug } = getKnowledgeDir(req);
             finalMediaUrl = slug
                 ? `/uploads/${slug}/ai_knowledge/${req.file.filename}`
                 : `/uploads/ai_knowledge/${req.file.filename}`;
@@ -330,7 +354,8 @@ router.put('/:id', upload.single('file'), async (req, res, next) => {
             } catch (e) { console.warn('⚠️ Embedding no re-generado:', e.message); }
         }
 
-        // Construir UPDATE dinámico
+        // Construir UPDATE dinámico según si la columna embedding existe en BD
+        const hasEmbedCol = await checkEmbeddingColumn(activePool);
         const setClauses = [
             'title = $1', 'content = $2', 'keywords = $3',
             'media_url = $4', 'price = $5', 'active = $6', 'updated_at = NOW()'
@@ -338,14 +363,14 @@ router.put('/:id', upload.single('file'), async (req, res, next) => {
         const values = [title ?? oldResource.title, content ?? oldResource.content, keywordArray, finalMediaUrl, priceVal, activeVal];
         let paramIdx = 7;
 
-        if (embeddingUpdate) {
+        if (embeddingUpdate && hasEmbedCol) {
             setClauses.splice(4, 0, `embedding = $${paramIdx}`);
             values.splice(4, 0, embeddingUpdate);
             paramIdx++;
         }
 
         values.push(id);
-        const result = await pool.query(
+        const result = await activePool.query(
             `UPDATE ai_knowledge SET ${setClauses.join(', ')} WHERE id = $${paramIdx} RETURNING *`,
             values
         );
@@ -364,9 +389,10 @@ router.delete('/:id', async (req, res, next) => {
     try {
         const { id } = req.params;
 
+        const activePool = req.db || pool;
         // Obtener info del recurso antes de borrar para eliminar archivo si existe
         const checkQuery = 'SELECT * FROM ai_knowledge WHERE id = $1';
-        const checkResult = await pool.query(checkQuery, [id]);
+        const checkResult = await activePool.query(checkQuery, [id]);
 
         if (checkResult.rows.length === 0) {
             return res.status(404).json({ error: 'Recurso no encontrado' });
@@ -375,7 +401,7 @@ router.delete('/:id', async (req, res, next) => {
         const resource = checkResult.rows[0];
 
         // Borrar de DB
-        await pool.query('DELETE FROM ai_knowledge WHERE id = $1', [id]);
+        await activePool.query('DELETE FROM ai_knowledge WHERE id = $1', [id]);
 
         // Borrar archivo físico si existe
         if (resource.media_url) {
@@ -426,7 +452,8 @@ router.get('/promociones', async (req, res, next) => {
 
         query += ' ORDER BY active DESC, created_at DESC';
 
-        const result = await pool.query(query, params);
+        const activePool = req.db || pool;
+        const result = await activePool.query(query, params);
 
         const promociones = result.rows.map(row => {
             let imageUrl = row.media_url;

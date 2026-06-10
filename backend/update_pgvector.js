@@ -23,7 +23,7 @@ async function runMigration() {
         `);
 
         if (checkColumn.rows.length === 0) {
-            await pool.query('ALTER TABLE ai_knowledge ADD COLUMN embedding vector(768);');
+            await pool.query('ALTER TABLE ai_knowledge ADD COLUMN embedding vector(3072);');
             console.log('✅ Columna embedding añadida exitosamente.');
         } else {
             console.log('ℹ️ La columna embedding ya existía.');
