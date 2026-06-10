@@ -485,5 +485,66 @@ router.get('/promociones', async (req, res, next) => {
     }
 });
 
+/**
+ * GET /api/ai-knowledge/servicios
+ * Retorna los servicios del tenant (registros con la keyword 'servicio').
+ * Query params:
+ *   active=true  → solo activos (default: todos)
+ *   active=false → solo inactivos
+ */
+router.get('/servicios', async (req, res, next) => {
+    try {
+        const { active } = req.query;
+
+        let query = `
+            SELECT id, title, content, media_url, active, price, keywords, created_at, updated_at
+            FROM ai_knowledge
+            WHERE $1 = ANY(keywords)
+        `;
+        const params = ['servicio'];
+        let paramCount = 2;
+
+        // Filtrar por estado activo si se especifica
+        if (active !== undefined) {
+            query += ` AND active = $${paramCount}`;
+            params.push(active === 'true');
+            paramCount++;
+        }
+
+        query += ' ORDER BY active DESC, created_at DESC';
+
+        const activePool = req.db || pool;
+        const result = await activePool.query(query, params);
+
+        const servicios = result.rows.map(row => {
+            let imageUrl = row.media_url;
+            if (imageUrl && imageUrl.startsWith('/uploads')) {
+                imageUrl = `${config.publicUrl}${imageUrl}`;
+            }
+            return {
+                id: row.id,
+                nombre: row.title,
+                texto: row.content,
+                activa: row.active,
+                precio: row.price,
+                imagen_url: imageUrl || null,
+                keywords: row.keywords,
+                creado: row.created_at,
+                actualizado: row.updated_at
+            };
+        });
+
+        res.json({
+            total: servicios.length,
+            activos: servicios.filter(s => s.activa).length,
+            inactivos: servicios.filter(s => !s.activa).length,
+            servicios
+        });
+    } catch (error) {
+        console.error('❌ Error en GET /api/ai-knowledge/servicios:', error.message);
+        next(error);
+    }
+});
+
 module.exports = router;
 
