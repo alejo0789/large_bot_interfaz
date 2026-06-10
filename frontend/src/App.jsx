@@ -31,6 +31,7 @@ import Dashboard from './components/Dashboard/Dashboard';
 import BulkActionsBar from './components/Sidebar/BulkActionsBar';
 import AdminPanel from './components/Admin/AdminPanel';
 import Celebration from './components/UI/Celebration';
+import TermsAndConditions from './components/Legal/TermsAndConditions';
 
 // Hooks
 import { useConversations } from './hooks/useConversations';
@@ -1501,6 +1502,13 @@ const App = () => {
 const AppContent = () => {
     const { isAuthenticated, loading, user } = useAuth();
     const { currentTenant } = useTenant();
+
+    const isTermsPage = window.location.pathname === '/terminosycondiciones' || 
+                        window.location.pathname === '/terminosycondiciones/';
+
+    if (isTermsPage) {
+        return <TermsAndConditions />;
+    }
 
     if (loading) {
         return (

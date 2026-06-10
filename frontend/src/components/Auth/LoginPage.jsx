@@ -407,6 +407,27 @@ const LoginPage = () => {
                     </div>
                 </form>
             </div>
+            
+            {/* Footer Legal Links */}
+            <div style={{
+                marginTop: '16px',
+                textAlign: 'center',
+                fontSize: '12px',
+                color: 'rgba(255, 255, 255, 0.6)',
+                paddingBottom: '24px'
+            }}>
+                Al ingresar o registrarse, usted acepta nuestros{' '}
+                <a 
+                    href="/terminosycondiciones" 
+                    style={{ 
+                        color: 'white', 
+                        textDecoration: 'underline',
+                        fontWeight: '500' 
+                    }}
+                >
+                    Términos y Condiciones
+                </a>
+            </div>
         </div>
     );
 };
