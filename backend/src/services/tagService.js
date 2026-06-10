@@ -10,7 +10,14 @@ class TagService {
      * Get all tags
      */
     async getAll() {
-        const { rows } = await pool.query('SELECT * FROM tags ORDER BY name ASC');
+        const { rows } = await pool.query(`
+            SELECT t.*, COUNT(c.phone)::int as conversation_count
+            FROM tags t
+            LEFT JOIN conversation_tags ct ON t.id = ct.tag_id
+            LEFT JOIN conversations c ON ct.conversation_phone = c.phone
+            GROUP BY t.id
+            ORDER BY t.name ASC
+        `);
         return rows;
     }
 

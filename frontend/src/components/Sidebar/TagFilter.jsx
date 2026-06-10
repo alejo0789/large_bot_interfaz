@@ -409,9 +409,26 @@ const TagFilter = ({
                                                     fontWeight: isSelected ? 600 : 400,
                                                     whiteSpace: 'nowrap',
                                                     overflow: 'hidden',
-                                                    textOverflow: 'ellipsis'
+                                                    textOverflow: 'ellipsis',
+                                                    display: 'flex',
+                                                    alignItems: 'center',
+                                                    justifyContent: 'space-between',
+                                                    gap: '8px'
                                                 }}>
-                                                    {tag.name}
+                                                    <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                                                        {tag.name}
+                                                    </span>
+                                                    <span style={{
+                                                        fontSize: '10px',
+                                                        color: 'var(--color-gray-500)',
+                                                        backgroundColor: 'var(--color-gray-100)',
+                                                        padding: '2px 6px',
+                                                        borderRadius: '8px',
+                                                        fontWeight: 600,
+                                                        flexShrink: 0
+                                                    }}>
+                                                        {tag.conversation_count ?? 0}
+                                                    </span>
                                                 </span>
 
                                                 {/* Check icon if selected */}
