@@ -35,7 +35,7 @@ const MAX_CACHED_CONVERSATIONS = 5;
 export const useConversations = (socket) => {
     const [conversations, setConversations] = useState([]);
     const [selectedConversation, setSelectedConversation] = useState(null);
-    const selectedId = selectedConversation ? String(selectedConversation.contact.phone).replace(/\D/g, '') : null;
+    const selectedId = selectedConversation && selectedConversation.contact ? String(selectedConversation.contact.phone).replace(/\D/g, '') : null;
     const [messagesByConversation, setMessagesByConversation] = useState({});
     const [isLoading, setIsLoading] = useState(true);
     const [isLoadingMessages, setIsLoadingMessages] = useState(false);
@@ -134,8 +134,8 @@ export const useConversations = (socket) => {
             if (append) {
                 // Append and deduplicate by phone
                 setConversations(prev => {
-                    const existingPhones = new Set(prev.map(c => c.contact.phone));
-                    const uniqueNew = newConversations.filter(c => !existingPhones.has(c.contact.phone));
+                    const existingPhones = new Set(prev.map(c => c && c.contact ? c.contact.phone : null).filter(Boolean));
+                    const uniqueNew = newConversations.filter(c => c && c.contact && !existingPhones.has(c.contact.phone));
                     return [...prev, ...uniqueNew];
                 });
             } else {
@@ -145,7 +145,9 @@ export const useConversations = (socket) => {
             // Initialize AI states from loaded conversations
             const initialAiStates = {};
             newConversations.forEach(conv => {
-                initialAiStates[conv.contact.phone] = conv.aiEnabled;
+                if (conv && conv.contact) {
+                    initialAiStates[conv.contact.phone] = conv.aiEnabled;
+                }
             });
             setAiStatesByPhone(prev => ({ ...prev, ...initialAiStates }));
 
@@ -325,13 +327,14 @@ export const useConversations = (socket) => {
     const selectConversation = useCallback(async (conversation) => {
         // Handle deselection
         if (!conversation) {
-            if (selectedConversation && socket) {
+            if (selectedConversation && selectedConversation.contact && socket) {
                 socket.emit('leave-conversation', selectedConversation.contact.phone);
             }
             setSelectedConversation(null);
             return;
         }
 
+        if (!conversation.contact) return; // Guard against malformed conversation selection
         const phone = conversation.contact.phone;
         console.log('🎯 Selecting conversation:', phone);
 
@@ -341,7 +344,7 @@ export const useConversations = (socket) => {
         }
 
         // Leave previous room if any
-        if (selectedConversation && socket) {
+        if (selectedConversation && selectedConversation.contact && socket) {
             socket.emit('leave-conversation', selectedConversation.contact.phone);
         }
 
@@ -390,7 +393,7 @@ export const useConversations = (socket) => {
             const currentConversations = [...prev];
             const cleanIncomingPhone = String(phone).replace(/\D/g, '');
             const conversationIndex = currentConversations.findIndex(conv =>
-                String(conv.contact.phone).replace(/\D/g, '') === cleanIncomingPhone
+                conv && conv.contact && String(conv.contact.phone).replace(/\D/g, '') === cleanIncomingPhone
             );
 
             if (conversationIndex !== -1) {
@@ -551,7 +554,7 @@ export const useConversations = (socket) => {
                 const currentConversations = [...prev];
                 const cleanIncomingPhone = String(phone).replace(/\D/g, '');
                 const conversationIndex = currentConversations.findIndex(conv =>
-                    String(conv.contact.phone).replace(/\D/g, '') === cleanIncomingPhone
+                    conv && conv.contact && String(conv.contact.phone).replace(/\D/g, '') === cleanIncomingPhone
                 );
 
                 if (conversationIndex !== -1) {
@@ -630,7 +633,7 @@ export const useConversations = (socket) => {
 
     // Toggle Pin for a conversation
     const togglePin = useCallback(async (phone) => {
-        const conv = conversations.find(c => c.contact.phone === phone);
+        const conv = conversations.find(c => c && c.contact && c.contact.phone === phone);
         if (!conv) return;
 
         const currentPinnedState = Boolean(conv.isPinned);
@@ -639,7 +642,7 @@ export const useConversations = (socket) => {
         // Optimistic update
         setConversations(prev => {
             const updated = prev.map(c =>
-                c.contact.phone === phone ? { ...c, isPinned: newState } : c
+                c && c.contact && c.contact.phone === phone ? { ...c, isPinned: newState } : c
             );
             // Re-sort to reflect new pin state
             return sortConversations(updated);
@@ -659,7 +662,7 @@ export const useConversations = (socket) => {
             // Revert on error
             setConversations(prev => {
                 const updated = prev.map(c =>
-                    c.contact.phone === phone ? { ...c, isPinned: currentPinnedState } : c
+                    c && c.contact && c.contact.phone === phone ? { ...c, isPinned: currentPinnedState } : c
                 );
                 return sortConversations(updated);
             });
@@ -671,9 +674,11 @@ export const useConversations = (socket) => {
         if (!socket || !selectedConversation) return;
 
         const handleReconnect = () => {
-            const phone = selectedConversation.contact.phone;
-            console.log('🔄 Socket reconnected, re-joining conversation room:', phone);
-            socket.emit('join-conversation', phone);
+            if (selectedConversation && selectedConversation.contact) {
+                const phone = selectedConversation.contact.phone;
+                console.log('🔄 Socket reconnected, re-joining conversation room:', phone);
+                socket.emit('join-conversation', phone);
+            }
         };
 
         socket.on('reconnect', handleReconnect);
@@ -817,7 +822,7 @@ export const useConversations = (socket) => {
 
             setConversations(prev => {
                 const index = prev.findIndex(conv =>
-                    String(conv.contact.phone).replace(/\D/g, '') === cleanIncomingPhone
+                    conv && conv.contact && String(conv.contact.phone).replace(/\D/g, '') === cleanIncomingPhone
                 );
  
                 if (index !== -1) {
@@ -868,7 +873,7 @@ export const useConversations = (socket) => {
             setConversations(prev => {
                 const currentConversations = [...prev];
                 const index = currentConversations.findIndex(conv =>
-                    String(conv.contact.phone).replace(/\D/g, '') === cleanPhone
+                    conv && conv.contact && String(conv.contact.phone).replace(/\D/g, '') === cleanPhone
                 );
 
                 const timestamp = new Date(data.timestamp).toLocaleTimeString('es-CO', {
@@ -944,7 +949,7 @@ export const useConversations = (socket) => {
             setConversations(prev => {
                 const currentConversations = [...prev];
                 const index = currentConversations.findIndex(c =>
-                    String(c.contact.phone).replace(/\D/g, '') === String(phone).replace(/\D/g, '')
+                    c && c.contact && String(c.contact.phone).replace(/\D/g, '') === String(phone).replace(/\D/g, '')
                 );
 
                 if (index !== -1) {
@@ -979,7 +984,7 @@ export const useConversations = (socket) => {
 
     const updateConversationLocal = useCallback((phone, updates) => {
         setConversations(prev => prev.map(conv =>
-            String(conv.contact.phone).replace(/\D/g, '') === String(phone).replace(/\D/g, '')
+            conv && conv.contact && String(conv.contact.phone).replace(/\D/g, '') === String(phone).replace(/\D/g, '')
                 ? { ...conv, ...updates, contact: { ...conv.contact, ...(updates.contact || {}) } }
                 : conv
         ));
@@ -1021,7 +1026,7 @@ export const useConversations = (socket) => {
             // Optimistic update - Conversation list (Sidebar)
             setConversations(prev => {
                 const currentConversations = [...prev];
-                const index = currentConversations.findIndex(c => c.contact.phone === phone);
+                const index = currentConversations.findIndex(c => c && c.contact && c.contact.phone === phone);
                 if (index !== -1) {
                     const conv = currentConversations[index];
                     // Check if the deleted message was the last one shown
@@ -1089,8 +1094,8 @@ export const useConversations = (socket) => {
     }, []);
 
     const removeConversation = useCallback((phone) => {
-        setConversations(prev => prev.filter(c => c.contact.phone !== phone));
-        if (selectedConversation && selectedConversation.contact.phone === phone) {
+        setConversations(prev => prev.filter(c => c && c.contact && c.contact.phone !== phone));
+        if (selectedConversation && selectedConversation.contact && selectedConversation.contact.phone === phone) {
             setSelectedConversation(null);
         }
     }, [selectedConversation]);

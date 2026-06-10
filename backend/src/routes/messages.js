@@ -481,132 +481,134 @@ router.post('/bulk-send', requireApiKey, asyncHandler(async (req, res) => {
     }
 
     console.log(`📤 Starting bulk send ${batchId}: ${finalRecipients.length} recipients by ${finalAgentName || 'unknown'}`);
+    const context = tenantContext.getStore();
 
     // Send function for each recipient
     const sendFn = async ({ phone, name, message: msg, mediaUrl: media, mediaType: mType }) => {
-        // Normalize phone to match webhook logic (evolution.js)
-        const normalizedPhone = normalizePhone(phone);
+        return tenantContext.run(context, async () => {
+            // Normalize phone to match webhook logic (evolution.js)
+            const normalizedPhone = normalizePhone(phone);
 
 
-        // Determinar los mensajes a enviar
-        const messagesToSend = [];
-        if (msg && media && mType) {
-            // Si hay texto y media, enviar dos mensajes: primero texto, luego media
-            messagesToSend.push({ text: msg, mediaUrl: null, mediaType: null, isMedia: false });
-            messagesToSend.push({ text: '', mediaUrl: media, mediaType: mType, isMedia: true });
-        } else {
-            messagesToSend.push({ text: msg || '', mediaUrl: media || null, mediaType: mType || null, isMedia: !!media });
-        }
-
-        // Ensure conversation exists
-        await conversationService.upsert(normalizedPhone, name);
-
-        const savedMessages = [];
-
-        // Save messages to database
-        for (const m of messagesToSend) {
-            const savedMessage = await messageService.create({
-                phone: normalizedPhone,
-                sender: 'agent',
-                text: m.text,
-                mediaType: m.mediaType,
-                mediaUrl: m.mediaUrl,
-                status: 'sending',
-                agentId: finalAgentId,
-                agentName: finalAgentName,
-                senderName: finalAgentName
-            });
-            savedMessages.push(savedMessage);
-        }
-
-        // Update conversation
-        await conversationService.updateLastMessage(normalizedPhone, media && !msg ? '📎 Media' : (msg || '📎 Media'), true);
-        await conversationService.markAsRead(normalizedPhone);
-
-        // Send Logic (Evolution > N8N)
-        if (config.evolutionApiUrl) {
-            for (let i = 0; i < messagesToSend.length; i++) {
-                const m = messagesToSend[i];
-                let result;
-                if (m.isMedia) {
-                    result = await evolutionService.sendMedia(normalizedPhone, m.mediaUrl, m.mediaType, m.text, 'file');
-                } else {
-                    result = await evolutionService.sendText(normalizedPhone, m.text);
-                }
-
-
-                if (!result.success) {
-                    throw new Error(result.error?.message || 'Error en Evolution API');
-                }
-
-                // Add delay between multiple messages to maintain order
-                if (messagesToSend.length > 1 && i < messagesToSend.length - 1) {
-                    await new Promise(resolve => setTimeout(resolve, 1000));
-                }
+            // Determinar los mensajes a enviar
+            const messagesToSend = [];
+            if (msg && media && mType) {
+                // Si hay texto y media, enviar dos mensajes: primero texto, luego media
+                messagesToSend.push({ text: msg, mediaUrl: null, mediaType: null, isMedia: false });
+                messagesToSend.push({ text: '', mediaUrl: media, mediaType: mType, isMedia: true });
+            } else {
+                messagesToSend.push({ text: msg || '', mediaUrl: media || null, mediaType: mType || null, isMedia: !!media });
             }
-        } else {
-            // Fallback to N8N
-            for (let i = 0; i < messagesToSend.length; i++) {
-                const m = messagesToSend[i];
-                await n8nService.sendMessage({
+
+            // Ensure conversation exists
+            await conversationService.upsert(normalizedPhone, name);
+
+            const savedMessages = [];
+
+            // Save messages to database
+            for (const m of messagesToSend) {
+                const savedMessage = await messageService.create({
                     phone: normalizedPhone,
-                    name,
-                    message: m.text,
+                    sender: 'agent',
+                    text: m.text,
                     mediaType: m.mediaType,
                     mediaUrl: m.mediaUrl,
+                    status: 'sending',
                     agentId: finalAgentId,
-                    agentName: finalAgentName
+                    agentName: finalAgentName,
+                    senderName: finalAgentName
                 });
-
-                // Add delay between multiple messages to maintain order
-                if (messagesToSend.length > 1 && i < messagesToSend.length - 1) {
-                    await new Promise(resolve => setTimeout(resolve, 1000));
-                }
+                savedMessages.push(savedMessage);
             }
-        }
 
-        // Update status in DB after successful send
-        for (const saved of savedMessages) {
-            await messageService.updateStatus(saved.id, 'delivered');
-        }
+            // Update conversation
+            await conversationService.updateLastMessage(normalizedPhone, media && !msg ? '📎 Media' : (msg || '📎 Media'), true);
+            await conversationService.markAsRead(normalizedPhone);
 
-        // Emit to frontend (OPTIMIZED: uses rooms)
-        // This ensures the sender sees the message immediately correctly
-        if (io) {
-            const context = tenantContext.getStore();
-            const tenantSlug = context?.tenant?.slug;
-            
-            for (let i = 0; i < messagesToSend.length; i++) {
-                const m = messagesToSend[i];
-                const saved = savedMessages[i];
-                const purePhone = getPureDigits(normalizedPhone);
+            // Send Logic (Evolution > N8N)
+            if (config.evolutionApiUrl) {
+                for (let i = 0; i < messagesToSend.length; i++) {
+                    const m = messagesToSend[i];
+                    let result;
+                    if (m.isMedia) {
+                        result = await evolutionService.sendMedia(normalizedPhone, m.mediaUrl, m.mediaType, m.text, 'file');
+                    } else {
+                        result = await evolutionService.sendText(normalizedPhone, m.text);
+                    }
 
-                if (tenantSlug) {
-                    io.to(`tenant:${tenantSlug}:conversation:${purePhone}`).emit('agent-message', {
-                        id: saved.id,
+
+                    if (!result.success) {
+                        throw new Error(result.error?.message || 'Error en Evolution API');
+                    }
+
+                    // Add delay between multiple messages to maintain order
+                    if (messagesToSend.length > 1 && i < messagesToSend.length - 1) {
+                        await new Promise(resolve => setTimeout(resolve, 1000));
+                    }
+                }
+            } else {
+                // Fallback to N8N
+                for (let i = 0; i < messagesToSend.length; i++) {
+                    const m = messagesToSend[i];
+                    await n8nService.sendMessage({
                         phone: normalizedPhone,
-                        message: m.text || (m.isMedia ? 'Archivo enviado' : ''),
-                        media_type: m.mediaType,
-                        media_url: m.mediaUrl,
-                        sender_type: 'agent',
-                        timestamp: new Date().toISOString(),
-                        agent_id: finalAgentId,
-                        agent_name: finalAgentName,
-                        sender_name: finalAgentName,
-                        status: 'delivered'
+                        name,
+                        message: m.text,
+                        mediaType: m.mediaType,
+                        mediaUrl: m.mediaUrl,
+                        agentId: finalAgentId,
+                        agentName: finalAgentName
                     });
 
-                    // Also emit to global list
-                    io.to(`tenant:${tenantSlug}`).emit('conversation-updated', {
-                        phone: normalizedPhone,
-                        lastMessage: media ? '📎 Media' : msg,
-                        timestamp: new Date().toISOString(),
-                        unread: 0,
-                        sender_type: 'agent'
-                    });
+                    // Add delay between multiple messages to maintain order
+                    if (messagesToSend.length > 1 && i < messagesToSend.length - 1) {
+                        await new Promise(resolve => setTimeout(resolve, 1000));
+                    }
                 }
             }
-        }
+
+            // Update status in DB after successful send
+            for (const saved of savedMessages) {
+                await messageService.updateStatus(saved.id, 'delivered');
+            }
+
+            // Emit to frontend (OPTIMIZED: uses rooms)
+            // This ensures the sender sees the message immediately correctly
+            if (io) {
+                const tenantSlug = context?.tenant?.slug;
+                
+                for (let i = 0; i < messagesToSend.length; i++) {
+                    const m = messagesToSend[i];
+                    const saved = savedMessages[i];
+                    const purePhone = getPureDigits(normalizedPhone);
+
+                    if (tenantSlug) {
+                        io.to(`tenant:${tenantSlug}:conversation:${purePhone}`).emit('agent-message', {
+                            id: saved.id,
+                            phone: normalizedPhone,
+                            message: m.text || (m.isMedia ? 'Archivo enviado' : ''),
+                            media_type: m.mediaType,
+                            media_url: m.mediaUrl,
+                            sender_type: 'agent',
+                            timestamp: new Date().toISOString(),
+                            agent_id: finalAgentId,
+                            agent_name: finalAgentName,
+                            sender_name: finalAgentName,
+                            status: 'delivered'
+                        });
+
+                        // Also emit to global list
+                        io.to(`tenant:${tenantSlug}`).emit('conversation-updated', {
+                            phone: normalizedPhone,
+                            lastMessage: media ? '📎 Media' : msg,
+                            timestamp: new Date().toISOString(),
+                            unread: 0,
+                            sender_type: 'agent'
+                        });
+                    }
+                }
+            }
+        });
     };
 
     // Progress callback - emit via Socket.IO
@@ -617,25 +619,35 @@ router.post('/bulk-send', requireApiKey, asyncHandler(async (req, res) => {
     };
 
     // Start processing in background (don't await)
-    bulkMessageService.processBulkSend({
-        batchId,
-        recipients: finalRecipients,
-        message,
-        mediaUrl,
-        mediaType,
-        sendFn,
-        onProgress,
-        onComplete: (result) => {
-            if (io) {
-                io.emit('bulk-send-complete', result);
+    tenantContext.run(context, () => {
+        bulkMessageService.processBulkSend({
+            batchId,
+            recipients: finalRecipients,
+            message,
+            mediaUrl,
+            mediaType,
+            sendFn,
+            onProgress: (progress) => {
+                tenantContext.run(context, () => {
+                    onProgress(progress);
+                });
+            },
+            onComplete: (result) => {
+                tenantContext.run(context, () => {
+                    if (io) {
+                        io.emit('bulk-send-complete', result);
+                    }
+                    console.log(`✅ Bulk send complete: ${result.sent}/${result.total} sent`);
+                });
             }
-            console.log(`✅ Bulk send complete: ${result.sent}/${result.total} sent`);
-        }
-    }).catch(error => {
-        console.error('❌ Bulk send error:', error);
-        if (io) {
-            io.emit('bulk-send-error', { batchId, error: error.message });
-        }
+        }).catch(error => {
+            tenantContext.run(context, () => {
+                console.error('❌ Bulk send error:', error);
+                if (io) {
+                    io.emit('bulk-send-error', { batchId, error: error.message });
+                }
+            });
+        });
     });
 
     // Respond immediately with batch ID
