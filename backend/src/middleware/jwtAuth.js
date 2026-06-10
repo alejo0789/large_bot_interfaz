@@ -5,7 +5,7 @@ const authService = require('../services/authService');
  */
 const jwtAuth = (req, res, next) => {
     // 1. Allow bypass if a valid SYSTEM_API_KEY is provided (for n8n/integrations)
-    const providedApiKey = req.headers['x-api-key'] || req.query.api_key;
+    const providedApiKey = req.headers['x-api-key'] || req.headers['system_api_key'] || req.headers['system-api-key'] || req.query.api_key;
     const systemApiKey = process.env.SYSTEM_API_KEY;
 
     if (systemApiKey && providedApiKey === systemApiKey) {
