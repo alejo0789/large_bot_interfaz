@@ -77,7 +77,19 @@ router.post('/', async (req, res) => {
             (async () => {
                 for (const chat of chats) {
                     try {
-                        const phone = normalizePhone(chat.id || chat.remoteJid);
+                        let targetJid = chat.id || chat.remoteJid;
+                        const isLid = targetJid && !targetJid.includes('@g.us') && (targetJid.includes('@lid') || (targetJid.split('@')[0].length > 14));
+                        if (isLid) {
+                            try {
+                                const resolved = await evolutionService.checkNumber(targetJid);
+                                if (resolved && resolved.exists && resolved.jid) {
+                                    targetJid = resolved.jid;
+                                }
+                            } catch (resolveErr) {
+                                console.error('❌ Error resolving LID in chats.set:', resolveErr.message);
+                            }
+                        }
+                        const phone = normalizePhone(targetJid);
                         if (phone) {
                             await conversationService.upsert(phone, chat.name || chat.pushName);
                         }
@@ -174,6 +186,19 @@ router.post('/', async (req, res) => {
             if (isLid && potentialAlt) {
                 console.log(`🔄 [WEBHOOK] LID Resolved: replacing ${remoteJid} with ${potentialAlt}`);
                 remoteJid = potentialAlt;
+            }
+
+            // Fallback: If it's still a LID, attempt resolution via Evolution API
+            if (remoteJid.includes('@lid') || (remoteJid.split('@')[0].length > 14)) {
+                try {
+                    const resolved = await evolutionService.checkNumber(remoteJid);
+                    if (resolved && resolved.exists && resolved.jid) {
+                        console.log(`🔄 [WEBHOOK] LID Resolved via Evolution API: replacing ${remoteJid} with ${resolved.jid}`);
+                        remoteJid = resolved.jid;
+                    }
+                } catch (resolveErr) {
+                    console.error('❌ [WEBHOOK] Error resolving LID via Evolution API:', resolveErr.message);
+                }
             }
         }
 
@@ -853,7 +878,28 @@ async function processBatchMessages(messages) {
     for (const msg of sorted) {
         try {
             const remoteJid = msg.key.remoteJid;
-            const phone = normalizePhone(remoteJid);
+            let finalJid = remoteJid;
+            const isLid = remoteJid && !remoteJid.includes('@g.us') && (remoteJid.includes('@lid') || (remoteJid.split('@')[0].length > 14));
+            if (isLid) {
+                const altJid = msg.key.remoteJidAlt;
+                const participantAlt = msg.key.participantAlt;
+                const potentialAlt = (altJid && !altJid.includes('@lid') && altJid.includes('@s.whatsapp.net')) ? altJid 
+                                   : (participantAlt && !participantAlt.includes('@lid') && participantAlt.includes('@s.whatsapp.net')) ? participantAlt 
+                                   : null;
+                if (potentialAlt) {
+                    finalJid = potentialAlt;
+                } else {
+                    try {
+                        const resolved = await evolutionService.checkNumber(remoteJid);
+                        if (resolved && resolved.exists && resolved.jid) {
+                            finalJid = resolved.jid;
+                        }
+                    } catch (resolveErr) {
+                        console.error('❌ Error resolving LID in batch sync:', resolveErr.message);
+                    }
+                }
+            }
+            const phone = normalizePhone(finalJid);
             if (!phone) continue;
 
             const isFromAgent = msg.key.fromMe === true;

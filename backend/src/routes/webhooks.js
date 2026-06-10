@@ -91,9 +91,24 @@ router.post('/receive-message', asyncHandler(async (req, res) => {
         return res.status(400).json({ error: 'Phone number required' });
     }
 
+    // Resolve WhatsApp LID (Linked Device) to real phone number if possible
+    let resolvedPhone = phone;
+    const isLid = String(phone).includes('@lid') || (String(phone).replace(/\D/g, '').length > 13 && !String(phone).includes('@g.us') && !String(phone).includes('-'));
+    if (isLid) {
+        try {
+            const resolved = await evolutionService.checkNumber(phone);
+            if (resolved && resolved.exists && resolved.jid) {
+                console.log(`🔄 [N8N WEBHOOK] LID Resolved via Evolution API: replacing ${phone} with ${resolved.jid}`);
+                resolvedPhone = resolved.jid;
+            }
+        } catch (resolveErr) {
+            console.error('❌ [N8N WEBHOOK] Error resolving LID via Evolution API:', resolveErr.message);
+        }
+    }
+
     // Evolution ofrece el número puro (57304...). El dashboard usa +57304...
-    const dbPhone = normalizePhone(phone);
-    const purePhone = getPureDigits(phone);
+    const dbPhone = normalizePhone(resolvedPhone);
+    const purePhone = getPureDigits(resolvedPhone);
 
     let isBot = sender_type === 'bot' || sender_type === 'ai';
     let isAgent = sender_type === 'agent';

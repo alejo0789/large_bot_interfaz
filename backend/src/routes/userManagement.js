@@ -434,6 +434,7 @@ router.post('/tenants/:slug/sync-conversations', asyncHandler(async (req, res) =
     const { Pool } = require('pg');
     const { normalizePhone } = require('../utils/phoneUtils');
     const evolutionService = require('../services/evolutionService');
+    const { tenantContext } = require('../utils/tenantContext');
 
     const tenantPool = new Pool({
         connectionString: tenant.db_url,
@@ -455,56 +456,71 @@ router.post('/tenants/:slug/sync-conversations', asyncHandler(async (req, res) =
         let errors = 0;
 
         // 2. Import each chat into tenant DB (only individual chats, not groups in a first pass)
-        for (const chat of chats) {
-            try {
-                // Extract phone from JID (e.g. "573152345678@s.whatsapp.net")
-                const jid = chat.id || chat.remoteJid || '';
-                if (!jid || jid.includes('@g.us') || jid.includes('@broadcast')) {
-                    skipped++;
-                    continue; // Skip groups and broadcast lists for now
+        await tenantContext.run({ tenant, db: tenantPool }, async () => {
+            for (const chat of chats) {
+                try {
+                    // Extract phone from JID (e.g. "573152345678@s.whatsapp.net")
+                    const jid = chat.id || chat.remoteJid || '';
+                    if (!jid || jid.includes('@g.us') || jid.includes('@broadcast')) {
+                        skipped++;
+                        continue; // Skip groups and broadcast lists for now
+                    }
+
+                    let resolvedJid = jid;
+                    const isLid = jid.includes('@lid') || (jid.split('@')[0].length > 13 && !jid.includes('@g.us') && !jid.includes('-'));
+                    if (isLid) {
+                        try {
+                            const resolved = await evolutionService.checkNumber(jid);
+                            if (resolved && resolved.exists && resolved.jid) {
+                                resolvedJid = resolved.jid;
+                            }
+                        } catch (resolveErr) {
+                            console.error('❌ Error resolving LID during sync:', resolveErr.message);
+                        }
+                    }
+
+                    const phone = normalizePhone(resolvedJid);
+                    if (!phone || phone.length < 7) { skipped++; continue; }
+
+                    const contactName = chat.name || chat.pushName || `Usuario ${phone.slice(-4)}`;
+                    const lastMsg = chat.lastMessage?.message?.conversation ||
+                        chat.lastMessage?.message?.extendedTextMessage?.text ||
+                        (chat.lastMessage?.message?.imageMessage ? '📷 Imagen' : null) ||
+                        (chat.lastMessage?.message?.audioMessage ? '🎤 Audio' : null) ||
+                        (chat.lastMessage?.message?.videoMessage ? '🎥 Video' : null) ||
+                        null;
+
+                    const lastMsgTs = chat.lastMessage?.messageTimestamp
+                        ? new Date(chat.lastMessage.messageTimestamp * 1000).toISOString()
+                        : null;
+
+                    const unread = typeof chat.unreadCount === 'number' ? Math.max(0, chat.unreadCount) : 0;
+
+                    // Upsert conversation in tenant DB (don't overwrite existing ai_enabled setting)
+                    await tenantPool.query(`
+                        INSERT INTO conversations 
+                            (phone, contact_name, last_message_text, last_message_timestamp, unread_count, ai_enabled, conversation_state, status, created_at, updated_at)
+                        VALUES 
+                            ($1, $2, $3, $4, $5, false, 'agent_active', 'active', NOW(), NOW())
+                        ON CONFLICT (phone) DO UPDATE SET
+                            contact_name = CASE 
+                                WHEN conversations.contact_name IS NULL OR conversations.contact_name = '' 
+                                     OR conversations.contact_name LIKE 'Usuario %'
+                                THEN EXCLUDED.contact_name
+                                ELSE conversations.contact_name
+                            END,
+                            last_message_text = COALESCE(EXCLUDED.last_message_text, conversations.last_message_text),
+                            last_message_timestamp = COALESCE(EXCLUDED.last_message_timestamp, conversations.last_message_timestamp),
+                            updated_at = NOW()
+                    `, [phone, contactName, lastMsg, lastMsgTs, unread]);
+
+                    imported++;
+                } catch (chatErr) {
+                    console.error(`❌ Error importing chat ${chat.id}:`, chatErr.message);
+                    errors++;
                 }
-
-                const phone = normalizePhone(jid);
-                if (!phone || phone.length < 7) { skipped++; continue; }
-
-                const contactName = chat.name || chat.pushName || `Usuario ${phone.slice(-4)}`;
-                const lastMsg = chat.lastMessage?.message?.conversation ||
-                    chat.lastMessage?.message?.extendedTextMessage?.text ||
-                    (chat.lastMessage?.message?.imageMessage ? '📷 Imagen' : null) ||
-                    (chat.lastMessage?.message?.audioMessage ? '🎤 Audio' : null) ||
-                    (chat.lastMessage?.message?.videoMessage ? '🎥 Video' : null) ||
-                    null;
-
-                const lastMsgTs = chat.lastMessage?.messageTimestamp
-                    ? new Date(chat.lastMessage.messageTimestamp * 1000).toISOString()
-                    : null;
-
-                const unread = typeof chat.unreadCount === 'number' ? Math.max(0, chat.unreadCount) : 0;
-
-                // Upsert conversation in tenant DB (don't overwrite existing ai_enabled setting)
-                await tenantPool.query(`
-                    INSERT INTO conversations 
-                        (phone, contact_name, last_message_text, last_message_timestamp, unread_count, ai_enabled, conversation_state, status, created_at, updated_at)
-                    VALUES 
-                        ($1, $2, $3, $4, $5, false, 'agent_active', 'active', NOW(), NOW())
-                    ON CONFLICT (phone) DO UPDATE SET
-                        contact_name = CASE 
-                            WHEN conversations.contact_name IS NULL OR conversations.contact_name = '' 
-                                 OR conversations.contact_name LIKE 'Usuario %'
-                            THEN EXCLUDED.contact_name
-                            ELSE conversations.contact_name
-                        END,
-                        last_message_text = COALESCE(EXCLUDED.last_message_text, conversations.last_message_text),
-                        last_message_timestamp = COALESCE(EXCLUDED.last_message_timestamp, conversations.last_message_timestamp),
-                        updated_at = NOW()
-                `, [phone, contactName, lastMsg, lastMsgTs, unread]);
-
-                imported++;
-            } catch (chatErr) {
-                console.error(`❌ Error importing chat ${chat.id}:`, chatErr.message);
-                errors++;
             }
-        }
+        });
 
         await tenantPool.end();
 
