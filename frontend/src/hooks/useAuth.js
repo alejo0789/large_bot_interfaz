@@ -45,11 +45,14 @@ export const AuthProvider = ({ children }) => {
                     localStorage.setItem('auth_user', JSON.stringify(data.user));
                 }
                 return data.user;
+            } else {
+                logout();
             }
         } catch (err) {
             console.error('Error refreshing user:', err);
+            logout();
         }
-    }, [API_URL]);
+    }, [API_URL, logout]);
 
     // Check for existing session on mount
     useEffect(() => {
