@@ -275,7 +275,7 @@ const WhatsAppConfigModal = ({ tenant, onClose, onSaved, showToast }) => {
             .finally(() => setLoading(false));
     }, [tenant.slug, token]);
 
-    const webhookUrl = `${API_URL}/api/webhook/${tenant.slug}/whatsapp-official`;
+    const webhookUrl = `${API_URL}/webhook/meta?sede=${tenant.slug}`;
 
     const handleCopyWebhook = () => {
         navigator.clipboard.writeText(webhookUrl);
