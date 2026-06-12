@@ -30,7 +30,7 @@ class AuthService {
 
             // Get associated tenants
             const tenantsResult = await masterPool.query(
-                `SELECT t.id, t.name, t.slug 
+                `SELECT t.id, t.name, t.slug, t.whatsapp_provider 
                  FROM tenants t
                  JOIN user_tenants ut ON t.id = ut.tenant_id
                  WHERE ut.user_id = $1 AND t.is_active = TRUE`,
@@ -39,7 +39,7 @@ class AuthService {
 
             let allowedTenants = tenantsResult.rows;
             if (user.role === 'SUPER_ADMIN') {
-                const allTenants = await masterPool.query('SELECT id, name, slug FROM tenants WHERE is_active = TRUE');
+                const allTenants = await masterPool.query('SELECT id, name, slug, whatsapp_provider FROM tenants WHERE is_active = TRUE');
                 allowedTenants = allTenants.rows;
             }
 
@@ -108,11 +108,11 @@ class AuthService {
 
         let allowedTenants = [];
         if (user.role === 'SUPER_ADMIN') {
-            const { rows: allTenants } = await masterPool.query('SELECT id, name, slug FROM tenants WHERE is_active = TRUE');
+            const { rows: allTenants } = await masterPool.query('SELECT id, name, slug, whatsapp_provider FROM tenants WHERE is_active = TRUE');
             allowedTenants = allTenants;
         } else {
             const { rows: tenantRows } = await masterPool.query(
-                `SELECT t.id, t.name, t.slug FROM tenants t
+                `SELECT t.id, t.name, t.slug, t.whatsapp_provider FROM tenants t
                  JOIN user_tenants ut ON t.id = ut.tenant_id
                  WHERE ut.user_id = $1 AND t.is_active = TRUE`,
                 [user.id]
@@ -169,7 +169,7 @@ class AuthService {
                 u.id, u.username, u.full_name as name, u.email, u.role, u.is_active,
                 u.created_at, u.last_login,
                 COALESCE(
-                    json_agg(json_build_object('id', t.id, 'name', t.name, 'slug', t.slug))
+                    json_agg(json_build_object('id', t.id, 'name', t.name, 'slug', t.slug, 'whatsapp_provider', t.whatsapp_provider))
                     FILTER (WHERE t.id IS NOT NULL), '[]'
                 ) as tenants
             FROM users u
@@ -186,7 +186,7 @@ class AuthService {
         const masterPool = dbManager.masterPool;
 
         const { rows: tenantRows } = await masterPool.query(
-            'SELECT id, name, slug FROM tenants WHERE slug = $1 AND is_active = TRUE', [sedeSlug]
+            'SELECT id, name, slug, whatsapp_provider FROM tenants WHERE slug = $1 AND is_active = TRUE', [sedeSlug]
         );
         if (tenantRows.length === 0) return { success: false, error: 'Sede no encontrada' };
         const tenant = tenantRows[0];
@@ -231,7 +231,7 @@ class AuthService {
 
         // Get all requested tenants
         const { rows: tenantRows } = await masterPool.query(
-            'SELECT id, name, slug FROM tenants WHERE slug = ANY($1) AND is_active = TRUE', [slugs]
+            'SELECT id, name, slug, whatsapp_provider FROM tenants WHERE slug = ANY($1) AND is_active = TRUE', [slugs]
         );
         
         if (tenantRows.length === 0) return { success: false, error: 'Sede(s) no encontrada(s)' };
@@ -343,7 +343,7 @@ class AuthService {
     async getAllTenants() {
         const masterPool = dbManager.masterPool;
         const { rows } = await masterPool.query(
-            'SELECT id, name, slug FROM tenants WHERE is_active = TRUE ORDER BY name'
+            'SELECT id, name, slug, whatsapp_provider FROM tenants WHERE is_active = TRUE ORDER BY name'
         );
         return rows;
     }
