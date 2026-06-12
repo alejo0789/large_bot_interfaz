@@ -27,6 +27,7 @@ function getOfficialConfig() {
     return {
         token: tenant.wa_access_token,
         phoneNumberId: tenant.wa_phone_number_id,
+        wabaId: tenant.wa_business_account_id,
         tenantSlug: tenant.slug
     };
 }
@@ -34,9 +35,13 @@ function getOfficialConfig() {
 // ─── GET /api/wa-templates ────────────────────────────────────────────────────
 // Fetch approved templates from Meta Graph API for this tenant's WABA
 router.get('/', asyncHandler(async (req, res) => {
-    const { token, phoneNumberId } = getOfficialConfig();
+    const { token, phoneNumberId, wabaId } = getOfficialConfig();
 
-    // 1. Get the WABA ID from the phone number ID
+    if (!wabaId) {
+        throw new AppError('No se ha configurado el WhatsApp Business Account ID (WABA ID). Ve a Admin → WhatsApp para agregarlo.', 400);
+    }
+
+    // 1. Get Phone Info (optional but good for UI)
     const phoneInfoUrl = `https://graph.facebook.com/${GRAPH_VERSION}/${phoneNumberId}?fields=id,display_phone_number,verified_name,quality_rating,messaging_limit_tier&access_token=${token}`;
     const phoneRes = await fetch(phoneInfoUrl);
     const phoneData = await phoneRes.json();
@@ -44,32 +49,6 @@ router.get('/', asyncHandler(async (req, res) => {
     if (!phoneRes.ok) {
         console.error('[waTemplates] Phone info error:', phoneData);
         throw new AppError(`Error consultando número: ${phoneData?.error?.message || 'Token inválido'}`, 400);
-    }
-
-    // 2. Get WABA ID via the phone number's business account
-    const wabaUrl = `https://graph.facebook.com/${GRAPH_VERSION}/${phoneNumberId}?fields=whatsapp_business_account_id&access_token=${token}`;
-    const wabaRes = await fetch(wabaUrl);
-    const wabaData = await wabaRes.json();
-
-    let wabaId = wabaData?.whatsapp_business_account_id;
-
-    if (!wabaId) {
-        // Fallback: try fetching templates directly using phone number ID in the path
-        // Some apps have direct access via /PHONE_NUMBER_ID/message_templates
-        const directUrl = `https://graph.facebook.com/${GRAPH_VERSION}/${phoneNumberId}/message_templates?limit=100&access_token=${token}`;
-        const directRes = await fetch(directUrl);
-        const directData = await directRes.json();
-        
-        if (directRes.ok && directData.data) {
-            return res.json({
-                success: true,
-                templates: directData.data,
-                paging: directData.paging || null,
-                source: 'phone_number_direct'
-            });
-        }
-
-        throw new AppError('No se pudo obtener el WABA ID. Verifica que el token tenga permisos de whatsapp_business_messaging.', 400);
     }
 
     // 3. Fetch templates from WABA

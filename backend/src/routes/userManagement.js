@@ -571,7 +571,7 @@ router.get('/tenants/:slug', asyncHandler(async (req, res) => {
     const masterPool = require('../config/database').dbManager.masterPool;
     const { rows } = await masterPool.query(
         `SELECT id, name, slug, is_active, whatsapp_provider,
-                wa_phone_number_id, wa_verify_token,
+                wa_phone_number_id, wa_verify_token, wa_business_account_id,
                 evolution_instance, evolution_api_key, n8n_webhook_url,
                 -- NOTE: access token is sensitive — return masked version only
                 CASE WHEN wa_access_token IS NOT NULL THEN '••••••••' ELSE NULL END AS wa_access_token_masked,
@@ -588,7 +588,7 @@ router.get('/tenants/:slug', asyncHandler(async (req, res) => {
 // PATCH /api/admin/tenants/:slug/whatsapp
 // Update WhatsApp provider config for a tenant (SUPER_ADMIN only)
 // Body: { whatsapp_provider, wa_phone_number_id?, wa_access_token?, wa_verify_token?,
-//         evolution_instance?, evolution_api_key?, n8n_webhook_url? }
+//         wa_business_account_id?, evolution_instance?, evolution_api_key?, n8n_webhook_url? }
 // ─────────────────────────────────────────────
 router.patch('/tenants/:slug/whatsapp', asyncHandler(async (req, res) => {
     if (req.adminUser.role !== 'SUPER_ADMIN') {
@@ -601,6 +601,7 @@ router.patch('/tenants/:slug/whatsapp', asyncHandler(async (req, res) => {
         wa_phone_number_id,
         wa_access_token,      // If sent as '••••••••' (masked placeholder), skip update
         wa_verify_token,
+        wa_business_account_id,
         evolution_instance,
         evolution_api_key,
         n8n_webhook_url

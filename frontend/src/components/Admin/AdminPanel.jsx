@@ -246,6 +246,7 @@ const WhatsAppConfigModal = ({ tenant, onClose, onSaved, showToast }) => {
         wa_phone_number_id: '',
         wa_access_token: '',
         wa_verify_token: '',
+        wa_business_account_id: '',
         evolution_instance: '',
         evolution_api_key: '',
         n8n_webhook_url: ''
@@ -265,6 +266,7 @@ const WhatsAppConfigModal = ({ tenant, onClose, onSaved, showToast }) => {
                         wa_phone_number_id: t.wa_phone_number_id || '',
                         wa_access_token: t.has_access_token ? '••••••••' : '',
                         wa_verify_token: t.wa_verify_token || '',
+                        wa_business_account_id: t.wa_business_account_id || '',
                         evolution_instance: t.evolution_instance || '',
                         evolution_api_key: t.evolution_api_key || '',
                         n8n_webhook_url: t.n8n_webhook_url || ''
@@ -444,6 +446,12 @@ const WhatsAppConfigModal = ({ tenant, onClose, onSaved, showToast }) => {
                                         <label style={lbl}>Verify Token (para el webhook) <span style={{ color: '#dc2626' }}>*</span></label>
                                         <input style={inp} value={form.wa_verify_token} onChange={e => setForm(f => ({ ...f, wa_verify_token: e.target.value }))} placeholder="Ej: mi_token_secreto_2024" />
                                         <div style={{ fontSize: '11px', color: '#6b7280', marginTop: '4px' }}>Cualquier texto secreto. Debes poner el mismo valor en Meta for Developers al registrar el webhook.</div>
+                                    </div>
+
+                                    <div>
+                                        <label style={lbl}>WhatsApp Business Account ID (WABA ID) <span style={{ color: '#dc2626' }}>*</span></label>
+                                        <input style={inp} value={form.wa_business_account_id} onChange={e => setForm(f => ({ ...f, wa_business_account_id: e.target.value }))} placeholder="Ej: 1019942661205891" />
+                                        <div style={{ fontSize: '11px', color: '#6b7280', marginTop: '4px' }}>Requerido para leer plantillas. Búscalo en Meta for Developers → Configuración → ID de la cuenta de WhatsApp Business.</div>
                                     </div>
                                 </>
                             )}
