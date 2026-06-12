@@ -127,11 +127,17 @@ router.post('/send-message', requireApiKey, asyncHandler(async (req, res) => {
     await conversationService.updateLastMessage(normalizedPhone, message, true);
     await conversationService.markAsRead(normalizedPhone);
 
-    // Send Message Logic (Evolution > N8N)
+    // Send Message Logic — routes through whatsappFactory (auto-selects Evolution or Official API per tenant)
     let sendResult;
-    if (config.evolutionApiUrl) {
+    const context = tenantContext.getStore();
+    const tenant = context?.tenant;
+    const isOfficialProvider = tenant?.whatsapp_provider === 'official';
+    const hasEvolutionUrl = !!config.evolutionApiUrl;
+
+    if (isOfficialProvider || hasEvolutionUrl) {
+        // Factory auto-routes to the correct provider
         const result = await evolutionService.sendText(normalizedPhone, message, reply_to);
-        sendResult = { sent: result.success, platform: 'evolution', ...result };
+        sendResult = { sent: result.success, platform: isOfficialProvider ? 'official' : 'evolution', ...result };
     } else {
         const result = await n8nService.sendMessage({
             phone: normalizedPhone,
@@ -254,13 +260,18 @@ router.post('/send-file', requireApiKey, upload.single('file'), restoreTenantCon
     await conversationService.updateLastMessage(phone, caption || `📎 ${file.originalname}`, true);
     await conversationService.markAsRead(phone);
 
-    // Send Media Logic
+    // Send Media Logic — routes through whatsappFactory (auto-selects Evolution or Official API per tenant)
     let sendResult = { sent: false };
 
-    if (config.evolutionApiUrl) {
-        const result = await evolutionService.sendMedia(normalizedPhone, fileUrl, mediaType, caption || '', file.originalname, reply_to);
-        sendResult = { sent: result && result.success, platform: 'evolution', ...result };
+    const mediaContext = tenantContext.getStore();
+    const mediaTenant = mediaContext?.tenant;
+    const isOfficialMediaProvider = mediaTenant?.whatsapp_provider === 'official';
+    const hasEvolutionUrlMedia = !!config.evolutionApiUrl;
 
+    if (isOfficialMediaProvider || hasEvolutionUrlMedia) {
+        // Factory auto-routes to the correct provider
+        const result = await evolutionService.sendMedia(normalizedPhone, fileUrl, mediaType, caption || '', file.originalname, reply_to);
+        sendResult = { sent: result && result.success, platform: isOfficialMediaProvider ? 'official' : 'evolution', ...result };
     } else {
         const result = await n8nService.sendMessage({
             phone,
@@ -742,17 +753,19 @@ router.post('/messages/:id/reaction', asyncHandler(async (req, res) => {
         console.warn(`⚠️ Reaction warning: Message ${id} not found in DB. Defaulting to fromMe=false`);
     }
 
-    // 1. Send to Evolution API
+    // 1. Send reaction — routes through whatsappFactory (auto-selects Evolution or Official API per tenant)
     let apiSuccess = false;
-    console.log(`🔌 [Reaction] Checking Evolution Config: URL=${config.evolutionApiUrl}`);
+    const reactionCtx = tenantContext.getStore();
+    const reactionTenant = reactionCtx?.tenant;
+    const isOfficialReactionProvider = reactionTenant?.whatsapp_provider === 'official';
+    const hasEvolutionUrlReaction = !!config.evolutionApiUrl;
 
-    if (config.evolutionApiUrl) {
-        // Pass the correct WhatsApp ID (targetMessageId)
+    if (isOfficialReactionProvider || hasEvolutionUrlReaction) {
+        console.log(`🔌 [Reaction] Using ${isOfficialReactionProvider ? 'Official API' : 'Evolution API'} for tenant ${reactionTenant?.slug}`);
         const result = await evolutionService.sendReaction(phone, targetMessageId, reaction, fromMe);
         apiSuccess = result.success;
     } else {
-        // Fallback or skip if no API
-        console.warn('Evolution API not configured, skipping external reaction');
+        console.warn('[Reaction] No WhatsApp provider configured for this tenant — skipping external reaction');
     }
 
     // 2. Persist in DB

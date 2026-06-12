@@ -303,6 +303,7 @@ router.post('/tenants', asyncHandler(async (req, res) => {
             ALTER TABLE conversations ADD COLUMN IF NOT EXISTS unread_count INTEGER DEFAULT 0;
             ALTER TABLE conversations ADD COLUMN IF NOT EXISTS conversation_state VARCHAR(50) DEFAULT 'ai_active';
             ALTER TABLE conversations ADD COLUMN IF NOT EXISTS taken_by_agent_at TIMESTAMP WITH TIME ZONE;
+            ALTER TABLE conversations ADD COLUMN IF NOT EXISTS channel VARCHAR(50) DEFAULT 'whatsapp_evolution';
 
             -- messages: ensure all columns
             ALTER TABLE messages ADD COLUMN IF NOT EXISTS agent_id VARCHAR(50);
@@ -558,6 +559,144 @@ router.patch('/tenants/:id/status', asyncHandler(async (req, res) => {
     if (rows.length === 0) throw new AppError('Sede no encontrada', 404);
     res.json({ success: true, tenant: rows[0] });
 }));
+
+// ─────────────────────────────────────────────
+// GET /api/admin/tenants/:slug
+// Get full config for a single tenant (SUPER_ADMIN only)
+// ─────────────────────────────────────────────
+router.get('/tenants/:slug', asyncHandler(async (req, res) => {
+    if (req.adminUser.role !== 'SUPER_ADMIN') {
+        throw new AppError('Solo SUPER_ADMIN puede ver configuración de sedes', 403);
+    }
+    const masterPool = require('../config/database').dbManager.masterPool;
+    const { rows } = await masterPool.query(
+        `SELECT id, name, slug, is_active, whatsapp_provider,
+                wa_phone_number_id, wa_verify_token,
+                evolution_instance, evolution_api_key, n8n_webhook_url,
+                -- NOTE: access token is sensitive — return masked version only
+                CASE WHEN wa_access_token IS NOT NULL THEN '••••••••' ELSE NULL END AS wa_access_token_masked,
+                (wa_access_token IS NOT NULL) AS has_access_token,
+                created_at, updated_at
+         FROM tenants WHERE slug = $1`,
+        [req.params.slug]
+    );
+    if (rows.length === 0) throw new AppError('Sede no encontrada', 404);
+    res.json({ success: true, tenant: rows[0] });
+}));
+
+// ─────────────────────────────────────────────
+// PATCH /api/admin/tenants/:slug/whatsapp
+// Update WhatsApp provider config for a tenant (SUPER_ADMIN only)
+// Body: { whatsapp_provider, wa_phone_number_id?, wa_access_token?, wa_verify_token?,
+//         evolution_instance?, evolution_api_key?, n8n_webhook_url? }
+// ─────────────────────────────────────────────
+router.patch('/tenants/:slug/whatsapp', asyncHandler(async (req, res) => {
+    if (req.adminUser.role !== 'SUPER_ADMIN') {
+        throw new AppError('Solo SUPER_ADMIN puede modificar la configuración de WhatsApp', 403);
+    }
+
+    const { slug } = req.params;
+    const {
+        whatsapp_provider,
+        wa_phone_number_id,
+        wa_access_token,      // If sent as '••••••••' (masked placeholder), skip update
+        wa_verify_token,
+        evolution_instance,
+        evolution_api_key,
+        n8n_webhook_url
+    } = req.body;
+
+    if (!whatsapp_provider || !['evolution', 'official'].includes(whatsapp_provider)) {
+        throw new AppError('whatsapp_provider debe ser "evolution" o "official"', 400);
+    }
+
+    if (whatsapp_provider === 'official') {
+        if (!wa_phone_number_id) {
+            throw new AppError('wa_phone_number_id es requerido para la API Oficial', 400);
+        }
+        if (!wa_verify_token) {
+            throw new AppError('wa_verify_token es requerido para la API Oficial', 400);
+        }
+    }
+
+    const masterPool = require('../config/database').dbManager.masterPool;
+
+    // Check tenant exists
+    const { rows: existing } = await masterPool.query(
+        'SELECT id FROM tenants WHERE slug = $1', [slug]
+    );
+    if (existing.length === 0) throw new AppError('Sede no encontrada', 404);
+
+    // Build dynamic SET clause — skip access_token if it is the masked placeholder
+    const isMaskedToken = wa_access_token === '••••••••' || wa_access_token === '•'.repeat(8);
+    
+    let query, params;
+
+    if (isMaskedToken || wa_access_token === undefined || wa_access_token === null || wa_access_token === '') {
+        // Don't update the token (keep existing)
+        query = `
+            UPDATE tenants SET
+                whatsapp_provider  = $1,
+                wa_phone_number_id = $2,
+                wa_verify_token    = $3,
+                evolution_instance = $4,
+                evolution_api_key  = $5,
+                n8n_webhook_url    = $6,
+                updated_at         = NOW()
+            WHERE slug = $7
+            RETURNING id, name, slug, whatsapp_provider, wa_phone_number_id,
+                      wa_verify_token, evolution_instance, is_active,
+                      (wa_access_token IS NOT NULL) as has_access_token
+        `;
+        params = [
+            whatsapp_provider,
+            wa_phone_number_id || null,
+            wa_verify_token || null,
+            evolution_instance || null,
+            evolution_api_key || null,
+            n8n_webhook_url || null,
+            slug
+        ];
+    } else {
+        // Update including the new access token
+        query = `
+            UPDATE tenants SET
+                whatsapp_provider  = $1,
+                wa_phone_number_id = $2,
+                wa_access_token    = $3,
+                wa_verify_token    = $4,
+                evolution_instance = $5,
+                evolution_api_key  = $6,
+                n8n_webhook_url    = $7,
+                updated_at         = NOW()
+            WHERE slug = $8
+            RETURNING id, name, slug, whatsapp_provider, wa_phone_number_id,
+                      wa_verify_token, evolution_instance, is_active,
+                      (wa_access_token IS NOT NULL) as has_access_token
+        `;
+        params = [
+            whatsapp_provider,
+            wa_phone_number_id || null,
+            wa_access_token,
+            wa_verify_token || null,
+            evolution_instance || null,
+            evolution_api_key || null,
+            n8n_webhook_url || null,
+            slug
+        ];
+    }
+
+    const { rows } = await masterPool.query(query, params);
+    if (rows.length === 0) throw new AppError('Sede no encontrada', 404);
+
+    console.log(`✅ WhatsApp config updated for tenant [${slug}]: provider=${whatsapp_provider}`);
+    res.json({
+        success: true,
+        message: `Proveedor de WhatsApp actualizado a "${whatsapp_provider}" para ${slug}`,
+        tenant: rows[0]
+    });
+}));
+
 
 // ─────────────────────────────────────────────
 // POST /api/admin/cleanup-media

@@ -15,7 +15,8 @@ const MainLayout = ({
     onMenuClose,
     isCollapsed,
     onToggleCollapse,
-    user
+    user,
+    isOfficialTenant
 }) => {
     const [internalIsMenuOpen, setInternalIsMenuOpen] = useState(false);
 
@@ -39,6 +40,7 @@ const MainLayout = ({
             isCollapsed={isCollapsed}
             onToggleCollapse={onToggleCollapse}
             user={user}
+            isOfficialTenant={isOfficialTenant}
         />
     );
 

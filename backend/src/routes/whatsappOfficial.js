@@ -83,116 +83,180 @@ router.post('/', async (req, res) => {
 
         // Check if this is an event from a WhatsApp API
         if (body.object !== 'whatsapp_business_account') {
-            return res.sendStatus(404); // Not a WhatsApp API event
+            return res.sendStatus(404);
         }
 
         const context = tenantContext.getStore();
         const tenant = context?.tenant;
 
-        // Iterate through all entries and their changes
-        if (body.entry && body.entry[0].changes && body.entry[0].changes[0] && body.entry[0].changes[0].value.messages && body.entry[0].changes[0].value.messages[0]) {
-            const value = body.entry[0].changes[0].value;
-            const messageObj = value.messages[0];
-            const contactObj = value.contacts && value.contacts[0] ? value.contacts[0] : null;
+        const entry = body.entry?.[0];
+        const change = entry?.changes?.[0];
+        const value = change?.value;
 
-            // Extract relevant data
+        if (!value) {
+            return res.sendStatus(200); // Nothing to process
+        }
+
+        // ──────────────────────────────────────────────
+        // INCOMING MESSAGE
+        // ──────────────────────────────────────────────
+        if (value.messages?.[0]) {
+            const messageObj = value.messages[0];
+            const contactObj = value.contacts?.[0] || null;
+
             const phone = messageObj.from;
             const whatsapp_id = messageObj.id;
-            const contact_name = contactObj ? contactObj.profile.name : `Usuario ${phone.slice(-4)}`;
+            const contact_name = contactObj
+                ? contactObj.profile.name
+                : `Usuario ${phone.slice(-4)}`;
             const timestamp = new Date(parseInt(messageObj.timestamp) * 1000).toISOString();
 
             let messageText = '';
             let mediaUrl = null;
             let mediaType = null;
+            let mimeType = null;
+            let mediaId = null;
 
-            // Determine message type
-            if (messageObj.type === 'text') {
-                messageText = messageObj.text.body;
-            } else if (messageObj.type === 'image') {
-                mediaUrl = messageObj.image.id; // Usually requires another API call to get actual URL, but we will store ID for now
-                mediaType = 'image';
-                messageText = messageObj.image.caption || '📷 Imagen';
-            } else if (messageObj.type === 'video') {
-                mediaUrl = messageObj.video.id;
-                mediaType = 'video';
-                messageText = messageObj.video.caption || '🎥 Video';
-            } else if (messageObj.type === 'document') {
-                mediaUrl = messageObj.document.id;
-                mediaType = 'document';
-                messageText = messageObj.document.filename || '📎 Documento';
-            } else if (messageObj.type === 'audio') {
-                mediaUrl = messageObj.audio.id;
-                mediaType = 'audio';
-                messageText = '🎤 Audio';
-            } else {
-                messageText = `[Mensaje tipo: ${messageObj.type} no soportado temporalmente]`;
+            // ── Parse by message type ──
+            switch (messageObj.type) {
+                case 'text':
+                    messageText = messageObj.text.body;
+                    break;
+
+                case 'image':
+                    mediaId = messageObj.image.id;
+                    mimeType = messageObj.image.mime_type;
+                    mediaType = 'image';
+                    messageText = messageObj.image.caption || '📷 Imagen';
+                    break;
+
+                case 'video':
+                    mediaId = messageObj.video.id;
+                    mimeType = messageObj.video.mime_type;
+                    mediaType = 'video';
+                    messageText = messageObj.video.caption || '🎥 Video';
+                    break;
+
+                case 'audio':
+                    mediaId = messageObj.audio.id;
+                    mimeType = messageObj.audio.mime_type;
+                    mediaType = 'audio';
+                    messageText = '🎤 Audio';
+                    break;
+
+                case 'document':
+                    mediaId = messageObj.document.id;
+                    mimeType = messageObj.document.mime_type;
+                    mediaType = 'document';
+                    messageText = messageObj.document.filename || '📎 Documento';
+                    break;
+
+                case 'sticker':
+                    mediaId = messageObj.sticker.id;
+                    mimeType = messageObj.sticker.mime_type;
+                    mediaType = 'image';
+                    messageText = '🏷️ Sticker';
+                    break;
+
+                case 'location':
+                    messageText = `📍 Ubicación: ${messageObj.location.latitude}, ${messageObj.location.longitude}`;
+                    break;
+
+                case 'reaction':
+                    // Reaction to a previous message — store it and emit
+                    console.log(`👍 [OfficialWebk] Reaction received: "${messageObj.reaction.emoji}" on msgId=${messageObj.reaction.message_id}`);
+                    // TODO: update DB reaction on the target message
+                    return res.sendStatus(200);
+
+                default:
+                    messageText = `[Tipo de mensaje no soportado: ${messageObj.type}]`;
             }
 
-            console.log(`📱 [OfficialWebk] MSG from: ${phone} | Name: ${contact_name} | Type: ${messageObj.type} | Text: ${messageText.substring(0, 30)}`);
+            console.log(`📱 [OfficialWebk] MSG from: ${phone} | Name: ${contact_name} | Type: ${messageObj.type} | "${messageText.substring(0, 40)}"`);
 
-            const dbPhone = normalizePhone(phone);
-
-            // Avoid duplicate processing
+            // ── Avoid duplicate processing ──
             const exists = await messageService.existsByWhatsappId(whatsapp_id);
             if (exists) {
-                console.log(`⏭️ [OfficialWebk] Duplicate message: ${whatsapp_id}, skipping save.`);
+                console.log(`⏭️ [OfficialWebk] Duplicate message ${whatsapp_id}, skipping.`);
                 return res.sendStatus(200);
             }
 
-            // Get or create conversation
+            // ── Download incoming media from Meta servers ──
+            if (mediaId && tenant) {
+                const officialService = require('../services/whatsappOfficialService');
+                const localUrl = await officialService.downloadMedia(mediaId, tenant.slug, mimeType);
+                if (localUrl) {
+                    mediaUrl = localUrl;
+                    console.log(`📦 [OfficialWebk] Media saved locally: ${localUrl}`);
+                } else {
+                    // Fallback: store the meta media ID prefixed so frontend knows to handle it
+                    mediaUrl = `meta:${mediaId}`;
+                    console.warn(`⚠️ [OfficialWebk] Media download failed — storing meta ID as fallback`);
+                }
+            }
+
+            const dbPhone = normalizePhone(phone);
+
+            // ── Get or create conversation ──
             let conversation = await conversationService.getByPhone(dbPhone);
             let isNewConversation = false;
 
             if (!conversation) {
                 conversation = await conversationService.upsert(dbPhone, contact_name, 'whatsapp_official');
                 isNewConversation = true;
-            } else if (conversation.contact_name === `Usuario ${dbPhone.slice(-4)}` || !conversation.contact_name) {
+            } else if (!conversation.contact_name || conversation.contact_name === `Usuario ${dbPhone.slice(-4)}`) {
                 await conversationService.updateContactName(dbPhone, contact_name);
             }
 
             const currentState = conversation?.conversation_state || 'ai_active';
             const shouldActivateAI = conversation.ai_enabled !== false;
 
-            // Save message to database
+            // ── Save message to database ──
             await messageService.create({
                 phone: dbPhone,
-                sender: 'user', // From user
+                sender: 'user',
                 text: messageText,
                 whatsappId: whatsapp_id,
-                mediaType: mediaType,
-                mediaUrl: mediaUrl // NOTE: For Official API, you often have to exchange media ID for URL
+                mediaType,
+                mediaUrl
             });
 
-            // Update conversation states
+            // ── Update conversation counters ──
             await conversationService.updateLastMessage(dbPhone, messageText);
             await conversationService.incrementUnread(dbPhone);
 
-            // If AI is enabled and active, forward to n8n
+            // ── Mark as read via Official API (sends read receipt to WhatsApp) ──
+            try {
+                const officialService = require('../services/whatsappOfficialService');
+                await officialService.markAsRead(dbPhone, whatsapp_id);
+            } catch (readErr) {
+                console.warn(`⚠️ [OfficialWebk] Could not send read receipt: ${readErr.message}`);
+            }
+
+            // ── Forward to n8n for AI processing if enabled ──
             if (shouldActivateAI && currentState === 'ai_active') {
-                // Determine if we forward to webhook directly using n8nService
-                console.log(`🤖 Forwarding message to n8n for AI processing...`);
                 try {
-                    // This uses your custom n8n integration structure
-                    if (tenant && tenant.n8n_webhook_url) {
+                    if (tenant?.n8n_webhook_url) {
+                        console.log(`🤖 [OfficialWebk] Forwarding to n8n for AI...`);
                         await n8nService.triggerAIProcessing({
                             phone: dbPhone,
                             text: messageText,
                             contactName: contact_name,
-                            mediaType: mediaType,
-                            mediaUrl: mediaUrl
+                            mediaType,
+                            mediaUrl
                         });
                     } else {
-                        console.warn(`⚠️ No n8n_webhook_url defined for tenant ${tenant?.slug}`);
+                        console.warn(`⚠️ [OfficialWebk] No n8n_webhook_url for tenant ${tenant?.slug}`);
                     }
-                } catch (err) {
-                    console.error('❌ Error forwarding to n8n:', err.message);
+                } catch (n8nErr) {
+                    console.error('❌ [OfficialWebk] Error forwarding to n8n:', n8nErr.message);
                 }
             }
 
-            // Emit to frontend via Socket.IO
+            // ── Emit to frontend via Socket.IO ──
             emitToConversation(dbPhone, 'new-message', {
                 phone: dbPhone,
-                contact_name: contact_name,
+                contact_name,
                 message: messageText,
                 whatsapp_id,
                 sender_type: 'user',
@@ -206,17 +270,30 @@ router.post('/', async (req, res) => {
                 isNew: isNewConversation
             });
 
-        } else if (body.entry && body.entry[0].changes && body.entry[0].changes[0] && body.entry[0].changes[0].value.statuses && body.entry[0].changes[0].value.statuses[0]) {
-            // Handle message status updates (sent, delivered, read)
-            const statusObj = body.entry[0].changes[0].value.statuses[0];
-            console.log(`📊 [OfficialWebk] Status update: ${statusObj.id} -> ${statusObj.status} for ${statusObj.recipient_id}`);
+        // ──────────────────────────────────────────────
+        // MESSAGE STATUS UPDATE (sent/delivered/read)
+        // ──────────────────────────────────────────────
+        } else if (value.statuses?.[0]) {
+            const statusObj = value.statuses[0];
+            console.log(`📊 [OfficialWebk] Status: ${statusObj.id} → ${statusObj.status} for ${statusObj.recipient_id}`);
 
             await messageService.updateStatus(statusObj.id, statusObj.status);
 
-            // Note: Normally we'd also emit a status update to socket so frontend updates read ticks
+            // Emit status to frontend so tick icons update in real time
+            if (io) {
+                const context = tenantContext.getStore();
+                const tenantSlug = context?.tenant?.slug;
+                if (tenantSlug) {
+                    io.to(`tenant:${tenantSlug}:conversations:list`).emit('message-status-update', {
+                        whatsapp_id: statusObj.id,
+                        status: statusObj.status,
+                        phone: statusObj.recipient_id
+                    });
+                }
+            }
         }
 
-        // Return a '200 OK' response to all requests
+        // Always respond 200 OK to Meta
         res.sendStatus(200);
 
     } catch (error) {

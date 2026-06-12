@@ -4,7 +4,8 @@ import { useAuth } from '../../hooks/useAuth';
 import { useTenant } from '../../hooks/useTenant';
 import {
     Users, UserPlus, Shield, Building2, Trash2, Eye, EyeOff,
-    X, Check, AlertCircle, Search, RotateCw, PlusCircle, Wifi, WifiOff
+    X, Check, AlertCircle, Search, RotateCw, PlusCircle, Wifi, WifiOff,
+    Settings, MessageSquare, Zap, Copy, ExternalLink
 } from 'lucide-react';
 import CreateSedeModal from './CreateSedeModal';
 
@@ -230,6 +231,268 @@ const CreateUserModal = ({ tenants, callerRole, callerTenants, currentSede, onCl
 // Helper: renders children into document.body to escape any scroll/overflow container
 const Portal = ({ children }) => ReactDOM.createPortal(children, document.body);
 
+// ─── WhatsApp Config Modal ──────────────────────────────────────────────────────
+const WhatsAppConfigModal = ({ tenant, onClose, onSaved, showToast }) => {
+    const { token } = useAuth();
+    const [loading, setLoading] = useState(true);
+    const [saving, setSaving] = useState(false);
+    const [testing, setTesting] = useState(false);
+    const [testResult, setTestResult] = useState(null);
+    const [copied, setCopied] = useState(false);
+    const [showToken, setShowToken] = useState(false);
+    const [error, setError] = useState(null);
+    const [form, setForm] = useState({
+        whatsapp_provider: 'evolution',
+        wa_phone_number_id: '',
+        wa_access_token: '',
+        wa_verify_token: '',
+        evolution_instance: '',
+        evolution_api_key: '',
+        n8n_webhook_url: ''
+    });
+
+    // Load current config
+    useEffect(() => {
+        fetch(`${API_URL}/api/admin/tenants/${tenant.slug}`, {
+            headers: { 'Authorization': `Bearer ${token}` }
+        })
+            .then(r => r.json())
+            .then(data => {
+                if (data.success) {
+                    const t = data.tenant;
+                    setForm({
+                        whatsapp_provider: t.whatsapp_provider || 'evolution',
+                        wa_phone_number_id: t.wa_phone_number_id || '',
+                        wa_access_token: t.has_access_token ? '••••••••' : '',
+                        wa_verify_token: t.wa_verify_token || '',
+                        evolution_instance: t.evolution_instance || '',
+                        evolution_api_key: t.evolution_api_key || '',
+                        n8n_webhook_url: t.n8n_webhook_url || ''
+                    });
+                }
+            })
+            .catch(() => setError('Error cargando configuración'))
+            .finally(() => setLoading(false));
+    }, [tenant.slug, token]);
+
+    const webhookUrl = `${API_URL}/api/webhook/${tenant.slug}/whatsapp-official`;
+
+    const handleCopyWebhook = () => {
+        navigator.clipboard.writeText(webhookUrl);
+        setCopied(true);
+        setTimeout(() => setCopied(false), 2000);
+    };
+
+    const handleTestConnection = async () => {
+        setTesting(true);
+        setTestResult(null);
+        try {
+            const res = await fetch(`${API_URL}/api/admin/tenants/${tenant.slug}/whatsapp`, {
+                method: 'PATCH',
+                headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+                body: JSON.stringify({ ...form, _testOnly: true })
+            });
+            // Just try to hit the check-instance endpoint after saving
+            setTestResult({ ok: res.ok, msg: res.ok ? 'Credenciales guardadas y válidas' : 'Error al verificar' });
+        } catch {
+            setTestResult({ ok: false, msg: 'Error de conexión' });
+        } finally {
+            setTesting(false);
+        }
+    };
+
+    const handleSave = async () => {
+        setError(null);
+        setSaving(true);
+        try {
+            const res = await fetch(`${API_URL}/api/admin/tenants/${tenant.slug}/whatsapp`, {
+                method: 'PATCH',
+                headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+                body: JSON.stringify(form)
+            });
+            const data = await res.json();
+            if (!res.ok) { setError(data.error || 'Error al guardar'); setSaving(false); return; }
+            showToast(`✅ Configuración guardada para ${tenant.name}`, 'success');
+            onSaved(data.tenant);
+            onClose();
+        } catch {
+            setError('Error de conexión');
+            setSaving(false);
+        }
+    };
+
+    const inp = {
+        width: '100%', padding: '9px 12px', border: '1px solid #d1d5db',
+        borderRadius: '8px', fontSize: '14px', outline: 'none',
+        boxSizing: 'border-box', background: 'white', minWidth: 0
+    };
+    const lbl = { display: 'block', fontSize: '13px', fontWeight: '600', color: '#374151', marginBottom: '5px' };
+    const isOfficial = form.whatsapp_provider === 'official';
+
+    return (
+        <div style={{ position: 'fixed', inset: 0, backgroundColor: 'rgba(0,0,0,0.55)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 9000, padding: '16px' }} onClick={onClose}>
+            <div style={{ background: 'white', borderRadius: '16px', width: '100%', maxWidth: '540px', boxShadow: '0 25px 50px -12px rgba(0,0,0,0.3)', overflow: 'hidden', maxHeight: '92vh', display: 'flex', flexDirection: 'column' }} onClick={e => e.stopPropagation()}>
+
+                {/* Header */}
+                <div style={{ padding: '20px 24px', background: 'linear-gradient(135deg,#064e3b,#059669)', color: 'white', display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexShrink: 0 }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                        <MessageSquare size={20} />
+                        <div>
+                            <div style={{ fontWeight: 700, fontSize: '17px' }}>Configuración WhatsApp</div>
+                            <div style={{ fontSize: '12px', opacity: 0.85 }}>{tenant.name} · {tenant.slug}</div>
+                        </div>
+                    </div>
+                    <button onClick={onClose} style={{ background: 'rgba(255,255,255,0.2)', border: 'none', borderRadius: '8px', padding: '4px 8px', cursor: 'pointer', color: 'white' }}>
+                        <X size={18} />
+                    </button>
+                </div>
+
+                {/* Body */}
+                <div style={{ overflowY: 'auto', flex: 1, padding: '24px', display: 'flex', flexDirection: 'column', gap: '20px' }}>
+                    {loading ? (
+                        <div style={{ textAlign: 'center', padding: '40px', color: '#6b7280' }}>
+                            <RotateCw size={24} style={{ animation: 'spin 1s linear infinite', margin: '0 auto 8px' }} />
+                            <div>Cargando configuración...</div>
+                        </div>
+                    ) : (
+                        <>
+                            {error && (
+                                <div style={{ background: '#fee2e2', border: '1px solid #fecaca', borderRadius: '8px', padding: '10px 12px', color: '#b91c1c', fontSize: '13px', display: 'flex', gap: '8px', alignItems: 'center' }}>
+                                    <AlertCircle size={15} />{error}
+                                </div>
+                            )}
+
+                            {/* Provider selector */}
+                            <div>
+                                <label style={lbl}>Proveedor de WhatsApp *</label>
+                                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
+                                    {[
+                                        { v: 'evolution', label: 'Evolution API', desc: 'Baileys / instancia propia', icon: <Zap size={16} /> },
+                                        { v: 'official', label: 'API Oficial Meta', desc: 'Cloud API · Meta for Developers', icon: <MessageSquare size={16} /> }
+                                    ].map(opt => (
+                                        <button
+                                            key={opt.v}
+                                            type="button"
+                                            onClick={() => setForm(f => ({ ...f, whatsapp_provider: opt.v }))}
+                                            style={{
+                                                padding: '12px 14px', borderRadius: '10px', cursor: 'pointer', textAlign: 'left',
+                                                border: form.whatsapp_provider === opt.v ? '2px solid #059669' : '2px solid #e5e7eb',
+                                                background: form.whatsapp_provider === opt.v ? '#f0fdf4' : 'white',
+                                                transition: 'all 0.15s'
+                                            }}
+                                        >
+                                            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', fontWeight: 700, fontSize: '14px', color: form.whatsapp_provider === opt.v ? '#065f46' : '#374151', marginBottom: '4px' }}>
+                                                {form.whatsapp_provider === opt.v
+                                                    ? <Check size={14} color="#059669" />
+                                                    : <div style={{ width: 14, height: 14, borderRadius: '50%', border: '2px solid #d1d5db' }} />}
+                                                {opt.label}
+                                            </div>
+                                            <div style={{ fontSize: '11px', color: '#6b7280', paddingLeft: '22px' }}>{opt.desc}</div>
+                                        </button>
+                                    ))}
+                                </div>
+                            </div>
+
+                            {/* ── OFFICIAL API FIELDS ── */}
+                            {isOfficial && (
+                                <>
+                                    <div style={{ background: '#f0fdf4', border: '1px solid #bbf7d0', borderRadius: '10px', padding: '14px 16px' }}>
+                                        <div style={{ fontWeight: 700, fontSize: '13px', color: '#065f46', marginBottom: '8px', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                                            <ExternalLink size={13} /> URL del Webhook (copiar en Meta for Developers)
+                                        </div>
+                                        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                                            <code style={{ flex: 1, fontSize: '11px', background: 'white', border: '1px solid #bbf7d0', borderRadius: '6px', padding: '7px 10px', color: '#374151', wordBreak: 'break-all' }}>
+                                                {webhookUrl}
+                                            </code>
+                                            <button
+                                                onClick={handleCopyWebhook}
+                                                style={{ flexShrink: 0, padding: '7px 12px', borderRadius: '7px', border: '1px solid #059669', background: copied ? '#059669' : 'white', color: copied ? 'white' : '#059669', cursor: 'pointer', fontSize: '12px', fontWeight: 600, display: 'flex', alignItems: 'center', gap: '5px', transition: 'all 0.2s' }}
+                                            >
+                                                {copied ? <Check size={13} /> : <Copy size={13} />}
+                                                {copied ? 'Copiado' : 'Copiar'}
+                                            </button>
+                                        </div>
+                                        <div style={{ fontSize: '11px', color: '#6b7280', marginTop: '6px' }}>
+                                            Suscribirse al evento: <strong>messages</strong>
+                                        </div>
+                                    </div>
+
+                                    <div>
+                                        <label style={lbl}>Phone Number ID <span style={{ color: '#dc2626' }}>*</span></label>
+                                        <input style={inp} value={form.wa_phone_number_id} onChange={e => setForm(f => ({ ...f, wa_phone_number_id: e.target.value }))} placeholder="Ej: 123456789012345" />
+                                        <div style={{ fontSize: '11px', color: '#6b7280', marginTop: '4px' }}>Encuéntralo en Meta for Developers → Tu App → WhatsApp → Configuración → ID de número de teléfono</div>
+                                    </div>
+
+                                    <div>
+                                        <label style={lbl}>Access Token (Token de acceso) <span style={{ color: '#dc2626' }}>*</span></label>
+                                        <div style={{ position: 'relative' }}>
+                                            <input
+                                                style={{ ...inp, paddingRight: '40px', fontFamily: showToken ? 'inherit' : 'monospace' }}
+                                                type={showToken ? 'text' : 'password'}
+                                                value={form.wa_access_token}
+                                                onChange={e => setForm(f => ({ ...f, wa_access_token: e.target.value }))}
+                                                placeholder={form.wa_access_token === '••••••••' ? '(Token guardado — escribe uno nuevo para reemplazar)' : 'EAAxxxxx...'}
+                                            />
+                                            <button type="button" onClick={() => setShowToken(!showToken)} style={{ position: 'absolute', right: '10px', top: '9px', background: 'none', border: 'none', cursor: 'pointer', color: '#6b7280' }}>
+                                                {showToken ? <EyeOff size={16} /> : <Eye size={16} />}
+                                            </button>
+                                        </div>
+                                        <div style={{ fontSize: '11px', color: '#6b7280', marginTop: '4px' }}>Token permanente de sistema (nunca expira). Genera uno en Meta Business Suite.</div>
+                                    </div>
+
+                                    <div>
+                                        <label style={lbl}>Verify Token (para el webhook) <span style={{ color: '#dc2626' }}>*</span></label>
+                                        <input style={inp} value={form.wa_verify_token} onChange={e => setForm(f => ({ ...f, wa_verify_token: e.target.value }))} placeholder="Ej: mi_token_secreto_2024" />
+                                        <div style={{ fontSize: '11px', color: '#6b7280', marginTop: '4px' }}>Cualquier texto secreto. Debes poner el mismo valor en Meta for Developers al registrar el webhook.</div>
+                                    </div>
+                                </>
+                            )}
+
+                            {/* ── EVOLUTION FIELDS ── */}
+                            {!isOfficial && (
+                                <>
+                                    <div>
+                                        <label style={lbl}>Nombre de instancia Evolution</label>
+                                        <input style={inp} value={form.evolution_instance} onChange={e => setForm(f => ({ ...f, evolution_instance: e.target.value }))} placeholder="Ej: sede_cali" />
+                                    </div>
+                                    <div>
+                                        <label style={lbl}>API Key de instancia (opcional)</label>
+                                        <input style={inp} value={form.evolution_api_key} onChange={e => setForm(f => ({ ...f, evolution_api_key: e.target.value }))} placeholder="Deja vacío para usar la global" />
+                                    </div>
+                                </>
+                            )}
+
+                            {/* ── N8N WEBHOOK (always) ── */}
+                            <div>
+                                <label style={lbl}>URL Webhook de n8n (IA)</label>
+                                <input style={inp} value={form.n8n_webhook_url} onChange={e => setForm(f => ({ ...f, n8n_webhook_url: e.target.value }))} placeholder="https://n8n.tudominio.com/webhook/..." />
+                                <div style={{ fontSize: '11px', color: '#6b7280', marginTop: '4px' }}>Opcional. URL donde se reenvían los mensajes entrantes para procesamiento con IA.</div>
+                            </div>
+                        </>
+                    )}
+                </div>
+
+                {/* Footer */}
+                {!loading && (
+                    <div style={{ padding: '16px 24px', borderTop: '1px solid #f3f4f6', display: 'flex', gap: '10px', justifyContent: 'flex-end', flexShrink: 0, background: '#fafafa' }}>
+                        <button type="button" onClick={onClose} style={{ padding: '10px 20px', borderRadius: '8px', border: '1px solid #d1d5db', background: 'white', cursor: 'pointer', fontWeight: 600, color: '#374151' }}>
+                            Cancelar
+                        </button>
+                        <button
+                            onClick={handleSave}
+                            disabled={saving}
+                            style={{ padding: '10px 24px', borderRadius: '8px', border: 'none', background: saving ? '#94a3b8' : 'linear-gradient(135deg,#065f46,#059669)', color: 'white', cursor: saving ? 'wait' : 'pointer', fontWeight: 700, display: 'flex', alignItems: 'center', gap: '8px' }}
+                        >
+                            {saving ? <RotateCw size={15} style={{ animation: 'spin 1s linear infinite' }} /> : <Check size={15} />}
+                            {saving ? 'Guardando...' : 'Guardar Cambios'}
+                        </button>
+                    </div>
+                )}
+            </div>
+        </div>
+    );
+};
+
 // ─── AdminPanel Principal ─────────────────────────────────────────────────────
 const AdminPanel = ({ isMobile }) => {
     const { user, token, refreshUser } = useAuth();
@@ -250,6 +513,7 @@ const AdminPanel = ({ isMobile }) => {
     const [cleanupResult, setCleanupResult] = useState(null);
     const [cleanupDays, setCleanupDays] = useState(30);
     const [cleanupTypes, setCleanupTypes] = useState(['image', 'audio', 'video']);
+    const [whatsappConfigTenant, setWhatsappConfigTenant] = useState(null); // tenant to configure
 
     const isSuperAdmin = user?.role === 'SUPER_ADMIN';
     const isSedeAdmin = user?.role === 'SEDE_ADMIN';
@@ -565,11 +829,23 @@ const AdminPanel = ({ isMobile }) => {
                             <div key={t.slug} style={{ display: 'flex', alignItems: 'center', gap: '10px', padding: '10px 14px', borderRadius: '10px', background: '#f8fafc', border: '1px solid #e2e8f0', flexWrap: 'wrap' }}>
                                 <div style={{ flex: 1, minWidth: '120px' }}>
                                     <div style={{ fontWeight: 600, fontSize: '14px', color: '#111827' }}>{t.name}</div>
-                                    <div style={{ fontSize: '11px', color: '#6b7280', fontFamily: 'monospace' }}>
-                                        {t.slug} {t.whatsapp_provider === 'official' ? '· WhatsApp Oficial' : (t.evolution_instance ? `· ${t.evolution_instance}` : '')}
+                                    <div style={{ fontSize: '11px', color: '#6b7280', fontFamily: 'monospace', display: 'flex', alignItems: 'center', gap: '6px', flexWrap: 'wrap' }}>
+                                        {t.slug}
+                                        {t.whatsapp_provider === 'official'
+                                            ? <span style={{ background: '#dcfce7', color: '#15803d', borderRadius: '999px', padding: '1px 7px', fontWeight: 700, fontSize: '10px', fontFamily: 'inherit' }}>✅ API Oficial</span>
+                                            : <span style={{ background: '#fef9c3', color: '#854d0e', borderRadius: '999px', padding: '1px 7px', fontWeight: 700, fontSize: '10px', fontFamily: 'inherit' }}>⚡ Evolution{t.evolution_instance ? ` · ${t.evolution_instance}` : ''}</span>
+                                        }
                                     </div>
                                 </div>
                                 <StatusBadge isActive={t.is_active} />
+                                {/* WhatsApp Config button */}
+                                <button
+                                    onClick={() => setWhatsappConfigTenant(t)}
+                                    title="Configurar proveedor de WhatsApp"
+                                    style={{ display: 'flex', alignItems: 'center', gap: '6px', padding: '6px 12px', borderRadius: '8px', border: '1px solid #c7d2fe', background: '#eef2ff', color: '#4338ca', cursor: 'pointer', fontSize: '12px', fontWeight: 600 }}
+                                >
+                                    <Settings size={13} /> WhatsApp
+                                </button>
                                 <button
                                     onClick={() => handleSyncConversations(t.slug)}
                                     disabled={syncingSlug === t.slug}
@@ -705,6 +981,23 @@ const AdminPanel = ({ isMobile }) => {
                         onCreated={(newTenant) => {
                             setTenants(prev => [...prev, newTenant]);
                             setSelectedSede(newTenant.slug);
+                        }}
+                        showToast={showToast}
+                    />
+                </Portal>
+            )}
+
+            {/* Modal WhatsApp config */}
+            {whatsappConfigTenant && (
+                <Portal>
+                    <WhatsAppConfigModal
+                        tenant={whatsappConfigTenant}
+                        onClose={() => setWhatsappConfigTenant(null)}
+                        onSaved={(updatedTenant) => {
+                            setTenants(prev => prev.map(t =>
+                                t.slug === updatedTenant.slug ? { ...t, ...updatedTenant } : t
+                            ));
+                            setWhatsappConfigTenant(null);
                         }}
                         showToast={showToast}
                     />

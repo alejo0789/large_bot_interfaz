@@ -35,6 +35,7 @@ CREATE TABLE IF NOT EXISTS conversations (
     last_message_text TEXT,
     last_message_timestamp TIMESTAMP WITH TIME ZONE,
     last_message_from_me BOOLEAN DEFAULT FALSE,
+    channel VARCHAR(50) DEFAULT 'whatsapp_evolution',
     created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
     updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
     is_pinned BOOLEAN DEFAULT FALSE,

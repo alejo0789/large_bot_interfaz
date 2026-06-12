@@ -1,7 +1,7 @@
 import React from 'react';
-import { MessageSquare, Brain, Settings, X, LogOut, Send, LayoutDashboard, Menu, ShieldCheck } from 'lucide-react';
+import { MessageSquare, Brain, Settings, X, LogOut, Send, LayoutDashboard, Menu, ShieldCheck, FileText, Megaphone } from 'lucide-react';
 
-const NavRail = ({ activeTab, onTabChange, isMobile, isOpen, onClose, onOpen, onLogout, onBulkMessage, isCollapsed, onToggleCollapse, user }) => {
+const NavRail = ({ activeTab, onTabChange, isMobile, isOpen, onClose, onOpen, onLogout, onBulkMessage, isCollapsed, onToggleCollapse, user, isOfficialTenant }) => {
     const isAdmin = user?.role === 'SUPER_ADMIN' || user?.role === 'SEDE_ADMIN';
 
     // Mobile Drawer Style
@@ -137,6 +137,13 @@ const NavRail = ({ activeTab, onTabChange, isMobile, isOpen, onClose, onOpen, on
                             onClick={() => { onTabChange('bulk'); onClose(); }}
                             fullWidth
                         />
+                        {isOfficialTenant && (
+                            <>
+                                <div style={{ marginTop: '16px', padding: '0 12px 8px 12px', fontSize: '0.75rem', fontWeight: 700, color: '#059669', textTransform: 'uppercase', letterSpacing: '0.05em' }}>API Oficial</div>
+                                <NavButton icon={<FileText />} label="Plantillas" active={activeTab === 'wa-templates'} onClick={() => { onTabChange('wa-templates'); onClose(); }} fullWidth officialStyle />
+                                <NavButton icon={<Megaphone />} label="Masivo Oficial" active={activeTab === 'wa-bulk'} onClick={() => { onTabChange('wa-bulk'); onClose(); }} fullWidth officialStyle />
+                            </>
+                        )}
 
                         {isAdmin && (
                             <>
@@ -251,6 +258,12 @@ const NavRail = ({ activeTab, onTabChange, isMobile, isOpen, onClose, onOpen, on
                     active={false}
                     onClick={() => onTabChange('bulk')}
                 />
+                {isOfficialTenant && (
+                    <>
+                        <NavButton icon={<FileText />} label="Plantillas" active={activeTab === 'wa-templates'} onClick={() => onTabChange('wa-templates')} officialStyle />
+                        <NavButton icon={<Megaphone />} label="Masivo" active={activeTab === 'wa-bulk'} onClick={() => onTabChange('wa-bulk')} officialStyle />
+                    </>
+                )}
 
                 {isAdmin && (
                     <NavButton
@@ -281,15 +294,19 @@ const NavRail = ({ activeTab, onTabChange, isMobile, isOpen, onClose, onOpen, on
     );
 };
 
-const NavButton = ({ icon, label, active, onClick, fullWidth, adminStyle }) => {
+const NavButton = ({ icon, label, active, onClick, fullWidth, adminStyle, officialStyle }) => {
     const adminActiveColor = '#4f46e5';
     const adminBg = '#ede9fe';
-    const bgColor = active
-        ? (adminStyle ? adminBg : 'var(--color-primary-light)')
-        : 'transparent';
-    const textColor = active
-        ? (adminStyle ? adminActiveColor : 'var(--color-primary-dark)')
-        : 'var(--color-gray-500)';
+    const officialActiveColor = '#059669';
+    const officialBg = '#dcfce7';
+    const getColor = () => {
+        if (active) return adminStyle ? adminActiveColor : officialStyle ? officialActiveColor : 'var(--color-primary-dark)';
+        return 'var(--color-gray-500)';
+    };
+    const getBg = () => {
+        if (active) return adminStyle ? adminBg : officialStyle ? officialBg : 'var(--color-primary-light)';
+        return 'transparent';
+    };
 
     return (
         <button
@@ -305,8 +322,8 @@ const NavButton = ({ icon, label, active, onClick, fullWidth, adminStyle }) => {
                 width: fullWidth ? '100%' : '56px',
                 borderRadius: 'var(--radius-md)',
                 border: 'none',
-                backgroundColor: bgColor,
-                color: textColor,
+                backgroundColor: getBg(),
+                color: getColor(),
                 cursor: 'pointer',
                 transition: 'all 0.2s',
                 fontSize: '0.75rem',

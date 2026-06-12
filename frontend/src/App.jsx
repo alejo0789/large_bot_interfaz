@@ -32,6 +32,8 @@ import BulkActionsBar from './components/Sidebar/BulkActionsBar';
 import AdminPanel from './components/Admin/AdminPanel';
 import Celebration from './components/UI/Celebration';
 import TermsAndConditions from './components/Legal/TermsAndConditions';
+import WaTemplates from './components/WaTemplates/WaTemplates';
+import WaBulkOfficial from './components/WaTemplates/WaBulkOfficial';
 
 // Hooks
 import { useConversations } from './hooks/useConversations';
@@ -136,6 +138,7 @@ const AuthenticatedApp = () => {
 
     const { currentTenant } = useTenant();
     const hideLead = false; // Se mantiene visible para todas las sedes
+    const isOfficialTenant = currentTenant?.whatsapp_provider === 'official';
 
     // Socket connection
     const { socket, isConnected } = useSocket();
@@ -1009,6 +1012,7 @@ const AuthenticatedApp = () => {
             isCollapsed={isRailCollapsed}
             onToggleCollapse={() => setIsRailCollapsed(!isRailCollapsed)}
             user={user}
+            isOfficialTenant={isOfficialTenant}
         >
             <div className="app-container" style={{
                 display: activeTab === 'chat' ? 'flex' : 'none',
@@ -1462,6 +1466,8 @@ const AuthenticatedApp = () => {
             {activeTab === 'dashboard' && <Dashboard isMobile={isMobile} />}
             {activeTab === 'ai' && <AIArea isMobile={isMobile} />}
             {activeTab === 'admin' && <AdminPanel isMobile={isMobile} />}
+            {activeTab === 'wa-templates' && <WaTemplates onBulkSend={(tpl) => setActiveTab('wa-bulk')} />}
+            {activeTab === 'wa-bulk' && <WaBulkOfficial conversations={conversations} tags={tags} />}
 
         </MainLayout>
     );

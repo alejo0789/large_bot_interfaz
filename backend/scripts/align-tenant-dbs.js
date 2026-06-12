@@ -77,6 +77,7 @@ async function alignDatabases() {
                         last_message_text TEXT,
                         last_message_timestamp TIMESTAMP WITH TIME ZONE,
                         last_message_from_me BOOLEAN DEFAULT FALSE,
+                        channel VARCHAR(50) DEFAULT 'whatsapp_evolution',
                         created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
                         updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
                         is_pinned BOOLEAN DEFAULT FALSE,
@@ -238,6 +239,7 @@ async function alignDatabases() {
                     ALTER TABLE conversations ADD COLUMN IF NOT EXISTS lead_time VARCHAR(255);
                     ALTER TABLE conversations ADD COLUMN IF NOT EXISTS last_message_from_me BOOLEAN DEFAULT FALSE;
                     ALTER TABLE conversations ADD COLUMN IF NOT EXISTS metadata JSONB;
+                    ALTER TABLE conversations ADD COLUMN IF NOT EXISTS channel VARCHAR(50) DEFAULT 'whatsapp_evolution';
                     
                     ALTER TABLE messages ADD COLUMN IF NOT EXISTS agent_id VARCHAR(50);
                     ALTER TABLE messages ADD COLUMN IF NOT EXISTS agent_name VARCHAR(100);
