@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { RefreshCw, ExternalLink, Search, X, CheckCircle, Clock, XCircle, Image, FileText, Send, ChevronRight } from 'lucide-react';
+import { RefreshCw, ExternalLink, Search, X, CheckCircle, Clock, XCircle, Image, FileText, Send, ChevronRight, Plus } from 'lucide-react';
 import apiFetch from '../../utils/api';
+import CreateWaTemplateModal from './CreateWaTemplateModal';
 
 const API_META_URL = 'https://business.facebook.com/wa/manage/message-templates/';
 
@@ -220,6 +221,7 @@ const WaTemplates = ({ onBulkSend }) => {
     const [search, setSearch] = useState('');
     const [selected, setSelected] = useState(null);
     const [phoneInfo, setPhoneInfo] = useState(null);
+    const [showCreateModal, setShowCreateModal] = useState(false);
 
     const load = useCallback(async () => {
         setLoading(true);
@@ -278,7 +280,10 @@ const WaTemplates = ({ onBulkSend }) => {
                         <button onClick={load} disabled={loading} style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '9px 16px', borderRadius: 9, border: '1px solid #e5e7eb', background: 'white', cursor: loading ? 'wait' : 'pointer', fontWeight: 600, fontSize: 13, color: '#374151' }}>
                             <RefreshCw size={15} style={loading ? { animation: 'spin 1s linear infinite' } : {}} /> Actualizar
                         </button>
-                        <a href={API_META_URL} target="_blank" rel="noreferrer" style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '9px 16px', borderRadius: 9, border: 'none', background: 'linear-gradient(135deg,#7c3aed,#6d28d9)', color: 'white', cursor: 'pointer', fontWeight: 700, fontSize: 13, textDecoration: 'none' }}>
+                        <button onClick={() => setShowCreateModal(true)} style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '9px 16px', borderRadius: 9, border: 'none', background: 'linear-gradient(135deg,#25d366,#128c7e)', color: 'white', cursor: 'pointer', fontWeight: 700, fontSize: 13 }}>
+                            <Plus size={15} /> Crear Plantilla
+                        </button>
+                        <a href={API_META_URL} target="_blank" rel="noreferrer" style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '9px 16px', borderRadius: 9, border: '1px solid #e5e7eb', background: 'white', color: '#374151', cursor: 'pointer', fontWeight: 600, fontSize: 13, textDecoration: 'none' }}>
                             <ExternalLink size={15} /> Gestionar en Meta
                         </a>
                     </div>
@@ -330,6 +335,7 @@ const WaTemplates = ({ onBulkSend }) => {
             </div>
 
             {selected && <TemplatePreviewModal tpl={selected} onClose={() => setSelected(null)} onBulkSend={onBulkSend} />}
+            {showCreateModal && <CreateWaTemplateModal isOpen={showCreateModal} onClose={() => setShowCreateModal(false)} onSuccess={load} />}
             <style>{`@keyframes spin { to { transform: rotate(360deg); } }`}</style>
         </div>
     );

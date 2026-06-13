@@ -266,4 +266,52 @@ router.get('/stats', asyncHandler(async (req, res) => {
     });
 }));
 
+// ─── POST /api/wa-templates/create ────────────────────────────────────────────
+// Create a new template in Meta WABA
+router.post('/create', asyncHandler(async (req, res) => {
+    const { token, wabaId } = getOfficialConfig();
+    const { name, category, language = 'es', components } = req.body;
+
+    if (!name || !category || !components || !Array.isArray(components)) {
+        throw new AppError('name, category y components (array) son requeridos', 400);
+    }
+
+    if (!wabaId) {
+        throw new AppError('No se ha configurado el WhatsApp Business Account ID (WABA ID). Ve a Admin → WhatsApp.', 400);
+    }
+
+    // Clean name (lowercase, alphanumeric, underscores only)
+    const cleanName = name.trim().toLowerCase().replace(/[^a-z0-9_]/g, '_');
+
+    const apiUrl = `https://graph.facebook.com/${GRAPH_VERSION}/${wabaId}/message_templates`;
+
+    const body = {
+        name: cleanName,
+        category: category.toUpperCase(),
+        language,
+        components
+    };
+
+    const response = await fetch(apiUrl, {
+        method: 'POST',
+        headers: {
+            'Authorization': `Bearer ${token}`,
+            'Content-Type': 'application/json'
+        },
+        body: JSON.stringify(body)
+    });
+
+    const data = await response.json();
+
+    if (!response.ok) {
+        console.error('[waTemplates] Template creation error:', data);
+        throw new AppError(`Error creando plantilla: ${data?.error?.message || 'Error desconocido'}`, 400);
+    }
+
+    res.json({
+        success: true,
+        template: data
+    });
+}));
+
 module.exports = router;
