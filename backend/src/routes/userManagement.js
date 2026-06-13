@@ -318,6 +318,15 @@ router.post('/tenants', asyncHandler(async (req, res) => {
             ALTER TABLE conversation_tags ADD COLUMN IF NOT EXISTS assigned_at TIMESTAMP WITH TIME ZONE DEFAULT NOW();
             ALTER TABLE conversation_tags ADD COLUMN IF NOT EXISTS assigned_by VARCHAR(255);
 
+            -- official template stats
+            CREATE TABLE IF NOT EXISTS official_template_stats (
+                id SERIAL PRIMARY KEY,
+                template_name VARCHAR(255),
+                sent_count INT DEFAULT 0,
+                failed_count INT DEFAULT 0,
+                sent_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+            );
+
             -- indexes
             CREATE INDEX IF NOT EXISTS idx_messages_conversation ON messages(conversation_phone);
             CREATE INDEX IF NOT EXISTS idx_messages_timestamp ON messages(timestamp);

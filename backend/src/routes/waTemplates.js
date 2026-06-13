@@ -226,12 +226,43 @@ router.post('/bulk-send', asyncHandler(async (req, res) => {
 
     console.log(`📊 [WA Bulk Official] Tenant: ${tenantSlug} | Template: ${templateName} | Sent: ${sent} | Failed: ${failed}`);
 
+    // Log stats to DB
+    const ctx = tenantContext.getStore();
+    if (ctx && ctx.db) {
+        try {
+            await ctx.db.query(
+                'INSERT INTO official_template_stats (template_name, sent_count, failed_count) VALUES ($1, $2, $3)',
+                [templateName, sent, failed]
+            );
+        } catch (dbErr) {
+            console.error('Error logging template stats:', dbErr.message);
+        }
+    }
+
     res.json({
         success: true,
         total: contactList.length,
         sent,
         failed,
         errors: errors.slice(0, 20) // Return first 20 errors max
+    });
+}));
+
+// ─── GET /api/wa-templates/stats ─────────────────────────────────────────────
+// Get template send statistics for the current month
+router.get('/stats', asyncHandler(async (req, res) => {
+    const ctx = tenantContext.getStore();
+    if (!ctx || !ctx.db) throw new AppError('Sin conexión a base de datos del tenant', 500);
+
+    const { rows } = await ctx.db.query(`
+        SELECT COALESCE(SUM(sent_count), 0) as total_sent
+        FROM official_template_stats
+        WHERE DATE_TRUNC('month', sent_at) = DATE_TRUNC('month', CURRENT_DATE)
+    `);
+
+    res.json({
+        success: true,
+        currentMonthSent: parseInt(rows[0]?.total_sent || 0, 10)
     });
 }));
 

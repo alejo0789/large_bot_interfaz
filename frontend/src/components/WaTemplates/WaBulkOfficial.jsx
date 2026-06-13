@@ -183,15 +183,18 @@ const WaBulkOfficial = ({ conversations, tags }) => {
     const [searchContact, setSearchContact] = useState('');
     const [sending, setSending] = useState(false);
     const [result, setResult] = useState(null);
+    const [stats, setStats] = useState(0);
 
-    // Load templates
+    // Load templates and stats
     useEffect(() => {
         setLoadingTemplates(true);
-        apiFetch('/api/wa-templates')
-            .then(r => r.json())
-            .then(d => setTemplates(d.templates || []))
-            .catch(() => {})
-            .finally(() => setLoadingTemplates(false));
+        Promise.all([
+            apiFetch('/api/wa-templates').then(r => r.json()).catch(() => ({})),
+            apiFetch('/api/wa-templates/stats').then(r => r.json()).catch(() => ({}))
+        ]).then(([templatesData, statsData]) => {
+            setTemplates(templatesData.templates || []);
+            setStats(statsData.currentMonthSent || 0);
+        }).finally(() => setLoadingTemplates(false));
     }, []);
 
     // When template changes, reset variables
@@ -248,6 +251,9 @@ const WaBulkOfficial = ({ conversations, tags }) => {
             });
             const data = await res.json();
             setResult(res.ok ? { success: true, ...data } : { success: false, error: data.error || 'Error desconocido' });
+            if (res.ok) {
+                setStats(prev => prev + (data.sent || 0));
+            }
         } catch (e) {
             setResult({ success: false, error: e.message });
         } finally {
@@ -258,11 +264,17 @@ const WaBulkOfficial = ({ conversations, tags }) => {
     return (
         <div style={{ flex: 1, display: 'flex', flexDirection: 'column', background: '#f8fafc', overflow: 'hidden' }}>
             {/* Top bar */}
-            <div style={{ padding: '18px 24px', background: 'white', borderBottom: '1px solid #e5e7eb', flexShrink: 0 }}>
-                <h1 style={{ margin: 0, fontSize: 20, fontWeight: 800, color: '#111827' }}>
-                    <span style={{ color: '#25d366' }}>Envío Masivo</span> Oficial
-                </h1>
-                <p style={{ margin: '2px 0 0', fontSize: 13, color: '#6b7280' }}>Envía plantillas aprobadas de WhatsApp a tus contactos o etiquetas</p>
+            <div style={{ padding: '18px 24px', background: 'white', borderBottom: '1px solid #e5e7eb', flexShrink: 0, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <div>
+                    <h1 style={{ margin: 0, fontSize: 20, fontWeight: 800, color: '#111827' }}>
+                        <span style={{ color: '#25d366' }}>Envío Masivo</span> Oficial
+                    </h1>
+                    <p style={{ margin: '2px 0 0', fontSize: 13, color: '#6b7280' }}>Envía plantillas aprobadas de WhatsApp a tus contactos o etiquetas</p>
+                </div>
+                <div style={{ background: '#f0fdf4', border: '1px solid #bbf7d0', padding: '8px 16px', borderRadius: '12px', display: 'flex', flexDirection: 'column', alignItems: 'flex-end' }}>
+                    <div style={{ fontSize: 11, color: '#15803d', fontWeight: 600, textTransform: 'uppercase', letterSpacing: 0.5 }}>Enviados este mes</div>
+                    <div style={{ fontSize: 20, fontWeight: 800, color: '#065f46', lineHeight: 1.2 }}>{stats.toLocaleString()}</div>
+                </div>
             </div>
 
             {/* Main split layout */}
