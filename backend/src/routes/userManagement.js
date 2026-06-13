@@ -640,19 +640,21 @@ router.patch('/tenants/:slug/whatsapp', asyncHandler(async (req, res) => {
                 whatsapp_provider  = $1,
                 wa_phone_number_id = $2,
                 wa_verify_token    = $3,
-                evolution_instance = $4,
-                evolution_api_key  = $5,
-                n8n_webhook_url    = $6,
+                wa_business_account_id = $4,
+                evolution_instance = $5,
+                evolution_api_key  = $6,
+                n8n_webhook_url    = $7,
                 updated_at         = NOW()
-            WHERE slug = $7
+            WHERE slug = $8
             RETURNING id, name, slug, whatsapp_provider, wa_phone_number_id,
-                      wa_verify_token, evolution_instance, is_active,
+                      wa_verify_token, wa_business_account_id, evolution_instance, is_active,
                       (wa_access_token IS NOT NULL) as has_access_token
         `;
         params = [
             whatsapp_provider,
             wa_phone_number_id || null,
             wa_verify_token || null,
+            wa_business_account_id || null,
             evolution_instance || null,
             evolution_api_key || null,
             n8n_webhook_url || null,
@@ -666,13 +668,14 @@ router.patch('/tenants/:slug/whatsapp', asyncHandler(async (req, res) => {
                 wa_phone_number_id = $2,
                 wa_access_token    = $3,
                 wa_verify_token    = $4,
-                evolution_instance = $5,
-                evolution_api_key  = $6,
-                n8n_webhook_url    = $7,
+                wa_business_account_id = $5,
+                evolution_instance = $6,
+                evolution_api_key  = $7,
+                n8n_webhook_url    = $8,
                 updated_at         = NOW()
-            WHERE slug = $8
+            WHERE slug = $9
             RETURNING id, name, slug, whatsapp_provider, wa_phone_number_id,
-                      wa_verify_token, evolution_instance, is_active,
+                      wa_verify_token, wa_business_account_id, evolution_instance, is_active,
                       (wa_access_token IS NOT NULL) as has_access_token
         `;
         params = [
@@ -680,6 +683,7 @@ router.patch('/tenants/:slug/whatsapp', asyncHandler(async (req, res) => {
             wa_phone_number_id || null,
             wa_access_token,
             wa_verify_token || null,
+            wa_business_account_id || null,
             evolution_instance || null,
             evolution_api_key || null,
             n8n_webhook_url || null,
