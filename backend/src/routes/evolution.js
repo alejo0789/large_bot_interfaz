@@ -331,6 +331,11 @@ router.post('/', async (req, res) => {
     // FALLBACK for flattened Evolution V2 if text is still empty
     if (!text && msg.content) {
         console.log('📝 detected flattened Evolution V2 message content');
+        if (typeof msg.content === 'string') {
+            text = msg.content;
+        } else if (msg.content && typeof msg.content === 'object') {
+            text = msg.content.text || msg.content.conversation || '';
+        }
     }
 
     let mediaType = null;

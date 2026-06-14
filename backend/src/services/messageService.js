@@ -243,16 +243,38 @@ class MessageService {
      * @param {string} text - Message text
      */
     async getOptimisticMessage(phone, text) {
+        // Find recent messages in 'sending' status (within last 2 minutes)
+        // Ordered by timestamp ASC to match the oldest pending message first
         const { rows } = await pool.query(`
-            SELECT id, temp_id FROM messages 
+            SELECT id, temp_id, text_content, timestamp FROM messages 
             WHERE conversation_phone = $1 
             AND sender = 'agent' 
-            AND status = 'sending' 
-            AND text_content = $2
-            ORDER BY timestamp DESC
-            LIMIT 1
-        `, [phone, text]);
-        return rows[0] || null;
+            AND status = 'sending'
+            AND timestamp > NOW() - INTERVAL '2 minutes'
+            ORDER BY timestamp ASC
+        `, [phone]);
+
+        if (rows.length === 0) {
+            return null;
+        }
+
+        // If there is only one message pending, it is almost certainly the right one
+        if (rows.length === 1) {
+            return rows[0];
+        }
+
+        // If there are multiple pending, match based on normalized text comparison
+        const cleanText = (text || '').trim().toLowerCase().replace(/\s+/g, ' ');
+        
+        for (const row of rows) {
+            const rowText = (row.text_content || '').trim().toLowerCase().replace(/\s+/g, ' ');
+            if (rowText === cleanText) {
+                return row;
+            }
+        }
+
+        // Fallback to the oldest pending message
+        return rows[0];
     }
 
     /**
