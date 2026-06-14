@@ -11,7 +11,18 @@ const { tenantContext } = require('../utils/tenantContext');
 const { asyncHandler, AppError } = require('../middleware/errorHandler');
 const fetch = (...args) => import('node-fetch').then(({ default: f }) => f(...args));
 
+const messageService = require('../services/messageService');
+const conversationService = require('../services/conversationService');
+
 const GRAPH_VERSION = 'v19.0';
+
+function normalizePhone(phone) {
+    let cleaned = (phone || '').replace(/\D/g, '');
+    if (cleaned.length === 10) {
+        cleaned = '57' + cleaned;
+    }
+    return cleaned;
+}
 
 // ─── Helper: get Official API config from tenant context ───────────────────────
 function getOfficialConfig() {
@@ -173,6 +184,27 @@ router.post('/bulk-send', asyncHandler(async (req, res) => {
         return comps;
     };
 
+    // Socket.IO emitter helper
+    const io = req.app?.get('io');
+    const emitToConversation = (phoneNum, event, data) => {
+        if (!io || !tenantSlug) return;
+        const dbPhone = normalizePhone(phoneNum);
+        const purePhone = phoneNum.replace(/\D/g, '');
+        
+        // Emit to specific conversation room (tenant-scoped)
+        io.to(`tenant:${tenantSlug}:conversation:${purePhone}`).emit(event, data);
+        
+        // Emit to tenant-specific conversations list room
+        io.to(`tenant:${tenantSlug}:conversations:list`).emit('conversation-updated', {
+            phone: dbPhone,
+            lastMessage: data.message,
+            timestamp: data.timestamp || new Date().toISOString(),
+            contact_name: data.contact_name,
+            unread: 0,
+            sender_type: 'agent'
+        });
+    };
+
     // Send in batches of 20 with 1s delay between batches to respect rate limits
     const BATCH_SIZE = 20;
     const DELAY_MS = 1000;
@@ -209,6 +241,52 @@ router.post('/bulk-send', asyncHandler(async (req, res) => {
                 const msgData = await msgRes.json();
                 if (msgRes.ok && msgData.messages?.[0]?.id) {
                     sent++;
+                    
+                    const cleanPhone = normalizePhone(phone);
+                    const whatsappId = msgData.messages[0].id;
+
+                    // Reconstruct variables used in body message for local DB preview
+                    const varEntries = Object.entries(variables);
+                    let textRepresentation = `📋 [Plantilla: ${templateName}]`;
+                    if (varEntries.length > 0) {
+                        const varList = varEntries.map(([k, v]) => {
+                            const isNameVar = ['nombre', 'name', 'contacto'].includes(k.toLowerCase());
+                            const val = (isNameVar && contact.name) ? contact.name : v;
+                            return `${k}: "${val}"`;
+                        }).join(', ');
+                        textRepresentation += `\nVariables: { ${varList} }`;
+                    }
+
+                    // 1. Ensure conversation exists to avoid foreign key issues
+                    const contactName = contact.name || `Usuario ${cleanPhone.slice(-4)}`;
+                    await conversationService.upsert(cleanPhone, contactName);
+
+                    // 2. Save message locally
+                    const savedMsg = await messageService.create({
+                        phone: cleanPhone,
+                        sender: 'agent',
+                        text: textRepresentation,
+                        status: 'sent',
+                        whatsappId: whatsappId,
+                        timestamp: new Date().toISOString()
+                    });
+
+                    // 3. Update last message inside conversation
+                    await conversationService.updateLastMessage(cleanPhone, textRepresentation, true);
+
+                    // 4. Emit to frontend
+                    emitToConversation(cleanPhone, 'new-message', {
+                        id: savedMsg.id,
+                        phone: cleanPhone,
+                        contact_name: contactName,
+                        message: textRepresentation,
+                        whatsapp_id: whatsappId,
+                        sender_type: 'agent',
+                        sender_name: 'Sistema',
+                        unread: 0,
+                        timestamp: new Date().toISOString()
+                    });
+
                 } else {
                     failed++;
                     errors.push({ phone, error: msgData?.error?.message || 'Error desconocido' });

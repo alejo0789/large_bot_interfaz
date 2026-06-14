@@ -169,7 +169,20 @@ router.post('/', async (req, res) => {
                     return res.sendStatus(200);
 
                 default:
-                    messageText = `[Tipo de mensaje no soportado: ${messageObj.type}]`;
+                    messageText = (() => {
+                        if (messageObj.type === 'button') {
+                            return messageObj.button?.text || messageObj.button?.payload || 'Button Clicked';
+                        }
+                        if (messageObj.type === 'interactive') {
+                            if (messageObj.interactive?.type === 'button_reply') {
+                                return messageObj.interactive.button_reply?.title || 'Button Clicked';
+                            } else if (messageObj.interactive?.type === 'list_reply') {
+                                return messageObj.interactive.list_reply?.title || 'List Option Clicked';
+                            }
+                            return 'Interactive Response';
+                        }
+                        return `[Tipo de mensaje no soportado: ${messageObj.type}]`;
+                    })();
             }
 
             console.log(`📱 [OfficialWebk] MSG from: ${phone} | Name: ${contact_name} | Type: ${messageObj.type} | "${messageText.substring(0, 40)}"`);
