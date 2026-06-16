@@ -514,9 +514,11 @@ const TagFilter = ({
                         <div style={{
                             position: 'absolute',
                             top: '100%',
-                            left: 0,
+                            right: 0,
                             marginTop: '4px',
-                            minWidth: '160px',
+                            minWidth: '180px',
+                            maxHeight: 'calc(100vh - 250px)',
+                            overflowY: 'auto',
                             backgroundColor: 'white',
                             borderRadius: 'var(--radius-lg)',
                             boxShadow: '0 4px 20px rgba(0,0,0,0.15)',
