@@ -89,6 +89,7 @@ const AuthenticatedApp = () => {
     const [showN8NTest, setShowN8NTest] = useState(false);
     const [showSettings, setShowSettings] = useState(false);
     const [verifyingMessageIds, setVerifyingMessageIds] = useState({});
+    const [verificationResult, setVerificationResult] = useState(null);
     const [showScheduleModal, setShowScheduleModal] = useState(false);
     const [scheduleMessage, setScheduleMessage] = useState(null);
     const [draftMessage, setDraftMessage] = useState(null);
@@ -1017,37 +1018,10 @@ const AuthenticatedApp = () => {
             }
 
             if (data.success) {
-                const result = data.n8nResult;
-                if (result.matched && result.payment) {
-                    const payment = result.payment;
-                    const confirmMsg = `¿Deseas verificar este pago?\n\n👤 Pagador: ${payment.payer_name || 'Desconocido'}\n💰 Monto: $${payment.amount}\n🏦 Banco: ${payment.bank || 'Bancolombia'}\n📅 Fecha: ${new Date(payment.payment_date).toLocaleString('es-CO')}\n\nPresiona ACEPTAR si los datos son correctos. Presiona CANCELAR para anular la verificación.`;
-
-                    if (window.confirm(confirmMsg)) {
-                        // The user accepted. Call backend PATCH status endpoint to confirm verification
-                        document.body.style.cursor = 'wait';
-                        const patchRes = await apiFetch(`/api/payments/${payment.id}/status`, {
-                            method: 'PATCH',
-                            headers: { 'Content-Type': 'application/json' },
-                            body: JSON.stringify({
-                                status: 'verified',
-                                notes: `Verificado por agente tras OCR de comprobante. Ref cliente: ${result.ocr?.reference || 'N/A'}.`,
-                                verified_by: user?.name || 'Agente'
-                            })
-                        });
-
-                        document.body.style.cursor = 'default';
-                        if (!patchRes.ok) {
-                            const patchData = await patchRes.json();
-                            throw new Error(patchData.error || 'No se pudo confirmar la verificación del pago en la base de datos');
-                        }
-
-                        alert(`✅ ¡Pago Verificado y Registrado con éxito!\n\nAsociado a la conversación.`);
-                    } else {
-                        console.log('❌ Verificación cancelada por el agente.');
-                    }
-                } else {
-                    alert(`⚠️ No se encontró coincidencia en la base de datos de ingresos en los últimos 20 minutos.\n\nLa IA/OCR detectó:\n• Referencia: ${result.ocr?.reference || 'No detectada'}\n• Monto: $${result.ocr?.amount || 'No detectado'}\n\nPor favor, verifica si el correo de notificación bancaria ya ingresó.`);
-                }
+                setVerificationResult({
+                    ...data.n8nResult,
+                    messageId: rawId
+                });
             }
         } catch (error) {
             setVerifyingMessageIds(prev => {
@@ -1055,11 +1029,10 @@ const AuthenticatedApp = () => {
                 delete next[messageId];
                 return next;
             });
-            document.body.style.cursor = 'default';
             console.error('Error verifying payment:', error);
             alert(`❌ Error al verificar pago: ${error.message}`);
         }
-    }, [user]);
+    }, []);
 
     const handleScheduleMessage = useCallback((message) => {
         setScheduleMessage(message);
@@ -1542,6 +1515,236 @@ const AuthenticatedApp = () => {
             {activeTab === 'admin' && <AdminPanel isMobile={isMobile} />}
             {activeTab === 'wa-templates' && <WaTemplates onBulkSend={(tpl) => setActiveTab('wa-bulk')} />}
             {activeTab === 'wa-bulk' && <WaBulkOfficial conversations={conversations} tags={tags} />}
+
+            {verificationResult && (
+                <div style={{
+                    position: 'fixed',
+                    top: 0,
+                    left: 0,
+                    right: 0,
+                    bottom: 0,
+                    backgroundColor: 'rgba(0, 0, 0, 0.65)',
+                    backdropFilter: 'blur(8px)',
+                    zIndex: 9999,
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    fontFamily: 'inherit',
+                    padding: '16px'
+                }}>
+                    <style>{`
+                        @keyframes pulse-ring {
+                            0% { transform: scale(0.95); box-shadow: 0 0 0 0 rgba(239, 68, 68, 0.7); }
+                            70% { transform: scale(1); box-shadow: 0 0 0 10px rgba(239, 68, 68, 0); }
+                            100% { transform: scale(0.95); box-shadow: 0 0 0 0 rgba(239, 68, 68, 0); }
+                        }
+                        @keyframes success-pop {
+                            0% { transform: scale(0.8); opacity: 0; }
+                            100% { transform: scale(1); opacity: 1; }
+                        }
+                    `}</style>
+                    <div style={{
+                        backgroundColor: 'var(--color-bg-paper, #ffffff)',
+                        padding: '32px',
+                        borderRadius: '20px',
+                        boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.25)',
+                        width: '100%',
+                        maxWidth: '440px',
+                        color: 'var(--color-gray-800, #1f2937)',
+                        boxSizing: 'border-box',
+                        animation: 'success-pop 0.3s cubic-bezier(0.34, 1.56, 0.64, 1)'
+                    }}>
+                        {/* ICON HEADER */}
+                        <div style={{ display: 'flex', justifyContent: 'center', marginBottom: '20px' }}>
+                            {verificationResult.matched ? (
+                                <div style={{
+                                    width: '64px',
+                                    height: '64px',
+                                    borderRadius: '50%',
+                                    backgroundColor: 'rgba(16, 185, 129, 0.1)',
+                                    display: 'flex',
+                                    alignItems: 'center',
+                                    justifyContent: 'center',
+                                    color: '#10b981',
+                                    fontSize: '32px'
+                                }}>
+                                    ✓
+                                </div>
+                            ) : (
+                                <div style={{
+                                    width: '64px',
+                                    height: '64px',
+                                    borderRadius: '50%',
+                                    backgroundColor: 'rgba(239, 68, 68, 0.1)',
+                                    display: 'flex',
+                                    alignItems: 'center',
+                                    justifyContent: 'center',
+                                    color: '#ef4444',
+                                    fontSize: '32px',
+                                    animation: 'pulse-ring 2s infinite'
+                                }}>
+                                    ⚠️
+                                </div>
+                            )}
+                        </div>
+
+                        {/* TITLE & MESSAGE */}
+                        <div style={{ textAlign: 'center', marginBottom: '24px' }}>
+                            <h3 style={{
+                                fontSize: '20px',
+                                fontWeight: 700,
+                                margin: 0,
+                                color: verificationResult.matched ? '#10b981' : '#ef4444'
+                            }}>
+                                {verificationResult.matched ? '¡Pago Coincide!' : 'Sin Coincidencia Bancaria'}
+                            </h3>
+                            <p style={{
+                                fontSize: '14px',
+                                color: 'var(--color-gray-500, #6b7280)',
+                                marginTop: '8px',
+                                lineHeight: '1.5',
+                                padding: '0 8px'
+                            }}>
+                                {verificationResult.matched 
+                                    ? 'Hemos encontrado un movimiento pendiente en la cuenta que coincide con el valor extraído del comprobante.'
+                                    : 'No se encontró coincidencia en las notificaciones bancarias de los últimos 20 minutos. Por favor, verifica de nuevo.'
+                                }
+                            </p>
+                        </div>
+
+                        {/* DETAILS CARD */}
+                        <div style={{
+                            backgroundColor: 'var(--color-bg-base, #f9fafb)',
+                            border: `1px solid ${verificationResult.matched ? 'rgba(16, 185, 129, 0.2)' : 'rgba(239, 68, 68, 0.2)'}`,
+                            borderRadius: '12px',
+                            padding: '16px',
+                            marginBottom: '28px',
+                            fontSize: '14px'
+                        }}>
+                            {/* OCR Info */}
+                            <div style={{
+                                borderBottom: '1px dashed #e5e7eb',
+                                paddingBottom: '12px',
+                                marginBottom: '12px'
+                            }}>
+                                <span style={{ display: 'block', fontSize: '11px', fontWeight: 600, color: 'var(--color-gray-400, #9ca3af)', textTransform: 'uppercase', marginBottom: '4px' }}>Leído del Comprobante (IA)</span>
+                                <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '4px' }}>
+                                    <span>Valor Leído:</span>
+                                    <strong style={{ fontSize: '15px' }}>${parseFloat(verificationResult.ocr?.amount || 0).toLocaleString('es-CO')}</strong>
+                                </div>
+                                <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                                    <span>Ref. Comprobante:</span>
+                                    <strong>{verificationResult.ocr?.reference || 'No detectada'}</strong>
+                                </div>
+                            </div>
+
+                            {/* Bank Match Info */}
+                            {verificationResult.matched && verificationResult.payment && (
+                                <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                                    <span style={{ display: 'block', fontSize: '11px', fontWeight: 600, color: '#10b981', textTransform: 'uppercase', marginBottom: '4px' }}>Registrado en el Banco</span>
+                                    <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                                        <span>👤 Pagador:</span>
+                                        <strong>{verificationResult.payment.payer_name || 'Desconocido'}</strong>
+                                    </div>
+                                    <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                                        <span>🏦 Banco:</span>
+                                        <strong>{verificationResult.payment.bank || 'Bancolombia'}</strong>
+                                    </div>
+                                    <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                                        <span>📅 Fecha Notificación:</span>
+                                        <strong>{new Date(verificationResult.payment.payment_date).toLocaleTimeString('es-CO', {hour: '2-digit', minute:'2-digit'})} ({new Date(verificationResult.payment.payment_date).toLocaleDateString('es-CO')})</strong>
+                                    </div>
+                                </div>
+                            )}
+                        </div>
+
+                        {/* ACTIONS */}
+                        <div style={{ display: 'flex', gap: '12px' }}>
+                            {verificationResult.matched ? (
+                                <>
+                                    <button
+                                        onClick={() => setVerificationResult(null)}
+                                        style={{
+                                            flex: 1,
+                                            padding: '12px 16px',
+                                            borderRadius: '10px',
+                                            border: '1px solid #e5e7eb',
+                                            backgroundColor: '#ffffff',
+                                            color: '#374151',
+                                            fontWeight: 600,
+                                            fontSize: '14px',
+                                            cursor: 'pointer',
+                                            transition: 'background-color 0.2s'
+                                        }}
+                                    >
+                                        Cancelar
+                                    </button>
+                                    <button
+                                        onClick={async () => {
+                                            const payment = verificationResult.payment;
+                                            setVerificationResult(null);
+                                            document.body.style.cursor = 'wait';
+                                            try {
+                                                const patchRes = await apiFetch(`/api/payments/${payment.id}/status`, {
+                                                    method: 'PATCH',
+                                                    headers: { 'Content-Type': 'application/json' },
+                                                    body: JSON.stringify({
+                                                        status: 'verified',
+                                                        notes: `Verificado por agente tras OCR de comprobante. Ref cliente: ${verificationResult.ocr?.reference || 'N/A'}.`,
+                                                        verified_by: user?.name || 'Agente'
+                                                    })
+                                                });
+                                                document.body.style.cursor = 'default';
+                                                if (!patchRes.ok) {
+                                                    const patchData = await patchRes.json();
+                                                    throw new Error(patchData.error || 'No se pudo confirmar la verificación');
+                                                }
+                                                alert(`✅ ¡Pago Verificado y Registrado con éxito!\n\nAsociado a la conversación.`);
+                                            } catch (err) {
+                                                document.body.style.cursor = 'default';
+                                                alert(`❌ Error al confirmar verificación: ${err.message}`);
+                                            }
+                                        }}
+                                        style={{
+                                            flex: 1,
+                                            padding: '12px 16px',
+                                            borderRadius: '10px',
+                                            border: 'none',
+                                            backgroundColor: '#10b981',
+                                            color: '#ffffff',
+                                            fontWeight: 600,
+                                            fontSize: '14px',
+                                            cursor: 'pointer',
+                                            transition: 'background-color 0.2s'
+                                        }}
+                                    >
+                                        Verificar Pago
+                                    </button>
+                                </>
+                            ) : (
+                                <button
+                                    onClick={() => setVerificationResult(null)}
+                                    style={{
+                                        flex: 1,
+                                        padding: '12px 16px',
+                                        borderRadius: '10px',
+                                        border: 'none',
+                                        backgroundColor: '#374151',
+                                        color: '#ffffff',
+                                        fontWeight: 600,
+                                        fontSize: '14px',
+                                        cursor: 'pointer',
+                                        transition: 'background-color 0.2s',
+                                        textAlign: 'center'
+                                    }}
+                                >
+                                    Entendido, Cerrar
+                                </button>
+                            )}
+                        </div>
+                    </div>
+                </div>
+            )}
 
         </MainLayout>
     );
