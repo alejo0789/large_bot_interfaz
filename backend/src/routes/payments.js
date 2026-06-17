@@ -362,7 +362,7 @@ router.post('/trigger-verify', async (req, res) => {
         const msgRes = await db.query(
             `SELECT conversation_phone, media_url, media_type
              FROM messages
-             WHERE id = $1 OR whatsapp_id = $1
+             WHERE id::text = $1 OR whatsapp_id = $1
              LIMIT 1`,
             [messageId]
         );
