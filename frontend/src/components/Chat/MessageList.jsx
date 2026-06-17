@@ -17,6 +17,7 @@ const MessageList = ({
     onSchedule,
     onPhoneClick,
     onVerifyPayment,
+    verifyingMessageIds = {},
     // Older-message pagination props
     onLoadOlder,
     hasMoreOlder,
@@ -244,6 +245,7 @@ const MessageList = ({
                                         onPhoneClick={onPhoneClick}
                                         onQuoteClick={handleQuoteClick}
                                         onVerifyPayment={onVerifyPayment}
+                                        isVerifying={!!verifyingMessageIds[message.id] || !!verifyingMessageIds[message.whatsapp_id]}
                                     />
                                 </div>
                             );

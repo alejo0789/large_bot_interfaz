@@ -6,7 +6,7 @@ import EmojiPicker from 'emoji-picker-react';
 /**
  * Message bubble component with media support, reactions, and actions
  */
-const MessageBubble = React.memo(({ message, onForward, onReact, onDelete, onReply, onEdit, onSchedule, onPhoneClick, onQuoteClick, onVerifyPayment }) => {
+const MessageBubble = React.memo(({ message, onForward, onReact, onDelete, onReply, onEdit, onSchedule, onPhoneClick, onQuoteClick, onVerifyPayment, isVerifying }) => {
     const { text, timestamp, status, id, reactions = [], edited } = message;
     const rawSender = message.sender || message.sender_type || 'customer';
     const sender = String(rawSender).toLowerCase().trim();
@@ -132,7 +132,7 @@ const MessageBubble = React.memo(({ message, onForward, onReact, onDelete, onRep
                 return (
                     <div
                         style={{
-                            cursor: isSending || isFailed ? 'default' : 'pointer',
+                            cursor: isSending || isFailed || isVerifying ? 'default' : 'pointer',
                             marginBottom: text ? 'var(--space-2)' : 0,
                             position: 'relative',
                             display: 'block',
@@ -144,28 +144,59 @@ const MessageBubble = React.memo(({ message, onForward, onReact, onDelete, onRep
                         }}
                         onClick={(e) => {
                             e.stopPropagation();
+                            if (isVerifying) return; // Block modal preview while verifying
                             // Allow opening even if "sending" as long as we have a URL (optimistic)
                             if (!isFailed) setShowFullImage(true);
                         }}
                     >
                         {!imageError ? (
-                            <img
-                                src={media_url}
-                                alt="Imagen"
-                                onError={() => setImageError(true)}
-                                style={{
-                                    maxWidth: '100%',
-                                    width: '100%',
-                                    maxHeight: '300px',
-                                    borderRadius: 'var(--radius-md)',
-                                    objectFit: 'cover',
-                                    display: 'block',
-                                    filter: isSending ? 'brightness(0.6)' : isFailed ? 'brightness(0.5) sepia(1) hue-rotate(-30deg)' : 'none',
-                                    transition: 'filter 0.2s ease',
-                                    boxSizing: 'border-box',
-                                    cursor: 'pointer' // Explicit cursor on image
-                                }}
-                            />
+                            <>
+                                <img
+                                    src={media_url}
+                                    alt="Imagen"
+                                    onError={() => setImageError(true)}
+                                    style={{
+                                        maxWidth: '100%',
+                                        width: '100%',
+                                        maxHeight: '300px',
+                                        borderRadius: 'var(--radius-md)',
+                                        objectFit: 'cover',
+                                        display: 'block',
+                                        filter: isSending ? 'brightness(0.6)' : isFailed ? 'brightness(0.5) sepia(1) hue-rotate(-30deg)' : isVerifying ? 'brightness(0.5)' : 'none',
+                                        transition: 'filter 0.2s ease',
+                                        boxSizing: 'border-box',
+                                        cursor: isVerifying ? 'default' : 'pointer' // Explicit cursor on image
+                                    }}
+                                />
+                                {isVerifying && (
+                                    <div style={{
+                                        position: 'absolute',
+                                        top: 0,
+                                        left: 0,
+                                        right: 0,
+                                        bottom: 0,
+                                        backgroundColor: 'rgba(0, 0, 0, 0.6)',
+                                        backdropFilter: 'blur(3px)',
+                                        display: 'flex',
+                                        flexDirection: 'column',
+                                        alignItems: 'center',
+                                        justifyContent: 'center',
+                                        gap: '8px',
+                                        color: 'white',
+                                        zIndex: 10
+                                    }}>
+                                        <div style={{
+                                            width: '24px',
+                                            height: '24px',
+                                            border: '3px solid rgba(255, 255, 255, 0.2)',
+                                            borderTop: '3px solid #11ab9c',
+                                            borderRadius: '50%',
+                                            animation: 'verify-spin 1s linear infinite'
+                                        }} />
+                                        <span style={{ fontSize: '11px', fontWeight: 500 }}>Verificando pago...</span>
+                                    </div>
+                                )}
+                            </>
                         ) : (
                             <div style={{
                                 display: 'flex',

@@ -88,7 +88,7 @@ const AuthenticatedApp = () => {
     const [showBulkMessage, setShowBulkMessage] = useState(false);
     const [showN8NTest, setShowN8NTest] = useState(false);
     const [showSettings, setShowSettings] = useState(false);
-    const [isVerifyingPayment, setIsVerifyingPayment] = useState(false);
+    const [verifyingMessageIds, setVerifyingMessageIds] = useState({});
     const [showScheduleModal, setShowScheduleModal] = useState(false);
     const [scheduleMessage, setScheduleMessage] = useState(null);
     const [draftMessage, setDraftMessage] = useState(null);
@@ -991,16 +991,23 @@ const AuthenticatedApp = () => {
     }, [reactToMessage, selectedConversation]);
 
     const handleVerifyPayment = useCallback(async (message) => {
-        setIsVerifyingPayment(true);
+        const messageId = message.id || message.whatsapp_id;
+        if (!messageId) return;
+
+        setVerifyingMessageIds(prev => ({ ...prev, [messageId]: true }));
         try {
             const response = await apiFetch('/api/payments/trigger-verify', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ messageId: message.id || message.whatsapp_id })
+                body: JSON.stringify({ messageId })
             });
 
             const data = await response.json();
-            setIsVerifyingPayment(false);
+            setVerifyingMessageIds(prev => {
+                const next = { ...prev };
+                delete next[messageId];
+                return next;
+            });
 
             if (!response.ok) {
                 throw new Error(data.error || 'Error al procesar la verificación');
@@ -1040,7 +1047,11 @@ const AuthenticatedApp = () => {
                 }
             }
         } catch (error) {
-            setIsVerifyingPayment(false);
+            setVerifyingMessageIds(prev => {
+                const next = { ...prev };
+                delete next[messageId];
+                return next;
+            });
             document.body.style.cursor = 'default';
             console.error('Error verifying payment:', error);
             alert(`❌ Error al verificar pago: ${error.message}`);
@@ -1390,7 +1401,9 @@ const AuthenticatedApp = () => {
                                     onReply={handleReplyMessage}
                                     onEdit={setEditingMessage}
                                     onSchedule={handleScheduleMessage}
-                                    onPhoneClick={handleStartNewChat} onVerifyPayment={handleVerifyPayment}
+                                    onPhoneClick={handleStartNewChat}
+                                    onVerifyPayment={handleVerifyPayment}
+                                    verifyingMessageIds={verifyingMessageIds}
                                     onLoadOlder={selectedConversation ? () => loadOlderMessages(selectedConversation.contact.phone) : undefined}
                                     hasMoreOlder={selectedConversation ? (messagePaginationByPhone[selectedConversation.contact.phone]?.hasMore ?? false) : false}
                                     isLoadingOlder={isLoadingOlderMessages}
@@ -1526,61 +1539,6 @@ const AuthenticatedApp = () => {
             {activeTab === 'admin' && <AdminPanel isMobile={isMobile} />}
             {activeTab === 'wa-templates' && <WaTemplates onBulkSend={(tpl) => setActiveTab('wa-bulk')} />}
             {activeTab === 'wa-bulk' && <WaBulkOfficial conversations={conversations} tags={tags} />}
-
-            {isVerifyingPayment && (
-                <div style={{
-                    position: 'fixed',
-                    top: 0,
-                    left: 0,
-                    right: 0,
-                    bottom: 0,
-                    backgroundColor: 'rgba(0, 0, 0, 0.65)',
-                    backdropFilter: 'blur(8px)',
-                    zIndex: 9999,
-                    display: 'flex',
-                    flexDirection: 'column',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    fontFamily: 'inherit'
-                }}>
-                    <style>{`
-                        @keyframes verify-spin {
-                            0% { transform: rotate(0deg); }
-                            100% { transform: rotate(360deg); }
-                        }
-                    `}</style>
-                    <div style={{
-                        backgroundColor: 'var(--color-bg-paper, #ffffff)',
-                        padding: '32px 48px',
-                        borderRadius: '16px',
-                        boxShadow: '0 20px 25px -5px rgba(0, 0, 0, 0.2), 0 10px 10px -5px rgba(0, 0, 0, 0.1)',
-                        display: 'flex',
-                        flexDirection: 'column',
-                        alignItems: 'center',
-                        gap: '20px',
-                        color: 'var(--color-gray-800, #1f2937)',
-                        maxWidth: '400px',
-                        textAlign: 'center'
-                    }}>
-                        <div style={{
-                            width: '48px',
-                            height: '48px',
-                            border: '4px solid rgba(7, 94, 84, 0.1)',
-                            borderTop: '4px solid var(--color-primary, #075e54)',
-                            borderRadius: '50%',
-                            animation: 'verify-spin 1s linear infinite'
-                        }} />
-                        <div>
-                            <h3 style={{ margin: 0, fontSize: '18px', fontWeight: 600, color: 'var(--color-gray-900, #111827)' }}>
-                                Verificando Pago
-                            </h3>
-                            <p style={{ margin: '8px 0 0 0', fontSize: '14px', color: 'var(--color-gray-500, #6b7280)' }}>
-                                La IA está leyendo el comprobante y cruzando datos con el banco...
-                            </p>
-                        </div>
-                    </div>
-                </div>
-            )}
 
         </MainLayout>
     );
