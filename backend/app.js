@@ -119,6 +119,7 @@ app.use('/api/bulk-templates', jwtAuth, require('./src/routes/bulkTemplates'));
 app.use('/api/ai-knowledge', jwtAuth, require('./src/routes/ai_knowledge'));
 app.use('/api/dashboard', jwtAuth, require('./src/routes/dashboard'));
 app.use('/api/wa-templates', jwtAuth, require('./src/routes/waTemplates'));
+app.use('/api/payments', jwtAuth, require('./src/routes/payments'));
 app.use('/api', jwtAuth, messageRoutes);
 
 // External Webhooks and Integration Routes (Not always using JWT)
