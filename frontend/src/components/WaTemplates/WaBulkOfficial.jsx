@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { Send, Search, Tag, Users, Image, Upload, CheckCircle, AlertCircle, X, RotateCw, ChevronDown, ChevronUp, User } from 'lucide-react';
+import { Send, Search, Tag, Users, Image, Upload, CheckCircle, AlertCircle, X, RotateCw, ChevronDown, ChevronUp, User, Plus } from 'lucide-react';
 import apiFetch from '../../utils/api';
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
@@ -70,7 +70,22 @@ const TemplatePicker = ({ templates, loading, selected, onSelect }) => {
 };
 
 // ─── Contact Panel (right side) ───────────────────────────────────────────────
-const ContactPanel = ({ tags, conversations, selectionMode, setSelectionMode, selectedTagId, setSelectedTagId, selectedPhones, setSelectedPhones, searchContact, setSearchContact }) => {
+const ContactPanel = ({ 
+    tags, 
+    conversations, 
+    selectionMode, 
+    setSelectionMode, 
+    selectedTagId, 
+    setSelectedTagId, 
+    selectedPhones, 
+    setSelectedPhones, 
+    searchContact, 
+    setSearchContact,
+    importedPhones = [],
+    setImportedPhones,
+    importInput = '',
+    setImportInput
+}) => {
     const filtered = (conversations || []).filter(c => {
         const q = searchContact.toLowerCase();
         return !q || c.contact?.name?.toLowerCase().includes(q) || (c.contact?.phone || '').includes(q);
@@ -78,14 +93,35 @@ const ContactPanel = ({ tags, conversations, selectionMode, setSelectionMode, se
 
     const togglePhone = phone => setSelectedPhones(prev => prev.includes(phone) ? prev.filter(p => p !== phone) : [...prev, phone]);
 
-    const sectionStyle = { padding: '10px 14px', background: '#f8fafc', borderBottom: '1px solid #e5e7eb', display: 'flex', alignItems: 'center', justifyContent: 'space-between', cursor: 'pointer', fontSize: 13, fontWeight: 700, color: '#374151' };
-
     return (
         <div style={{ display: 'flex', flexDirection: 'column', height: '100%', overflow: 'hidden' }}>
             {/* Mode tabs */}
             <div style={{ display: 'flex', borderBottom: '1px solid #e5e7eb', flexShrink: 0 }}>
-                {[['manual', <User size={14} />, 'Contactos'], ['tag', <Tag size={14} />, 'Etiqueta'], ['all', <Users size={14} />, 'Todos']].map(([mode, icon, label]) => (
-                    <button key={mode} onClick={() => setSelectionMode(mode)} style={{ flex: 1, padding: '10px 6px', border: 'none', background: selectionMode === mode ? '#f0fdf4' : 'white', color: selectionMode === mode ? '#059669' : '#6b7280', fontWeight: selectionMode === mode ? 700 : 500, fontSize: 12, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 4, borderBottom: selectionMode === mode ? '2px solid #25d366' : '2px solid transparent' }}>
+                {[
+                    ['manual', <User size={14} />, 'Contactos'],
+                    ['import', <Plus size={14} />, 'Nuevo/Pegar'],
+                    ['tag', <Tag size={14} />, 'Etiqueta'],
+                    ['all', <Users size={14} />, 'Todos']
+                ].map(([mode, icon, label]) => (
+                    <button 
+                        key={mode} 
+                        onClick={() => setSelectionMode(mode)} 
+                        style={{ 
+                            flex: 1, 
+                            padding: '10px 4px', 
+                            border: 'none', 
+                            background: selectionMode === mode ? '#f0fdf4' : 'white', 
+                            color: selectionMode === mode ? '#059669' : '#6b7280', 
+                            fontWeight: selectionMode === mode ? 700 : 500, 
+                            fontSize: 11, 
+                            cursor: 'pointer', 
+                            display: 'flex', 
+                            alignItems: 'center', 
+                            justifyContent: 'center', 
+                            gap: 3, 
+                            borderBottom: selectionMode === mode ? '2px solid #25d366' : '2px solid transparent' 
+                        }}
+                    >
                         {icon}{label}
                     </button>
                 ))}
@@ -158,9 +194,106 @@ const ContactPanel = ({ tags, conversations, selectionMode, setSelectionMode, se
                 </div>
             )}
 
+            {/* Import / Paste list mode */}
+            {selectionMode === 'import' && (
+                <div style={{ padding: 12, flex: 1, display: 'flex', flexDirection: 'column', gap: 10, overflowY: 'auto' }}>
+                    <div style={{ fontSize: 13, fontWeight: 700, color: '#374151', display: 'flex', alignItems: 'center', gap: 6 }}>
+                        <Plus size={14} color="#25d366" /> Nuevo Contacto / Pegar Lista
+                    </div>
+                    
+                    <p style={{ fontSize: 11, color: '#6b7280', margin: 0, lineHeight: 1.4 }}>
+                        Ingresa un número para iniciar un chat o pega varios separados por comas, espacios o saltos de línea (ej: Excel).
+                    </p>
+
+                    <textarea
+                        value={importInput}
+                        onChange={(e) => {
+                            const val = e.target.value;
+                            setImportInput(val);
+                            
+                            const parsed = [];
+                            const rawParts = val.split(/[,;\n\r\t]+/);
+                            rawParts.forEach(part => {
+                                const trimmed = part.trim();
+                                if (!trimmed) return;
+                                
+                                const spaceParts = trimmed.split(/\s+/);
+                                if (spaceParts.length > 1) {
+                                    const isMultipleNumbers = spaceParts.every(sp => sp.replace(/\D/g, '').length >= 10);
+                                    if (isMultipleNumbers) {
+                                        spaceParts.forEach(sp => {
+                                            const cleaned = sp.replace(/\D/g, '');
+                                            if (cleaned.length >= 7 && cleaned.length <= 15) {
+                                                parsed.push(cleaned);
+                                            }
+                                        });
+                                        return;
+                                    }
+                                }
+                                
+                                const cleaned = trimmed.replace(/\D/g, '');
+                                if (cleaned.length >= 7 && cleaned.length <= 15) {
+                                    parsed.push(cleaned);
+                                }
+                            });
+                            
+                            setImportedPhones([...new Set(parsed)]);
+                        }}
+                        placeholder="Ej: +57 315 123 4567&#10;573001234567, 573019876543"
+                        style={{
+                            width: '100%',
+                            height: 120,
+                            padding: '8px 12px',
+                            border: '1px solid #e5e7eb',
+                            borderRadius: 8,
+                            fontSize: 13,
+                            outline: 'none',
+                            boxSizing: 'border-box',
+                            resize: 'vertical',
+                            fontFamily: 'monospace'
+                        }}
+                    />
+
+                    {importedPhones.length > 0 && (
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: 6, flex: 1, minHeight: 0 }}>
+                            <div style={{ fontSize: 12, fontWeight: 700, color: '#15803d', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                                <span>{importedPhones.length} número(s) detectado(s)</span>
+                                <button 
+                                    onClick={() => { setImportedPhones([]); setImportInput(''); }} 
+                                    style={{ border: 'none', background: 'none', color: '#ef4444', cursor: 'pointer', fontSize: 11, fontWeight: 600, padding: 0 }}
+                                >
+                                    Limpiar
+                                </button>
+                            </div>
+                            
+                            <div style={{ flex: 1, overflowY: 'auto', border: '1px solid #e5e7eb', borderRadius: 8, background: '#f8fafc', padding: '4px 8px' }}>
+                                {importedPhones.map((phone, idx) => (
+                                    <div key={phone} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '6px 0', borderBottom: idx === importedPhones.length - 1 ? 'none' : '1px solid #f1f5f9' }}>
+                                        <span style={{ fontSize: 12, fontFamily: 'monospace', color: '#374151' }}>{phone}</span>
+                                        <button 
+                                            onClick={() => {
+                                                const filtered = importedPhones.filter(p => p !== phone);
+                                                setImportedPhones(filtered);
+                                                setImportInput(filtered.join(', '));
+                                            }} 
+                                            style={{ border: 'none', background: 'none', color: '#9ca3af', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 0 }}
+                                            onMouseEnter={e => e.currentTarget.style.color = '#ef4444'}
+                                            onMouseLeave={e => e.currentTarget.style.color = '#9ca3af'}
+                                        >
+                                            <X size={12} />
+                                        </button>
+                                    </div>
+                                ))}
+                            </div>
+                        </div>
+                    )}
+                </div>
+            )}
+
             {/* Footer count */}
             <div style={{ padding: '10px 14px', borderTop: '1px solid #e5e7eb', fontSize: 12, color: '#6b7280', flexShrink: 0, background: '#fafafa' }}>
                 {selectionMode === 'manual' && `${selectedPhones.length} seleccionado${selectedPhones.length !== 1 ? 's' : ''} de ${filtered.length}`}
+                {selectionMode === 'import' && `${importedPhones.length} número${importedPhones.length !== 1 ? 's' : ''} para enviar`}
                 {selectionMode === 'tag' && selectedTagId && `Etiqueta seleccionada`}
                 {selectionMode === 'all' && `Todos los contactos`}
             </div>
@@ -180,6 +313,8 @@ const WaBulkOfficial = ({ conversations, tags }) => {
     const [selectionMode, setSelectionMode] = useState('manual');
     const [selectedTagId, setSelectedTagId] = useState(null);
     const [selectedPhones, setSelectedPhones] = useState([]);
+    const [importedPhones, setImportedPhones] = useState([]);
+    const [importInput, setImportInput] = useState('');
     const [searchContact, setSearchContact] = useState('');
     const [sending, setSending] = useState(false);
     const [result, setResult] = useState(null);
@@ -228,7 +363,10 @@ const WaBulkOfficial = ({ conversations, tags }) => {
     const canSend = selectedTemplate &&
         vars.every(v => variables[v]?.trim()) &&
         (!needsImage || headerImageUrl) &&
-        (selectionMode === 'all' || (selectionMode === 'tag' && selectedTagId) || (selectionMode === 'manual' && selectedPhones.length > 0)) &&
+        (selectionMode === 'all' || 
+         (selectionMode === 'tag' && selectedTagId) || 
+         (selectionMode === 'manual' && selectedPhones.length > 0) ||
+         (selectionMode === 'import' && importedPhones.length > 0)) &&
         !sending;
 
     const handleSend = async () => {
@@ -246,7 +384,11 @@ const WaBulkOfficial = ({ conversations, tags }) => {
                     headerImageUrl: headerImageUrl || null,
                     selectionMode,
                     tagId: selectionMode === 'tag' ? selectedTagId : null,
-                    recipients: selectionMode === 'manual' ? selectedPhones.map(p => ({ phone: p })) : []
+                    recipients: selectionMode === 'manual' 
+                        ? selectedPhones.map(p => ({ phone: p })) 
+                        : selectionMode === 'import'
+                        ? importedPhones.map(p => ({ phone: p }))
+                        : []
                 })
             });
             const data = await res.json();
@@ -393,6 +535,10 @@ const WaBulkOfficial = ({ conversations, tags }) => {
                         setSelectedPhones={setSelectedPhones}
                         searchContact={searchContact}
                         setSearchContact={setSearchContact}
+                        importedPhones={importedPhones}
+                        setImportedPhones={setImportedPhones}
+                        importInput={importInput}
+                        setImportInput={setImportInput}
                     />
                 </div>
             </div>

@@ -215,7 +215,7 @@ router.post('/bulk-send', asyncHandler(async (req, res) => {
         const batch = contactList.slice(i, i + BATCH_SIZE);
 
         await Promise.all(batch.map(async (contact) => {
-            const phone = (contact.phone || '').replace(/\D/g, '');
+            const phone = normalizePhone(contact.phone);
             if (!phone) { failed++; return; }
 
             const body = {
