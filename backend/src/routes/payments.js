@@ -293,14 +293,14 @@ router.patch('/:id/status', async (req, res) => {
 
         const result = await db.query(
             `UPDATE payments
-             SET status = $1,
+             SET status = $1::varchar,
                  notes = COALESCE($2, notes),
                  verified_by = COALESCE($3, verified_by),
-                 verified_at = CASE WHEN $1 = 'verified' THEN NOW() ELSE verified_at END,
+                 verified_at = CASE WHEN $1::varchar = 'verified' THEN NOW() ELSE verified_at END,
                  updated_at = NOW()
-             WHERE id = $4
+             WHERE id = $4::integer
              RETURNING *`,
-            [status, notes || null, verified_by || null, id]
+            [status, notes || null, verified_by || null, parseInt(id, 10)]
         );
 
         if (result.rows.length === 0) {
