@@ -337,10 +337,12 @@ router.patch('/:id/status', async (req, res) => {
         console.log(`✏️ [Payments] Status updated: id=${id} → ${status}`);
         res.json({ success: true, payment: result.rows[0] });
 
-    } catch (error) {
-        console.error('❌ [Payments] patch status error:', error);
-        res.status(500).json({ error: error.message });
-    }
+        } catch (error) {
+            console.error('❌ [Payments] patch status error:', error);
+            res.status(500).json({ error: error.message });
+        }
+});
+
 // ─── POST /trigger-verify ─────────────────────────────────────────────────────
 /**
  * Triggers the n8n webhook verification flow for a specific image message.
