@@ -245,7 +245,7 @@ const MessageList = ({
                                         onPhoneClick={onPhoneClick}
                                         onQuoteClick={handleQuoteClick}
                                         onVerifyPayment={onVerifyPayment}
-                                        isVerifying={!!verifyingMessageIds[message.id] || !!verifyingMessageIds[message.whatsapp_id]}
+                                        isVerifying={!!verifyingMessageIds[msgId]}
                                     />
                                 </div>
                             );

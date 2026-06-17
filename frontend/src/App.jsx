@@ -991,15 +991,18 @@ const AuthenticatedApp = () => {
     }, [reactToMessage, selectedConversation]);
 
     const handleVerifyPayment = useCallback(async (message) => {
-        const messageId = message.id || message.whatsapp_id;
-        if (!messageId) return;
+        const rawId = message.id || message.whatsapp_id;
+        if (!rawId) return;
+
+        // Clean ID suffix (e.g. @c.us) to match the ID format in MessageList
+        const messageId = String(rawId).split('@')[0].trim();
 
         setVerifyingMessageIds(prev => ({ ...prev, [messageId]: true }));
         try {
             const response = await apiFetch('/api/payments/trigger-verify', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ messageId })
+                body: JSON.stringify({ messageId: rawId }) // Send raw ID to the backend query
             });
 
             const data = await response.json();
