@@ -227,6 +227,11 @@ const MessageList = ({
                         {group.messages.map((message, index) => {
                             // Clean the ID for matching (important for WhatsApp suffixes)
                             const msgId = String(message.whatsapp_id || message.id).split('@')[0].trim();
+                            if (msgId.includes('3A23D3B72BFB')) {
+                                console.log('🔍 [MessageList] Encontrado comprobante msgId:', msgId);
+                                console.log('🔍 [MessageList] verifyingMessageIds actual:', verifyingMessageIds);
+                                console.log('🔍 [MessageList] isVerifying calculado:', !!verifyingMessageIds[msgId]);
+                            }
                             return (
                                 <div 
                                     key={msgId || `${dateKey}-${index}`}
