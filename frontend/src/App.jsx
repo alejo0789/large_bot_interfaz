@@ -992,24 +992,43 @@ const AuthenticatedApp = () => {
     }, [reactToMessage, selectedConversation]);
 
     const handleVerifyPayment = useCallback(async (message) => {
+        console.log('🔍 [handleVerifyPayment] Iniciando verificación de pago...');
+        console.log('🔍 [handleVerifyPayment] Mensaje recibido:', message);
+        
         const rawId = message.id || message.whatsapp_id;
-        if (!rawId) return;
+        console.log('🔍 [handleVerifyPayment] ID crudo extraído:', rawId);
+        
+        if (!rawId) {
+            console.error('❌ [handleVerifyPayment] Error: El mensaje no tiene un ID válido.');
+            return;
+        }
 
         // Clean ID suffix (e.g. @c.us) to match the ID format in MessageList
         const messageId = String(rawId).split('@')[0].trim();
+        console.log('🔍 [handleVerifyPayment] ID limpio para el cargador:', messageId);
 
-        setVerifyingMessageIds(prev => ({ ...prev, [messageId]: true }));
+        setVerifyingMessageIds(prev => {
+            const next = { ...prev, [messageId]: true };
+            console.log('🔍 [handleVerifyPayment] Nuevo mapa de carga:', next);
+            return next;
+        });
+
         try {
+            console.log('📡 [handleVerifyPayment] Enviando request a trigger-verify para ID:', rawId);
             const response = await apiFetch('/api/payments/trigger-verify', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ messageId: rawId }) // Send raw ID to the backend query
             });
 
+            console.log('📡 [handleVerifyPayment] Respuesta recibida de trigger-verify. Status:', response.status);
             const data = await response.json();
+            console.log('📡 [handleVerifyPayment] Datos de la respuesta:', data);
+
             setVerifyingMessageIds(prev => {
                 const next = { ...prev };
                 delete next[messageId];
+                console.log('🔍 [handleVerifyPayment] Quitando del cargador. Nuevo mapa:', next);
                 return next;
             });
 
@@ -1018,18 +1037,19 @@ const AuthenticatedApp = () => {
             }
 
             if (data.success) {
+                console.log('✅ [handleVerifyPayment] Éxito. Abriendo modal con resultados.');
                 setVerificationResult({
                     ...data.n8nResult,
                     messageId: rawId
                 });
             }
         } catch (error) {
+            console.error('❌ [handleVerifyPayment] Error capturado:', error);
             setVerifyingMessageIds(prev => {
                 const next = { ...prev };
                 delete next[messageId];
                 return next;
             });
-            console.error('Error verifying payment:', error);
             alert(`❌ Error al verificar pago: ${error.message}`);
         }
     }, []);
