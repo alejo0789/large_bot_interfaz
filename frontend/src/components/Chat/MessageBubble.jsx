@@ -11,10 +11,6 @@ const MessageBubble = React.memo(({ message, onForward, onReact, onDelete, onRep
     const rawSender = message.sender || message.sender_type || 'customer';
     const sender = String(rawSender).toLowerCase().trim();
 
-    if (isVerifying) {
-        console.log(`💡 [MessageBubble] Renderizando burbuja de mensaje con isVerifying=true. MsgID:`, id);
-    }
-
     const media_type = message.media_type || message.mediaType;
     let media_url = message.media_url || message.mediaUrl;
 
@@ -1009,10 +1005,11 @@ const MessageBubble = React.memo(({ message, onForward, onReact, onDelete, onRep
         </>
     );
 }, (prevProps, nextProps) => {
-    // Only re-render if the message data has changed (status, text, reactions, etc.)
+    // Only re-render if the message data has changed or isVerifying status has changed
     const pm = prevProps.message;
     const nm = nextProps.message;
     return (
+        prevProps.isVerifying === nextProps.isVerifying &&
         pm.id === nm.id &&
         pm.status === nm.status &&
         pm.text === nm.text &&
