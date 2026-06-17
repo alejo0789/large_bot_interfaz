@@ -16,6 +16,7 @@ const MessageList = ({
     onEdit,
     onSchedule,
     onPhoneClick,
+    onVerifyPayment,
     // Older-message pagination props
     onLoadOlder,
     hasMoreOlder,
@@ -242,6 +243,7 @@ const MessageList = ({
                                         onSchedule={onSchedule}
                                         onPhoneClick={onPhoneClick}
                                         onQuoteClick={handleQuoteClick}
+                                        onVerifyPayment={onVerifyPayment}
                                     />
                                 </div>
                             );

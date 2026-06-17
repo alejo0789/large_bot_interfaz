@@ -341,6 +341,86 @@ router.patch('/:id/status', async (req, res) => {
         console.error('❌ [Payments] patch status error:', error);
         res.status(500).json({ error: error.message });
     }
+// ─── POST /trigger-verify ─────────────────────────────────────────────────────
+/**
+ * Triggers the n8n webhook verification flow for a specific image message.
+ * Reads the configured webhook from the tenant settings, calls n8n, and returns the verification result.
+ * Body: { messageId }
+ */
+router.post('/trigger-verify', async (req, res) => {
+    try {
+        const db = getDb();
+        const { messageId } = req.body;
+
+        if (!messageId) {
+            return res.status(400).json({ error: 'Se requiere messageId' });
+        }
+
+        // 1. Fetch message details from tenant database
+        const msgRes = await db.query(
+            `SELECT conversation_phone, media_url, media_type
+             FROM messages
+             WHERE id = $1 OR whatsapp_id = $1
+             LIMIT 1`,
+            [messageId]
+        );
+
+        if (msgRes.rows.length === 0) {
+            return res.status(404).json({ error: 'Mensaje no encontrado' });
+        }
+
+        const message = msgRes.rows[0];
+        if (message.media_type !== 'image' || !message.media_url) {
+            return res.status(400).json({ error: 'El mensaje debe ser una imagen para verificar el pago' });
+        }
+
+        // 2. Fetch the webhook URL from tenant settings
+        const settingsRes = await db.query(
+            `SELECT value FROM settings WHERE key = 'payment_verify_webhook' LIMIT 1`
+        );
+
+        if (settingsRes.rows.length === 0 || !settingsRes.rows[0].value) {
+            return res.status(400).json({
+                error: 'No se ha configurado un webhook de verificación de pagos para esta sede'
+            });
+        }
+
+        const webhookUrl = settingsRes.rows[0].value;
+        const tenantSlug = req.tenant?.slug || 'unknown';
+
+        console.log(`📤 [Payments] Triggering n8n verification: msg=${messageId} url=${webhookUrl}`);
+
+        // 3. Post payload to n8n webhook
+        const fetch = (await import('node-fetch')).default;
+        const response = await fetch(webhookUrl, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                imageUrl: message.media_url,
+                conversation_phone: message.conversation_phone,
+                phone: message.conversation_phone,
+                tenantSlug: tenantSlug,
+                messageId: messageId
+            })
+        });
+
+        if (!response.ok) {
+            const errText = await response.text();
+            throw new Error(`n8n webhook error: ${response.status} - ${errText}`);
+        }
+
+        const n8nResult = await response.json().catch(() => ({}));
+        console.log(`📥 [Payments] n8n verification response:`, n8nResult);
+
+        res.json({
+            success: true,
+            n8nResult
+        });
+
+    } catch (error) {
+        console.error('❌ [Payments] trigger-verify error:', error);
+        res.status(500).json({ error: error.message });
+    }
 });
 
 module.exports = router;

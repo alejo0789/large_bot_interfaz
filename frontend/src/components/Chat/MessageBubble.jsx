@@ -6,7 +6,7 @@ import EmojiPicker from 'emoji-picker-react';
 /**
  * Message bubble component with media support, reactions, and actions
  */
-const MessageBubble = React.memo(({ message, onForward, onReact, onDelete, onReply, onEdit, onSchedule, onPhoneClick, onQuoteClick }) => {
+const MessageBubble = React.memo(({ message, onForward, onReact, onDelete, onReply, onEdit, onSchedule, onPhoneClick, onQuoteClick, onVerifyPayment }) => {
     const { text, timestamp, status, id, reactions = [], edited } = message;
     const rawSender = message.sender || message.sender_type || 'customer';
     const sender = String(rawSender).toLowerCase().trim();
@@ -851,6 +851,35 @@ const MessageBubble = React.memo(({ message, onForward, onReact, onDelete, onRep
                                     <Forward className="w-4 h-4" />
                                     Reenviar
                                 </button>
+
+                                {media_type === 'image' && onVerifyPayment && !isDeleted && (
+                                    <button
+                                        onClick={() => {
+                                            onVerifyPayment(message);
+                                            setShowMenu(false);
+                                        }}
+                                        style={{
+                                            display: 'flex',
+                                            alignItems: 'center',
+                                            gap: '8px',
+                                            padding: '8px 12px',
+                                            border: 'none',
+                                            background: 'none',
+                                            width: '100%',
+                                            textAlign: 'left',
+                                            fontSize: '14px',
+                                            color: 'var(--color-primary)',
+                                            cursor: 'pointer',
+                                            borderRadius: '6px',
+                                            fontWeight: 600
+                                        }}
+                                        onMouseEnter={(e) => e.currentTarget.style.background = 'rgba(7,94,84,0.08)'}
+                                        onMouseLeave={(e) => e.currentTarget.style.background = 'none'}
+                                    >
+                                        <CheckCheck className="w-4 h-4" />
+                                        Verificar Pago
+                                    </button>
+                                )}
 
                                 <button
                                     onClick={handleDeleteClick}

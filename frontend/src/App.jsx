@@ -989,6 +989,39 @@ const AuthenticatedApp = () => {
         reactToMessage(message.id, emoji, selectedConversation?.contact.phone);
     }, [reactToMessage, selectedConversation]);
 
+    const handleVerifyPayment = useCallback(async (message) => {
+        if (!window.confirm('¿Deseas enviar este comprobante para verificar el pago automáticamente con n8n?')) return;
+
+        document.body.style.cursor = 'wait';
+        try {
+            const response = await apiFetch('/api/payments/trigger-verify', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ messageId: message.id || message.whatsapp_id })
+            });
+
+            const data = await response.json();
+            document.body.style.cursor = 'default';
+
+            if (!response.ok) {
+                throw new Error(data.error || 'Error al procesar la verificación');
+            }
+
+            if (data.success) {
+                const result = data.n8nResult;
+                if (result.matched) {
+                    alert(`✅ ¡Pago Verificado y Registrado con éxito!\n\nReferencia: ${result.payment?.reference || 'N/A'}\nMonto: $${result.payment?.amount || 'N/A'}\nPagador: ${result.payment?.payer_name || 'Desconocido'}\n\nEl pago ha sido asociado al cliente.`);
+                } else {
+                    alert(`⚠️ No se encontró coincidencia en la base de datos de ingresos.\n\nLa IA/OCR detectó:\n• Referencia: ${result.ocr?.reference || 'No detectada'}\n• Monto: $${result.ocr?.amount || 'No detectado'}\n\nPor favor, verifica si el correo de notificación bancaria ya ingresó.`);
+                }
+            }
+        } catch (error) {
+            document.body.style.cursor = 'default';
+            console.error('Error verifying payment:', error);
+            alert(`❌ Error al verificar pago: ${error.message}`);
+        }
+    }, []);
+
     const handleScheduleMessage = useCallback((message) => {
         setScheduleMessage(message);
         setShowScheduleModal(true);
@@ -1332,7 +1365,7 @@ const AuthenticatedApp = () => {
                                     onReply={handleReplyMessage}
                                     onEdit={setEditingMessage}
                                     onSchedule={handleScheduleMessage}
-                                    onPhoneClick={handleStartNewChat}
+                                    onPhoneClick={handleStartNewChat} onVerifyPayment={handleVerifyPayment}
                                     onLoadOlder={selectedConversation ? () => loadOlderMessages(selectedConversation.contact.phone) : undefined}
                                     hasMoreOlder={selectedConversation ? (messagePaginationByPhone[selectedConversation.contact.phone]?.hasMore ?? false) : false}
                                     isLoadingOlder={isLoadingOlderMessages}
