@@ -58,7 +58,7 @@ router.post('/register', async (req, res) => {
             `INSERT INTO payments
                 (reference, amount, bank, payer_name, payer_account, payment_date, email_subject, raw_email, status)
              VALUES ($1, $2, $3, $4, $5, $6, $7, $8, 'pending')
-             ON CONFLICT ON CONSTRAINT idx_payments_ref_date DO UPDATE
+             ON CONFLICT (reference, payment_date) WHERE reference IS NOT NULL DO UPDATE
                 SET updated_at = NOW(), status = CASE WHEN payments.status = 'pending' THEN 'pending' ELSE payments.status END
              RETURNING *`,
             [reference || null, amount || null, bank || null, payer_name || null,
