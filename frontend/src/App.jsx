@@ -1008,18 +1008,44 @@ const AuthenticatedApp = () => {
 
             if (data.success) {
                 const result = data.n8nResult;
-                if (result.matched) {
-                    alert(`✅ ¡Pago Verificado y Registrado con éxito!\n\nReferencia: ${result.payment?.reference || 'N/A'}\nMonto: $${result.payment?.amount || 'N/A'}\nPagador: ${result.payment?.payer_name || 'Desconocido'}\n\nEl pago ha sido asociado al cliente.`);
+                if (result.matched && result.payment) {
+                    const payment = result.payment;
+                    const confirmMsg = `¿Deseas verificar este pago?\n\n👤 Pagador: ${payment.payer_name || 'Desconocido'}\n💰 Monto: $${payment.amount}\n🏦 Banco: ${payment.bank || 'Bancolombia'}\n📅 Fecha: ${new Date(payment.payment_date).toLocaleString('es-CO')}\n\nPresiona ACEPTAR si los datos son correctos. Presiona CANCELAR para anular la verificación.`;
+
+                    if (window.confirm(confirmMsg)) {
+                        // The user accepted. Call backend PATCH status endpoint to confirm verification
+                        document.body.style.cursor = 'wait';
+                        const patchRes = await apiFetch(`/api/payments/${payment.id}/status`, {
+                            method: 'PATCH',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({
+                                status: 'verified',
+                                notes: `Verificado por agente tras OCR de comprobante. Ref cliente: ${result.ocr?.reference || 'N/A'}.`,
+                                verified_by: user?.name || 'Agente'
+                            })
+                        });
+
+                        document.body.style.cursor = 'default';
+                        if (!patchRes.ok) {
+                            const patchData = await patchRes.json();
+                            throw new Error(patchData.error || 'No se pudo confirmar la verificación del pago en la base de datos');
+                        }
+
+                        alert(`✅ ¡Pago Verificado y Registrado con éxito!\n\nAsociado a la conversación.`);
+                    } else {
+                        console.log('❌ Verificación cancelada por el agente.');
+                    }
                 } else {
-                    alert(`⚠️ No se encontró coincidencia en la base de datos de ingresos.\n\nLa IA/OCR detectó:\n• Referencia: ${result.ocr?.reference || 'No detectada'}\n• Monto: $${result.ocr?.amount || 'No detectado'}\n\nPor favor, verifica si el correo de notificación bancaria ya ingresó.`);
+                    alert(`⚠️ No se encontró coincidencia en la base de datos de ingresos en los últimos 20 minutos.\n\nLa IA/OCR detectó:\n• Referencia: ${result.ocr?.reference || 'No detectada'}\n• Monto: $${result.ocr?.amount || 'No detectado'}\n\nPor favor, verifica si el correo de notificación bancaria ya ingresó.`);
                 }
             }
         } catch (error) {
             setIsVerifyingPayment(false);
+            document.body.style.cursor = 'default';
             console.error('Error verifying payment:', error);
             alert(`❌ Error al verificar pago: ${error.message}`);
         }
-    }, []);
+    }, [user]);
 
     const handleScheduleMessage = useCallback((message) => {
         setScheduleMessage(message);

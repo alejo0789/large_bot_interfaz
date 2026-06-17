@@ -98,67 +98,40 @@ router.post('/verify', async (req, res) => {
             tolerance_pct = 2   // allow ±2% amount difference by default
         } = req.body;
 
-        if (!reference && !amount) {
-            return res.status(400).json({ error: 'Se requiere reference o amount para verificar' });
+        if (!amount) {
+            return res.status(400).json({ error: 'Se requiere el monto (amount) del comprobante para verificar' });
         }
 
         const phone = normalizePhone(conversation_phone);
         const toleranceFactor = 1 + (parseFloat(tolerance_pct) / 100);
+        const amtNum = parseFloat(amount);
 
-        // Search for a pending payment matching reference or amount (within tolerance)
-        let query, params;
-
-        if (reference) {
-            // Exact reference match is preferred
-            query = `
-                SELECT * FROM payments
-                WHERE status = 'pending'
-                  AND reference = $1
-                ORDER BY payment_date DESC
-                LIMIT 1
-            `;
-            params = [reference];
-        } else {
-            // Fallback: match by amount within tolerance window (last 48h)
-            query = `
-                SELECT * FROM payments
-                WHERE status = 'pending'
-                  AND amount BETWEEN $1 AND $2
-                  AND payment_date >= NOW() - INTERVAL '48 hours'
-                ORDER BY payment_date DESC
-                LIMIT 1
-            `;
-            const amtNum = parseFloat(amount);
-            params = [amtNum / toleranceFactor, amtNum * toleranceFactor];
-        }
+        // Match by amount within tolerance window (last 20 minutes)
+        const query = `
+            SELECT * FROM payments
+            WHERE status = 'pending'
+              AND amount BETWEEN $1 AND $2
+              AND payment_date >= NOW() - INTERVAL '20 minutes'
+            ORDER BY payment_date DESC
+            LIMIT 1
+        `;
+        const params = [amtNum / toleranceFactor, amtNum * toleranceFactor];
 
         const { rows } = await db.query(query, params);
 
         if (rows.length === 0) {
-            console.log(`⚠️ [Payments] No match found for ref=${reference} amount=${amount}`);
-            return res.json({ matched: false, message: 'No se encontró un pago registrado que coincida' });
+            console.log(`⚠️ [Payments] No match found by amount=${amount} in last 20 minutes`);
+            return res.json({ matched: false, message: 'No se encontró una notificación de transferencia bancaria por ese valor en las últimas 20 minutos' });
         }
 
         const payment = rows[0];
 
-        // Mark as verified and link to conversation
-        const updated = await db.query(
-            `UPDATE payments
-             SET status = 'verified',
-                 verified_at = NOW(),
-                 verified_by = $1,
-                 conversation_phone = COALESCE($2, conversation_phone),
-                 updated_at = NOW()
-             WHERE id = $3
-             RETURNING *`,
-            [phone || 'n8n-auto', phone, payment.id]
-        );
+        console.log(`🔍 [Payments] Found potential match: id=${payment.id} bank_ref=${payment.reference} amount=${payment.amount} payer=${payment.payer_name}`);
 
-        console.log(`✅ [Payments] Verified: id=${payment.id} ref=${payment.reference} by=${phone}`);
-
+        // Return found payment details. We will let the frontend agent confirm before mutating DB.
         res.json({
             matched: true,
-            payment: updated.rows[0]
+            payment
         });
 
     } catch (error) {
