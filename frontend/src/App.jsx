@@ -1581,14 +1581,14 @@ const AuthenticatedApp = () => {
                                     width: '64px',
                                     height: '64px',
                                     borderRadius: '50%',
-                                    backgroundColor: 'rgba(16, 185, 129, 0.1)',
+                                    backgroundColor: verificationResult.alreadyVerified ? 'rgba(59, 130, 246, 0.1)' : 'rgba(16, 185, 129, 0.1)',
                                     display: 'flex',
                                     alignItems: 'center',
                                     justifyContent: 'center',
-                                    color: '#10b981',
+                                    color: verificationResult.alreadyVerified ? '#3b82f6' : '#10b981',
                                     fontSize: '32px'
                                 }}>
-                                    ✓
+                                    {verificationResult.alreadyVerified ? 'ℹ' : '✓'}
                                 </div>
                             ) : (
                                 <div style={{
@@ -1614,9 +1614,9 @@ const AuthenticatedApp = () => {
                                 fontSize: '20px',
                                 fontWeight: 700,
                                 margin: 0,
-                                color: verificationResult.matched ? '#10b981' : '#ef4444'
+                                color: verificationResult.alreadyVerified ? '#3b82f6' : (verificationResult.matched ? '#10b981' : '#ef4444')
                             }}>
-                                {verificationResult.matched ? '¡Pago Coincide!' : 'Sin Coincidencia Bancaria'}
+                                {verificationResult.alreadyVerified ? '¡Pago Ya Verificado!' : (verificationResult.matched ? '¡Pago Coincide!' : 'Sin Coincidencia Bancaria')}
                             </h3>
                             <p style={{
                                 fontSize: '14px',
@@ -1625,9 +1625,11 @@ const AuthenticatedApp = () => {
                                 lineHeight: '1.5',
                                 padding: '0 8px'
                             }}>
-                                {verificationResult.matched 
-                                    ? 'Hemos encontrado un movimiento pendiente en la cuenta que coincide con el valor extraído del comprobante.'
-                                    : 'No se encontró coincidencia en las notificaciones bancarias de los últimos 20 minutos. Por favor, verifica de nuevo.'
+                                {verificationResult.alreadyVerified 
+                                    ? 'Este movimiento de transferencia bancaria ya ha sido verificado y registrado anteriormente.'
+                                    : (verificationResult.matched 
+                                        ? 'Hemos encontrado un movimiento pendiente en la cuenta que coincide con el valor extraído del comprobante.'
+                                        : 'No se encontró coincidencia en las notificaciones bancarias de los últimos 20 minutos. Por favor, verifica de nuevo.')
                                 }
                             </p>
                         </div>
@@ -1635,7 +1637,7 @@ const AuthenticatedApp = () => {
                         {/* DETAILS CARD */}
                         <div style={{
                             backgroundColor: 'var(--color-bg-base, #f9fafb)',
-                            border: `1px solid ${verificationResult.matched ? 'rgba(16, 185, 129, 0.2)' : 'rgba(239, 68, 68, 0.2)'}`,
+                            border: `1px solid ${verificationResult.alreadyVerified ? 'rgba(59, 130, 246, 0.2)' : (verificationResult.matched ? 'rgba(16, 185, 129, 0.2)' : 'rgba(239, 68, 68, 0.2)')}`,
                             borderRadius: '12px',
                             padding: '16px',
                             marginBottom: '28px',
@@ -1661,7 +1663,9 @@ const AuthenticatedApp = () => {
                             {/* Bank Match Info */}
                             {verificationResult.matched && verificationResult.payment && (
                                 <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-                                    <span style={{ display: 'block', fontSize: '11px', fontWeight: 600, color: '#10b981', textTransform: 'uppercase', marginBottom: '4px' }}>Registrado en el Banco</span>
+                                    <span style={{ display: 'block', fontSize: '11px', fontWeight: 600, color: verificationResult.alreadyVerified ? '#3b82f6' : '#10b981', textTransform: 'uppercase', marginBottom: '4px' }}>
+                                        {verificationResult.alreadyVerified ? 'Registrado y Verificado' : 'Registrado en el Banco'}
+                                    </span>
                                     <div style={{ display: 'flex', justifyContent: 'space-between' }}>
                                         <span>👤 Pagador:</span>
                                         <strong>{verificationResult.payment.payer_name || 'Desconocido'}</strong>
@@ -1680,7 +1684,7 @@ const AuthenticatedApp = () => {
 
                         {/* ACTIONS */}
                         <div style={{ display: 'flex', gap: '12px' }}>
-                            {verificationResult.matched ? (
+                            {verificationResult.matched && !verificationResult.alreadyVerified ? (
                                 <>
                                     <button
                                         onClick={() => setVerificationResult(null)}

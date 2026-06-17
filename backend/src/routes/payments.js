@@ -109,7 +109,7 @@ router.post('/verify', async (req, res) => {
         // Match by amount within tolerance window (last 20 minutes)
         const query = `
             SELECT * FROM payments
-            WHERE status = 'pending'
+            WHERE status IN ('pending', 'verified')
               AND amount BETWEEN $1 AND $2
               AND payment_date >= NOW() - INTERVAL '20 minutes'
             ORDER BY payment_date DESC
@@ -126,11 +126,12 @@ router.post('/verify', async (req, res) => {
 
         const payment = rows[0];
 
-        console.log(`🔍 [Payments] Found potential match: id=${payment.id} bank_ref=${payment.reference} amount=${payment.amount} payer=${payment.payer_name}`);
+        console.log(`🔍 [Payments] Found potential match: id=${payment.id} bank_ref=${payment.reference} amount=${payment.amount} payer=${payment.payer_name} status=${payment.status}`);
 
         // Return found payment details. We will let the frontend agent confirm before mutating DB.
         res.json({
             matched: true,
+            alreadyVerified: payment.status === 'verified',
             payment
         });
 
