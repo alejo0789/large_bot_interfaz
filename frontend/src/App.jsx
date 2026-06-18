@@ -1038,8 +1038,15 @@ const AuthenticatedApp = () => {
 
             if (data.success) {
                 console.log('✅ [handleVerifyPayment] Éxito. Abriendo modal con resultados.');
+                
+                // n8n sometimes returns an array if the last node outputs a list.
+                let resultPayload = data.n8nResult;
+                if (Array.isArray(resultPayload) && resultPayload.length > 0) {
+                    resultPayload = resultPayload[0];
+                }
+
                 setVerificationResult({
-                    ...data.n8nResult,
+                    ...resultPayload,
                     messageId: rawId
                 });
             }
