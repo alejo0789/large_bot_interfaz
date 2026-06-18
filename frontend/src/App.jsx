@@ -28,6 +28,7 @@ import ScheduleModal from './components/Modals/ScheduleModal';
 import MainLayout from './components/MainLayout';
 import AIArea from './components/AI/AIArea';
 import Dashboard from './components/Dashboard/Dashboard';
+import PaymentsDashboard from './components/Dashboard/PaymentsDashboard';
 import BulkActionsBar from './components/Sidebar/BulkActionsBar';
 import AdminPanel from './components/Admin/AdminPanel';
 import Celebration from './components/UI/Celebration';
@@ -1565,6 +1566,7 @@ const AuthenticatedApp = () => {
             />
 
             {activeTab === 'dashboard' && <Dashboard isMobile={isMobile} />}
+            {activeTab === 'payments_dashboard' && <PaymentsDashboard isMobile={isMobile} />}
             {activeTab === 'ai' && <AIArea isMobile={isMobile} />}
             {activeTab === 'admin' && <AdminPanel isMobile={isMobile} />}
             {activeTab === 'wa-templates' && <WaTemplates onBulkSend={(tpl) => setActiveTab('wa-bulk')} />}

@@ -286,7 +286,8 @@ router.get('/stats', async (req, res) => {
                 COUNT(*) FILTER (WHERE status = 'rejected')    AS rejected,
                 COUNT(*) FILTER (WHERE status = 'duplicate')   AS duplicate,
                 COALESCE(SUM(amount), 0)                       AS total_amount,
-                COALESCE(SUM(amount) FILTER (WHERE status = 'verified'), 0) AS verified_amount
+                COALESCE(SUM(amount) FILTER (WHERE status = 'verified'), 0) AS verified_amount,
+                COUNT(*) FILTER (WHERE amount = 20000)         AS count_20k
              FROM payments
              WHERE ${dateFilter}`,
             params

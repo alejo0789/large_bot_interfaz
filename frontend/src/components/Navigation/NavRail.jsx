@@ -1,5 +1,5 @@
 import React from 'react';
-import { MessageSquare, Brain, Settings, X, LogOut, Send, LayoutDashboard, Menu, ShieldCheck, FileText, Megaphone } from 'lucide-react';
+import { MessageSquare, Brain, Settings, X, LogOut, Send, LayoutDashboard, Menu, ShieldCheck, FileText, Megaphone, CircleDollarSign } from 'lucide-react';
 
 const NavRail = ({ activeTab, onTabChange, isMobile, isOpen, onClose, onOpen, onLogout, onBulkMessage, isCollapsed, onToggleCollapse, user, isOfficialTenant }) => {
     const isAdmin = user?.role === 'SUPER_ADMIN' || user?.role === 'SEDE_ADMIN';
@@ -158,6 +158,14 @@ const NavRail = ({ activeTab, onTabChange, isMobile, isOpen, onClose, onOpen, on
                                     fullWidth
                                     adminStyle
                                 />
+                                <NavButton
+                                    icon={<CircleDollarSign />}
+                                    label="Dashboard Pagos"
+                                    active={activeTab === 'payments_dashboard'}
+                                    onClick={() => { onTabChange('payments_dashboard'); onClose(); }}
+                                    fullWidth
+                                    adminStyle
+                                />
                             </>
                         )}
 
@@ -266,13 +274,22 @@ const NavRail = ({ activeTab, onTabChange, isMobile, isOpen, onClose, onOpen, on
                 )}
 
                 {isAdmin && (
-                    <NavButton
-                        icon={<ShieldCheck />}
-                        label="Admin"
-                        active={activeTab === 'admin'}
-                        onClick={() => onTabChange('admin')}
-                        adminStyle
-                    />
+                    <>
+                        <NavButton
+                            icon={<ShieldCheck />}
+                            label="Admin"
+                            active={activeTab === 'admin'}
+                            onClick={() => onTabChange('admin')}
+                            adminStyle
+                        />
+                        <NavButton
+                            icon={<CircleDollarSign />}
+                            label="Pagos"
+                            active={activeTab === 'payments_dashboard'}
+                            onClick={() => onTabChange('payments_dashboard')}
+                            adminStyle
+                        />
+                    </>
                 )}
 
                 <div style={{ marginTop: 'auto', display: 'flex', flexDirection: 'column', gap: '16px', marginBottom: '24px' }}>
