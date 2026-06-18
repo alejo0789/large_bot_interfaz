@@ -24,17 +24,19 @@ const PaymentsDashboard = ({ isMobile }) => {
     // Calculate effective dates based on range type
     const dates = useMemo(() => {
         const today = new Date();
+        const formatDate = (d) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+        
         let start = '';
         let end = '';
 
         if (dateRangeType === 'today') {
-            start = today.toISOString().split('T')[0];
-            end = today.toISOString().split('T')[0];
+            start = formatDate(today);
+            end = formatDate(today);
         } else if (dateRangeType === 'month') {
             const firstDay = new Date(today.getFullYear(), today.getMonth(), 1);
             const lastDay = new Date(today.getFullYear(), today.getMonth() + 1, 0);
-            start = firstDay.toISOString().split('T')[0];
-            end = lastDay.toISOString().split('T')[0];
+            start = formatDate(firstDay);
+            end = formatDate(lastDay);
         } else if (dateRangeType === 'custom') {
             start = customStartDate;
             end = customEndDate;
