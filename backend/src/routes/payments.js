@@ -116,6 +116,29 @@ router.post('/verify', async (req, res) => {
         `;
         const params = [amtNum / toleranceFactor, amtNum * toleranceFactor];
 
+        // NEW: Check if this exact receipt reference has already been verified
+        if (reference && String(reference).trim().length >= 4) {
+            const cleanRef = String(reference).trim();
+            const refQuery = `
+                SELECT * FROM payments 
+                WHERE status = 'verified' 
+                  AND notes ILIKE $1
+                ORDER BY verified_at DESC 
+                LIMIT 1
+            `;
+            const refRows = await db.query(refQuery, [`%Ref cliente: ${cleanRef}%`]);
+            if (refRows.rows.length > 0) {
+                console.log(`🔍 [Payments] Found ALREADY VERIFIED by exact receipt reference: ${cleanRef}`);
+                return res.json({
+                    matched: true,
+                    multipleMatches: false,
+                    alreadyVerified: true,
+                    usedReference: true,
+                    payment: refRows.rows[0]
+                });
+            }
+        }
+
         const { rows } = await db.query(query, params);
 
         if (rows.length === 0) {

@@ -1603,7 +1603,7 @@ const AuthenticatedApp = () => {
                         borderRadius: '20px',
                         boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.25)',
                         width: '100%',
-                        maxWidth: '440px',
+                        maxWidth: '480px',
                         color: 'var(--color-gray-800, #1f2937)',
                         boxSizing: 'border-box',
                         animation: 'success-pop 0.3s cubic-bezier(0.34, 1.56, 0.64, 1)'
@@ -1615,14 +1615,14 @@ const AuthenticatedApp = () => {
                                     width: '64px',
                                     height: '64px',
                                     borderRadius: '50%',
-                                    backgroundColor: verificationResult.alreadyVerified ? 'rgba(59, 130, 246, 0.1)' : 'rgba(16, 185, 129, 0.1)',
+                                    backgroundColor: verificationResult.usedReference ? 'rgba(220, 38, 38, 0.1)' : (verificationResult.alreadyVerified ? 'rgba(59, 130, 246, 0.1)' : 'rgba(16, 185, 129, 0.1)'),
                                     display: 'flex',
                                     alignItems: 'center',
                                     justifyContent: 'center',
-                                    color: verificationResult.alreadyVerified ? '#3b82f6' : '#10b981',
+                                    color: verificationResult.usedReference ? '#dc2626' : (verificationResult.alreadyVerified ? '#3b82f6' : '#10b981'),
                                     fontSize: '32px'
                                 }}>
-                                    {verificationResult.alreadyVerified ? 'ℹ' : '✓'}
+                                    {verificationResult.usedReference ? '🛑' : (verificationResult.alreadyVerified ? 'ℹ' : '✓')}
                                 </div>
                             ) : (
                                 <div style={{
@@ -1648,9 +1648,9 @@ const AuthenticatedApp = () => {
                                 fontSize: '20px',
                                 fontWeight: 700,
                                 margin: 0,
-                                color: verificationResult.multipleMatches ? '#f59e0b' : (verificationResult.alreadyVerified ? '#3b82f6' : (verificationResult.matched ? '#10b981' : '#ef4444'))
+                                color: verificationResult.usedReference ? '#dc2626' : (verificationResult.multipleMatches ? '#f59e0b' : (verificationResult.alreadyVerified ? '#3b82f6' : (verificationResult.matched ? '#10b981' : '#ef4444')))
                             }}>
-                                {verificationResult.multipleMatches ? '¡Múltiples Coincidencias!' : (verificationResult.alreadyVerified ? '¡Pago Ya Verificado!' : (verificationResult.matched ? '¡Pago Coincide!' : 'Sin Coincidencia Bancaria'))}
+                                {verificationResult.usedReference ? '¡Comprobante Ya Utilizado!' : (verificationResult.multipleMatches ? '¡Múltiples Coincidencias!' : (verificationResult.alreadyVerified ? '¡Pago Ya Verificado!' : (verificationResult.matched ? '¡Pago Coincide!' : 'Sin Coincidencia Bancaria')))}
                             </h3>
                             <p style={{
                                 fontSize: '14px',
@@ -1659,13 +1659,15 @@ const AuthenticatedApp = () => {
                                 lineHeight: '1.5',
                                 padding: '0 8px'
                             }}>
-                                {verificationResult.multipleMatches
-                                    ? 'Hemos encontrado varios pagos con el mismo valor en las últimas 24 horas. Por favor, selecciona el correcto.'
-                                    : (verificationResult.alreadyVerified 
-                                        ? 'Este movimiento de transferencia bancaria ya ha sido verificado y registrado anteriormente.'
-                                        : (verificationResult.matched 
-                                            ? 'Hemos encontrado un movimiento pendiente en la cuenta que coincide con el valor extraído del comprobante.'
-                                            : 'No se encontró coincidencia en las notificaciones bancarias de las últimas 24 horas. Por favor, verifica de nuevo.'))
+                                {verificationResult.usedReference 
+                                    ? 'Hemos identificado que esta misma referencia de comprobante ya fue validada previamente. No se puede reutilizar.'
+                                    : (verificationResult.multipleMatches
+                                        ? 'Hemos encontrado varios pagos con el mismo valor en las últimas 24 horas. Por favor, selecciona el correcto.'
+                                        : (verificationResult.alreadyVerified 
+                                            ? 'Este movimiento de transferencia bancaria ya ha sido verificado y registrado anteriormente.'
+                                            : (verificationResult.matched 
+                                                ? 'Hemos encontrado un movimiento pendiente en la cuenta que coincide con el valor extraído del comprobante.'
+                                                : 'No se encontró coincidencia en las notificaciones bancarias de las últimas 24 horas. Por favor, verifica de nuevo.')))
                                 }
                             </p>
                         </div>
@@ -1703,7 +1705,7 @@ const AuthenticatedApp = () => {
                                         Múltiples Pagos Encontrados
                                     </span>
                                     <p style={{ fontSize: '13px', color: 'var(--color-gray-600)', margin: 0 }}>Selecciona el pago correcto a verificar:</p>
-                                    <div style={{ maxHeight: '150px', overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                                    <div style={{ maxHeight: '250px', overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: '8px' }}>
                                         {verificationResult.payments.map((p) => (
                                             <label key={p.id} style={{ display: 'flex', alignItems: 'flex-start', gap: '8px', cursor: 'pointer', padding: '8px', border: verificationResult.payment?.id === p.id ? '2px solid #3b82f6' : '1px solid #e5e7eb', borderRadius: '8px', backgroundColor: verificationResult.payment?.id === p.id ? 'rgba(59, 130, 246, 0.05)' : '#fff' }}>
                                                 <input type="radio" name="payment_selection" checked={verificationResult.payment?.id === p.id} onChange={() => setVerificationResult({...verificationResult, payment: p, alreadyVerified: p.status === 'verified'})} style={{ marginTop: '4px' }} />
