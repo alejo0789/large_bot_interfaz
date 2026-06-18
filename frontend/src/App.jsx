@@ -1037,12 +1037,39 @@ const AuthenticatedApp = () => {
             }
 
             if (data.success) {
-                console.log('✅ [handleVerifyPayment] Éxito. Abriendo modal con resultados.');
+                console.log('✅ [handleVerifyPayment] Éxito del webhook. Result:', data.n8nResult);
                 
-                // n8n sometimes returns an array if the last node outputs a list.
                 let resultPayload = data.n8nResult;
                 if (Array.isArray(resultPayload) && resultPayload.length > 0) {
                     resultPayload = resultPayload[0];
+                }
+
+                // If n8n stripped multipleMatches/payments, we bypass it by calling /verify ourselves
+                // since we now have the OCR amount from the webhook response!
+                if (resultPayload.ocr && resultPayload.ocr.amount) {
+                    try {
+                        const directVerifyRes = await apiFetch('/api/payments/verify', {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({
+                                amount: resultPayload.ocr.amount,
+                                reference: resultPayload.ocr.reference,
+                                conversation_phone: null
+                            })
+                        });
+                        
+                        if (directVerifyRes.ok) {
+                            const directData = await directVerifyRes.json();
+                            console.log('📡 [handleVerifyPayment] Direct /verify response:', directData);
+                            // Merge the direct data (which has all fields) with the OCR data
+                            resultPayload = {
+                                ...resultPayload,
+                                ...directData
+                            };
+                        }
+                    } catch (e) {
+                        console.error('Error in direct verify fallback:', e);
+                    }
                 }
 
                 setVerificationResult({
