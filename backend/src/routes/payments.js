@@ -106,33 +106,59 @@ router.post('/verify', async (req, res) => {
         const toleranceFactor = 1 + (parseFloat(tolerance_pct) / 100);
         const amtNum = parseFloat(amount);
 
-        // Match by amount within tolerance window (last 20 minutes)
+        // Match by amount within tolerance window (last 24 hours)
         const query = `
             SELECT * FROM payments
             WHERE status IN ('pending', 'verified')
               AND amount BETWEEN $1 AND $2
-              AND payment_date >= NOW() - INTERVAL '20 minutes'
+              AND payment_date >= NOW() - INTERVAL '24 hours'
             ORDER BY payment_date DESC
-            LIMIT 1
         `;
         const params = [amtNum / toleranceFactor, amtNum * toleranceFactor];
 
         const { rows } = await db.query(query, params);
 
         if (rows.length === 0) {
-            console.log(`⚠️ [Payments] No match found by amount=${amount} in last 20 minutes`);
-            return res.json({ matched: false, message: 'No se encontró una notificación de transferencia bancaria por ese valor en las últimas 20 minutos' });
+            console.log(`⚠️ [Payments] No match found by amount=${amount} in last 24 hours`);
+            return res.json({ matched: false, message: 'No se encontró una notificación de transferencia bancaria por ese valor en las últimas 24 horas' });
         }
 
-        const payment = rows[0];
+        const pendingRows = rows.filter(r => r.status === 'pending');
+        const verifiedRows = rows.filter(r => r.status === 'verified');
 
-        console.log(`🔍 [Payments] Found potential match: id=${payment.id} bank_ref=${payment.reference} amount=${payment.amount} payer=${payment.payer_name} status=${payment.status}`);
+        // Case 1: All matching payments are already verified
+        if (pendingRows.length === 0 && verifiedRows.length > 0) {
+            const payment = verifiedRows[0];
+            console.log(`🔍 [Payments] Found match but already verified: id=${payment.id}`);
+            return res.json({
+                matched: true,
+                multipleMatches: false,
+                alreadyVerified: true,
+                payment
+            });
+        }
 
-        // Return found payment details. We will let the frontend agent confirm before mutating DB.
+        // Case 2: Exactly ONE pending payment
+        if (pendingRows.length === 1) {
+            const payment = pendingRows[0];
+            console.log(`🔍 [Payments] Found single pending match: id=${payment.id}`);
+            return res.json({
+                matched: true,
+                multipleMatches: false,
+                alreadyVerified: false,
+                payment
+            });
+        }
+
+        // Case 3: MULTIPLE pending payments
+        console.log(`🔍 [Payments] Found multiple pending matches (${pendingRows.length}) for amount=${amount} in last 24 hours`);
+        
         res.json({
             matched: true,
-            alreadyVerified: payment.status === 'verified',
-            payment
+            multipleMatches: true,
+            payments: pendingRows, // Only send the pending ones so user can pick
+            payment: null, // Force user to select one
+            alreadyVerified: false
         });
 
     } catch (error) {

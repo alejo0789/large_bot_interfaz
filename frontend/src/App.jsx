@@ -1614,9 +1614,9 @@ const AuthenticatedApp = () => {
                                 fontSize: '20px',
                                 fontWeight: 700,
                                 margin: 0,
-                                color: verificationResult.alreadyVerified ? '#3b82f6' : (verificationResult.matched ? '#10b981' : '#ef4444')
+                                color: verificationResult.multipleMatches ? '#f59e0b' : (verificationResult.alreadyVerified ? '#3b82f6' : (verificationResult.matched ? '#10b981' : '#ef4444'))
                             }}>
-                                {verificationResult.alreadyVerified ? '¡Pago Ya Verificado!' : (verificationResult.matched ? '¡Pago Coincide!' : 'Sin Coincidencia Bancaria')}
+                                {verificationResult.multipleMatches ? '¡Múltiples Coincidencias!' : (verificationResult.alreadyVerified ? '¡Pago Ya Verificado!' : (verificationResult.matched ? '¡Pago Coincide!' : 'Sin Coincidencia Bancaria'))}
                             </h3>
                             <p style={{
                                 fontSize: '14px',
@@ -1625,11 +1625,13 @@ const AuthenticatedApp = () => {
                                 lineHeight: '1.5',
                                 padding: '0 8px'
                             }}>
-                                {verificationResult.alreadyVerified 
-                                    ? 'Este movimiento de transferencia bancaria ya ha sido verificado y registrado anteriormente.'
-                                    : (verificationResult.matched 
-                                        ? 'Hemos encontrado un movimiento pendiente en la cuenta que coincide con el valor extraído del comprobante.'
-                                        : 'No se encontró coincidencia en las notificaciones bancarias de los últimos 20 minutos. Por favor, verifica de nuevo.')
+                                {verificationResult.multipleMatches
+                                    ? 'Hemos encontrado varios pagos con el mismo valor en las últimas 24 horas. Por favor, selecciona el correcto.'
+                                    : (verificationResult.alreadyVerified 
+                                        ? 'Este movimiento de transferencia bancaria ya ha sido verificado y registrado anteriormente.'
+                                        : (verificationResult.matched 
+                                            ? 'Hemos encontrado un movimiento pendiente en la cuenta que coincide con el valor extraído del comprobante.'
+                                            : 'No se encontró coincidencia en las notificaciones bancarias de las últimas 24 horas. Por favor, verifica de nuevo.'))
                                 }
                             </p>
                         </div>
@@ -1661,24 +1663,47 @@ const AuthenticatedApp = () => {
                             </div>
 
                             {/* Bank Match Info */}
-                            {verificationResult.matched && verificationResult.payment && (
+                            {verificationResult.matched && verificationResult.multipleMatches ? (
                                 <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-                                    <span style={{ display: 'block', fontSize: '11px', fontWeight: 600, color: verificationResult.alreadyVerified ? '#3b82f6' : '#10b981', textTransform: 'uppercase', marginBottom: '4px' }}>
-                                        {verificationResult.alreadyVerified ? 'Registrado y Verificado' : 'Registrado en el Banco'}
+                                    <span style={{ display: 'block', fontSize: '11px', fontWeight: 600, color: '#f59e0b', textTransform: 'uppercase', marginBottom: '4px' }}>
+                                        Múltiples Pagos Encontrados
                                     </span>
-                                    <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-                                        <span>👤 Pagador:</span>
-                                        <strong>{verificationResult.payment.payer_name || 'Desconocido'}</strong>
-                                    </div>
-                                    <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-                                        <span>🏦 Banco:</span>
-                                        <strong>{verificationResult.payment.bank || 'Bancolombia'}</strong>
-                                    </div>
-                                    <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-                                        <span>📅 Fecha Notificación:</span>
-                                        <strong>{new Date(verificationResult.payment.payment_date).toLocaleTimeString('es-CO', {hour: '2-digit', minute:'2-digit'})} ({new Date(verificationResult.payment.payment_date).toLocaleDateString('es-CO')})</strong>
+                                    <p style={{ fontSize: '13px', color: 'var(--color-gray-600)', margin: 0 }}>Selecciona el pago correcto a verificar:</p>
+                                    <div style={{ maxHeight: '150px', overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                                        {verificationResult.payments.map((p) => (
+                                            <label key={p.id} style={{ display: 'flex', alignItems: 'flex-start', gap: '8px', cursor: 'pointer', padding: '8px', border: verificationResult.payment?.id === p.id ? '2px solid #3b82f6' : '1px solid #e5e7eb', borderRadius: '8px', backgroundColor: verificationResult.payment?.id === p.id ? 'rgba(59, 130, 246, 0.05)' : '#fff' }}>
+                                                <input type="radio" name="payment_selection" checked={verificationResult.payment?.id === p.id} onChange={() => setVerificationResult({...verificationResult, payment: p, alreadyVerified: p.status === 'verified'})} style={{ marginTop: '4px' }} />
+                                                <div style={{ flex: 1 }}>
+                                                    <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                                                        <strong style={{ fontSize: '13px' }}>{p.payer_name || 'Desconocido'}</strong>
+                                                        <span style={{ fontSize: '12px', color: p.status === 'verified' ? '#3b82f6' : '#10b981', fontWeight: 600 }}>{p.status === 'verified' ? 'Ya Verificado' : 'Pendiente'}</span>
+                                                    </div>
+                                                    <div style={{ fontSize: '12px', color: '#6b7280' }}>{p.bank || 'Banco'} - {new Date(p.payment_date).toLocaleTimeString('es-CO', {hour: '2-digit', minute:'2-digit'})} ({new Date(p.payment_date).toLocaleDateString('es-CO')})</div>
+                                                </div>
+                                            </label>
+                                        ))}
                                     </div>
                                 </div>
+                            ) : (
+                                verificationResult.matched && verificationResult.payment && (
+                                    <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                                        <span style={{ display: 'block', fontSize: '11px', fontWeight: 600, color: verificationResult.alreadyVerified ? '#3b82f6' : '#10b981', textTransform: 'uppercase', marginBottom: '4px' }}>
+                                            {verificationResult.alreadyVerified ? 'Registrado y Verificado' : 'Registrado en el Banco'}
+                                        </span>
+                                        <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                                            <span>👤 Pagador:</span>
+                                            <strong>{verificationResult.payment.payer_name || 'Desconocido'}</strong>
+                                        </div>
+                                        <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                                            <span>🏦 Banco:</span>
+                                            <strong>{verificationResult.payment.bank || 'Bancolombia'}</strong>
+                                        </div>
+                                        <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                                            <span>📅 Fecha Notificación:</span>
+                                            <strong>{new Date(verificationResult.payment.payment_date).toLocaleTimeString('es-CO', {hour: '2-digit', minute:'2-digit'})} ({new Date(verificationResult.payment.payment_date).toLocaleDateString('es-CO')})</strong>
+                                        </div>
+                                    </div>
+                                )
                             )}
                         </div>
 
@@ -1729,16 +1754,17 @@ const AuthenticatedApp = () => {
                                                 alert(`❌ Error al confirmar verificación: ${err.message}`);
                                             }
                                         }}
+                                        disabled={!verificationResult.payment}
                                         style={{
                                             flex: 1,
                                             padding: '12px 16px',
                                             borderRadius: '10px',
                                             border: 'none',
-                                            backgroundColor: '#10b981',
+                                            backgroundColor: !verificationResult.payment ? '#9ca3af' : '#10b981',
                                             color: '#ffffff',
                                             fontWeight: 600,
                                             fontSize: '14px',
-                                            cursor: 'pointer',
+                                            cursor: !verificationResult.payment ? 'not-allowed' : 'pointer',
                                             transition: 'background-color 0.2s'
                                         }}
                                     >
