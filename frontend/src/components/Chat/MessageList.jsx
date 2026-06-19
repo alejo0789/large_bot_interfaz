@@ -21,7 +21,10 @@ const MessageList = ({
     // Older-message pagination props
     onLoadOlder,
     hasMoreOlder,
-    isLoadingOlder
+    isLoadingOlder,
+    isForwardSelectionMode = false,
+    selectedMessagesToForward = [],
+    onToggleMessageSelection
 }) => {
     const listRef = useRef(null);
     const messagesEndRef = useRef(null);
@@ -246,6 +249,9 @@ const MessageList = ({
                                         onQuoteClick={handleQuoteClick}
                                         onVerifyPayment={onVerifyPayment}
                                         isVerifying={!!verifyingMessageIds[msgId]}
+                                        isForwardSelectionMode={isForwardSelectionMode}
+                                        isSelectedForForward={selectedMessagesToForward.some(m => m.id === message.id)}
+                                        onToggleMessageSelection={onToggleMessageSelection}
                                     />
                                 </div>
                             );

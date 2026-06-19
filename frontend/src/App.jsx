@@ -35,6 +35,7 @@ import Celebration from './components/UI/Celebration';
 import TermsAndConditions from './components/Legal/TermsAndConditions';
 import WaTemplates from './components/WaTemplates/WaTemplates';
 import WaBulkOfficial from './components/WaTemplates/WaBulkOfficial';
+import ForwardContactsModal from './components/Chat/ForwardContactsModal';
 
 // Hooks
 import { useConversations } from './hooks/useConversations';
@@ -95,9 +96,10 @@ const AuthenticatedApp = () => {
     const [scheduleMessage, setScheduleMessage] = useState(null);
     const [draftMessage, setDraftMessage] = useState(null);
 
-    // Forward Message State
-    const [forwardMessage, setForwardMessage] = useState(null);
-    const [showForwardModal, setShowForwardModal] = useState(false);
+    // Forward Message Multi-Select State
+    const [isForwardSelectionMode, setIsForwardSelectionMode] = useState(false);
+    const [selectedMessagesToForward, setSelectedMessagesToForward] = useState([]);
+    const [showForwardContactsModal, setShowForwardContactsModal] = useState(false);
 
     // Sweep Mode (Escobita)
     const [isSweepMode, setIsSweepMode] = useState(false);
@@ -674,9 +676,46 @@ const AuthenticatedApp = () => {
     }, [conversations, user]);
 
     const handleForwardMessage = useCallback((message) => {
-        setForwardMessage(message);
-        setShowForwardModal(true);
+        setIsForwardSelectionMode(true);
+        setSelectedMessagesToForward(prev => {
+            if (prev.some(m => m.id === message.id)) return prev;
+            return [...prev, message];
+        });
     }, []);
+
+    const toggleForwardSelection = useCallback((message) => {
+        setSelectedMessagesToForward(prev => {
+            const exists = prev.some(m => m.id === message.id);
+            if (exists) {
+                const next = prev.filter(m => m.id !== message.id);
+                if (next.length === 0) setIsForwardSelectionMode(false);
+                return next;
+            } else {
+                return [...prev, message];
+            }
+        });
+    }, []);
+
+    const cancelForwardSelection = useCallback(() => {
+        setIsForwardSelectionMode(false);
+        setSelectedMessagesToForward([]);
+    }, []);
+
+    const handleForwardSend = useCallback(async (phones, messages) => {
+        for (const msg of messages) {
+            if (msg.mediaUrl || msg.media_url) {
+                await handleBulkSend(phones, msg.text || '', null, {
+                    mediaUrl: msg.mediaUrl || msg.media_url,
+                    mediaType: msg.mediaType || msg.media_type
+                });
+            } else {
+                await handleBulkSend(phones, msg.text || '');
+            }
+            await new Promise(r => setTimeout(r, 500));
+        }
+        setIsForwardSelectionMode(false);
+        setSelectedMessagesToForward([]);
+    }, [handleBulkSend]);
 
     const handleReplyMessage = useCallback((message) => {
         setReplyToMessage(message);
@@ -1438,8 +1477,42 @@ const AuthenticatedApp = () => {
                                     onLoadOlder={selectedConversation ? () => loadOlderMessages(selectedConversation.contact.phone) : undefined}
                                     hasMoreOlder={selectedConversation ? (messagePaginationByPhone[selectedConversation.contact.phone]?.hasMore ?? false) : false}
                                     isLoadingOlder={isLoadingOlderMessages}
+                                    isForwardSelectionMode={isForwardSelectionMode}
+                                    selectedMessagesToForward={selectedMessagesToForward}
+                                    onToggleMessageSelection={toggleForwardSelection}
                                 />
                             </div>
+
+                            {/* Floating footer for forward selection */}
+                            {isForwardSelectionMode && (
+                                <div style={{
+                                    padding: '12px 16px',
+                                    background: '#f0fdf4',
+                                    borderTop: '1px solid #bbf7d0',
+                                    display: 'flex',
+                                    justifyContent: 'space-between',
+                                    alignItems: 'center',
+                                    zIndex: 10
+                                }}>
+                                    <span style={{ fontSize: '14px', fontWeight: 600, color: '#15803d' }}>
+                                        {selectedMessagesToForward.length} mensaje{selectedMessagesToForward.length !== 1 && 's'} seleccionado{selectedMessagesToForward.length !== 1 && 's'}
+                                    </span>
+                                    <div style={{ display: 'flex', gap: '8px' }}>
+                                        <button 
+                                            onClick={cancelForwardSelection}
+                                            style={{ padding: '8px 12px', border: '1px solid #bbf7d0', background: 'white', borderRadius: '8px', color: '#15803d', fontSize: '13px', cursor: 'pointer', fontWeight: 600 }}
+                                        >
+                                            Cancelar
+                                        </button>
+                                        <button 
+                                            onClick={() => setShowForwardContactsModal(true)}
+                                            style={{ padding: '8px 12px', border: 'none', background: '#25d366', borderRadius: '8px', color: 'white', fontSize: '13px', cursor: 'pointer', fontWeight: 600, display: 'flex', alignItems: 'center', gap: '6px' }}
+                                        >
+                                            <Forward size={14} /> Reenviar
+                                        </button>
+                                    </div>
+                                </div>
+                            )}
 
                             <MessageInput
                                 onSend={handleSendMessage}
@@ -1514,26 +1587,13 @@ const AuthenticatedApp = () => {
                 initialSelectedLeadTime={bulkMessageInitialLeadTime}
             />
 
-            {/* Forward Message Modal (Reuses BulkMessageModal) */}
-            {forwardMessage && (
-                <BulkMessageModal
-                    isOpen={showForwardModal}
-                    onClose={() => {
-                        setShowForwardModal(false);
-                        setForwardMessage(null);
-                    }}
-                    conversations={conversations}
-                    tags={tags}
-                    tagsByPhone={tagsByPhone}
-                    onSend={handleBulkSend}
-                    socket={socket}
-                    initialMessage={forwardMessage.text || ''}
-                    initialMediaUrl={forwardMessage.mediaUrl || forwardMessage.media_url || null}
-                    initialMediaType={forwardMessage.mediaType || forwardMessage.media_type || null}
-                    title="Reenviar Mensaje"
-                    disableSelectionModeChange={true}
-                />
-            )}
+            <ForwardContactsModal
+                isOpen={showForwardContactsModal}
+                onClose={() => setShowForwardContactsModal(false)}
+                conversations={conversations}
+                onSend={handleForwardSend}
+                messagesToForward={selectedMessagesToForward}
+            />
 
             <N8NTestChat
                 isOpen={showN8NTest}

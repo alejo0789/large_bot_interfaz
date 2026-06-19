@@ -6,7 +6,7 @@ import EmojiPicker from 'emoji-picker-react';
 /**
  * Message bubble component with media support, reactions, and actions
  */
-const MessageBubble = React.memo(({ message, onForward, onReact, onDelete, onReply, onEdit, onSchedule, onPhoneClick, onQuoteClick, onVerifyPayment, isVerifying }) => {
+const MessageBubble = React.memo(({ message, onForward, onReact, onDelete, onReply, onEdit, onSchedule, onPhoneClick, onQuoteClick, onVerifyPayment, isVerifying, isForwardSelectionMode, isSelectedForForward, onToggleMessageSelection }) => {
     const { text, timestamp, status, id, reactions = [], edited } = message;
     const rawSender = message.sender || message.sender_type || 'customer';
     const sender = String(rawSender).toLowerCase().trim();
@@ -457,9 +457,41 @@ const MessageBubble = React.memo(({ message, onForward, onReact, onDelete, onRep
         <>
             <div
                 className={messageClassName}
-                onContextMenu={handleContextMenu}
-                style={{ userSelect: 'none' }} // Prevent text selection on long press for better UX on mobile
+                onContextMenu={isForwardSelectionMode ? undefined : handleContextMenu}
+                onClick={isForwardSelectionMode ? () => onToggleMessageSelection(message) : undefined}
+                style={{ 
+                    userSelect: 'none',
+                    cursor: isForwardSelectionMode ? 'pointer' : 'default',
+                    opacity: isForwardSelectionMode && !isSelectedForForward ? 0.7 : 1,
+                    transition: 'opacity 0.2s',
+                    position: 'relative'
+                }} // Prevent text selection on long press for better UX on mobile
             >
+                {/* Selection Overlay */}
+                {isForwardSelectionMode && (
+                    <div style={{
+                        position: 'absolute',
+                        top: 0, left: 0, right: 0, bottom: 0,
+                        backgroundColor: isSelectedForForward ? 'rgba(37, 211, 102, 0.1)' : 'transparent',
+                        zIndex: 30,
+                        pointerEvents: 'none',
+                        borderRadius: '8px',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: isOutgoing ? 'flex-start' : 'flex-end',
+                        padding: '0 10px'
+                    }}>
+                        <div style={{
+                            width: '24px', height: '24px',
+                            borderRadius: '50%',
+                            border: isSelectedForForward ? 'none' : '2px solid #9ca3af',
+                            backgroundColor: isSelectedForForward ? '#25d366' : 'white',
+                            display: 'flex', alignItems: 'center', justifyContent: 'center'
+                        }}>
+                            {isSelectedForForward && <CheckCheck size={14} color="white" />}
+                        </div>
+                    </div>
+                )}
                 <div className="message-container" style={{ position: 'relative' }}>
                     <div className="message-bubble" style={{
                         padding: media_url ? 'var(--space-1)' : 'var(--space-2) var(--space-3)',
