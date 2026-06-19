@@ -106,10 +106,12 @@ const PaymentsDashboard = ({ isMobile }) => {
     };
 
     // Calculate raw numbers from stats safely
-    const totalAmount = parseFloat(stats?.total_amount || stats?.rows?.[0]?.total_amount || 0);
-    const verifiedAmount = parseFloat(stats?.verified_amount || stats?.rows?.[0]?.verified_amount || 0);
-    const totalTransactions = parseInt(stats?.total || stats?.rows?.[0]?.total || 0, 10);
-    const count20k = parseInt(stats?.count_20k || stats?.rows?.[0]?.count_20k || 0, 10);
+    const statsSource = stats?.summary || stats?.rows?.[0] || stats || {};
+    const totalAmount = parseFloat(statsSource.total_amount || 0);
+    const verifiedAmount = parseFloat(statsSource.verified_amount || 0);
+    const totalTransactions = parseInt(statsSource.total || 0, 10);
+    const count20k = parseInt(statsSource.count_20k || 0, 10);
+    const pendingCount = parseInt(statsSource.pending || 0, 10);
 
     return (
         <div className="payments-dashboard" style={{
@@ -235,7 +237,7 @@ const PaymentsDashboard = ({ isMobile }) => {
                 />
                 <KPICard
                     title="Pendientes por Verificar"
-                    value={stats?.pending || stats?.rows?.[0]?.pending || 0}
+                    value={pendingCount}
                     icon={<Clock className="w-6 h-6 text-orange-600" />}
                     color="orange"
                 />
