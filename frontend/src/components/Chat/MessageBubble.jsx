@@ -470,19 +470,27 @@ const MessageBubble = React.memo(({ message, onForward, onReact, onDelete, onRep
                     position: 'relative'
                 }} // Prevent text selection on long press for better UX on mobile
             >
-                {/* Checkbox for Forward Selection */}
+                {/* Native Checkbox for Forward Selection */}
                 {isForwardSelectionMode && (
                     <div style={{
                         flexShrink: 0,
-                        width: '22px', height: '22px',
-                        borderRadius: '6px',
-                        border: isSelectedForForward ? 'none' : '2px solid #d1d5db',
-                        backgroundColor: isSelectedForForward ? '#25d366' : 'transparent',
-                        display: 'flex', alignItems: 'center', justifyContent: 'center',
+                        display: 'flex', 
+                        alignItems: 'center', 
+                        justifyContent: 'center',
                         order: isOutgoing ? 1 : -1,
-                        transition: 'all 0.2s ease-in-out'
+                        padding: '0 4px'
                     }}>
-                        {isSelectedForForward && <CheckCheck size={14} color="white" />}
+                        <input 
+                            type="checkbox" 
+                            checked={isSelectedForForward}
+                            readOnly
+                            style={{
+                                width: '20px',
+                                height: '20px',
+                                cursor: 'pointer',
+                                accentColor: '#25d366'
+                            }}
+                        />
                     </div>
                 )}
                 <div className="message-container" style={{ position: 'relative' }}>
