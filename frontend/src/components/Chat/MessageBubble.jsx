@@ -507,8 +507,9 @@ const MessageBubble = React.memo(({ message, onForward, onReact, onDelete, onRep
                         boxSizing: 'border-box'
                     }}>
                         {/* Menu Chevron - Visible on bubble hover or swipe */}
-                        <button
-                            onClick={handleMenuButton}
+                        {!isForwardSelectionMode && (
+                            <button
+                                onClick={handleMenuButton}
                             className="menu-chevron"
                             style={{
                                 position: 'absolute',
@@ -534,6 +535,7 @@ const MessageBubble = React.memo(({ message, onForward, onReact, onDelete, onRep
                         >
                             <ChevronDown size={14} />
                         </button>
+                        )}
 
                         {(message.sender_name || message.agent_name) && (
                             <div style={{
@@ -680,7 +682,7 @@ const MessageBubble = React.memo(({ message, onForward, onReact, onDelete, onRep
 
                     {/* Forward Button */}
                     {
-                        onForward && (
+                        onForward && !isForwardSelectionMode && (
                             <button
                                 className="forward-btn"
                                 onClick={(e) => {
