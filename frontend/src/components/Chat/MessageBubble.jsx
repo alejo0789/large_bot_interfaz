@@ -480,17 +480,24 @@ const MessageBubble = React.memo(({ message, onForward, onReact, onDelete, onRep
                         order: isOutgoing ? 1 : -1,
                         padding: '0 4px'
                     }}>
-                        <input 
-                            type="checkbox" 
-                            checked={isSelectedForForward}
-                            readOnly
-                            style={{
-                                width: '20px',
-                                height: '20px',
-                                cursor: 'pointer',
-                                accentColor: '#25d366'
-                            }}
-                        />
+                        <div style={{
+                            width: '20px',
+                            height: '20px',
+                            borderRadius: '4px',
+                            border: isSelectedForForward ? 'none' : '2px solid #d1d5db',
+                            backgroundColor: isSelectedForForward ? '#25d366' : 'white',
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            transition: 'all 0.2s',
+                            boxShadow: '0 1px 2px rgba(0,0,0,0.05)'
+                        }}>
+                            {isSelectedForForward && (
+                                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round">
+                                    <polyline points="20 6 9 17 4 12"></polyline>
+                                </svg>
+                            )}
+                        </div>
                     </div>
                 )}
                 <div className="message-container" style={{ position: 'relative' }}>
