@@ -462,34 +462,27 @@ const MessageBubble = React.memo(({ message, onForward, onReact, onDelete, onRep
                 style={{ 
                     userSelect: 'none',
                     cursor: isForwardSelectionMode ? 'pointer' : 'default',
-                    opacity: isForwardSelectionMode && !isSelectedForForward ? 0.7 : 1,
-                    transition: 'opacity 0.2s',
+                    opacity: isForwardSelectionMode && !isSelectedForForward ? 0.8 : 1,
+                    transition: 'all 0.2s',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '8px',
                     position: 'relative'
                 }} // Prevent text selection on long press for better UX on mobile
             >
-                {/* Selection Overlay */}
+                {/* Checkbox for Forward Selection */}
                 {isForwardSelectionMode && (
                     <div style={{
-                        position: 'absolute',
-                        top: 0, left: 0, right: 0, bottom: 0,
-                        backgroundColor: isSelectedForForward ? 'rgba(37, 211, 102, 0.1)' : 'transparent',
-                        zIndex: 30,
-                        pointerEvents: 'none',
-                        borderRadius: '8px',
-                        display: 'flex',
-                        alignItems: 'center',
-                        justifyContent: isOutgoing ? 'flex-start' : 'flex-end',
-                        padding: '0 10px'
+                        flexShrink: 0,
+                        width: '22px', height: '22px',
+                        borderRadius: '6px',
+                        border: isSelectedForForward ? 'none' : '2px solid #d1d5db',
+                        backgroundColor: isSelectedForForward ? '#25d366' : 'transparent',
+                        display: 'flex', alignItems: 'center', justifyContent: 'center',
+                        order: isOutgoing ? 1 : -1,
+                        transition: 'all 0.2s ease-in-out'
                     }}>
-                        <div style={{
-                            width: '24px', height: '24px',
-                            borderRadius: '50%',
-                            border: isSelectedForForward ? 'none' : '2px solid #9ca3af',
-                            backgroundColor: isSelectedForForward ? '#25d366' : 'white',
-                            display: 'flex', alignItems: 'center', justifyContent: 'center'
-                        }}>
-                            {isSelectedForForward && <CheckCheck size={14} color="white" />}
-                        </div>
+                        {isSelectedForForward && <CheckCheck size={14} color="white" />}
                     </div>
                 )}
                 <div className="message-container" style={{ position: 'relative' }}>
