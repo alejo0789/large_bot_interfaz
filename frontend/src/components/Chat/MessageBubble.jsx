@@ -1047,11 +1047,13 @@ const MessageBubble = React.memo(({ message, onForward, onReact, onDelete, onRep
         </>
     );
 }, (prevProps, nextProps) => {
-    // Only re-render if the message data has changed or isVerifying status has changed
+    // Only re-render if the message data has changed or isVerifying/forward selection status has changed
     const pm = prevProps.message;
     const nm = nextProps.message;
     return (
         prevProps.isVerifying === nextProps.isVerifying &&
+        prevProps.isForwardSelectionMode === nextProps.isForwardSelectionMode &&
+        prevProps.isSelectedForForward === nextProps.isSelectedForForward &&
         pm.id === nm.id &&
         pm.status === nm.status &&
         pm.text === nm.text &&
