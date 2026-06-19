@@ -219,11 +219,11 @@ router.get('/', async (req, res) => {
         }
         if (startDate) {
             params.push(startDate);
-            conditions.push(`payment_date::date >= $${params.length}`);
+            conditions.push(`(payment_date AT TIME ZONE 'UTC' AT TIME ZONE 'America/Bogota')::date >= $${params.length}`);
         }
         if (endDate) {
             params.push(endDate);
-            conditions.push(`payment_date::date <= $${params.length}`);
+            conditions.push(`(payment_date AT TIME ZONE 'UTC' AT TIME ZONE 'America/Bogota')::date <= $${params.length}`);
         }
 
         const where = conditions.length ? `WHERE ${conditions.join(' AND ')}` : '';
@@ -268,13 +268,13 @@ router.get('/stats', async (req, res) => {
         const db = getDb();
         const { startDate, endDate } = req.query;
 
-        let dateFilter = "payment_date >= CURRENT_DATE";
+        let dateFilter = "(payment_date AT TIME ZONE 'UTC' AT TIME ZONE 'America/Bogota')::date >= (CURRENT_TIMESTAMP AT TIME ZONE 'UTC' AT TIME ZONE 'America/Bogota')::date";
         const params = [];
         if (startDate && endDate) {
-            dateFilter = "payment_date::date >= $1 AND payment_date::date <= $2";
+            dateFilter = "(payment_date AT TIME ZONE 'UTC' AT TIME ZONE 'America/Bogota')::date >= $1 AND (payment_date AT TIME ZONE 'UTC' AT TIME ZONE 'America/Bogota')::date <= $2";
             params.push(startDate, endDate);
         } else if (startDate) {
-            dateFilter = "payment_date::date = $1";
+            dateFilter = "(payment_date AT TIME ZONE 'UTC' AT TIME ZONE 'America/Bogota')::date = $1";
             params.push(startDate);
         }
 
@@ -304,7 +304,7 @@ router.get('/stats', async (req, res) => {
 
         const { rows: timeline } = await db.query(
             `SELECT
-                date_trunc('day', payment_date) AS day,
+                date_trunc('day', payment_date AT TIME ZONE 'UTC' AT TIME ZONE 'America/Bogota') AS day,
                 COUNT(*)                        AS count,
                 COALESCE(SUM(amount), 0)        AS amount
              FROM payments
