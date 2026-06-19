@@ -1035,6 +1035,21 @@ const MessageInput = ({ onSend, onSendFile, disabled, isMobile, replyToMessage, 
                         e.target.style.height = 'auto';
                         e.target.style.height = Math.min(e.target.scrollHeight, 250) + 'px';
                     }}
+                    onPaste={(e) => {
+                        const items = e.clipboardData?.items;
+                        if (items) {
+                            for (let i = 0; i < items.length; i++) {
+                                if (items[i].type.indexOf('image') !== -1) {
+                                    const file = items[i].getAsFile();
+                                    if (file) {
+                                        handleFileSelect({ target: { files: [file] } });
+                                        e.preventDefault();
+                                        break;
+                                    }
+                                }
+                            }
+                        }
+                    }}
                     onKeyDown={(e) => {
                         // Escape closes the quick reply panel
                         if (e.key === 'Escape' && showQuickReplies) {

@@ -16,13 +16,7 @@ const conversationService = require('../services/conversationService');
 
 const GRAPH_VERSION = 'v19.0';
 
-function normalizePhone(phone) {
-    let cleaned = (phone || '').replace(/\D/g, '');
-    if (cleaned.length === 10) {
-        cleaned = '57' + cleaned;
-    }
-    return cleaned;
-}
+const { normalizePhone } = require('../utils/phoneUtils');
 
 // ─── Helper: get Official API config from tenant context ───────────────────────
 function getOfficialConfig() {
@@ -220,7 +214,7 @@ router.post('/bulk-send', asyncHandler(async (req, res) => {
 
             const body = {
                 messaging_product: 'whatsapp',
-                to: phone,
+                to: phone.replace(/\D/g, ''),
                 type: 'template',
                 template: {
                     name: templateName,
