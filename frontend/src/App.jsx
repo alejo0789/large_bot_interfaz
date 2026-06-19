@@ -2,7 +2,7 @@ import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import apiFetch from './utils/api';
 import { useDrag } from '@use-gesture/react';
 import { io } from 'socket.io-client';
-import { Tag, MessageSquare, Settings, RotateCw, Menu, EyeOff, CheckSquare } from 'lucide-react';
+import { Tag, MessageSquare, Settings, RotateCw, Menu, EyeOff, CheckSquare, Forward } from 'lucide-react';
 
 // Auth
 import { AuthProvider, useAuth } from './hooks/useAuth';
