@@ -380,6 +380,7 @@ const WaBulkOfficial = ({ conversations, tags }) => {
                 body: JSON.stringify({
                     templateName: selectedTemplate.name,
                     templateLanguage: selectedTemplate.language,
+                    templateText: bodyText,
                     variables,
                     headerImageUrl: headerImageUrl || null,
                     selectionMode,

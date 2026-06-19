@@ -101,7 +101,8 @@ router.post('/bulk-send', asyncHandler(async (req, res) => {
         headerImageUrl = null,
         recipients = [],
         tagId = null,
-        selectionMode = 'manual'
+        selectionMode = 'manual',
+        templateText = ''
     } = req.body;
 
     if (!templateName || !templateLanguage) {
@@ -241,8 +242,15 @@ router.post('/bulk-send', asyncHandler(async (req, res) => {
 
                     // Reconstruct variables used in body message for local DB preview
                     const varEntries = Object.entries(variables);
-                    let textRepresentation = `📋 [Plantilla: ${templateName}]`;
-                    if (varEntries.length > 0) {
+                    let textRepresentation = templateText || `📋 [Plantilla: ${templateName}]`;
+                    
+                    if (templateText) {
+                        varEntries.forEach(([k, v]) => {
+                            const isNameVar = ['nombre', 'name', 'contacto'].includes(k.toLowerCase());
+                            const val = (isNameVar && contact.name) ? contact.name : v;
+                            textRepresentation = textRepresentation.replace(new RegExp(`\\{\\{${k}\\}\\}`, 'g'), val || `{{${k}}}`);
+                        });
+                    } else if (varEntries.length > 0) {
                         const varList = varEntries.map(([k, v]) => {
                             const isNameVar = ['nombre', 'name', 'contacto'].includes(k.toLowerCase());
                             const val = (isNameVar && contact.name) ? contact.name : v;
