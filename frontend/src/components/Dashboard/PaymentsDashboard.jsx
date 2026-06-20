@@ -216,11 +216,11 @@ const PaymentsDashboard = ({ isMobile }) => {
                 gap: '20px'
             }}>
                 <KPICard
-                    title="Total Ingresado (Verificado)"
-                    value={`$${verifiedAmount.toLocaleString('es-CO')}`}
+                    title="Total Ingresado a la Cuenta"
+                    value={`$${totalAmount.toLocaleString('es-CO')}`}
                     icon={<CheckCircle className="w-6 h-6 text-emerald-600" />}
                     color="emerald"
-                    subtitle={`De un total notificado de $${totalAmount.toLocaleString('es-CO')}`}
+                    subtitle={`Verificados: $${verifiedAmount.toLocaleString('es-CO')}`}
                 />
                 <KPICard
                     title="Transacciones Notificadas"
