@@ -86,7 +86,7 @@ router.post('/register', async (req, res) => {
 /**
  * Called by n8n after OCR-processing a payment image sent by a client.
  * n8n extracts reference + amount from the image, then calls this endpoint.
- * Body: { reference, amount, conversation_phone, tolerance_pct? }
+ * Body: { reference, amount, conversation_phone }
  */
 router.post('/verify', async (req, res) => {
     try {
@@ -94,8 +94,7 @@ router.post('/verify', async (req, res) => {
         const {
             reference,
             amount,
-            conversation_phone,
-            tolerance_pct = 2   // allow ±2% amount difference by default
+            conversation_phone
         } = req.body;
 
         if (!amount) {
@@ -103,18 +102,17 @@ router.post('/verify', async (req, res) => {
         }
 
         const phone = normalizePhone(conversation_phone);
-        const toleranceFactor = 1 + (parseFloat(tolerance_pct) / 100);
         const amtNum = parseFloat(amount);
 
-        // Match by amount within tolerance window (last 24 hours)
+        // Match by EXACT amount only (last 24 hours)
         const query = `
             SELECT * FROM payments
             WHERE status IN ('pending', 'verified')
-              AND amount BETWEEN $1 AND $2
+              AND amount = $1
               AND payment_date >= NOW() - INTERVAL '24 hours'
             ORDER BY payment_date DESC
         `;
-        const params = [amtNum / toleranceFactor, amtNum * toleranceFactor];
+        const params = [amtNum];
 
         // NEW: Check if this exact receipt reference has already been verified
         if (reference && String(reference).trim().length >= 4) {
