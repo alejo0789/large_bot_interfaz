@@ -163,6 +163,24 @@ router.post('/verify', async (req, res) => {
         if (pendingRows.length === 1) {
             const payment = pendingRows[0];
             console.log(`🔍 [Payments] Found single pending match: id=${payment.id}`);
+
+            // Save receipt reference into notes to block future duplicate attempts
+            if (reference && String(reference).trim().length >= 4) {
+                const cleanRef = String(reference).trim();
+                const refNote = `Ref cliente: ${cleanRef}`;
+                const existingNotes = payment.notes || '';
+                // Only append if not already stored
+                if (!existingNotes.includes(refNote)) {
+                    const updatedNotes = existingNotes ? `${existingNotes} | ${refNote}` : refNote;
+                    await db.query(
+                        `UPDATE payments SET notes = $1, updated_at = NOW() WHERE id = $2`,
+                        [updatedNotes, payment.id]
+                    );
+                    payment.notes = updatedNotes;
+                    console.log(`📝 [Payments] Saved receipt reference to payment id=${payment.id}: ${refNote}`);
+                }
+            }
+
             return res.json({
                 matched: true,
                 multipleMatches: false,
