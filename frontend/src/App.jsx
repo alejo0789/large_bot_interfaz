@@ -46,10 +46,19 @@ import { useSocket } from './hooks/useSocket';
 import './styles/index.css';
 
 // --- CONFIGURATION ---
-const SOCKET_URL = process.env.REACT_APP_SOCKET_URL ||
-    (process.env.NODE_ENV === 'production' ? window.location.origin : 'http://localhost:4000');
-const API_URL = process.env.REACT_APP_API_URL ||
-    (process.env.NODE_ENV === 'production' ? window.location.origin : 'http://localhost:4000');
+let envSocketUrl = process.env.REACT_APP_SOCKET_URL;
+if (envSocketUrl && envSocketUrl.includes('localhost') && window.location.hostname !== 'localhost') {
+    envSocketUrl = envSocketUrl.replace('localhost', window.location.hostname);
+}
+let envApiUrl = process.env.REACT_APP_API_URL;
+if (envApiUrl && envApiUrl.includes('localhost') && window.location.hostname !== 'localhost') {
+    envApiUrl = envApiUrl.replace('localhost', window.location.hostname);
+}
+
+const SOCKET_URL = envSocketUrl ||
+    (process.env.NODE_ENV === 'production' ? window.location.origin : `http://${window.location.hostname}:4000`);
+const API_URL = envApiUrl ||
+    (process.env.NODE_ENV === 'production' ? window.location.origin : `http://${window.location.hostname}:4000`);
 
 console.log('ðŸŒ Configured API_URL:', API_URL);
 console.log('ðŸ”Œ Configured SOCKET_URL:', SOCKET_URL);

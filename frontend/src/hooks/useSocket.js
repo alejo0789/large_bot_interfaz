@@ -1,8 +1,12 @@
 import { useState, useEffect, useCallback } from 'react';
 import { io } from 'socket.io-client';
 
-const SOCKET_URL = process.env.REACT_APP_SOCKET_URL ||
-    (process.env.NODE_ENV === 'production' ? window.location.origin : 'http://localhost:4000');
+let envSocketUrl = process.env.REACT_APP_SOCKET_URL;
+if (envSocketUrl && envSocketUrl.includes('localhost') && window.location.hostname !== 'localhost') {
+    envSocketUrl = envSocketUrl.replace('localhost', window.location.hostname);
+}
+const SOCKET_URL = envSocketUrl ||
+    (process.env.NODE_ENV === 'production' ? window.location.origin : `http://${window.location.hostname}:4000`);
 
 /**
  * Custom hook for Socket.IO connection management

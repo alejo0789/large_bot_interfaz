@@ -7,8 +7,12 @@ export const AuthProvider = ({ children }) => {
     const [token, setToken] = useState(null);
     const [loading, setLoading] = useState(true);
 
-    const API_URL = process.env.REACT_APP_API_URL ||
-        (process.env.NODE_ENV === 'production' ? window.location.origin : 'http://localhost:4000');
+    let envApiUrl = process.env.REACT_APP_API_URL;
+    if (envApiUrl && envApiUrl.includes('localhost') && window.location.hostname !== 'localhost') {
+        envApiUrl = envApiUrl.replace('localhost', window.location.hostname);
+    }
+    const API_URL = envApiUrl ||
+        (process.env.NODE_ENV === 'production' ? window.location.origin : `http://${window.location.hostname}:4000`);
 
     const logout = useCallback(() => {
         const tokenToRevoke = sessionStorage.getItem('auth_token') || localStorage.getItem('auth_token');

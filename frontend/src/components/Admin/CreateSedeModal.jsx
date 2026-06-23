@@ -6,13 +6,15 @@ import {
     ArrowRight, RefreshCw
 } from 'lucide-react';
 
-const API_URL = process.env.REACT_APP_API_URL ||
-    (process.env.NODE_ENV === 'production' ? window.location.origin : 'http://localhost:4000');
+let envApiUrl = process.env.REACT_APP_API_URL;
+if (envApiUrl && envApiUrl.includes('localhost') && window.location.hostname !== 'localhost') {
+    envApiUrl = envApiUrl.replace('localhost', window.location.hostname);
+}
+const API_URL = envApiUrl ||
+    (process.env.NODE_ENV === 'production' ? window.location.origin : `http://${window.location.hostname}:4000`);
 
 const getBackendUrl = () => {
-    if (process.env.REACT_APP_API_URL) return process.env.REACT_APP_API_URL;
-    if (process.env.NODE_ENV === 'production') return window.location.origin;
-    return 'http://localhost:4000';
+    return API_URL;
 };
 
 // ─── Flujo en 2 fases distintas ─────────────────────────────────────────────

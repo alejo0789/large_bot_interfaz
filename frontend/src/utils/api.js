@@ -1,5 +1,11 @@
-export const API_URL = process.env.REACT_APP_API_URL ||
-    (process.env.NODE_ENV === 'production' ? window.location.origin : 'http://localhost:4000');
+// Automatically detect the current host so that local network devices (like iPads) connect to the right IP instead of 'localhost'
+let envApiUrl = process.env.REACT_APP_API_URL;
+if (envApiUrl && envApiUrl.includes('localhost') && window.location.hostname !== 'localhost') {
+    envApiUrl = envApiUrl.replace('localhost', window.location.hostname);
+}
+
+export const API_URL = envApiUrl ||
+    (process.env.NODE_ENV === 'production' ? window.location.origin : `http://${window.location.hostname}:4000`);
 
 /**
  * Enhanced fetch wrapper that automatically adds Auth and Tenant headers
