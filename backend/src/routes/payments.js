@@ -416,18 +416,14 @@ router.post('/trigger-verify', async (req, res) => {
             return res.status(400).json({ error: 'El mensaje debe ser una imagen para verificar el pago' });
         }
 
-        // 2. Fetch the webhook URL from tenant settings
-        const settingsRes = await db.query(
-            `SELECT value FROM settings WHERE key = 'payment_verify_webhook' LIMIT 1`
-        );
+        // 2. Fetch the webhook URL from tenant settings (now from master DB via req.tenant)
+        const webhookUrl = req.tenant?.payment_verify_webhook;
 
-        if (settingsRes.rows.length === 0 || !settingsRes.rows[0].value) {
+        if (!webhookUrl) {
             return res.status(400).json({
                 error: 'No se ha configurado un webhook de verificación de pagos para esta sede'
             });
         }
-
-        const webhookUrl = settingsRes.rows[0].value;
         const tenantSlug = req.tenant?.slug || 'unknown';
 
         console.log(`📤 [Payments] Triggering n8n verification: msg=${messageId} url=${webhookUrl}`);

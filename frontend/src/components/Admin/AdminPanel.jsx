@@ -253,7 +253,8 @@ const WhatsAppConfigModal = ({ tenant, onClose, onSaved, showToast }) => {
         wa_business_account_id: '',
         evolution_instance: '',
         evolution_api_key: '',
-        n8n_webhook_url: ''
+        n8n_webhook_url: '',
+        payment_verify_webhook: ''
     });
 
     // Load current config
@@ -273,7 +274,8 @@ const WhatsAppConfigModal = ({ tenant, onClose, onSaved, showToast }) => {
                         wa_business_account_id: t.wa_business_account_id || '',
                         evolution_instance: t.evolution_instance || '',
                         evolution_api_key: t.evolution_api_key || '',
-                        n8n_webhook_url: t.n8n_webhook_url || ''
+                        n8n_webhook_url: t.n8n_webhook_url || '',
+                        payment_verify_webhook: t.payment_verify_webhook || ''
                     });
                 }
             })
@@ -479,6 +481,13 @@ const WhatsAppConfigModal = ({ tenant, onClose, onSaved, showToast }) => {
                                 <label style={lbl}>URL Webhook de n8n (IA)</label>
                                 <input style={inp} value={form.n8n_webhook_url} onChange={e => setForm(f => ({ ...f, n8n_webhook_url: e.target.value }))} placeholder="https://n8n.tudominio.com/webhook/..." />
                                 <div style={{ fontSize: '11px', color: '#6b7280', marginTop: '4px' }}>Opcional. URL donde se reenvían los mensajes entrantes para procesamiento con IA.</div>
+                            </div>
+
+                            {/* ── PAYMENT WEBHOOK (always) ── */}
+                            <div>
+                                <label style={lbl}>URL Webhook de Verificación de Pagos (n8n)</label>
+                                <input style={inp} value={form.payment_verify_webhook} onChange={e => setForm(f => ({ ...f, payment_verify_webhook: e.target.value }))} placeholder="https://n8n.tudominio.com/webhook/..." />
+                                <div style={{ fontSize: '11px', color: '#6b7280', marginTop: '4px' }}>Opcional. URL a donde se envía la verificación cuando un cliente manda un comprobante de pago.</div>
                             </div>
                         </>
                     )}

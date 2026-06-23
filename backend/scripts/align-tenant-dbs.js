@@ -142,6 +142,33 @@ async function alignDatabases() {
                         content TEXT,
                         created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
                     );
+
+                    -- PAYMENTS
+                    CREATE TABLE IF NOT EXISTS payments (
+                        id              SERIAL PRIMARY KEY,
+                        reference       VARCHAR(100),
+                        amount          NUMERIC(15, 2),
+                        bank            VARCHAR(100),
+                        payer_name      VARCHAR(200),
+                        payer_account   VARCHAR(50),
+                        payment_date    TIMESTAMP,
+                        email_subject   TEXT,
+                        raw_email       TEXT,
+                        status          VARCHAR(30) NOT NULL DEFAULT 'pending',
+                        verified_at     TIMESTAMP,
+                        verified_by     VARCHAR(100),
+                        conversation_phone VARCHAR(50) REFERENCES conversations(phone) ON DELETE SET NULL,
+                        notes           TEXT,
+                        created_at      TIMESTAMP NOT NULL DEFAULT NOW(),
+                        updated_at      TIMESTAMP NOT NULL DEFAULT NOW()
+                    );
+
+                    CREATE UNIQUE INDEX IF NOT EXISTS idx_payments_ref_date ON payments(reference, payment_date) WHERE reference IS NOT NULL;
+                    CREATE INDEX IF NOT EXISTS idx_payments_status  ON payments(status);
+                    CREATE INDEX IF NOT EXISTS idx_payments_date    ON payments(payment_date);
+                    CREATE INDEX IF NOT EXISTS idx_payments_phone   ON payments(conversation_phone);
+                    CREATE INDEX IF NOT EXISTS idx_payments_amount  ON payments(amount);
+                    CREATE INDEX IF NOT EXISTS idx_payments_bank    ON payments(bank);
                 `);
 
                 // AI KNOWLEDGE (May fail if vector is missing)
