@@ -18,7 +18,7 @@ const conversationService = require('../services/conversationService');
 const GRAPH_VERSION = 'v19.0';
 
 const { normalizePhone } = require('../utils/phoneUtils');
-const { upload, getUploadUrlFromFile } = require('../middleware/upload');
+const { upload, getUploadUrl, getUploadUrlFromFile } = require('../middleware/upload');
 
 // ─── Helper: get Official API config from tenant context ───────────────────────
 function getOfficialConfig(req = null) {
@@ -70,9 +70,39 @@ router.get('/', asyncHandler(async (req, res) => {
         throw new AppError(`Error obteniendo plantillas: ${tplData?.error?.message || 'Error desconocido'}`, 400);
     }
 
+    // Get database connection and query local image URLs
+    const ctx = tenantContext.getStore();
+    const db = ctx?.db;
+    let mediaMap = {};
+
+    if (db) {
+        try {
+            await db.query(`
+                CREATE TABLE IF NOT EXISTS official_templates_media (
+                    template_name VARCHAR(255) PRIMARY KEY,
+                    media_url TEXT NOT NULL,
+                    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+                );
+            `);
+            const { rows: mediaRows } = await db.query('SELECT template_name, media_url FROM official_templates_media');
+            mediaRows.forEach(row => {
+                mediaMap[row.template_name] = row.media_url;
+            });
+        } catch (dbErr) {
+            console.error('Error fetching official templates media:', dbErr.message);
+        }
+    }
+
+    const templatesWithMedia = (tplData.data || []).map(t => {
+        return {
+            ...t,
+            headerImageUrl: mediaMap[t.name] || null
+        };
+    });
+
     res.json({
         success: true,
-        templates: tplData.data || [],
+        templates: templatesWithMedia,
         paging: tplData.paging || null,
         wabaId,
         phoneInfo: {
@@ -452,6 +482,36 @@ router.post('/create', upload.single('header_image'), asyncHandler(async (req, r
     if (!response.ok) {
         console.error('[waTemplates] Template creation error:', data);
         throw new AppError(`Error creando plantilla: ${data?.error?.message || 'Error desconocido'}`, 400);
+    }
+
+    // If template was created successfully and we uploaded a header image, store it locally
+    if (req.file) {
+        const ctx = tenantContext.getStore();
+        const db = ctx?.db;
+        if (db) {
+            try {
+                await db.query(`
+                    CREATE TABLE IF NOT EXISTS official_templates_media (
+                        template_name VARCHAR(255) PRIMARY KEY,
+                        media_url TEXT NOT NULL,
+                        created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+                    );
+                `);
+                
+                const fileUrl = getUploadUrlFromFile(req.file) || getUploadUrl(req.file.filename, req);
+                
+                await db.query(`
+                    INSERT INTO official_templates_media (template_name, media_url)
+                    VALUES ($1, $2)
+                    ON CONFLICT (template_name)
+                    DO UPDATE SET media_url = EXCLUDED.media_url
+                `, [cleanName, fileUrl]);
+                
+                console.log(`✅ Stored image mapping for official template "${cleanName}": ${fileUrl}`);
+            } catch (dbErr) {
+                console.error('Error storing template image mapping in DB:', dbErr.message);
+            }
+        }
     }
 
     res.json({

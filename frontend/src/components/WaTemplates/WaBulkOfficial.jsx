@@ -332,11 +332,16 @@ const WaBulkOfficial = ({ conversations, tags }) => {
         }).finally(() => setLoadingTemplates(false));
     }, []);
 
-    // When template changes, reset variables
+    // When template changes, reset variables and load its header image URL if available
     useEffect(() => {
-        if (!selectedTemplate) { setVariables({}); return; }
+        if (!selectedTemplate) {
+            setVariables({});
+            setHeaderImageUrl('');
+            return;
+        }
         const vars = extractVars(selectedTemplate.components || []);
         setVariables(Object.fromEntries(vars.map(v => [v, ''])));
+        setHeaderImageUrl(selectedTemplate.headerImageUrl || '');
     }, [selectedTemplate]);
 
     // Handle image upload
@@ -348,7 +353,11 @@ const WaBulkOfficial = ({ conversations, tags }) => {
             fd.append('folder', 'bulk');
             const res = await apiFetch('/api/upload', { method: 'POST', body: fd });
             const data = await res.json();
-            if (data.url) setHeaderImageUrl(data.url);
+            if (data.file?.url) {
+                setHeaderImageUrl(data.file.url);
+            } else if (data.url) {
+                setHeaderImageUrl(data.url);
+            }
         } catch (e) {
             console.error('Upload error', e);
         } finally {
