@@ -185,6 +185,18 @@ router.post('/', async (req, res) => {
                     })();
             }
 
+            // Check if message came from a Click-to-WhatsApp ad referral
+            if (messageObj.referral) {
+                try {
+                    const ref = messageObj.referral;
+                    const source = ref.source_type === 'ad' ? 'Anuncio FB/IG' : (ref.source_type === 'post' ? 'Post FB/IG' : ref.source_type || 'Origen');
+                    const headline = ref.headline ? `: "${ref.headline}"` : '';
+                    messageText = `📢 [${source}${headline}]\n${messageText}`;
+                } catch (refErr) {
+                    console.error('Error parsing message referral info:', refErr.message);
+                }
+            }
+
             console.log(`📱 [OfficialWebk] MSG from: ${phone} | Name: ${contact_name} | Type: ${messageObj.type} | "${messageText.substring(0, 40)}"`);
 
             // ── Avoid duplicate processing ──
