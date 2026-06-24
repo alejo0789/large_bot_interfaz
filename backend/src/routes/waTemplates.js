@@ -141,6 +141,34 @@ router.post('/bulk-send', asyncHandler(async (req, res) => {
         throw new AppError('templateName y templateLanguage son requeridos', 400);
     }
 
+    // Save/Update image URL locally for this template if provided
+    if (headerImageUrl) {
+        const ctx = tenantContext.getStore();
+        const db = ctx?.db;
+        if (db) {
+            try {
+                await db.query(`
+                    CREATE TABLE IF NOT EXISTS official_templates_media (
+                        template_name VARCHAR(255) PRIMARY KEY,
+                        media_url TEXT NOT NULL,
+                        created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+                    );
+                `);
+                
+                await db.query(`
+                    INSERT INTO official_templates_media (template_name, media_url)
+                    VALUES ($1, $2)
+                    ON CONFLICT (template_name)
+                    DO UPDATE SET media_url = EXCLUDED.media_url
+                `, [templateName, headerImageUrl]);
+                
+                console.log(`✅ Stored/Updated image mapping for official template "${templateName}" to: ${headerImageUrl}`);
+            } catch (dbErr) {
+                console.error('Error updating template media URL in bulk-send:', dbErr.message);
+            }
+        }
+    }
+
     // Resolve recipient list
     let contactList = [];
 

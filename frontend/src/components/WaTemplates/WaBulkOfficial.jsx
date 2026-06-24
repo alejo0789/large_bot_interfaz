@@ -25,6 +25,15 @@ function applyVars(text, vars) {
     });
     return result;
 }
+function getHeaderText(components = []) {
+    return components.find(c => c.type === 'HEADER' && c.format === 'TEXT')?.text || '';
+}
+function getFooterText(components = []) {
+    return components.find(c => c.type === 'FOOTER')?.text || '';
+}
+function getButtons(components = []) {
+    return components.find(c => c.type === 'BUTTONS')?.buttons || [];
+}
 
 // ─── Template Selector Dropdown ───────────────────────────────────────────────
 const TemplatePicker = ({ templates, loading, selected, onSelect }) => {
@@ -501,18 +510,115 @@ const WaBulkOfficial = ({ conversations, tags }) => {
                             {/* 4. Preview */}
                             <div style={{ background: 'white', borderRadius: 12, padding: 20, border: '1px solid #e5e7eb' }}>
                                 <div style={{ fontSize: 14, fontWeight: 700, color: '#374151', marginBottom: 12 }}>
-                                    👁️ Vista previa <span style={{ fontSize: 12, fontWeight: 500, color: '#6b7280' }}>(las variables se reemplazarán por cada contacto)</span>
+                                    👁️ Vista previa en tiempo real <span style={{ fontSize: 12, fontWeight: 500, color: '#6b7280' }}>(reemplazo dinámico)</span>
                                 </div>
-                                <div style={{ background: '#e5ddd5', borderRadius: 10, padding: 14 }}>
-                                    {needsImage && headerImageUrl && (
-                                        <div style={{ marginBottom: 8 }}>
-                                            <img src={headerImageUrl} alt="Header" style={{ width: '100%', borderRadius: 8, maxHeight: 120, objectFit: 'cover' }} onError={e => e.target.style.display = 'none'} />
+                                <div style={{ 
+                                     display: 'flex', 
+                                     justifyContent: 'center', 
+                                     alignItems: 'center', 
+                                     background: '#f3f4f6', 
+                                     padding: '24px', 
+                                     borderRadius: 12,
+                                     border: '1px solid #e5e7eb'
+                                }}>
+                                    <div style={{ 
+                                         width: '100%', 
+                                         maxWidth: '320px',
+                                         backgroundImage: 'url("data:image/svg+xml,%3Csvg xmlns=\'http://www.w3.org/2000/svg\' width=\'60\' height=\'60\' viewBox=\'0 0 60 60\'%3E%3Cpath d=\'M0 0h30v30H0zm30 30h30v30H30z\' fill=\'%23ece5dd\' fill-opacity=\'.4\'/%3E%3C/svg%3E")',
+                                         backgroundColor: '#efeae2',
+                                         borderRadius: '16px',
+                                         padding: '16px 12px',
+                                         boxShadow: '0 10px 15px -3px rgba(0,0,0,0.1), inset 0 2px 4px 0 rgba(0,0,0,0.06)',
+                                         display: 'flex',
+                                         flexDirection: 'column',
+                                         gap: '6px',
+                                         boxSizing: 'border-box',
+                                         border: '1px solid #d1d5db'
+                                    }}>
+                                        {/* WhatsApp Message Bubble */}
+                                        <div style={{
+                                             backgroundColor: 'white',
+                                             borderRadius: '0px 10px 10px 10px',
+                                             padding: '10px 12px',
+                                             width: '100%',
+                                             boxShadow: '0 1px 1.5px rgba(0,0,0,0.15)',
+                                             boxSizing: 'border-box',
+                                             position: 'relative'
+                                        }}>
+                                             {/* Header Text */}
+                                             {getHeaderText(selectedTemplate.components || []) && (
+                                                  <div style={{ fontWeight: 700, fontSize: '13.5px', color: '#111827', marginBottom: '5px' }}>
+                                                       {getHeaderText(selectedTemplate.components || [])}
+                                                  </div>
+                                             )}
+
+                                             {/* Header Image */}
+                                             {needsImage && headerImageUrl && (
+                                                  <div style={{ marginBottom: '8px', borderRadius: '8px', overflow: 'hidden' }}>
+                                                      <img src={headerImageUrl} alt="Header Preview" style={{ width: '100%', height: 'auto', display: 'block', maxHeight: '140px', objectFit: 'cover' }} onError={e => e.target.style.display = 'none'} />
+                                                  </div>
+                                             )}
+                                             {needsImage && !headerImageUrl && (
+                                                  <div style={{ marginBottom: '8px', borderRadius: '8px', backgroundColor: '#e5e7eb', height: '120px', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#9ca3af', fontSize: '12px', fontWeight: 600 }}>
+                                                      🖼️ [Carga una imagen]
+                                                  </div>
+                                             )}
+
+                                             {/* Body Text */}
+                                             <div style={{
+                                                  fontSize: '13.5px',
+                                                  color: '#111827',
+                                                  lineHeight: 1.45,
+                                                  whiteSpace: 'pre-wrap',
+                                                  wordBreak: 'break-word'
+                                             }}>
+                                                  {applyVars(bodyText, variables) || (
+                                                       <span style={{ color: '#9ca3af', fontStyle: 'italic' }}>
+                                                            Cuerpo del mensaje...
+                                                       </span>
+                                                  )}
+                                             </div>
+
+                                             {/* Footer */}
+                                             {getFooterText(selectedTemplate.components || []) && (
+                                                  <div style={{ fontSize: '11px', color: '#6b7280', marginTop: '6px', borderTop: '1px solid #f3f4f6', paddingTop: '4px' }}>
+                                                       {getFooterText(selectedTemplate.components || [])}
+                                                  </div>
+                                             )}
+
+                                             {/* Time */}
+                                             <div style={{ display: 'flex', justifyContent: 'flex-end', fontSize: '9px', color: '#8b9396', marginTop: '4px' }}>
+                                                  <span>12:00 PM</span>
+                                             </div>
                                         </div>
-                                    )}
-                                    <div style={{ background: 'white', borderRadius: '0 10px 10px 10px', padding: '10px 14px', maxWidth: '80%', boxShadow: '0 1px 2px rgba(0,0,0,0.08)' }}>
-                                        <div style={{ fontSize: 14, color: '#111827', lineHeight: 1.6, whiteSpace: 'pre-wrap' }}>
-                                            {applyVars(bodyText, variables)}
-                                        </div>
+
+                                        {/* Buttons */}
+                                        {getButtons(selectedTemplate.components || []).length > 0 && (
+                                             <div style={{ display: 'flex', flexDirection: 'column', gap: '6px', width: '100%' }}>
+                                                  {getButtons(selectedTemplate.components || []).map((btn, idx) => (
+                                                       <div 
+                                                            key={idx} 
+                                                            style={{
+                                                                 backgroundColor: 'white',
+                                                                 borderRadius: '8px',
+                                                                 padding: '8px 10px',
+                                                                 textAlign: 'center',
+                                                                 fontSize: '13.5px',
+                                                                 color: '#00a884',
+                                                                 fontWeight: 600,
+                                                                 boxShadow: '0 1px 1.5px rgba(0,0,0,0.1)',
+                                                                 display: 'flex',
+                                                                 alignItems: 'center',
+                                                                 justifyContent: 'center',
+                                                                 gap: '6px',
+                                                                 border: '1px solid rgba(0,0,0,0.05)'
+                                                            }}
+                                                       >
+                                                            <span>💬</span> {btn.text}
+                                                       </div>
+                                                  ))}
+                                             </div>
+                                        )}
                                     </div>
                                 </div>
                             </div>
