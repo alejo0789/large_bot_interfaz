@@ -26,6 +26,7 @@ const getTenantUploadDir = (req) => {
     // try to get slug directly from request headers, query or body
     if (!slug && req) {
         slug = req.headers['x-sede-slug'] ||
+            req.headers['x-sed-slug'] ||
             (req.query && req.query.sede) ||
             (req.body && (req.body.sede || req.body.instance));
     }

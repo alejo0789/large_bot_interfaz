@@ -7,6 +7,7 @@ const tenantMiddleware = async (req, res, next) => {
     try {
         // 1. Get tenant identifier
         const tenantSlug = req.headers['x-sede-slug'] ||
+            req.headers['x-sed-slug'] ||             // alias adicional si hay typo en n8n
             req.headers['x-tenant-slug'] ||          // alias para n8n
             req.headers['x-tenant'] ||               // alias genérico
             (req.query && req.query.sede) ||
