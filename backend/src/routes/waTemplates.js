@@ -330,7 +330,9 @@ router.post('/bulk-send', asyncHandler(async (req, res) => {
                         text: textRepresentation,
                         status: 'sent',
                         whatsappId: whatsappId,
-                        timestamp: new Date().toISOString()
+                        timestamp: new Date().toISOString(),
+                        mediaType: headerImageUrl ? 'image' : null,
+                        mediaUrl: headerImageUrl || null
                     });
 
                     // 3. Update last message inside conversation
@@ -346,7 +348,9 @@ router.post('/bulk-send', asyncHandler(async (req, res) => {
                         sender_type: 'agent',
                         sender_name: 'Sistema',
                         unread: 0,
-                        timestamp: new Date().toISOString()
+                        timestamp: new Date().toISOString(),
+                        media_type: headerImageUrl ? 'image' : null,
+                        media_url: headerImageUrl || null
                     });
 
                 } else {
