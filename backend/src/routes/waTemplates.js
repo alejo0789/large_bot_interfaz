@@ -20,9 +20,9 @@ const { normalizePhone } = require('../utils/phoneUtils');
 const { upload, getUploadUrlFromFile } = require('../middleware/upload');
 
 // ─── Helper: get Official API config from tenant context ───────────────────────
-function getOfficialConfig() {
+function getOfficialConfig(req = null) {
     const ctx = tenantContext.getStore();
-    const tenant = ctx?.tenant;
+    const tenant = ctx?.tenant || (req && req.tenant);
     if (!tenant) throw new AppError('Sin contexto de tenant', 401);
     if (tenant.whatsapp_provider !== 'official') {
         throw new AppError('Esta sede no usa la API Oficial de WhatsApp', 400);
@@ -41,7 +41,7 @@ function getOfficialConfig() {
 // ─── GET /api/wa-templates ────────────────────────────────────────────────────
 // Fetch approved templates from Meta Graph API for this tenant's WABA
 router.get('/', asyncHandler(async (req, res) => {
-    const { token, phoneNumberId, wabaId } = getOfficialConfig();
+    const { token, phoneNumberId, wabaId } = getOfficialConfig(req);
 
     if (!wabaId) {
         throw new AppError('No se ha configurado el WhatsApp Business Account ID (WABA ID). Ve a Admin → WhatsApp para agregarlo.', 400);
@@ -94,7 +94,7 @@ router.get('/', asyncHandler(async (req, res) => {
 //   tagId?: string                      // send to contacts with this tag
 // }
 router.post('/bulk-send', asyncHandler(async (req, res) => {
-    const { token, phoneNumberId, tenantSlug } = getOfficialConfig();
+    const { token, phoneNumberId, tenantSlug } = getOfficialConfig(req);
     const {
         templateName,
         templateLanguage,
@@ -350,7 +350,7 @@ router.get('/stats', asyncHandler(async (req, res) => {
 // ─── POST /api/wa-templates/create ────────────────────────────────────────────
 // Create a new template in Meta WABA
 router.post('/create', upload.single('header_image'), asyncHandler(async (req, res) => {
-    const { token, wabaId } = getOfficialConfig();
+    const { token, wabaId } = getOfficialConfig(req);
     let { name, category, language = 'es', components } = req.body;
 
     if (!name || !category || !components) {
