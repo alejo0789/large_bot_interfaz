@@ -7,6 +7,7 @@
  */
 const express = require('express');
 const router = express.Router();
+const fs = require('fs');
 const { tenantContext } = require('../utils/tenantContext');
 const { asyncHandler, AppError } = require('../middleware/errorHandler');
 const fetch = (...args) => import('node-fetch').then(({ default: f }) => f(...args));
@@ -371,14 +372,54 @@ router.post('/create', upload.single('header_image'), asyncHandler(async (req, r
 
     // Handle uploaded header image
     if (req.file) {
-        const publicUrl = getUploadUrlFromFile(req.file);
-        components.unshift({
-            type: 'HEADER',
-            format: 'IMAGE',
-            example: {
-                header_url: [publicUrl]
+        try {
+            // 1. Get App ID from token
+            const debugRes = await fetch(`https://graph.facebook.com/${GRAPH_VERSION}/debug_token?input_token=${token}&access_token=${token}`);
+            const debugData = await debugRes.json();
+            const appId = debugData.data?.app_id;
+            
+            if (!appId) {
+                throw new Error('No se pudo obtener el App ID del token: ' + JSON.stringify(debugData));
             }
-        });
+
+            // 2. Create Upload Session
+            const sessionRes = await fetch(`https://graph.facebook.com/${GRAPH_VERSION}/${appId}/uploads?file_length=${req.file.size}&file_type=${req.file.mimetype}&access_token=${token}`, {
+                method: 'POST'
+            });
+            const sessionData = await sessionRes.json();
+            const uploadId = sessionData.id;
+            
+            if (!uploadId) {
+                throw new Error('Fallo al crear sesión de subida: ' + JSON.stringify(sessionData));
+            }
+
+            // 3. Upload File Binary
+            const fileBuffer = fs.readFileSync(req.file.path);
+            const uploadRes = await fetch(`https://graph.facebook.com/${GRAPH_VERSION}/${uploadId}`, {
+                method: 'POST',
+                headers: {
+                    'Authorization': `OAuth ${token}`
+                },
+                body: fileBuffer
+            });
+            const uploadData = await uploadRes.json();
+            const headerHandle = uploadData.h;
+
+            if (!headerHandle) {
+                throw new Error('Fallo al subir el archivo: ' + JSON.stringify(uploadData));
+            }
+
+            components.unshift({
+                type: 'HEADER',
+                format: 'IMAGE',
+                example: {
+                    header_handle: [headerHandle]
+                }
+            });
+        } catch (uploadErr) {
+            console.error('[waTemplates] Meta Upload Error:', uploadErr);
+            throw new AppError('Error al procesar la imagen en Meta: ' + uploadErr.message, 400);
+        }
     }
 
     if (!wabaId) {
