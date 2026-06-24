@@ -1,5 +1,13 @@
-const { Pool } = require('pg');
+const pg = require('pg');
+const { Pool } = pg;
 const { tenantContext } = require('../utils/tenantContext');
+
+// Configure type parser to parse TIMESTAMP (without timezone, OID 1114) as UTC.
+// This prevents node-pg from treating plain database timestamps as local time,
+// which shifts the displayed times in the frontend by the server's timezone offset (e.g., 5 hours).
+pg.types.setTypeParser(1114, function(stringValue) {
+    return new Date(stringValue + 'Z');
+});
 
 /**
  * Multi-Tenant Database Manager
