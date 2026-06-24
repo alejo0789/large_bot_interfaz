@@ -17,6 +17,7 @@ const conversationService = require('../services/conversationService');
 const GRAPH_VERSION = 'v19.0';
 
 const { normalizePhone } = require('../utils/phoneUtils');
+const { upload, getUploadUrlFromFile } = require('../middleware/upload');
 
 // ─── Helper: get Official API config from tenant context ───────────────────────
 function getOfficialConfig() {
@@ -348,12 +349,36 @@ router.get('/stats', asyncHandler(async (req, res) => {
 
 // ─── POST /api/wa-templates/create ────────────────────────────────────────────
 // Create a new template in Meta WABA
-router.post('/create', asyncHandler(async (req, res) => {
+router.post('/create', upload.single('header_image'), asyncHandler(async (req, res) => {
     const { token, wabaId } = getOfficialConfig();
-    const { name, category, language = 'es', components } = req.body;
+    let { name, category, language = 'es', components } = req.body;
 
-    if (!name || !category || !components || !Array.isArray(components)) {
-        throw new AppError('name, category y components (array) son requeridos', 400);
+    if (!name || !category || !components) {
+        throw new AppError('name, category y components son requeridos', 400);
+    }
+
+    if (typeof components === 'string') {
+        try {
+            components = JSON.parse(components);
+        } catch (e) {
+            throw new AppError('components debe ser un JSON array válido', 400);
+        }
+    }
+
+    if (!Array.isArray(components)) {
+        throw new AppError('components debe ser un array', 400);
+    }
+
+    // Handle uploaded header image
+    if (req.file) {
+        const publicUrl = getUploadUrlFromFile(req.file);
+        components.unshift({
+            type: 'HEADER',
+            format: 'IMAGE',
+            example: {
+                header_url: [publicUrl]
+            }
+        });
     }
 
     if (!wabaId) {

@@ -39,8 +39,10 @@ const CreateWaTemplateModal = ({ isOpen, onClose, onSuccess }) => {
     const [language, setLanguage] = useState('es');
     
     // Header
-    const [headerType, setHeaderType] = useState('NONE'); // NONE | TEXT
+    const [headerType, setHeaderType] = useState('NONE'); // NONE | TEXT | IMAGE
     const [headerText, setHeaderText] = useState('');
+    const [headerImage, setHeaderImage] = useState(null);
+    const [imagePreviewUrl, setImagePreviewUrl] = useState(null);
     
     // Body
     const [bodyText, setBodyText] = useState('');
@@ -83,6 +85,7 @@ const CreateWaTemplateModal = ({ isOpen, onClose, onSuccess }) => {
         try {
             if (!name.trim()) throw new Error('El nombre de la plantilla es requerido');
             if (!bodyText.trim()) throw new Error('El texto del cuerpo es requerido');
+            if (headerType === 'IMAGE' && !headerImage) throw new Error('Debes seleccionar una imagen para el encabezado');
 
             // Build components list
             const components = [];
@@ -152,18 +155,33 @@ const CreateWaTemplateModal = ({ isOpen, onClose, onSuccess }) => {
                 });
             }
 
-            const response = await apiFetch('/api/wa-templates/create', {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json'
-                },
-                body: JSON.stringify({
-                    name: name.trim(),
-                    category,
-                    language,
-                    components
-                })
-            });
+            let response;
+            if (headerType === 'IMAGE' && headerImage) {
+                const formData = new FormData();
+                formData.append('name', name.trim());
+                formData.append('category', category);
+                formData.append('language', language);
+                formData.append('components', JSON.stringify(components));
+                formData.append('header_image', headerImage);
+
+                response = await apiFetch('/api/wa-templates/create', {
+                    method: 'POST',
+                    body: formData // No Content-Type header so browser sets multipart boundary
+                });
+            } else {
+                response = await apiFetch('/api/wa-templates/create', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        name: name.trim(),
+                        category,
+                        language,
+                        components
+                    })
+                });
+            }
 
             const data = await response.json();
             if (!response.ok) {
@@ -309,10 +327,17 @@ const CreateWaTemplateModal = ({ isOpen, onClose, onSuccess }) => {
                                         </button>
                                         <button 
                                             type="button"
-                                            onClick={() => setHeaderType('TEXT')}
+                                            onClick={() => { setHeaderType('TEXT'); setHeaderImage(null); setImagePreviewUrl(null); }}
                                             style={{ padding: '6px 12px', fontSize: '12px', border: '1px solid #d1d5db', borderRadius: '6px', cursor: 'pointer', backgroundColor: headerType === 'TEXT' ? '#25d366' : 'white', color: headerType === 'TEXT' ? 'white' : '#374151', fontWeight: 600 }}
                                         >
                                             Texto
+                                        </button>
+                                        <button 
+                                            type="button"
+                                            onClick={() => setHeaderType('IMAGE')}
+                                            style={{ padding: '6px 12px', fontSize: '12px', border: '1px solid #d1d5db', borderRadius: '6px', cursor: 'pointer', backgroundColor: headerType === 'IMAGE' ? '#25d366' : 'white', color: headerType === 'IMAGE' ? 'white' : '#374151', fontWeight: 600 }}
+                                        >
+                                            Imagen
                                         </button>
                                     </div>
                                 </div>
@@ -326,6 +351,24 @@ const CreateWaTemplateModal = ({ isOpen, onClose, onSuccess }) => {
                                         placeholder="ej: ¡Confirmación de pedido!"
                                         style={{ width: '100%', padding: '10px', border: '1px solid #d1d5db', borderRadius: '8px', fontSize: '13px', outline: 'none', boxSizing: 'border-box' }}
                                     />
+                                )}
+
+                                {headerType === 'IMAGE' && (
+                                    <div>
+                                        <input 
+                                            type="file"
+                                            accept="image/jpeg,image/png"
+                                            onChange={(e) => {
+                                                const file = e.target.files[0];
+                                                if (file) {
+                                                    setHeaderImage(file);
+                                                    setImagePreviewUrl(URL.createObjectURL(file));
+                                                }
+                                            }}
+                                            style={{ width: '100%', padding: '10px', border: '1px solid #d1d5db', borderRadius: '8px', fontSize: '13px', outline: 'none', boxSizing: 'border-box', backgroundColor: 'white' }}
+                                        />
+                                        <span style={{ fontSize: '10px', color: '#9ca3af', marginTop: '4px', display: 'block' }}>Formatos soportados: JPEG, PNG (Max 5MB)</span>
+                                    </div>
                                 )}
                             </div>
 
@@ -441,6 +484,16 @@ const CreateWaTemplateModal = ({ isOpen, onClose, onSuccess }) => {
                                      {headerType === 'TEXT' && headerText.trim() && (
                                           <div style={{ fontWeight: 700, fontSize: '13.5px', color: '#111827', marginBottom: '5px' }}>
                                                {headerText}
+                                          </div>
+                                     )}
+                                     {headerType === 'IMAGE' && imagePreviewUrl && (
+                                          <div style={{ marginBottom: '8px', borderRadius: '8px', overflow: 'hidden' }}>
+                                              <img src={imagePreviewUrl} alt="Header Preview" style={{ width: '100%', height: 'auto', display: 'block' }} />
+                                          </div>
+                                     )}
+                                     {headerType === 'IMAGE' && !imagePreviewUrl && (
+                                          <div style={{ marginBottom: '8px', borderRadius: '8px', backgroundColor: '#e5e7eb', height: '120px', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#9ca3af', fontSize: '12px', fontWeight: 600 }}>
+                                              [Imagen]
                                           </div>
                                      )}
 
