@@ -181,12 +181,18 @@ const BulkMessageModal = ({
     const [, setBatchId] = useState(null);
 
     // Media state
-    const [mediaFile, setMediaFile] = useState(null);
-    const [mediaPreview, setMediaPreview] = useState(initialMediaUrl);
-    const [mediaType, setMediaType] = useState(initialMediaType);
+    const [mediaItems, setMediaItems] = useState(() => {
+        if (initialMediaUrl) {
+            return [{
+                url: initialMediaUrl,
+                type: initialMediaType || 'image',
+                name: initialMediaUrl.split('/').pop() || 'Archivo'
+            }];
+        }
+        return [];
+    });
 
     // Media browser state
-    const [serverMediaUrl, setServerMediaUrl] = useState(null);
     const [serverFiles, setServerFiles] = useState([]);
     const [showMediaBrowser, setShowMediaBrowser] = useState(false);
     const [isFetchingFiles, setIsFetchingFiles] = useState(false);
@@ -259,8 +265,12 @@ const BulkMessageModal = ({
     // Update state when initial props change
     useEffect(() => {
         if (initialMessage) setMessage(initialMessage);
-        if (initialMediaType) {
-            setMediaType(initialMediaType);
+        if (initialMediaUrl) {
+            setMediaItems([{
+                url: initialMediaUrl,
+                type: initialMediaType || 'image',
+                name: initialMediaUrl.split('/').pop() || 'Archivo'
+            }]);
         }
         if (disableSelectionModeChange) {
             setSelectionMode('manual');
@@ -503,11 +513,12 @@ const BulkMessageModal = ({
 
     // ─── Media helpers ───────────────────────────────────────────────────────
     const clearMedia = () => {
-        setMediaFile(null);
-        setMediaPreview(null);
-        setMediaType(null);
-        setServerMediaUrl(null);
+        setMediaItems([]);
         if (fileInputRef.current) fileInputRef.current.value = '';
+    };
+
+    const removeMediaItem = (index) => {
+        setMediaItems(prev => prev.filter((_, i) => i !== index));
     };
 
     const fetchServerFiles = async () => {
@@ -539,7 +550,7 @@ const BulkMessageModal = ({
             });
             if (res.ok) {
                 setServerFiles(prev => prev.filter(f => f.name !== filename));
-                if (mediaPreview && mediaPreview.includes(filename)) clearMedia();
+                setMediaItems(prev => prev.filter(item => !item.url?.includes(filename)));
             }
         } catch (e) {
             console.error('Error deleting file:', e);
@@ -547,10 +558,14 @@ const BulkMessageModal = ({
     };
 
     const handleSelectServerFile = (file) => {
-        setMediaFile(null);
-        setServerMediaUrl(file.url);
-        setMediaPreview(file.url);
-        setMediaType(file.type);
+        setMediaItems(prev => [
+            ...prev,
+            {
+                url: file.url,
+                type: file.type,
+                name: file.name
+            }
+        ]);
         setShowMediaBrowser(false);
         setTimeout(() => textareaRef.current?.focus(), 0);
     };
@@ -558,30 +573,42 @@ const BulkMessageModal = ({
     if (!isOpen) return null;
 
     const handleFileSelect = (e) => {
-        const file = e.target.files?.[0];
-        if (!file) return;
+        const files = Array.from(e.target.files || []);
+        if (files.length === 0) return;
 
-        let detectedType = null;
-        if (file.type.startsWith('image/')) detectedType = 'image';
-        else if (file.type.startsWith('video/')) detectedType = 'video';
-        else if (file.type.startsWith('audio/')) detectedType = 'audio';
+        const newItems = [];
 
-        setMediaFile(file);
-        setMediaType(detectedType);
+        files.forEach(file => {
+            let detectedType = 'document';
+            if (file.type.startsWith('image/')) detectedType = 'image';
+            else if (file.type.startsWith('video/')) detectedType = 'video';
+            else if (file.type.startsWith('audio/')) detectedType = 'audio';
 
-        if (detectedType === 'image' || detectedType === 'video') {
-            const reader = new FileReader();
-            reader.onload = (ev) => setMediaPreview(ev.target.result);
-            reader.readAsDataURL(file);
-        } else {
-            setMediaPreview(file.name);
-        }
+            const newItem = {
+                file,
+                type: detectedType,
+                name: file.name
+            };
+
+            if (detectedType === 'image' || detectedType === 'video') {
+                const reader = new FileReader();
+                reader.onload = (ev) => {
+                    setMediaItems(prev => prev.map(item => 
+                        item.file === file ? { ...item, previewUrl: ev.target.result } : item
+                    ));
+                };
+                reader.readAsDataURL(file);
+            }
+            newItems.push(newItem);
+        });
+
+        setMediaItems(prev => [...prev, ...newItems]);
         setTimeout(() => textareaRef.current?.focus(), 0);
     };
 
     // ─── Send handler ────────────────────────────────────────────────────────
     const handleSend = async () => {
-        if (!message.trim() && !mediaFile && !initialMediaUrl && !serverMediaUrl) return;
+        if (!message.trim() && mediaItems.length === 0) return;
         // 'all' mode always uses server-side filters (no local recipients needed)
         if (selectionMode !== 'all' && selectionMode !== 'tag' && recipients.length === 0) return;
         if (selectionMode === 'tag' && selectedTagIds.length === 0) return;
@@ -617,10 +644,7 @@ const BulkMessageModal = ({
                 payload = filters;
             }
 
-            const sendMediaUrl = serverMediaUrl || initialMediaUrl;
-            const sendMediaType = mediaType || initialMediaType;
-
-            const result = await onSend(payload, message, mediaFile, { mediaUrl: sendMediaUrl, mediaType: sendMediaType });
+            const result = await onSend(payload, message, mediaItems);
 
             if (result.batchId) {
                 setBatchId(result.batchId);
@@ -675,7 +699,7 @@ const BulkMessageModal = ({
         whiteSpace: 'nowrap'
     });
 
-    const canSend = (message.trim() || mediaFile || initialMediaUrl || serverMediaUrl) &&
+    const canSend = (message.trim() || mediaItems.length > 0) &&
         (
             selectionMode === 'all' ? true :          // 'all' → always valid, backend fetches all
                 selectionMode === 'tag' ? selectedTagIds.length > 0 :
@@ -1282,7 +1306,7 @@ const BulkMessageModal = ({
                     {/* ── Media attachment section ── */}
                     <div style={{ marginBottom: 'var(--space-4)' }}>
                         <h4 style={{ fontSize: 'var(--font-size-sm)', fontWeight: 600, marginBottom: 'var(--space-2)', color: 'var(--color-gray-700)' }}>
-                            Adjuntar archivo (opcional)
+                            Adjuntar archivo (opcional, permite múltiples)
                         </h4>
 
                         <input
@@ -1291,57 +1315,73 @@ const BulkMessageModal = ({
                             onChange={handleFileSelect}
                             accept="image/*,video/*,audio/*"
                             style={{ display: 'none' }}
+                            multiple
                         />
 
-                        {!mediaFile && !initialMediaUrl && !serverMediaUrl ? (
-                            <div style={{ display: 'flex', gap: 'var(--space-2)', flexWrap: 'wrap' }}>
-                                <button onClick={handleOpenMediaBrowser}
-                                    className="media-btn"
-                                    style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-1)', padding: 'var(--space-2) var(--space-3)', backgroundColor: 'var(--color-gray-100)', border: '1px dashed var(--color-gray-300)', borderRadius: 'var(--radius-lg)', cursor: 'pointer', color: 'var(--color-gray-600)', fontSize: 'var(--font-size-sm)', transition: 'all 0.2s' }}>
-                                    <Image className="w-4 h-4" />Galería / Imagen
-                                </button>
-                                <button onClick={() => { fileInputRef.current.accept = 'video/*'; fileInputRef.current.click(); }}
-                                    style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-1)', padding: 'var(--space-2) var(--space-3)', backgroundColor: 'var(--color-gray-100)', border: '1px dashed var(--color-gray-300)', borderRadius: 'var(--radius-lg)', cursor: 'pointer', color: 'var(--color-gray-600)', fontSize: 'var(--font-size-sm)', transition: 'all 0.2s' }}>
-                                    <Video className="w-4 h-4" />Video
-                                </button>
-                                <button onClick={() => { fileInputRef.current.accept = 'audio/*'; fileInputRef.current.click(); }}
-                                    style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-1)', padding: 'var(--space-2) var(--space-3)', backgroundColor: 'var(--color-gray-100)', border: '1px dashed var(--color-gray-300)', borderRadius: 'var(--radius-lg)', cursor: 'pointer', color: 'var(--color-gray-600)', fontSize: 'var(--font-size-sm)', transition: 'all 0.2s' }}>
-                                    <Mic className="w-4 h-4" />Audio
-                                </button>
-                            </div>
-                        ) : (
-                            <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-3)', padding: 'var(--space-3)', backgroundColor: 'var(--color-gray-50)', borderRadius: 'var(--radius-lg)', border: '1px solid var(--color-gray-200)' }}>
-                                {mediaType === 'image' && mediaPreview && (
-                                    <img src={mediaPreview.includes('localhost') && window.location.hostname !== 'localhost'
-                                        ? mediaPreview.replace('localhost', window.location.hostname) : mediaPreview}
-                                        alt="Preview" style={{ width: '80px', height: '80px', objectFit: 'cover', borderRadius: 'var(--radius-md)' }} />
-                                )}
-                                {mediaType === 'video' && mediaPreview && (
-                                    <video src={mediaPreview.includes('localhost') && window.location.hostname !== 'localhost'
-                                        ? mediaPreview.replace('localhost', window.location.hostname) : mediaPreview}
-                                        style={{ width: '80px', height: '80px', objectFit: 'cover', borderRadius: 'var(--radius-md)' }} />
-                                )}
-                                {mediaType === 'audio' && (
-                                    <div style={{ width: '80px', height: '80px', display: 'flex', alignItems: 'center', justifyContent: 'center', backgroundColor: 'var(--color-primary)', borderRadius: 'var(--radius-md)' }}>
-                                        <Mic className="w-8 h-8" style={{ color: 'white' }} />
-                                    </div>
-                                )}
-                                <div style={{ flex: 1 }}>
-                                    <div style={{ fontSize: 'var(--font-size-sm)', fontWeight: 500, color: 'var(--color-gray-700)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                                        {mediaFile ? mediaFile.name : (serverMediaUrl ? serverMediaUrl.split('/').pop() : 'Archivo reenviado')}
-                                    </div>
-                                    <div style={{ fontSize: 'var(--font-size-xs)', color: 'var(--color-gray-500)' }}>
-                                        {mediaFile ? `${(mediaFile.size / 1024 / 1024).toFixed(2)} MB • ` : ''}{mediaType}
-                                    </div>
+                        <div style={{ display: 'flex', gap: 'var(--space-2)', flexWrap: 'wrap', marginBottom: mediaItems.length > 0 ? 'var(--space-3)' : '0' }}>
+                            <button onClick={handleOpenMediaBrowser}
+                                className="media-btn"
+                                style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-1)', padding: 'var(--space-2) var(--space-3)', backgroundColor: 'var(--color-gray-100)', border: '1px dashed var(--color-gray-300)', borderRadius: 'var(--radius-lg)', cursor: 'pointer', color: 'var(--color-gray-600)', fontSize: 'var(--font-size-sm)', transition: 'all 0.2s' }}>
+                                <Image className="w-4 h-4" />Galería / Imagen
+                            </button>
+                            <button onClick={() => { fileInputRef.current.accept = 'video/*'; fileInputRef.current.click(); }}
+                                style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-1)', padding: 'var(--space-2) var(--space-3)', backgroundColor: 'var(--color-gray-100)', border: '1px dashed var(--color-gray-300)', borderRadius: 'var(--radius-lg)', cursor: 'pointer', color: 'var(--color-gray-600)', fontSize: 'var(--font-size-sm)', transition: 'all 0.2s' }}>
+                                <Video className="w-4 h-4" />Video
+                            </button>
+                            <button onClick={() => { fileInputRef.current.accept = 'audio/*'; fileInputRef.current.click(); }}
+                                style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-1)', padding: 'var(--space-2) var(--space-3)', backgroundColor: 'var(--color-gray-100)', border: '1px dashed var(--color-gray-300)', borderRadius: 'var(--radius-lg)', cursor: 'pointer', color: 'var(--color-gray-600)', fontSize: 'var(--font-size-sm)', transition: 'all 0.2s' }}>
+                                <Mic className="w-4 h-4" />Audio
+                            </button>
+                        </div>
+
+                        {mediaItems.length > 0 && (
+                            <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-2)', padding: 'var(--space-3)', backgroundColor: 'var(--color-gray-50)', borderRadius: 'var(--radius-lg)', border: '1px solid var(--color-gray-200)', marginBottom: 'var(--space-3)' }}>
+                                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid var(--color-gray-200)', paddingBottom: '4px', marginBottom: '4px' }}>
+                                    <span style={{ fontSize: 'var(--font-size-xs)', fontWeight: 600, color: 'var(--color-gray-600)' }}>
+                                        Archivos seleccionados ({mediaItems.length})
+                                    </span>
+                                    <button onClick={clearMedia} style={{ border: 'none', background: 'none', color: 'var(--color-error)', cursor: 'pointer', fontSize: 'var(--font-size-xs)', fontWeight: 500 }}>
+                                        Limpiar todos
+                                    </button>
                                 </div>
-                                <button onClick={clearMedia} style={{ padding: 'var(--space-2)', backgroundColor: 'var(--color-error)', color: 'white', border: 'none', borderRadius: 'var(--radius-md)', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                                    <Trash2 className="w-4 h-4" />
-                                </button>
+                                <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', maxHeight: '180px', overflowY: 'auto' }}>
+                                    {mediaItems.map((item, index) => {
+                                        const previewSrc = item.previewUrl || item.url;
+                                        const cleanPreviewSrc = previewSrc && previewSrc.includes('localhost') && window.location.hostname !== 'localhost'
+                                            ? previewSrc.replace('localhost', window.location.hostname)
+                                            : previewSrc;
+
+                                        return (
+                                            <div key={index} style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-3)', padding: '6px', backgroundColor: 'white', borderRadius: 'var(--radius-md)', border: '1px solid var(--color-gray-100)' }}>
+                                                {item.type === 'image' && cleanPreviewSrc ? (
+                                                    <img src={cleanPreviewSrc} alt={item.name} style={{ width: '40px', height: '40px', objectFit: 'cover', borderRadius: 'var(--radius-sm)' }} />
+                                                ) : item.type === 'video' && cleanPreviewSrc ? (
+                                                    <video src={cleanPreviewSrc} style={{ width: '40px', height: '40px', objectFit: 'cover', borderRadius: 'var(--radius-sm)' }} />
+                                                ) : (
+                                                    <div style={{ width: '40px', height: '40px', display: 'flex', alignItems: 'center', justifyContent: 'center', backgroundColor: 'var(--color-primary)', borderRadius: 'var(--radius-sm)' }}>
+                                                        <Mic className="w-5 h-5" style={{ color: 'white' }} />
+                                                    </div>
+                                                )}
+                                                <div style={{ flex: 1, minWidth: 0 }}>
+                                                    <div style={{ fontSize: 'var(--font-size-xs)', fontWeight: 500, color: 'var(--color-gray-700)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                                                        {item.name}
+                                                    </div>
+                                                    <div style={{ fontSize: '10px', color: 'var(--color-gray-500)' }}>
+                                                        {item.type} {item.file ? `• ${(item.file.size / 1024 / 1024).toFixed(2)} MB` : '• Servidor'}
+                                                    </div>
+                                                </div>
+                                                <button onClick={() => removeMediaItem(index)} style={{ padding: '4px', backgroundColor: '#fee2e2', color: '#dc2626', border: 'none', borderRadius: 'var(--radius-sm)', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                                                    <Trash2 className="w-3.5 h-3.5" />
+                                                </button>
+                                            </div>
+                                        );
+                                    })}
+                                </div>
                             </div>
                         )}
 
                         {/* ── Media Browser UI ── */}
-                        {showMediaBrowser && !mediaFile && !initialMediaUrl && !serverMediaUrl && (
+                        {showMediaBrowser && (
                             <div style={{ marginTop: 'var(--space-3)', padding: 'var(--space-3)', backgroundColor: 'var(--color-gray-50)', borderRadius: 'var(--radius-lg)', border: '1px solid var(--color-gray-200)' }}>
                                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 'var(--space-3)' }}>
                                     <h5 style={{ fontSize: 'var(--font-size-sm)', fontWeight: 600, color: 'var(--color-gray-700)', margin: 0 }}>Galería de Archivos</h5>
@@ -1387,7 +1427,7 @@ const BulkMessageModal = ({
                     <div style={{ marginBottom: 'var(--space-3)' }}>
                         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 'var(--space-2)' }}>
                             <h4 style={{ fontSize: 'var(--font-size-sm)', fontWeight: 600, color: 'var(--color-gray-700)', margin: 0 }}>
-                                Mensaje {mediaFile ? '(opcional - puede servir como caption)' : ''}
+                                Mensaje {mediaItems.length > 0 ? '(opcional - se enviará antes de los archivos)' : ''}
                             </h4>
                             <div style={{ display: 'flex', gap: '8px' }}>
                                 <button
@@ -1509,7 +1549,7 @@ const BulkMessageModal = ({
                             {selectionMode === 'tag' && selectedTagIds.length > 0 && tagContactCount !== null
                                 ? `Se enviará a ${tagContactCount} contacto${tagContactCount !== 1 ? 's' : ''} (desde base de datos)`
                                 : `Se enviará a ${displayCount} contacto${displayCount !== 1 ? 's' : ''}`}
-                            {mediaFile && ` con ${mediaType}`}
+                            {mediaItems.length > 0 && ` con ${mediaItems.length} archivo${mediaItems.length > 1 ? 's' : ''}`}
                         </span>
                     </div>
                 </div>

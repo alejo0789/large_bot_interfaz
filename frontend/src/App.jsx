@@ -542,7 +542,7 @@ const AuthenticatedApp = () => {
         }
     }, [selectedConversation, sendFile, user, replyToMessage]);
 
-    const handleBulkSend = useCallback(async (phonesOrFilters, message, mediaFile = null, mediaOptions = null) => {
+    const handleBulkSend = useCallback(async (phonesOrFilters, message, mediaFiles = null, mediaOptions = null) => {
         let recipients = [];
         let filters = null;
 
@@ -558,129 +558,75 @@ const AuthenticatedApp = () => {
             console.log('Using server-side filters:', filters);
         }
 
-        if (mediaFile || (mediaOptions && mediaOptions.mediaUrl)) {
-            // Check if we have a file or a URL (forwarding)
-            const isUrl = !mediaFile && mediaOptions && mediaOptions.mediaUrl;
+        // Process all media items (upload local files, keep server urls)
+        let finalMediaItems = [];
 
-            if (filters) {
-                // If using filters with media, we can't use the sequential client-side sending
-                // We must rely on the backend (which we updated to handle this, theoretically, but wait...)
-                // The backend /send-file ENDPOINT (singular) doesn't support bulk.
-                // The /bulk-send endpoint IS what we want to use for both text and media if we have filters.
+        // If mediaOptions is passed (e.g. from forwarding)
+        if (mediaOptions && (mediaOptions.mediaUrl || mediaOptions.mediaUrls)) {
+            const urls = mediaOptions.mediaUrls || (Array.isArray(mediaOptions.mediaUrl) ? mediaOptions.mediaUrl : [mediaOptions.mediaUrl]);
+            const types = mediaOptions.mediaTypes || (Array.isArray(mediaOptions.mediaType) ? mediaOptions.mediaType : [mediaOptions.mediaType]);
+            
+            urls.forEach((url, idx) => {
+                if (url) {
+                    finalMediaItems.push({
+                        url,
+                        type: types[idx] || (Array.isArray(types) ? 'image' : types) || 'image'
+                    });
+                }
+            });
+        }
 
-                let mediaUrlToSend = null;
-                let mediaTypeToSend = null;
-
-                if (isUrl) {
-                    mediaUrlToSend = mediaOptions.mediaUrl;
-                    mediaTypeToSend = mediaOptions.mediaType;
-                } else {
-                    // We need to upload the file first.
+        // If mediaFiles is passed (from upload/file selector)
+        if (mediaFiles) {
+            const filesArray = Array.isArray(mediaFiles) ? mediaFiles : [mediaFiles];
+            for (const item of filesArray) {
+                if (item instanceof File) {
                     const formData = new FormData();
-                    formData.append('file', mediaFile);
+                    formData.append('file', item);
                     const uploadRes = await apiFetch('/api/upload?folder=bulk', { method: 'POST', body: formData });
-                    if (!uploadRes.ok) throw new Error('Error subiendo archivo para envÃ­o masivo');
+                    if (!uploadRes.ok) throw new Error('Error subiendo archivo para envío masivo');
                     const { file: uploadedFile } = await uploadRes.json();
-                    mediaUrlToSend = uploadedFile.url;
-                    mediaTypeToSend = uploadedFile.type;
-                }
-
-                // Now proceed to bulk send with the URL
-                const response = await apiFetch('/api/bulk-send', {
-                    method: 'POST',
-                    body: JSON.stringify({
-                        recipients: [], // Empty recipients
-                        filters, // Pass filters
-                        message,
-                        mediaUrl: mediaUrlToSend,
-                        mediaType: mediaTypeToSend, // 'image', 'video', etc.
-                        agentId: user?.id,
-                        agentName: user?.name,
-                        agent_id: user?.id,
-                        agent_name: user?.name
-                    })
-                });
-
-                if (!response.ok) throw new Error('Error al iniciar envÃ­o masivo con archivo');
-                const result = await response.json();
-                return result;
-
-            } else {
-                console.warn('âš ï¸ Bulk send with media uses sequential sending for explicit list');
-
-                // If forwarding via URL to explicit list, we can use /bulk-send directly or replicate /send-file logic
-                // But /send-file endpoint handles file upload.
-                // If we have a URL, using /bulk-send (with explicit recipients) is much better/faster than looping /send-file
-                // provided /bulk-send handles explicit recipients + mediaUrl correctly.
-                // Backend /bulk-send DOES handle recipients + mediaUrl.
-
-                if (isUrl) {
-                    const response = await apiFetch('/api/bulk-send', {
-                        method: 'POST',
-                        body: JSON.stringify({
-                            recipients, // Explicit recipients with phones
-                            message,
-                            mediaUrl: mediaOptions.mediaUrl,
-                            mediaType: mediaOptions.mediaType,
-                            agentId: user?.id,
-                            agentName: user?.name,
-                            agent_id: user?.id,
-                            agent_name: user?.name
-                        })
-                    });
-                    if (!response.ok) throw new Error('Error al reenviar medios a lista explÃ­cita');
-                    return await response.json();
-                }
-
-                // If it's a File object (uploading new), we stick to sequential loop using /send-file 
-                // OR we upload once and use bulk-send. Uploading once is better.
-                // Let's optimize: Upload once, use bulk-send.
-
-                const formData = new FormData();
-                formData.append('file', mediaFile);
-                const uploadRes = await apiFetch('/api/upload?folder=bulk', { method: 'POST', body: formData });
-
-                if (uploadRes.ok) {
+                    finalMediaItems.push({ url: uploadedFile.url, type: uploadedFile.type });
+                } else if (item && item.file instanceof File) {
+                    const formData = new FormData();
+                    formData.append('file', item.file);
+                    const uploadRes = await apiFetch('/api/upload?folder=bulk', { method: 'POST', body: formData });
+                    if (!uploadRes.ok) throw new Error('Error subiendo archivo para envío masivo');
                     const { file: uploadedFile } = await uploadRes.json();
-                    const response = await apiFetch('/api/bulk-send', {
-                        method: 'POST',
-                        body: JSON.stringify({
-                            recipients,
-                            message,
-                            mediaUrl: uploadedFile.url,
-                            mediaType: uploadedFile.type,
-                            agentId: user?.id,
-                            agentName: user?.name,
-                            agent_id: user?.id,
-                            agent_name: user?.name
-                        })
-                    });
-                    if (!response.ok) throw new Error('Error al iniciar envÃ­o masivo con archivo');
-                    return await response.json();
+                    finalMediaItems.push({ url: uploadedFile.url, type: uploadedFile.type });
+                } else if (item && item.url) {
+                    finalMediaItems.push({ url: item.url, type: item.type });
                 }
-
-                // Fallback to sequential if upload fails? No, just throw.
-                throw new Error('Error subiendo archivo para envÃ­o masivo');
             }
         }
 
-        console.log(`ðŸ“¤ Sending bulk message via /api/bulk-send`);
+        const payloadBody = {
+            recipients: filters ? [] : recipients,
+            filters: filters || undefined,
+            message,
+            agentId: user?.id,
+            agentName: user?.name,
+            agent_id: user?.id,
+            agent_name: user?.name
+        };
+
+        if (finalMediaItems.length > 0) {
+            payloadBody.mediaUrl = finalMediaItems.map(item => item.url);
+            payloadBody.mediaType = finalMediaItems.map(item => item.type);
+        }
+
+        console.log(`📤 Sending bulk message via /api/bulk-send`, payloadBody);
         const response = await apiFetch('/api/bulk-send', {
             method: 'POST',
-            body: JSON.stringify({
-                recipients: filters ? [] : recipients,
-                filters: filters || undefined,
-                message,
-                agentId: user?.id,
-                agentName: user?.name,
-                agent_id: user?.id,
-                agent_name: user?.name
-            })
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify(payloadBody)
         });
 
-        if (!response.ok) throw new Error('Error al iniciar envÃ­o masivo');
+        if (!response.ok) throw new Error('Error al iniciar envío masivo');
         const result = await response.json();
-        console.log('âœ… Bulk send initiated:', result);
+        console.log('✅ Bulk send initiated:', result);
         return result;
     }, [conversations, user]);
 

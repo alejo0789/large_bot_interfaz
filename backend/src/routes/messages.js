@@ -469,7 +469,7 @@ router.post('/bulk-send', requireApiKey, asyncHandler(async (req, res) => {
         throw new AppError('Se requiere un array de destinatarios o filtros de búsqueda', 400);
     }
 
-    if (!message && !mediaUrl) {
+    if (!message && (!mediaUrl || (Array.isArray(mediaUrl) && mediaUrl.length === 0))) {
         throw new AppError('Se requiere un mensaje o archivo multimedia', 400);
     }
 
@@ -500,15 +500,38 @@ router.post('/bulk-send', requireApiKey, asyncHandler(async (req, res) => {
             // Normalize phone to match webhook logic (evolution.js)
             const normalizedPhone = normalizePhone(phone);
 
+            // Normalize media and mType into an array of {url, type}
+            const mediaItems = [];
+            if (media) {
+                if (Array.isArray(media)) {
+                    media.forEach((url, index) => {
+                        const type = Array.isArray(mType) ? (mType[index] || 'image') : (mType || 'image');
+                        mediaItems.push({ url, type });
+                    });
+                } else if (typeof media === 'string') {
+                    if (media.includes(',')) {
+                        const urls = media.split(',').map(u => u.trim());
+                        urls.forEach((url, index) => {
+                            const type = Array.isArray(mType) ? (mType[index] || 'image') : (mType || 'image');
+                            mediaItems.push({ url, type });
+                        });
+                    } else {
+                        mediaItems.push({ url: media, type: mType || 'image' });
+                    }
+                }
+            }
 
             // Determinar los mensajes a enviar
             const messagesToSend = [];
-            if (msg && media && mType) {
-                // Si hay texto y media, enviar dos mensajes: primero texto, luego media
-                messagesToSend.push({ text: msg, mediaUrl: null, mediaType: null, isMedia: false });
-                messagesToSend.push({ text: '', mediaUrl: media, mediaType: mType, isMedia: true });
+            if (mediaItems.length === 0) {
+                messagesToSend.push({ text: msg || '', mediaUrl: null, mediaType: null, isMedia: false });
             } else {
-                messagesToSend.push({ text: msg || '', mediaUrl: media || null, mediaType: mType || null, isMedia: !!media });
+                if (msg) {
+                    messagesToSend.push({ text: msg, mediaUrl: null, mediaType: null, isMedia: false });
+                }
+                for (const item of mediaItems) {
+                    messagesToSend.push({ text: '', mediaUrl: item.url, mediaType: item.type, isMedia: true });
+                }
             }
 
             // Ensure conversation exists
@@ -533,7 +556,9 @@ router.post('/bulk-send', requireApiKey, asyncHandler(async (req, res) => {
             }
 
             // Update conversation
-            await conversationService.updateLastMessage(normalizedPhone, media && !msg ? '📎 Media' : (msg || '📎 Media'), true);
+            const hasMedia = mediaItems.length > 0;
+            const lastMsgText = msg ? msg : (hasMedia ? '📎 Media' : '');
+            await conversationService.updateLastMessage(normalizedPhone, lastMsgText, true);
             await conversationService.markAsRead(normalizedPhone);
 
             // Send Logic (Evolution > N8N)
@@ -546,7 +571,6 @@ router.post('/bulk-send', requireApiKey, asyncHandler(async (req, res) => {
                     } else {
                         result = await evolutionService.sendText(normalizedPhone, m.text);
                     }
-
 
                     if (!result.success) {
                         throw new Error(result.error?.message || 'Error en Evolution API');
@@ -611,7 +635,7 @@ router.post('/bulk-send', requireApiKey, asyncHandler(async (req, res) => {
                         // Also emit to global list
                         io.to(`tenant:${tenantSlug}`).emit('conversation-updated', {
                             phone: normalizedPhone,
-                            lastMessage: media ? '📎 Media' : msg,
+                            lastMessage: lastMsgText,
                             timestamp: new Date().toISOString(),
                             unread: 0,
                             sender_type: 'agent'
