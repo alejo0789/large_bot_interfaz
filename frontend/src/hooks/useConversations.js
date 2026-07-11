@@ -445,8 +445,9 @@ export const useConversations = (socket) => {
                     (msg.id === tempId || String(msg.id) === String(tempId)) ? {
                         ...msg,
                         status: 'delivered',
-                        id: data.newMessage?.id || msg.id,
+                        id: data.newMessage?.whatsapp_id || data.newMessage?.id || msg.id,
                         whatsapp_id: data.newMessage?.whatsapp_id || msg.whatsapp_id,
+                        _tempId: String(tempId), // keep original tempId for socket dedup
                         replyTo: data.newMessage?.replyTo || msg.replyTo
                     } : msg
                 )
@@ -745,24 +746,31 @@ export const useConversations = (socket) => {
                 // 2. Check by temp_id (most reliable for outgoing)
                 // 3. For OUTGOING messages without temp_id, check by content (legacy fallback)
                 const isDuplicate = existingMessages.some(msg => {
-                    // Check by ID
+                    // 1. Check by exact ID match
                     if (msg.id === formattedMessage.id) return true;
-                    if (msg.whatsapp_id && formattedMessage.whatsapp_id && msg.whatsapp_id === formattedMessage.whatsapp_id) return true;
 
-                    // Check by temp_id for outgoing optimistic messages
+                    // 2. Check by whatsapp_id (both directions)
+                    if (msg.whatsapp_id && formattedMessage.whatsapp_id &&
+                        msg.whatsapp_id === formattedMessage.whatsapp_id) return true;
+
+                    // 3. Check: socket whatsapp_id matches stored id (after optimistic update)
+                    if (formattedMessage.whatsapp_id && msg.id &&
+                        String(msg.id) === String(formattedMessage.whatsapp_id)) return true;
+
+                    // 4. Check by _tempId (stored on optimistic msg after API response)
+                    if (msg._tempId && formattedMessage.temp_id &&
+                        String(msg._tempId) === String(formattedMessage.temp_id)) return true;
+
+                    // 5. Check by temp_id for outgoing optimistic messages
                     if (formattedMessage.temp_id && String(msg.id) === String(formattedMessage.temp_id)) return true;
                     if (msg.temp_id && String(formattedMessage.id) === String(msg.temp_id)) return true;
 
-                    // STRICTER FALLBACK: Only use loose content matching for agent/outgoing messages
-                    // to match a local optimistic message with an incoming socket event
+                    // 6. STRICTER FALLBACK: content match for agent messages in 'sending' state
                     if (isAgent && msg.status === 'sending' && msg.sender === formattedMessage.sender) {
-                        // Check by media type if either message has media
                         if (msg.media_type && formattedMessage.media_type) {
                             return msg.media_type === formattedMessage.media_type &&
                                 Math.abs(new Date(msg.rawTimestamp) - new Date(formattedMessage.rawTimestamp)) < 20000;
                         }
-
-                        // Check by text content
                         return msg.text && msg.text === formattedMessage.text;
                     }
                     
