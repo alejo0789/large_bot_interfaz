@@ -133,10 +133,12 @@ router.post('/send-message', requireApiKey, asyncHandler(async (req, res) => {
     const tenant = context?.tenant;
     const isOfficialProvider = tenant?.whatsapp_provider === 'official';
     const hasEvolutionUrl = !!config.evolutionApiUrl;
+    
+    console.log(`📤 [SEND MESSAGE] Route called. Phone: ${normalizedPhone}, Sede: ${tenant?.slug}, Provider: ${tenant?.whatsapp_provider}, Evolution Instance: ${tenant?.evolution_instance}`);
 
     if (isOfficialProvider || hasEvolutionUrl) {
         // Factory auto-routes to the correct provider
-        const result = await evolutionService.sendText(normalizedPhone, message, reply_to);
+        const result = await evolutionService.sendText(normalizedPhone, message, replyToData?.id || null);
         sendResult = { sent: result.success, platform: isOfficialProvider ? 'official' : 'evolution', ...result };
     } else {
         const result = await n8nService.sendMessage({
@@ -270,7 +272,7 @@ router.post('/send-file', requireApiKey, upload.single('file'), restoreTenantCon
 
     if (isOfficialMediaProvider || hasEvolutionUrlMedia) {
         // Factory auto-routes to the correct provider
-        const result = await evolutionService.sendMedia(normalizedPhone, fileUrl, mediaType, caption || '', file.originalname, reply_to);
+        const result = await evolutionService.sendMedia(normalizedPhone, fileUrl, mediaType, caption || '', file.originalname, replyToData?.id || null);
         sendResult = { sent: result && result.success, platform: isOfficialMediaProvider ? 'official' : 'evolution', ...result };
     } else {
         const result = await n8nService.sendMessage({

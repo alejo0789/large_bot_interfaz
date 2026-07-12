@@ -806,7 +806,9 @@ class EvolutionService {
             const body = {
                 instanceName: instanceName,
                 integration: "WHATSAPP-BAILEYS",
-                qrcode: true
+                qrcode: true,
+                readMessages: false,
+                rejectCall: false
             };
 
             console.log(`📡 Creating Evolution instance: ${instanceName} at ${url}`);
