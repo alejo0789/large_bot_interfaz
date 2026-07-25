@@ -848,9 +848,12 @@ class EvolutionService {
      */
     async getQR(instanceName) {
         try {
-            const url = `${this.baseUrl}/instance/connect/${instanceName}`;
+            const { instance, apiKey } = this.getConfig();
+            const targetInstance = instanceName || instance;
+            const targetApiKey = apiKey || this.globalApiKey;
+            const url = `${this.baseUrl}/instance/connect/${targetInstance}`;
             const response = await fetch(url, {
-                headers: { 'apikey': this.globalApiKey }
+                headers: { 'apikey': targetApiKey }
             });
 
             const data = await response.json();
