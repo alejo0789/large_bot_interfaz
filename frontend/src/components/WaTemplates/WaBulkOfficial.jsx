@@ -138,7 +138,7 @@ const ContactPanel = ({
 
             {/* Tag selector */}
             {selectionMode === 'tag' && (
-                <div style={{ padding: 12, borderBottom: '1px solid #e5e7eb', flexShrink: 0 }}>
+                <div style={{ padding: 12, borderBottom: '1px solid #e5e7eb', flex: 1, overflowY: 'auto' }}>
                     <div style={{ fontSize: 12, fontWeight: 700, color: '#374151', marginBottom: 8 }}>Selecciona una etiqueta</div>
                     <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
                         {(tags || []).map(t => (
