@@ -201,7 +201,8 @@ const AuthenticatedApp = () => {
         updateTag,
         getConversationTags,
         assignTag,
-        removeTag
+        removeTag,
+        fetchTags
     } = useTags();
 
     // Mobile detection - show sidebar by default on mobile
@@ -711,6 +712,8 @@ const AuthenticatedApp = () => {
         const updatedTags = await getConversationTags(phone);
         setTagsByPhone(prev => ({ ...prev, [phone]: updatedTags }));
         
+        fetchTags(); // Actualiza conteo global de etiquetas
+        
         // If it was the "Agendar" tag, the lead_time is cleared on the server
         const tag = tags.find(t => t.id === tagId);
         if (tag && tag.name.toLowerCase() === 'agendar') {
@@ -720,13 +723,15 @@ const AuthenticatedApp = () => {
         } else {
             updateConversationLocal(phone, { tags: updatedTags });
         }
-    }, [assignTag, getConversationTags, updateConversationLocal, user, tags]);
+    }, [assignTag, getConversationTags, updateConversationLocal, user, tags, fetchTags]);
 
     const handleRemoveTag = useCallback(async (phone, tagId) => {
         const tag = tags.find(t => t.id === tagId);
         await removeTag(phone, tagId);
         const updatedTags = await getConversationTags(phone);
         setTagsByPhone(prev => ({ ...prev, [phone]: updatedTags }));
+        
+        fetchTags(); // Actualiza conteo global de etiquetas
         
         if (tag && tag.name.toLowerCase() === 'agendar') {
             // Restore AI active state locally if un-scheduling
@@ -735,7 +740,7 @@ const AuthenticatedApp = () => {
         } else {
             updateConversationLocal(phone, { tags: updatedTags });
         }
-    }, [removeTag, getConversationTags, updateConversationLocal, tags]);
+    }, [removeTag, getConversationTags, updateConversationLocal, tags, fetchTags]);
 
     const [conversationToTag, setConversationToTag] = useState(null);
 
