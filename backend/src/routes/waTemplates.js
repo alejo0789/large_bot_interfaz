@@ -552,4 +552,46 @@ router.post('/create', upload.single('header_image'), asyncHandler(async (req, r
     });
 }));
 
+// ─── DELETE /api/wa-templates/:name ───────────────────────────────────────────
+// Delete a template from Meta WABA
+router.delete('/:name', asyncHandler(async (req, res) => {
+    const { token, wabaId } = getOfficialConfig(req);
+    const { name } = req.params;
+
+    if (!wabaId) {
+        throw new AppError('No se ha configurado el WhatsApp Business Account ID (WABA ID). Ve a Admin → WhatsApp.', 400);
+    }
+
+    const apiUrl = `https://graph.facebook.com/${GRAPH_VERSION}/${wabaId}/message_templates?name=${name}`;
+
+    const response = await fetch(apiUrl, {
+        method: 'DELETE',
+        headers: {
+            'Authorization': `Bearer ${token}`
+        }
+    });
+
+    const data = await response.json();
+
+    if (!response.ok) {
+        console.error('[waTemplates] Template deletion error:', data);
+        throw new AppError(`Error eliminando plantilla: ${data?.error?.message || 'Error desconocido'}`, 400);
+    }
+
+    // Optional: cleanup local DB mappings
+    const ctx = tenantContext.getStore();
+    if (ctx && ctx.db) {
+        try {
+            await ctx.db.query('DELETE FROM official_templates_media WHERE template_name = $1', [name]);
+        } catch (e) {
+            console.error('Error cleaning template media mapping:', e.message);
+        }
+    }
+
+    res.json({
+        success: true,
+        message: 'Plantilla eliminada correctamente'
+    });
+}));
+
 module.exports = router;

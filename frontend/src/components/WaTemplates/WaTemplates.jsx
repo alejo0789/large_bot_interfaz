@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { RefreshCw, ExternalLink, Search, X, CheckCircle, Clock, XCircle, Image, FileText, Send, ChevronRight, Plus } from 'lucide-react';
+import { RefreshCw, ExternalLink, Search, X, CheckCircle, Clock, XCircle, Image, FileText, Send, ChevronRight, Plus, Trash2 } from 'lucide-react';
 import apiFetch from '../../utils/api';
 import CreateWaTemplateModal from './CreateWaTemplateModal';
 
@@ -118,7 +118,7 @@ const TemplateCard = ({ tpl, onSelect, onBulkSend }) => {
 };
 
 // ─── Template Preview Modal ────────────────────────────────────────────────────
-const TemplatePreviewModal = ({ tpl, onClose, onBulkSend }) => {
+const TemplatePreviewModal = ({ tpl, onClose, onBulkSend, onDelete }) => {
     if (!tpl) return null;
     const status = STATUS_CONFIG[tpl.status] || STATUS_CONFIG.PENDING;
     const bodyText = getBodyText(tpl.components);
@@ -199,13 +199,18 @@ const TemplatePreviewModal = ({ tpl, onClose, onBulkSend }) => {
                 </div>
 
                 {/* Footer */}
-                <div style={{ padding: '16px 24px', borderTop: '1px solid #f3f4f6', display: 'flex', gap: 10, justifyContent: 'flex-end', background: '#fafafa' }}>
-                    <button onClick={onClose} style={{ padding: '10px 20px', borderRadius: 8, border: '1px solid #d1d5db', background: 'white', cursor: 'pointer', fontWeight: 600 }}>Cerrar</button>
-                    {tpl.status === 'APPROVED' && (
-                        <button onClick={() => { onClose(); onBulkSend(tpl); }} style={{ padding: '10px 20px', borderRadius: 8, border: 'none', background: 'linear-gradient(135deg,#25d366,#128c7e)', color: 'white', cursor: 'pointer', fontWeight: 700, display: 'flex', alignItems: 'center', gap: 6 }}>
-                            <Send size={15} /> Usar en Envío Masivo
-                        </button>
-                    )}
+                <div style={{ padding: '16px 24px', borderTop: '1px solid #f3f4f6', display: 'flex', gap: 10, justifyContent: 'space-between', background: '#fafafa' }}>
+                    <button onClick={() => onDelete(tpl)} style={{ padding: '10px 20px', borderRadius: 8, border: 'none', background: '#fee2e2', color: '#b91c1c', cursor: 'pointer', fontWeight: 600, display: 'flex', alignItems: 'center', gap: 6 }}>
+                        <Trash2 size={15} /> Eliminar
+                    </button>
+                    <div style={{ display: 'flex', gap: 10 }}>
+                        <button onClick={onClose} style={{ padding: '10px 20px', borderRadius: 8, border: '1px solid #d1d5db', background: 'white', cursor: 'pointer', fontWeight: 600 }}>Cerrar</button>
+                        {tpl.status === 'APPROVED' && (
+                            <button onClick={() => { onClose(); onBulkSend(tpl); }} style={{ padding: '10px 20px', borderRadius: 8, border: 'none', background: 'linear-gradient(135deg,#25d366,#128c7e)', color: 'white', cursor: 'pointer', fontWeight: 700, display: 'flex', alignItems: 'center', gap: 6 }}>
+                                <Send size={15} /> Usar en Envío Masivo
+                            </button>
+                        )}
+                    </div>
                 </div>
             </div>
         </div>
@@ -238,6 +243,30 @@ const WaTemplates = ({ onBulkSend }) => {
             setLoading(false);
         }
     }, []);
+
+    const handleDelete = async (tpl) => {
+        if (!window.confirm(`¿Estás seguro de que deseas eliminar la plantilla "${tpl.name}"?\n\nEsta acción no se puede deshacer y se borrará de tu cuenta de Meta.`)) {
+            return;
+        }
+
+        try {
+            setLoading(true);
+            const res = await apiFetch(`/api/wa-templates/${tpl.name}`, {
+                method: 'DELETE'
+            });
+            const data = await res.json();
+            
+            if (!res.ok) {
+                throw new Error(data.error || 'Error al eliminar');
+            }
+            
+            setSelected(null);
+            load(); // Recargar la lista
+        } catch (e) {
+            alert('Error eliminando plantilla: ' + e.message);
+            setLoading(false);
+        }
+    };
 
     useEffect(() => { load(); }, [load]);
 
@@ -334,7 +363,7 @@ const WaTemplates = ({ onBulkSend }) => {
                 )}
             </div>
 
-            {selected && <TemplatePreviewModal tpl={selected} onClose={() => setSelected(null)} onBulkSend={onBulkSend} />}
+            {selected && <TemplatePreviewModal tpl={selected} onClose={() => setSelected(null)} onBulkSend={onBulkSend} onDelete={handleDelete} />}
             {showCreateModal && <CreateWaTemplateModal isOpen={showCreateModal} onClose={() => setShowCreateModal(false)} onSuccess={load} />}
             <style>{`@keyframes spin { to { transform: rotate(360deg); } }`}</style>
         </div>
