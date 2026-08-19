@@ -22,6 +22,8 @@ const TagFilter = ({
     isLoading,
     onCreateTag,
     onUpdateTag,
+    onDeleteTag,
+    userRole,
     leadTimeFilter,
     onLeadTimeFilterChange,
     onStartBulkSend,
@@ -42,6 +44,7 @@ const TagFilter = ({
     const dateDropdownRef = useRef(null);
 
     const hasActiveFilters = selectedTagIds.length > 0 || showUnreadOnly || dateFilter || leadTimeFilter;
+    const isAdmin = userRole === 'SUPER_ADMIN' || userRole === 'SEDE_ADMIN';
 
     // Close dropdowns when clicking outside
     useEffect(() => {
@@ -463,6 +466,32 @@ const TagFilter = ({
                                             >
                                                 <Edit2 className="w-3 h-3" />
                                             </button>
+                                            {isAdmin && (
+                                                <button
+                                                    onClick={(e) => {
+                                                        e.stopPropagation();
+                                                        if (window.confirm(`¿Estás seguro de que quieres eliminar la etiqueta "${tag.name}"? Esta acción no se puede deshacer y se quitará de todos los contactos.`)) {
+                                                            onDeleteTag && onDeleteTag(tag.id);
+                                                        }
+                                                    }}
+                                                    style={{
+                                                        backgroundColor: 'transparent',
+                                                        color: 'var(--color-gray-400)',
+                                                        border: 'none',
+                                                        cursor: 'pointer',
+                                                        padding: '10px 10px 10px 5px',
+                                                        flexShrink: 0,
+                                                        display: 'flex',
+                                                        alignItems: 'center',
+                                                        justifyContent: 'center'
+                                                    }}
+                                                    onMouseEnter={(e) => { e.currentTarget.style.color = '#ef4444'; e.currentTarget.style.backgroundColor = 'var(--color-red-50)'; }}
+                                                    onMouseLeave={(e) => { e.currentTarget.style.color = 'var(--color-gray-400)'; e.currentTarget.style.backgroundColor = 'transparent'; }}
+                                                    title="Eliminar etiqueta"
+                                                >
+                                                    <X className="w-3 h-3" />
+                                                </button>
+                                            )}
                                         </div>
                                     );
                                 })

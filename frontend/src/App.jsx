@@ -202,6 +202,7 @@ const AuthenticatedApp = () => {
         getConversationTags,
         assignTag,
         removeTag,
+        deleteTag,
         fetchTags
     } = useTags();
 
@@ -706,6 +707,21 @@ const AuthenticatedApp = () => {
 
         return updatedTag;
     }, [updateTag]);
+
+    const handleDeleteTag = useCallback(async (tagId) => {
+        const success = await deleteTag(tagId);
+        if (success) {
+            // Eliminar de los contactos en memoria
+            setTagsByPhone(prev => {
+                const next = { ...prev };
+                Object.keys(next).forEach(phone => {
+                    next[phone] = next[phone].filter(t => t.id !== tagId);
+                });
+                return next;
+            });
+        }
+        return success;
+    }, [deleteTag]);
 
     const handleAssignTag = useCallback(async (phone, tagId) => {
         await assignTag(phone, tagId, user?.id);
@@ -1220,6 +1236,8 @@ const AuthenticatedApp = () => {
                         isLoading={isLoading}
                         onCreateTag={createTag}
                         onUpdateTag={handleUpdateTag}
+                        onDeleteTag={handleDeleteTag}
+                        userRole={user?.role}
                         leadTimeFilter={leadTimeFilter}
                         onLeadTimeFilterChange={setLeadTimeFilter}
                         onStartBulkSend={handleStartBulkSend}

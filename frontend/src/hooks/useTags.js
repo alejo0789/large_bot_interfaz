@@ -67,6 +67,23 @@ export const useTags = () => {
         }
     }, []);
 
+    // Delete an existing tag
+    const deleteTag = useCallback(async (tagId) => {
+        try {
+            const response = await apiFetch(`/api/tags/${tagId}`, {
+                method: 'DELETE'
+            });
+
+            if (!response.ok) throw new Error('Error deleting tag');
+
+            setTags(prev => prev.filter(t => t.id !== tagId));
+            return true;
+        } catch (err) {
+            console.error('Error deleting tag:', err);
+            throw err;
+        }
+    }, []);
+
     // Get tags for a specific conversation
     const getConversationTags = useCallback(async (phone) => {
         try {
@@ -122,6 +139,7 @@ export const useTags = () => {
         fetchTags,
         createTag,
         updateTag,
+        deleteTag,
         getConversationTags,
         assignTag,
         removeTag
