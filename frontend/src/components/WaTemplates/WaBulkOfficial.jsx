@@ -95,6 +95,12 @@ const ContactPanel = ({
     importInput = '',
     setImportInput
 }) => {
+    const [searchTag, setSearchTag] = useState('');
+
+    const filteredTags = (tags || []).filter(t => 
+        !searchTag || t.name.toLowerCase().includes(searchTag.toLowerCase())
+    );
+
     const filtered = (conversations || []).filter(c => {
         const q = searchContact.toLowerCase();
         return !q || c.contact?.name?.toLowerCase().includes(q) || (c.contact?.phone || '').includes(q);
@@ -140,8 +146,20 @@ const ContactPanel = ({
             {selectionMode === 'tag' && (
                 <div style={{ padding: 12, borderBottom: '1px solid #e5e7eb', flex: 1, overflowY: 'auto' }}>
                     <div style={{ fontSize: 12, fontWeight: 700, color: '#374151', marginBottom: 8 }}>Selecciona una etiqueta</div>
+                    <div style={{ position: 'relative', marginBottom: 12 }}>
+                        <Search size={13} style={{ position: 'absolute', left: 9, top: '50%', transform: 'translateY(-50%)', color: '#9ca3af' }} />
+                        <input 
+                            value={searchTag} 
+                            onChange={e => setSearchTag(e.target.value)} 
+                            placeholder="Buscar etiqueta..." 
+                            style={{ width: '100%', padding: '8px 12px 8px 30px', border: '1px solid #e5e7eb', borderRadius: 8, fontSize: 13, outline: 'none', boxSizing: 'border-box' }} 
+                        />
+                    </div>
+
                     <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
-                        {(tags || []).map(t => (
+                        {filteredTags.length === 0 ? (
+                            <div style={{ fontSize: 12, color: '#6b7280', padding: '10px 0' }}>No se encontraron etiquetas</div>
+                        ) : filteredTags.map(t => (
                             <button key={t.id} onClick={() => setSelectedTagId(t.id === selectedTagId ? null : t.id)}
                                 style={{ padding: '4px 10px', borderRadius: 999, border: t.id === selectedTagId ? '2px solid #059669' : '1px solid #e5e7eb', background: t.id === selectedTagId ? '#f0fdf4' : 'white', color: t.id === selectedTagId ? '#059669' : '#374151', fontSize: 12, fontWeight: 600, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 5 }}
                             >

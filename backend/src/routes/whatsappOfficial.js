@@ -191,7 +191,24 @@ router.post('/', async (req, res) => {
                     const ref = messageObj.referral;
                     const source = ref.source_type === 'ad' ? 'Anuncio FB/IG' : (ref.source_type === 'post' ? 'Post FB/IG' : ref.source_type || 'Origen');
                     const headline = ref.headline ? `: "${ref.headline}"` : '';
-                    messageText = `📢 [${source}${headline}]\n${messageText}`;
+                    
+                    let refInfo = `📢 [${source}${headline}]`;
+                    
+                    if (ref.source_url) {
+                        refInfo += `\n🔗 Link campaña: ${ref.source_url}`;
+                    }
+                    
+                    if (ref.image_url || ref.video_url) {
+                        const mediaLink = ref.image_url || ref.video_url;
+                        refInfo += `\n🖼️ Medio original: ${mediaLink}`;
+                        
+                        if (!mediaUrl && !mediaId) {
+                            mediaUrl = mediaLink;
+                            mediaType = ref.media_type === 'video' ? 'video' : 'image';
+                        }
+                    }
+                    
+                    messageText = `${refInfo}\n\n${messageText}`;
                 } catch (refErr) {
                     console.error('Error parsing message referral info:', refErr.message);
                 }
