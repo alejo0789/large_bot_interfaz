@@ -162,3 +162,50 @@ CREATE INDEX IF NOT EXISTS idx_payments_phone   ON payments(conversation_phone);
 CREATE INDEX IF NOT EXISTS idx_payments_amount  ON payments(amount);
 CREATE INDEX IF NOT EXISTS idx_payments_bank    ON payments(bank);
 
+-- 11. N8N CHAT HISTORIES
+CREATE TABLE IF NOT EXISTS n8n_chat_histories (
+    id SERIAL PRIMARY KEY,
+    session_id VARCHAR(255) NOT NULL,
+    message JSONB NOT NULL
+);
+
+-- 12. OFFICIAL TEMPLATE STATS
+CREATE TABLE IF NOT EXISTS official_template_stats (
+    id SERIAL PRIMARY KEY,
+    template_name VARCHAR(255),
+    sent_count INTEGER DEFAULT 0,
+    failed_count INTEGER DEFAULT 0,
+    sent_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+);
+
+-- 13. OFFICIAL TEMPLATES MEDIA
+CREATE TABLE IF NOT EXISTS official_templates_media (
+    template_name VARCHAR(255) NOT NULL,
+    media_url TEXT NOT NULL,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+    PRIMARY KEY (template_name)
+);
+
+-- 14. BULK CAMPAIGNS
+CREATE TABLE IF NOT EXISTS bulk_campaigns (
+    id SERIAL PRIMARY KEY,
+    template_name VARCHAR(255) NOT NULL,
+    campaign_name VARCHAR(255),
+    template_language VARCHAR(10),
+    sent_by VARCHAR(100),
+    sent_count INTEGER DEFAULT 0,
+    failed_count INTEGER DEFAULT 0,
+    sent_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+);
+
+-- 15. BULK CAMPAIGN RECIPIENTS
+CREATE TABLE IF NOT EXISTS bulk_campaign_recipients (
+    id SERIAL PRIMARY KEY,
+    campaign_id INTEGER REFERENCES bulk_campaigns(id) ON DELETE CASCADE,
+    phone VARCHAR(50) NOT NULL,
+    contact_name VARCHAR(255),
+    status VARCHAR(20) DEFAULT 'sent',
+    replied_at TIMESTAMP WITH TIME ZONE,
+    is_scheduled BOOLEAN DEFAULT false,
+    UNIQUE(campaign_id, phone)
+);

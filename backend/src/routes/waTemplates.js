@@ -134,7 +134,9 @@ router.post('/bulk-send', asyncHandler(async (req, res) => {
         recipients = [],
         tagId = null,
         selectionMode = 'manual',
-        templateText = ''
+        templateText = '',
+        createCampaign = true,
+        campaignName = null
     } = req.body;
 
     if (!templateName || !templateLanguage) {
@@ -384,48 +386,54 @@ router.post('/bulk-send', asyncHandler(async (req, res) => {
             console.error('Error logging template stats:', dbErr.message);
         }
 
-        // Create campaign tracking record
-        try {
-            await ctx.db.query(`
-                CREATE TABLE IF NOT EXISTS bulk_campaigns (
-                    id SERIAL PRIMARY KEY,
-                    template_name VARCHAR(255) NOT NULL,
-                    template_language VARCHAR(10),
-                    sent_count INTEGER DEFAULT 0,
-                    failed_count INTEGER DEFAULT 0,
-                    sent_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
-                    sent_by VARCHAR(100)
-                );
-                CREATE TABLE IF NOT EXISTS bulk_campaign_recipients (
-                    id SERIAL PRIMARY KEY,
-                    campaign_id INTEGER REFERENCES bulk_campaigns(id) ON DELETE CASCADE,
-                    phone VARCHAR(50) NOT NULL,
-                    contact_name VARCHAR(255),
-                    status VARCHAR(20) DEFAULT 'sent',
-                    replied_at TIMESTAMP WITH TIME ZONE,
-                    UNIQUE(campaign_id, phone)
-                );
-            `);
+        // Create campaign tracking record if requested
+        if (createCampaign) {
+            try {
+                await ctx.db.query(`
+                    CREATE TABLE IF NOT EXISTS bulk_campaigns (
+                        id SERIAL PRIMARY KEY,
+                        template_name VARCHAR(255) NOT NULL,
+                        campaign_name VARCHAR(255),
+                        template_language VARCHAR(10),
+                        sent_count INTEGER DEFAULT 0,
+                        failed_count INTEGER DEFAULT 0,
+                        sent_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+                        sent_by VARCHAR(100)
+                    );
+                    CREATE TABLE IF NOT EXISTS bulk_campaign_recipients (
+                        id SERIAL PRIMARY KEY,
+                        campaign_id INTEGER REFERENCES bulk_campaigns(id) ON DELETE CASCADE,
+                        phone VARCHAR(50) NOT NULL,
+                        contact_name VARCHAR(255),
+                        status VARCHAR(20) DEFAULT 'sent',
+                        replied_at TIMESTAMP WITH TIME ZONE,
+                        is_scheduled BOOLEAN DEFAULT false,
+                        UNIQUE(campaign_id, phone)
+                    );
+                `);
 
-            const { rows: campRows } = await ctx.db.query(
-                'INSERT INTO bulk_campaigns (template_name, template_language, sent_count, failed_count) VALUES ($1, $2, $3, $4) RETURNING id',
-                [templateName, templateLanguage, sent, failed]
-            );
-            const campaignId = campRows[0].id;
+                const finalCampaignName = campaignName && campaignName.trim() ? campaignName.trim() : null;
 
-            // Batch insert recipients
-            if (successPhones.length > 0) {
-                const values = successPhones.map((_, i) => `($1, $${i*2+2}, $${i*2+3})`).join(', ');
-                const params = [campaignId];
-                successPhones.forEach(r => { params.push(r.phone); params.push(r.name); });
-                await ctx.db.query(
-                    `INSERT INTO bulk_campaign_recipients (campaign_id, phone, contact_name) VALUES ${values} ON CONFLICT DO NOTHING`,
-                    params
+                const { rows: campRows } = await ctx.db.query(
+                    'INSERT INTO bulk_campaigns (template_name, campaign_name, template_language, sent_count, failed_count) VALUES ($1, $2, $3, $4, $5) RETURNING id',
+                    [templateName, finalCampaignName, templateLanguage, sent, failed]
                 );
+                const campaignId = campRows[0].id;
+
+                // Batch insert recipients
+                if (successPhones.length > 0) {
+                    const values = successPhones.map((_, i) => `($1, $${i*2+2}, $${i*2+3})`).join(', ');
+                    const params = [campaignId];
+                    successPhones.forEach(r => { params.push(r.phone); params.push(r.name); });
+                    await ctx.db.query(
+                        `INSERT INTO bulk_campaign_recipients (campaign_id, phone, contact_name) VALUES ${values} ON CONFLICT DO NOTHING`,
+                        params
+                    );
+                }
+                console.log(`📊 Campaign #${campaignId} created: ${successPhones.length} recipients tracked`);
+            } catch (campErr) {
+                console.error('Error creating campaign tracking:', campErr.message);
             }
-            console.log(`📊 Campaign #${campaignId} created: ${successPhones.length} recipients tracked`);
-        } catch (campErr) {
-            console.error('Error creating campaign tracking:', campErr.message);
         }
     }
 
@@ -664,6 +672,7 @@ router.get('/campaigns', asyncHandler(async (req, res) => {
             contact_name VARCHAR(255),
             status VARCHAR(20) DEFAULT 'sent',
             replied_at TIMESTAMP WITH TIME ZONE,
+            is_scheduled BOOLEAN DEFAULT false,
             UNIQUE(campaign_id, phone)
         );
     `);
@@ -677,7 +686,8 @@ router.get('/campaigns', asyncHandler(async (req, res) => {
             bc.sent_at,
             COUNT(bcr.id) as total_recipients,
             COUNT(CASE WHEN bcr.status = 'replied' THEN 1 END) as replied_count,
-            COUNT(CASE WHEN bcr.status = 'sent' THEN 1 END) as no_reply_count
+            COUNT(CASE WHEN bcr.status = 'sent' THEN 1 END) as no_reply_count,
+            COUNT(CASE WHEN bcr.is_scheduled THEN 1 END) as scheduled_count
         FROM bulk_campaigns bc
         LEFT JOIN bulk_campaign_recipients bcr ON bcr.campaign_id = bc.id
         GROUP BY bc.id
@@ -707,6 +717,7 @@ router.get('/campaigns/:id', asyncHandler(async (req, res) => {
             bcr.contact_name,
             bcr.status,
             bcr.replied_at,
+            bcr.is_scheduled,
             c.last_message_text,
             c.last_message_timestamp,
             c.last_message_from_me,

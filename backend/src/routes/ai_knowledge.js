@@ -3,7 +3,7 @@ const router = express.Router();
 const multer = require('multer');
 const path = require('path');
 const fs = require('fs');
-const { pool } = require('../config/database');
+const { pool, dbManager } = require('../config/database');
 const { config } = require('../config/app');
 const { tenantContext } = require('../utils/tenantContext');
 
@@ -99,8 +99,19 @@ router.get('/', async (req, res, next) => {
         const activePool = req.db || pool;
         const result = await activePool.query(query, params);
 
+        let globalRows = [];
+        try {
+            const globalQuery = query.replace('FROM ai_knowledge', 'FROM ai_knowledge_global');
+            const globalResult = await dbManager.masterPool.query(globalQuery, params);
+            globalRows = globalResult.rows;
+        } catch(err) {
+            console.error('⚠️ No se pudo obtener knowledge global:', err.message);
+        }
+
+        const allRows = [...globalRows, ...result.rows];
+
         // Mapear resultados para incluir URL completa si es necesario
-        const resources = result.rows.map(row => {
+        const resources = allRows.map(row => {
             let fullUrl = row.media_url;
             if (fullUrl && fullUrl.startsWith('/uploads')) {
                 fullUrl = `${config.publicUrl}${fullUrl}`;
@@ -455,7 +466,18 @@ router.get('/promociones', async (req, res, next) => {
         const activePool = req.db || pool;
         const result = await activePool.query(query, params);
 
-        const promociones = result.rows.map(row => {
+        let globalRows = [];
+        try {
+            const globalQuery = query.replace('FROM ai_knowledge', 'FROM ai_knowledge_global');
+            const globalResult = await dbManager.masterPool.query(globalQuery, params);
+            globalRows = globalResult.rows;
+        } catch(err) {
+            console.error('⚠️ No se pudo obtener knowledge global:', err.message);
+        }
+
+        const allRows = [...globalRows, ...result.rows];
+
+        const promociones = allRows.map(row => {
             let imageUrl = row.media_url;
             if (imageUrl && imageUrl.startsWith('/uploads')) {
                 imageUrl = `${config.publicUrl}${imageUrl}`;
@@ -516,7 +538,18 @@ router.get('/servicios', async (req, res, next) => {
         const activePool = req.db || pool;
         const result = await activePool.query(query, params);
 
-        const servicios = result.rows.map(row => {
+        let globalRows = [];
+        try {
+            const globalQuery = query.replace('FROM ai_knowledge', 'FROM ai_knowledge_global');
+            const globalResult = await dbManager.masterPool.query(globalQuery, params);
+            globalRows = globalResult.rows;
+        } catch(err) {
+            console.error('⚠️ No se pudo obtener knowledge global:', err.message);
+        }
+
+        const allRows = [...globalRows, ...result.rows];
+
+        const servicios = allRows.map(row => {
             let imageUrl = row.media_url;
             if (imageUrl && imageUrl.startsWith('/uploads')) {
                 imageUrl = `${config.publicUrl}${imageUrl}`;

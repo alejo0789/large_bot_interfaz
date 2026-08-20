@@ -52,7 +52,7 @@ const CampaignCard = ({ campaign, onClick, onDelete }) => {
         >
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 12 }}>
                 <div>
-                    <div style={{ fontWeight: 700, fontSize: 15, color: '#111827' }}>📋 {campaign.template_name}</div>
+                    <div style={{ fontWeight: 700, fontSize: 15, color: '#111827' }}>📋 {campaign.campaign_name || campaign.template_name}</div>
                     <div style={{ fontSize: 12, color: '#6b7280', marginTop: 2 }}>{formatDate(campaign.sent_at)}</div>
                 </div>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
@@ -79,11 +79,11 @@ const CampaignCard = ({ campaign, onClick, onDelete }) => {
                 <div style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: 12, color: '#6b7280' }}>
                     <Users size={13} /> {total} enviados
                 </div>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: 12, color: '#8b5cf6' }}>
+                    📅 {campaign.scheduled_count || 0} agendados
+                </div>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: 12, color: '#15803d' }}>
                     <CheckCircle size={13} /> {replied} respondieron
-                </div>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: 12, color: '#ef4444' }}>
-                    <XCircle size={13} /> {noReply} sin resp.
                 </div>
             </div>
         </div>
@@ -141,6 +141,17 @@ const RecipientRow = ({ r, onOpenChat }) => {
             {r.replied_at && (
                 <div style={{ fontSize: 11, color: '#9ca3af', flexShrink: 0 }}>
                     {timeAgo(r.replied_at)}
+                </div>
+            )}
+
+            {/* Scheduled badge */}
+            {r.is_scheduled && (
+                <div style={{
+                    padding: '2px 8px', borderRadius: 999, fontSize: 11, fontWeight: 700,
+                    background: '#ede9fe', color: '#8b5cf6', border: `1px solid #ddd6fe`,
+                    flexShrink: 0
+                }}>
+                    📅 Agendado
                 </div>
             )}
 
@@ -205,7 +216,7 @@ const BulkTracking = ({ onOpenConversation }) => {
     };
 
     const handleDeleteCampaign = async (campaign) => {
-        if (!window.confirm(`¿Estás seguro de eliminar el registro de seguimiento para "${campaign.template_name}"?`)) {
+        if (!window.confirm(`¿Estás seguro de eliminar el registro de seguimiento para "${campaign.campaign_name || campaign.template_name}"?`)) {
             return;
         }
         try {
@@ -230,6 +241,7 @@ const BulkTracking = ({ onOpenConversation }) => {
         const q = searchQ.toLowerCase();
         const matchesSearch = !q || (r.contact_name || '').toLowerCase().includes(q) || (r.phone || '').includes(q);
         
+        if (activeTab === 'scheduled') return r.is_scheduled && matchesSearch;
         if (activeTab === 'no_reply') return r.tracking_status === 'no_reply' && matchesSearch;
         if (activeTab === 'active') return r.tracking_status === 'active' && matchesSearch;
         if (activeTab === 'follow_up') {
@@ -249,6 +261,7 @@ const BulkTracking = ({ onOpenConversation }) => {
     });
 
     // Tab counts
+    const scheduledCount = recipients.filter(r => r.is_scheduled).length;
     const noReplyCount = recipients.filter(r => r.tracking_status === 'no_reply').length;
     const activeCount = recipients.filter(r => r.tracking_status === 'active').length;
     const followUpCount = recipients.filter(r => r.tracking_status === 'follow_up').length;
@@ -298,6 +311,7 @@ const BulkTracking = ({ onOpenConversation }) => {
 
     // ─── Campaign Detail View ─────────────────────────────────────────────────
     const tabs = [
+        { key: 'scheduled', label: 'Agendados', icon: <span style={{fontSize: 14}}>📅</span>, count: scheduledCount, color: '#8b5cf6' },
         { key: 'no_reply', label: 'Sin respuesta', icon: <XCircle size={14} />, count: noReplyCount, color: '#ef4444' },
         { key: 'active', label: 'Respondieron', icon: <CheckCircle size={14} />, count: activeCount, color: '#22c55e' },
         { key: 'follow_up', label: 'Seguimiento', icon: <AlertTriangle size={14} />, count: followUpCount, color: '#f59e0b' },
@@ -321,7 +335,7 @@ const BulkTracking = ({ onOpenConversation }) => {
                         <ArrowLeft size={14} /> Campañas
                     </button>
                     <div style={{ flex: 1 }}>
-                        <h2 style={{ margin: 0, fontSize: 17, fontWeight: 700, color: '#111827' }}>📋 {selectedCampaign.template_name}</h2>
+                        <h2 style={{ margin: 0, fontSize: 17, fontWeight: 700, color: '#111827' }}>📋 {selectedCampaign.campaign_name || selectedCampaign.template_name}</h2>
                         <p style={{ margin: 0, fontSize: 12, color: '#6b7280' }}>{formatDate(selectedCampaign.sent_at)} · {recipients.length} destinatarios</p>
                     </div>
                     <button onClick={refreshDetail} style={{ display: 'flex', alignItems: 'center', gap: 4, padding: '6px 12px', borderRadius: 8, border: '1px solid #e5e7eb', background: 'white', cursor: 'pointer', fontSize: 12, fontWeight: 600, color: '#374151' }}>

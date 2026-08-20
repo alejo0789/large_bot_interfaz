@@ -56,9 +56,10 @@ class TagService {
             ON CONFLICT (conversation_phone, tag_id) DO UPDATE SET assigned_by = EXCLUDED.assigned_by
         `, [phone, tagId, agentId]);
 
-        // Special logic: If tag is "Agendar", clear lead_time (it's no longer a lead to follow up)
+        // Special logic: If tag is "Agendar" (or contains it)
         const { rows: tagRows } = await pool.query('SELECT name FROM tags WHERE id = $1', [tagId]);
-        if (tagRows.length > 0 && tagRows[0].name.toLowerCase() === 'agendar') {
+        if (tagRows.length > 0 && tagRows[0].name.toLowerCase().includes('agendar')) {
+            // 1. Clear lead_time
             await pool.query(`
                 UPDATE conversations 
                 SET 
@@ -69,6 +70,23 @@ class TagService {
                 WHERE phone = $2
             `, [agentId || 'system', phone]);
             console.log(`✅ Conversation ${phone} marked as 'Agendada' (lead_time cleared) by agent ${agentId}`);
+
+            // 2. Mark as scheduled in the most recent campaign (if any)
+            try {
+                await pool.query(`
+                    UPDATE bulk_campaign_recipients
+                    SET is_scheduled = true
+                    WHERE id = (
+                        SELECT id FROM bulk_campaign_recipients
+                        WHERE phone = $1
+                        ORDER BY id DESC LIMIT 1
+                    )
+                `, [phone]);
+                console.log(`✅ Phone ${phone} marked as scheduled in their latest campaign`);
+            } catch (err) {
+                // Ignore if table doesn't exist yet
+                if (err.code !== '42P01') console.error('Error updating bulk_campaign_recipients for scheduling:', err.message);
+            }
         }
     }
 

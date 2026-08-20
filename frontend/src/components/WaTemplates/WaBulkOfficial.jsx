@@ -352,6 +352,8 @@ const WaBulkOfficial = ({ conversations, tags }) => {
     const [sending, setSending] = useState(false);
     const [result, setResult] = useState(null);
     const [stats, setStats] = useState(0);
+    const [createCampaign, setCreateCampaign] = useState(true);
+    const [campaignName, setCampaignName] = useState('');
 
     // Load templates and stats
     useEffect(() => {
@@ -375,6 +377,7 @@ const WaBulkOfficial = ({ conversations, tags }) => {
         const vars = extractVars(selectedTemplate.components || []);
         setVariables(Object.fromEntries(vars.map(v => [v, ''])));
         setHeaderImageUrl(selectedTemplate.headerImageUrl || '');
+        setCampaignName(selectedTemplate.name);
     }, [selectedTemplate]);
 
     // Handle image upload
@@ -427,6 +430,8 @@ const WaBulkOfficial = ({ conversations, tags }) => {
                     headerImageUrl: headerImageUrl || null,
                     selectionMode,
                     tagId: selectionMode === 'tag' ? selectedTagId : null,
+                    createCampaign,
+                    campaignName,
                     recipients: selectionMode === 'manual' 
                         ? selectedPhones.map(p => ({ phone: p })) 
                         : selectionMode === 'import'
@@ -647,6 +652,37 @@ const WaBulkOfficial = ({ conversations, tags }) => {
                                 </div>
                             </div>
                         </>
+                    )}
+
+                    {/* 4.5. Seguimiento */}
+                    {selectedTemplate && (
+                        <div style={{ background: 'white', borderRadius: 12, padding: 20, border: '1px solid #e5e7eb' }}>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: createCampaign ? 12 : 0 }}>
+                                <input 
+                                    type="checkbox" 
+                                    id="createCampaignCheck" 
+                                    checked={createCampaign} 
+                                    onChange={(e) => setCreateCampaign(e.target.checked)}
+                                    style={{ width: 16, height: 16, cursor: 'pointer', accentColor: '#25d366' }}
+                                />
+                                <label htmlFor="createCampaignCheck" style={{ fontSize: 14, fontWeight: 700, color: '#374151', cursor: 'pointer', userSelect: 'none' }}>
+                                    Crear campaña de seguimiento
+                                </label>
+                            </div>
+                            {createCampaign && (
+                                <div style={{ paddingLeft: 26 }}>
+                                    <label style={{ fontSize: 12, color: '#6b7280', display: 'block', marginBottom: 4 }}>Nombre de la campaña</label>
+                                    <input 
+                                        type="text" 
+                                        value={campaignName} 
+                                        onChange={(e) => setCampaignName(e.target.value)} 
+                                        placeholder="Ej: Promo Agosto Vip"
+                                        style={{ width: '100%', padding: '10px 12px', border: '1px solid #d1d5db', borderRadius: 8, fontSize: 13, outline: 'none', boxSizing: 'border-box' }}
+                                    />
+                                    <p style={{ fontSize: 11, color: '#9ca3af', margin: '6px 0 0' }}>Este es el nombre con el que verás los resultados en el panel de seguimiento.</p>
+                                </div>
+                            )}
+                        </div>
                     )}
 
                     {/* 5. Send button */}
