@@ -1,5 +1,5 @@
 import React from 'react';
-import { MessageSquare, Brain, Settings, X, LogOut, Send, LayoutDashboard, Menu, ShieldCheck, FileText, Megaphone, CircleDollarSign } from 'lucide-react';
+import { MessageSquare, Brain, Settings, X, LogOut, Send, LayoutDashboard, Menu, ShieldCheck, FileText, Megaphone, CircleDollarSign, BarChart3 } from 'lucide-react';
 
 const NavRail = ({ activeTab, onTabChange, isMobile, isOpen, onClose, onOpen, onLogout, onBulkMessage, isCollapsed, onToggleCollapse, user, isOfficialTenant }) => {
     const isAdmin = user?.role === 'SUPER_ADMIN' || user?.role === 'SEDE_ADMIN';
@@ -142,6 +142,7 @@ const NavRail = ({ activeTab, onTabChange, isMobile, isOpen, onClose, onOpen, on
                                 <div style={{ marginTop: '16px', padding: '0 12px 8px 12px', fontSize: '0.75rem', fontWeight: 700, color: '#059669', textTransform: 'uppercase', letterSpacing: '0.05em' }}>API Oficial</div>
                                 <NavButton icon={<FileText />} label="Plantillas" active={activeTab === 'wa-templates'} onClick={() => { onTabChange('wa-templates'); onClose(); }} fullWidth officialStyle />
                                 <NavButton icon={<Megaphone />} label="Masivo Oficial" active={activeTab === 'wa-bulk'} onClick={() => { onTabChange('wa-bulk'); onClose(); }} fullWidth officialStyle />
+                                <NavButton icon={<BarChart3 />} label="Seguimiento" active={activeTab === 'bulk-tracking'} onClick={() => { onTabChange('bulk-tracking'); onClose(); }} fullWidth officialStyle />
                             </>
                         )}
 
@@ -270,6 +271,7 @@ const NavRail = ({ activeTab, onTabChange, isMobile, isOpen, onClose, onOpen, on
                     <>
                         <NavButton icon={<FileText />} label="Plantillas" active={activeTab === 'wa-templates'} onClick={() => onTabChange('wa-templates')} officialStyle />
                         <NavButton icon={<Megaphone />} label="Masivo" active={activeTab === 'wa-bulk'} onClick={() => onTabChange('wa-bulk')} officialStyle />
+                        <NavButton icon={<BarChart3 />} label="Seguim." active={activeTab === 'bulk-tracking'} onClick={() => onTabChange('bulk-tracking')} officialStyle />
                     </>
                 )}
 

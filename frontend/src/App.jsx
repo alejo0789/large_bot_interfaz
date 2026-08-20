@@ -35,6 +35,7 @@ import Celebration from './components/UI/Celebration';
 import TermsAndConditions from './components/Legal/TermsAndConditions';
 import WaTemplates from './components/WaTemplates/WaTemplates';
 import WaBulkOfficial from './components/WaTemplates/WaBulkOfficial';
+import BulkTracking from './components/WaTemplates/BulkTracking';
 import ForwardContactsModal from './components/Chat/ForwardContactsModal';
 
 // Hooks
@@ -1609,6 +1610,16 @@ const AuthenticatedApp = () => {
             {activeTab === 'admin' && <AdminPanel isMobile={isMobile} />}
             {activeTab === 'wa-templates' && <WaTemplates onBulkSend={(tpl) => setActiveTab('wa-bulk')} />}
             {activeTab === 'wa-bulk' && <WaBulkOfficial conversations={conversations} tags={tags} />}
+            {activeTab === 'bulk-tracking' && <BulkTracking onOpenConversation={(phone) => {
+                const conv = conversations.find(c => c.contact.phone === phone);
+                if (conv) {
+                    handleSelectConversation(conv);
+                    setActiveTab('chat');
+                } else {
+                    setActiveTab('chat');
+                    setTimeout(() => setSearchQuery(phone), 100);
+                }
+            }} />}
 
             {verificationResult && (
                 <div style={{

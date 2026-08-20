@@ -265,6 +265,7 @@ router.post('/bulk-send', asyncHandler(async (req, res) => {
     const DELAY_MS = 1000;
     let sent = 0, failed = 0;
     const errors = [];
+    const successPhones = [];
 
     for (let i = 0; i < contactList.length; i += BATCH_SIZE) {
         const batch = contactList.slice(i, i + BATCH_SIZE);
@@ -296,6 +297,7 @@ router.post('/bulk-send', asyncHandler(async (req, res) => {
                 const msgData = await msgRes.json();
                 if (msgRes.ok && msgData.messages?.[0]?.id) {
                     sent++;
+                    successPhones.push({ phone: normalizePhone(phone), name: contact.name || '' });
                     
                     const cleanPhone = normalizePhone(phone);
                     const whatsappId = msgData.messages[0].id;
@@ -370,7 +372,7 @@ router.post('/bulk-send', asyncHandler(async (req, res) => {
 
     console.log(`📊 [WA Bulk Official] Tenant: ${tenantSlug} | Template: ${templateName} | Sent: ${sent} | Failed: ${failed}`);
 
-    // Log stats to DB
+    // Log stats to DB + Create campaign for tracking
     const ctx = tenantContext.getStore();
     if (ctx && ctx.db) {
         try {
@@ -380,6 +382,50 @@ router.post('/bulk-send', asyncHandler(async (req, res) => {
             );
         } catch (dbErr) {
             console.error('Error logging template stats:', dbErr.message);
+        }
+
+        // Create campaign tracking record
+        try {
+            await ctx.db.query(`
+                CREATE TABLE IF NOT EXISTS bulk_campaigns (
+                    id SERIAL PRIMARY KEY,
+                    template_name VARCHAR(255) NOT NULL,
+                    template_language VARCHAR(10),
+                    sent_count INTEGER DEFAULT 0,
+                    failed_count INTEGER DEFAULT 0,
+                    sent_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+                    sent_by VARCHAR(100)
+                );
+                CREATE TABLE IF NOT EXISTS bulk_campaign_recipients (
+                    id SERIAL PRIMARY KEY,
+                    campaign_id INTEGER REFERENCES bulk_campaigns(id) ON DELETE CASCADE,
+                    phone VARCHAR(50) NOT NULL,
+                    contact_name VARCHAR(255),
+                    status VARCHAR(20) DEFAULT 'sent',
+                    replied_at TIMESTAMP WITH TIME ZONE,
+                    UNIQUE(campaign_id, phone)
+                );
+            `);
+
+            const { rows: campRows } = await ctx.db.query(
+                'INSERT INTO bulk_campaigns (template_name, template_language, sent_count, failed_count) VALUES ($1, $2, $3, $4) RETURNING id',
+                [templateName, templateLanguage, sent, failed]
+            );
+            const campaignId = campRows[0].id;
+
+            // Batch insert recipients
+            if (successPhones.length > 0) {
+                const values = successPhones.map((_, i) => `($1, $${i*2+2}, $${i*2+3})`).join(', ');
+                const params = [campaignId];
+                successPhones.forEach(r => { params.push(r.phone); params.push(r.name); });
+                await ctx.db.query(
+                    `INSERT INTO bulk_campaign_recipients (campaign_id, phone, contact_name) VALUES ${values} ON CONFLICT DO NOTHING`,
+                    params
+                );
+            }
+            console.log(`📊 Campaign #${campaignId} created: ${successPhones.length} recipients tracked`);
+        } catch (campErr) {
+            console.error('Error creating campaign tracking:', campErr.message);
         }
     }
 
@@ -592,6 +638,102 @@ router.delete('/:name', asyncHandler(async (req, res) => {
         success: true,
         message: 'Plantilla eliminada correctamente'
     });
+}));
+
+// ─── GET /api/wa-templates/campaigns ─────────────────────────────────────────
+// List all bulk campaigns with reply statistics
+router.get('/campaigns', asyncHandler(async (req, res) => {
+    const ctx = tenantContext.getStore();
+    if (!ctx || !ctx.db) throw new AppError('Sin conexión a DB', 500);
+
+    // Ensure tables exist
+    await ctx.db.query(`
+        CREATE TABLE IF NOT EXISTS bulk_campaigns (
+            id SERIAL PRIMARY KEY,
+            template_name VARCHAR(255) NOT NULL,
+            template_language VARCHAR(10),
+            sent_count INTEGER DEFAULT 0,
+            failed_count INTEGER DEFAULT 0,
+            sent_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+            sent_by VARCHAR(100)
+        );
+        CREATE TABLE IF NOT EXISTS bulk_campaign_recipients (
+            id SERIAL PRIMARY KEY,
+            campaign_id INTEGER REFERENCES bulk_campaigns(id) ON DELETE CASCADE,
+            phone VARCHAR(50) NOT NULL,
+            contact_name VARCHAR(255),
+            status VARCHAR(20) DEFAULT 'sent',
+            replied_at TIMESTAMP WITH TIME ZONE,
+            UNIQUE(campaign_id, phone)
+        );
+    `);
+
+    const { rows } = await ctx.db.query(`
+        SELECT 
+            bc.id,
+            bc.template_name,
+            bc.sent_count,
+            bc.failed_count,
+            bc.sent_at,
+            COUNT(bcr.id) as total_recipients,
+            COUNT(CASE WHEN bcr.status = 'replied' THEN 1 END) as replied_count,
+            COUNT(CASE WHEN bcr.status = 'sent' THEN 1 END) as no_reply_count
+        FROM bulk_campaigns bc
+        LEFT JOIN bulk_campaign_recipients bcr ON bcr.campaign_id = bc.id
+        GROUP BY bc.id
+        ORDER BY bc.sent_at DESC
+        LIMIT 50
+    `);
+
+    res.json({ success: true, campaigns: rows });
+}));
+
+// ─── GET /api/wa-templates/campaigns/:id ─────────────────────────────────────
+// Get campaign detail with recipients grouped by status and follow-up tracking
+router.get('/campaigns/:id', asyncHandler(async (req, res) => {
+    const ctx = tenantContext.getStore();
+    if (!ctx || !ctx.db) throw new AppError('Sin conexión a DB', 500);
+    const { id } = req.params;
+
+    // Get campaign info
+    const { rows: campRows } = await ctx.db.query('SELECT * FROM bulk_campaigns WHERE id = $1', [id]);
+    if (campRows.length === 0) throw new AppError('Campaña no encontrada', 404);
+    const campaign = campRows[0];
+
+    // Get recipients with conversation data for follow-up tracking
+    const { rows: recipients } = await ctx.db.query(`
+        SELECT 
+            bcr.phone,
+            bcr.contact_name,
+            bcr.status,
+            bcr.replied_at,
+            c.last_message_text,
+            c.last_message_timestamp,
+            c.last_message_from_me,
+            CASE 
+                WHEN bcr.status = 'sent' THEN 'no_reply'
+                WHEN bcr.status = 'replied' AND c.last_message_from_me = true THEN 'follow_up'
+                WHEN bcr.status = 'replied' THEN 'active'
+                ELSE 'no_reply'
+            END as tracking_status,
+            CASE 
+                WHEN bcr.status = 'replied' AND c.last_message_from_me = true 
+                THEN EXTRACT(EPOCH FROM (NOW() - c.last_message_timestamp)) / 3600
+                ELSE NULL
+            END as hours_since_last_agent_msg
+        FROM bulk_campaign_recipients bcr
+        LEFT JOIN conversations c ON c.phone = bcr.phone
+        WHERE bcr.campaign_id = $1
+        ORDER BY 
+            CASE 
+                WHEN bcr.status = 'sent' THEN 0
+                WHEN bcr.status = 'replied' AND c.last_message_from_me = true THEN 1
+                ELSE 2
+            END,
+            bcr.replied_at DESC NULLS LAST
+    `, [id]);
+
+    res.json({ success: true, campaign, recipients });
 }));
 
 module.exports = router;

@@ -263,6 +263,18 @@ router.post('/', async (req, res) => {
                 mediaUrl
             });
 
+            // ── Auto-mark campaign reply (non-blocking) ──
+            try {
+                const ctx = tenantContext.getStore();
+                if (ctx?.db) {
+                    ctx.db.query(`
+                        UPDATE bulk_campaign_recipients 
+                        SET status = 'replied', replied_at = NOW()
+                        WHERE phone = $1 AND status = 'sent'
+                    `, [dbPhone]).catch(() => {});
+                }
+            } catch (_) {}
+
             // ── Update conversation counters ──
             await conversationService.updateLastMessage(dbPhone, messageText);
             await conversationService.incrementUnread(dbPhone);
