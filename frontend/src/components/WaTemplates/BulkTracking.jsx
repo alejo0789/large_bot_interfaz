@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { BarChart3, ArrowLeft, Users, MessageCircle, Clock, AlertTriangle, CheckCircle, XCircle, Search, ExternalLink, RefreshCw } from 'lucide-react';
+import { BarChart3, ArrowLeft, Users, MessageCircle, Clock, AlertTriangle, CheckCircle, XCircle, Search, ExternalLink, RefreshCw, Trash2 } from 'lucide-react';
 import apiFetch from '../../utils/api';
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
@@ -32,7 +32,7 @@ function getUrgencyLevel(hours) {
 }
 
 // ─── Campaign Card ────────────────────────────────────────────────────────────
-const CampaignCard = ({ campaign, onClick }) => {
+const CampaignCard = ({ campaign, onClick, onDelete }) => {
     const total = parseInt(campaign.total_recipients) || 0;
     const replied = parseInt(campaign.replied_count) || 0;
     const noReply = parseInt(campaign.no_reply_count) || 0;
@@ -44,7 +44,8 @@ const CampaignCard = ({ campaign, onClick }) => {
             style={{ 
                 background: 'white', borderRadius: 14, padding: '18px 20px',
                 border: '1px solid #e5e7eb', cursor: 'pointer',
-                transition: 'all 0.2s', boxShadow: '0 1px 3px rgba(0,0,0,0.04)'
+                transition: 'all 0.2s', boxShadow: '0 1px 3px rgba(0,0,0,0.04)',
+                position: 'relative'
             }}
             onMouseEnter={e => { e.currentTarget.style.boxShadow = '0 4px 12px rgba(0,0,0,0.08)'; e.currentTarget.style.borderColor = '#25d366'; }}
             onMouseLeave={e => { e.currentTarget.style.boxShadow = '0 1px 3px rgba(0,0,0,0.04)'; e.currentTarget.style.borderColor = '#e5e7eb'; }}
@@ -54,8 +55,17 @@ const CampaignCard = ({ campaign, onClick }) => {
                     <div style={{ fontWeight: 700, fontSize: 15, color: '#111827' }}>📋 {campaign.template_name}</div>
                     <div style={{ fontSize: 12, color: '#6b7280', marginTop: 2 }}>{formatDate(campaign.sent_at)}</div>
                 </div>
-                <div style={{ background: '#f0fdf4', border: '1px solid #bbf7d0', borderRadius: 999, padding: '3px 10px', fontSize: 12, fontWeight: 700, color: '#15803d' }}>
-                    {pct}% resp.
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                    <div style={{ background: '#f0fdf4', border: '1px solid #bbf7d0', borderRadius: 999, padding: '3px 10px', fontSize: 12, fontWeight: 700, color: '#15803d' }}>
+                        {pct}% resp.
+                    </div>
+                    <button
+                        onClick={e => { e.stopPropagation(); onDelete(campaign); }}
+                        style={{ border: 'none', background: '#fee2e2', color: '#ef4444', borderRadius: 8, padding: '5px 8px', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+                        title="Eliminar campaña"
+                    >
+                        <Trash2 size={14} />
+                    </button>
                 </div>
             </div>
 
@@ -194,6 +204,23 @@ const BulkTracking = ({ onOpenConversation }) => {
         } catch (_) {} finally { setLoadingDetail(false); }
     };
 
+    const handleDeleteCampaign = async (campaign) => {
+        if (!window.confirm(`¿Estás seguro de eliminar el registro de seguimiento para "${campaign.template_name}"?`)) {
+            return;
+        }
+        try {
+            const res = await apiFetch(`/api/wa-templates/campaigns/${campaign.id}`, { method: 'DELETE' });
+            if (res.ok) {
+                if (selectedCampaign?.id === campaign.id) {
+                    setSelectedCampaign(null);
+                }
+                fetchCampaigns();
+            }
+        } catch (e) {
+            console.error('Error deleting campaign:', e);
+        }
+    };
+
     const handleOpenChat = (phone) => {
         if (onOpenConversation) onOpenConversation(phone);
     };
@@ -259,7 +286,7 @@ const BulkTracking = ({ onOpenConversation }) => {
                     ) : (
                         <div style={{ display: 'flex', flexDirection: 'column', gap: 12, maxWidth: 700 }}>
                             {campaigns.map(c => (
-                                <CampaignCard key={c.id} campaign={c} onClick={() => openCampaign(c)} />
+                                <CampaignCard key={c.id} campaign={c} onClick={() => openCampaign(c)} onDelete={handleDeleteCampaign} />
                             ))}
                         </div>
                     )}
@@ -299,6 +326,9 @@ const BulkTracking = ({ onOpenConversation }) => {
                     </div>
                     <button onClick={refreshDetail} style={{ display: 'flex', alignItems: 'center', gap: 4, padding: '6px 12px', borderRadius: 8, border: '1px solid #e5e7eb', background: 'white', cursor: 'pointer', fontSize: 12, fontWeight: 600, color: '#374151' }}>
                         <RefreshCw size={13} className={loadingDetail ? 'spinning' : ''} /> Refrescar
+                    </button>
+                    <button onClick={() => handleDeleteCampaign(selectedCampaign)} style={{ display: 'flex', alignItems: 'center', gap: 4, padding: '6px 12px', borderRadius: 8, border: 'none', background: '#fee2e2', color: '#ef4444', cursor: 'pointer', fontSize: 12, fontWeight: 600 }}>
+                        <Trash2 size={13} /> Eliminar
                     </button>
                 </div>
 

@@ -274,20 +274,15 @@ router.post('/bulk-send', asyncHandler(async (req, res) => {
             const phone = normalizePhone(contact.phone);
             if (!phone) { failed++; return; }
 
-            const comps = buildComponents(contact);
-            const templateObj = {
-                name: templateName,
-                language: { code: templateLanguage }
-            };
-            if (comps.length > 0) {
-                templateObj.components = comps;
-            }
-
             const body = {
                 messaging_product: 'whatsapp',
                 to: phone.replace(/\D/g, ''),
                 type: 'template',
-                template: templateObj
+                template: {
+                    name: templateName,
+                    language: { code: templateLanguage },
+                    components: buildComponents(contact)
+                }
             };
 
             try {
@@ -362,12 +357,10 @@ router.post('/bulk-send', asyncHandler(async (req, res) => {
 
                 } else {
                     failed++;
-                    console.error(`❌ [waTemplates] Failed sending template to ${phone}:`, JSON.stringify(msgData));
                     errors.push({ phone, error: msgData?.error?.message || 'Error desconocido' });
                 }
             } catch (err) {
                 failed++;
-                console.error(`❌ [waTemplates] Exception sending template to ${phone}:`, err);
                 errors.push({ phone, error: err.message });
             }
         }));
@@ -741,6 +734,23 @@ router.get('/campaigns/:id', asyncHandler(async (req, res) => {
     `, [id]);
 
     res.json({ success: true, campaign, recipients });
+}));
+
+// ─── DELETE /api/wa-templates/campaigns/:id ──────────────────────────────────
+// Delete a bulk campaign and its tracking records
+router.delete('/campaigns/:id', asyncHandler(async (req, res) => {
+    const ctx = tenantContext.getStore();
+    if (!ctx || !ctx.db) throw new AppError('Sin conexión a DB', 500);
+
+    const { id } = req.params;
+
+    const result = await ctx.db.query(`DELETE FROM bulk_campaigns WHERE id = $1 RETURNING id`, [id]);
+
+    if (result.rowCount === 0) {
+        throw new AppError('Campaña no encontrada', 404);
+    }
+
+    res.json({ success: true, message: 'Campaña eliminada correctamente' });
 }));
 
 module.exports = router;
