@@ -274,15 +274,20 @@ router.post('/bulk-send', asyncHandler(async (req, res) => {
             const phone = normalizePhone(contact.phone);
             if (!phone) { failed++; return; }
 
+            const comps = buildComponents(contact);
+            const templateObj = {
+                name: templateName,
+                language: { code: templateLanguage }
+            };
+            if (comps.length > 0) {
+                templateObj.components = comps;
+            }
+
             const body = {
                 messaging_product: 'whatsapp',
                 to: phone.replace(/\D/g, ''),
                 type: 'template',
-                template: {
-                    name: templateName,
-                    language: { code: templateLanguage },
-                    components: buildComponents(contact)
-                }
+                template: templateObj
             };
 
             try {
@@ -357,10 +362,12 @@ router.post('/bulk-send', asyncHandler(async (req, res) => {
 
                 } else {
                     failed++;
+                    console.error(`❌ [waTemplates] Failed sending template to ${phone}:`, JSON.stringify(msgData));
                     errors.push({ phone, error: msgData?.error?.message || 'Error desconocido' });
                 }
             } catch (err) {
                 failed++;
+                console.error(`❌ [waTemplates] Exception sending template to ${phone}:`, err);
                 errors.push({ phone, error: err.message });
             }
         }));
