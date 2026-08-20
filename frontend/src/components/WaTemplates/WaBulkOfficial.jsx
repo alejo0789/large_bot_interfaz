@@ -249,7 +249,10 @@ const ContactPanel = ({
                                     const isMultipleNumbers = spaceParts.every(sp => sp.replace(/\D/g, '').length >= 10);
                                     if (isMultipleNumbers) {
                                         spaceParts.forEach(sp => {
-                                            const cleaned = sp.replace(/\D/g, '');
+                                            let cleaned = sp.replace(/\D/g, '');
+                                            if (cleaned.length === 10 && cleaned.startsWith('3')) {
+                                                cleaned = '57' + cleaned;
+                                            }
                                             if (cleaned.length >= 7 && cleaned.length <= 15) {
                                                 parsed.push(cleaned);
                                             }
@@ -258,7 +261,10 @@ const ContactPanel = ({
                                     }
                                 }
                                 
-                                const cleaned = trimmed.replace(/\D/g, '');
+                                let cleaned = trimmed.replace(/\D/g, '');
+                                if (cleaned.length === 10 && cleaned.startsWith('3')) {
+                                    cleaned = '57' + cleaned;
+                                }
                                 if (cleaned.length >= 7 && cleaned.length <= 15) {
                                     parsed.push(cleaned);
                                 }
