@@ -352,7 +352,7 @@ const WaBulkOfficial = ({ conversations, tags }) => {
     const [sending, setSending] = useState(false);
     const [result, setResult] = useState(null);
     const [stats, setStats] = useState(0);
-    const [createCampaign, setCreateCampaign] = useState(true);
+    const [createCampaign, setCreateCampaign] = useState(false);
     const [campaignName, setCampaignName] = useState('');
 
     // Load templates and stats
@@ -491,6 +491,36 @@ const WaBulkOfficial = ({ conversations, tags }) => {
                         </div>
                         <TemplatePicker templates={templates} loading={loadingTemplates} selected={selectedTemplate} onSelect={setSelectedTemplate} />
                     </div>
+
+                    {selectedTemplate && (
+                        <div style={{ background: '#f5f3ff', borderRadius: 12, padding: 20, border: '2px solid #8b5cf6', boxShadow: '0 4px 6px -1px rgba(139, 92, 246, 0.1), 0 2px 4px -1px rgba(139, 92, 246, 0.06)' }}>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: createCampaign ? 12 : 0 }}>
+                                <input 
+                                    type="checkbox" 
+                                    id="createCampaignCheck" 
+                                    checked={createCampaign} 
+                                    onChange={(e) => setCreateCampaign(e.target.checked)}
+                                    style={{ width: 18, height: 18, cursor: 'pointer', accentColor: '#7c3aed' }}
+                                />
+                                <label htmlFor="createCampaignCheck" style={{ fontSize: 15, fontWeight: 800, color: '#4c1d95', cursor: 'pointer', userSelect: 'none', display: 'flex', alignItems: 'center', gap: 6 }}>
+                                    <span style={{ fontSize: 18 }}>📊</span> Crear campaña de seguimiento
+                                </label>
+                            </div>
+                            {createCampaign && (
+                                <div style={{ paddingLeft: 28, marginTop: 12 }}>
+                                    <label style={{ fontSize: 13, fontWeight: 600, color: '#5b21b6', display: 'block', marginBottom: 6 }}>Nombre de la campaña</label>
+                                    <input 
+                                        type="text" 
+                                        value={campaignName} 
+                                        onChange={(e) => setCampaignName(e.target.value)} 
+                                        placeholder="Ej: Promo Agosto Vip"
+                                        style={{ width: '100%', padding: '10px 14px', border: '1px solid #c4b5fd', borderRadius: 8, fontSize: 14, outline: 'none', boxSizing: 'border-box', color: '#4c1d95', fontWeight: 500 }}
+                                    />
+                                    <p style={{ fontSize: 12, color: '#6d28d9', margin: '8px 0 0' }}>Este es el nombre con el que verás los resultados de éxito o respuestas en el panel de métricas.</p>
+                                </div>
+                            )}
+                        </div>
+                    )}
 
                     {selectedTemplate && (
                         <>
@@ -652,37 +682,6 @@ const WaBulkOfficial = ({ conversations, tags }) => {
                                 </div>
                             </div>
                         </>
-                    )}
-
-                    {/* 4.5. Seguimiento */}
-                    {selectedTemplate && (
-                        <div style={{ background: 'white', borderRadius: 12, padding: 20, border: '1px solid #e5e7eb' }}>
-                            <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: createCampaign ? 12 : 0 }}>
-                                <input 
-                                    type="checkbox" 
-                                    id="createCampaignCheck" 
-                                    checked={createCampaign} 
-                                    onChange={(e) => setCreateCampaign(e.target.checked)}
-                                    style={{ width: 16, height: 16, cursor: 'pointer', accentColor: '#25d366' }}
-                                />
-                                <label htmlFor="createCampaignCheck" style={{ fontSize: 14, fontWeight: 700, color: '#374151', cursor: 'pointer', userSelect: 'none' }}>
-                                    Crear campaña de seguimiento
-                                </label>
-                            </div>
-                            {createCampaign && (
-                                <div style={{ paddingLeft: 26 }}>
-                                    <label style={{ fontSize: 12, color: '#6b7280', display: 'block', marginBottom: 4 }}>Nombre de la campaña</label>
-                                    <input 
-                                        type="text" 
-                                        value={campaignName} 
-                                        onChange={(e) => setCampaignName(e.target.value)} 
-                                        placeholder="Ej: Promo Agosto Vip"
-                                        style={{ width: '100%', padding: '10px 12px', border: '1px solid #d1d5db', borderRadius: 8, fontSize: 13, outline: 'none', boxSizing: 'border-box' }}
-                                    />
-                                    <p style={{ fontSize: 11, color: '#9ca3af', margin: '6px 0 0' }}>Este es el nombre con el que verás los resultados en el panel de seguimiento.</p>
-                                </div>
-                            )}
-                        </div>
                     )}
 
                     {/* 5. Send button */}
