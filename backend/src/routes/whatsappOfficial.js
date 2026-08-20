@@ -104,11 +104,14 @@ router.post('/', async (req, res) => {
             const messageObj = value.messages[0];
             const contactObj = value.contacts?.[0] || null;
 
-            const phone = messageObj.from;
+            const phone = messageObj.from || contactObj?.wa_id || value.contacts?.[0]?.wa_id || null;
+            if (!phone) {
+                console.warn('⚠️ [OfficialWebk] Message received without valid phone/from number, skipping.');
+                return res.sendStatus(200);
+            }
+
             const whatsapp_id = messageObj.id;
-            const contact_name = contactObj
-                ? contactObj.profile.name
-                : `Usuario ${phone.slice(-4)}`;
+            const contact_name = contactObj?.profile?.name || `Usuario ${phone.slice(-4)}`;
             const timestamp = new Date(parseInt(messageObj.timestamp) * 1000).toISOString();
 
             let messageText = '';
