@@ -10,8 +10,8 @@ import EmojiPicker from 'emoji-picker-react';
 const MessageInput = ({ onSend, onSendFile, disabled, isMobile, replyToMessage, onCancelReply, editingMessage, onCancelEdit, draftMessage, onDraftConsumed }) => {
     const [showEmojiPicker, setShowEmojiPicker] = useState(false);
     const [message, setMessage] = useState('');
-    const [selectedFile, setSelectedFile] = useState(null);
-    const [filePreview, setFilePreview] = useState(null);
+    const [selectedFiles, setSelectedFiles] = useState([]);
+    const [filePreviews, setFilePreviews] = useState([]);
     const [isUploading, setIsUploading] = useState(false);
     const fileInputRef = useRef(null);
     const emojiPickerRef = useRef(null);
@@ -86,22 +86,22 @@ const MessageInput = ({ onSend, onSendFile, disabled, isMobile, replyToMessage, 
                 const filename = url.split('/').pop() || 'media_attachment';
                 const file = new File([blob], filename, { type: blob.type });
 
-                setSelectedFile(file);
+                setSelectedFiles([file]);
 
                 // Generate Preview if Image
                 if (file.type.startsWith('image/')) {
                     const reader = new FileReader();
-                    reader.onload = (e) => setFilePreview(e.target.result);
+                    reader.onload = (e) => setFilePreviews([e.target.result]);
                     reader.readAsDataURL(file);
                 } else {
-                    setFilePreview(null);
+                    setFilePreviews([null]);
                 }
 
             } catch (error) {
                 console.error('Error fetching quick reply media:', error);
                 alert(`Error al cargar la imagen: ${error.message}`);
-                setSelectedFile(null);
-                setFilePreview(null);
+                setSelectedFiles([]);
+                setFilePreviews([]);
             } finally {
                 setIsUploading(false);
                 // Focus AFTER isUploading=false so the textarea is no longer disabled
@@ -365,7 +365,7 @@ const MessageInput = ({ onSend, onSendFile, disabled, isMobile, replyToMessage, 
         e?.preventDefault();
         if (audioBlob) {
             sendAudio();
-        } else if (selectedFile) {
+        } else if (selectedFiles.length > 0) {
             handleSendFile();
         } else if (message.trim() && !disabled) {
             onSend(message.trim());
@@ -376,43 +376,49 @@ const MessageInput = ({ onSend, onSendFile, disabled, isMobile, replyToMessage, 
 
 
     const handleFileSelect = (e) => {
-        const file = e.target.files[0];
-        if (file) {
-            if (file.size > 16 * 1024 * 1024) {
-                alert('El archivo es muy grande. Máximo 16MB.');
+        const files = Array.from(e.target.files);
+        if (files.length > 0) {
+            if (files.some(f => f.size > 16 * 1024 * 1024)) {
+                alert('Uno o más archivos son muy grandes. Máximo 16MB por archivo.');
                 return;
             }
-            setSelectedFile(file);
-            if (file.type.startsWith('image/')) {
-                const reader = new FileReader();
-                reader.onload = (e) => setFilePreview(e.target.result);
-                reader.readAsDataURL(file);
-            } else {
-                setFilePreview(null);
-            }
-            // Return focus to the textarea
+            setSelectedFiles(prev => [...prev, ...files]);
+            
+            files.forEach(file => {
+                if (file.type.startsWith('image/')) {
+                    const reader = new FileReader();
+                    reader.onload = (e) => setFilePreviews(prev => [...prev, e.target.result]);
+                    reader.readAsDataURL(file);
+                } else {
+                    setFilePreviews(prev => [...prev, null]);
+                }
+            });
             setTimeout(() => textareaRef.current?.focus(), 0);
         }
     };
 
     const handleSendFile = async () => {
-        if (!selectedFile || !onSendFile) return;
-        // Clear file immediately — message already shows in conversation optimistically
-        const fileToSend = selectedFile;
+        if (selectedFiles.length === 0 || !onSendFile) return;
+        const filesToSend = [...selectedFiles];
         const captionToSend = message.trim();
         clearFile();
         setMessage('');
+        setIsUploading(true);
         try {
-            await onSendFile(fileToSend, captionToSend);
+            await onSendFile(filesToSend[0], captionToSend);
+            for (let i = 1; i < filesToSend.length; i++) {
+                await onSendFile(filesToSend[i], '');
+            }
         } catch (error) {
-            // Error is shown inline in the conversation bubble
-            console.error('Error enviando archivo:', error);
+            console.error('Error enviando archivos:', error);
+        } finally {
+            setIsUploading(false);
         }
     };
 
     const clearFile = () => {
-        setSelectedFile(null);
-        setFilePreview(null);
+        setSelectedFiles([]);
+        setFilePreviews([]);
         if (fileInputRef.current) {
             fileInputRef.current.value = '';
         }
@@ -849,64 +855,82 @@ const MessageInput = ({ onSend, onSendFile, disabled, isMobile, replyToMessage, 
             )}
 
             {/* File preview */}
-            {selectedFile && (
+            {selectedFiles.length > 0 && (
                 <div style={{
                     display: 'flex',
-                    alignItems: 'center',
-                    gap: 'var(--space-3)',
+                    flexDirection: 'column',
+                    gap: 'var(--space-2)',
                     padding: 'var(--space-2) var(--space-4)',
                     backgroundColor: 'var(--color-gray-100)',
-                    borderBottom: '1px solid var(--color-gray-200)'
+                    borderBottom: '1px solid var(--color-gray-200)',
+                    maxHeight: '150px',
+                    overflowY: 'auto'
                 }}>
-                    {filePreview ? (
-                        <img
-                            src={filePreview}
-                            alt="Preview"
-                            style={{
-                                width: '60px',
-                                height: '60px',
-                                objectFit: 'cover',
-                                borderRadius: 'var(--radius-md)'
-                            }}
-                        />
-                    ) : (
-                        <div style={{
-                            width: '60px',
-                            height: '60px',
-                            display: 'flex',
-                            alignItems: 'center',
-                            justifyContent: 'center',
-                            backgroundColor: 'var(--color-gray-200)',
-                            borderRadius: 'var(--radius-md)',
-                            color: 'var(--color-gray-600)'
-                        }}>
-                            {getFileIcon(selectedFile.type)}
+                    {selectedFiles.map((file, index) => (
+                        <div key={index} style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-3)' }}>
+                            {filePreviews[index] ? (
+                                <img
+                                    src={filePreviews[index]}
+                                    alt="Preview"
+                                    style={{
+                                        width: '40px',
+                                        height: '40px',
+                                        objectFit: 'cover',
+                                        borderRadius: 'var(--radius-md)'
+                                    }}
+                                />
+                            ) : (
+                                <div style={{
+                                    width: '40px',
+                                    height: '40px',
+                                    display: 'flex',
+                                    alignItems: 'center',
+                                    justifyContent: 'center',
+                                    backgroundColor: 'var(--color-gray-200)',
+                                    borderRadius: 'var(--radius-md)',
+                                    color: 'var(--color-gray-600)'
+                                }}>
+                                    {getFileIcon(file.type)}
+                                </div>
+                            )}
+                            <div style={{ flex: 1, minWidth: 0 }}>
+                                <p style={{
+                                    fontSize: 'var(--font-size-sm)',
+                                    fontWeight: 500,
+                                    whiteSpace: 'nowrap',
+                                    overflow: 'hidden',
+                                    textOverflow: 'ellipsis',
+                                    margin: 0
+                                }}>
+                                    {file.name}
+                                </p>
+                                <p style={{
+                                    fontSize: 'var(--font-size-xs)',
+                                    color: 'var(--color-gray-500)',
+                                    margin: 0
+                                }}>
+                                    {formatFileSize(file.size)}
+                                </p>
+                            </div>
+                            <button
+                                onClick={() => {
+                                    const newFiles = [...selectedFiles];
+                                    const newPreviews = [...filePreviews];
+                                    newFiles.splice(index, 1);
+                                    newPreviews.splice(index, 1);
+                                    setSelectedFiles(newFiles);
+                                    setFilePreviews(newPreviews);
+                                    if (newFiles.length === 0 && fileInputRef.current) {
+                                        fileInputRef.current.value = '';
+                                    }
+                                }}
+                                className="btn btn-icon"
+                                style={{ color: 'var(--color-error)' }}
+                            >
+                                <X className="w-5 h-5" />
+                            </button>
                         </div>
-                    )}
-                    <div style={{ flex: 1, minWidth: 0 }}>
-                        <p style={{
-                            fontSize: 'var(--font-size-sm)',
-                            fontWeight: 500,
-                            whiteSpace: 'nowrap',
-                            overflow: 'hidden',
-                            textOverflow: 'ellipsis'
-                        }}>
-                            {selectedFile.name}
-                        </p>
-                        <p style={{
-                            fontSize: 'var(--font-size-xs)',
-                            color: 'var(--color-gray-500)'
-                        }}>
-                            {formatFileSize(selectedFile.size)}
-                        </p>
-                    </div>
-                    <button
-                        onClick={clearFile}
-                        className="btn btn-icon"
-                        style={{ color: 'var(--color-error)' }}
-                    >
-                        <X className="w-5 h-5" />
-                    </button>
+                    ))}
                 </div>
             )}
 
@@ -916,6 +940,7 @@ const MessageInput = ({ onSend, onSendFile, disabled, isMobile, replyToMessage, 
                 <input
                     ref={fileInputRef}
                     type="file"
+                    multiple
                     accept="image/*,video/*,audio/*,.pdf,.doc,.docx,.xls,.xlsx"
                     onChange={handleFileSelect}
                     style={{ display: 'none' }}
@@ -929,8 +954,8 @@ const MessageInput = ({ onSend, onSendFile, disabled, isMobile, replyToMessage, 
                     disabled={disabled || isUploading}
                     style={{
                         flexShrink: 0,
-                        backgroundColor: selectedFile ? 'var(--color-primary-light)' : 'transparent',
-                        color: selectedFile ? 'var(--color-white)' : 'var(--color-gray-600)'
+                        backgroundColor: selectedFiles.length > 0 ? 'var(--color-primary-light)' : 'transparent',
+                        color: selectedFiles.length > 0 ? 'var(--color-white)' : 'var(--color-gray-600)'
                     }}
                 >
                     <Paperclip className="w-5 h-5" />
@@ -1026,7 +1051,7 @@ const MessageInput = ({ onSend, onSendFile, disabled, isMobile, replyToMessage, 
                 <textarea
                     ref={textareaRef}
                     className="message-input"
-                    placeholder={selectedFile ? "Añade un mensaje (opcional)..." : "Escribe un mensaje..."}
+                    placeholder={selectedFiles.length > 0 ? "Añade un mensaje (opcional)..." : "Escribe un mensaje..."}
                     value={message}
                     onChange={(e) => {
                         setMessage(e.target.value);
@@ -1063,7 +1088,7 @@ const MessageInput = ({ onSend, onSendFile, disabled, isMobile, replyToMessage, 
 
                             // If a file is already loaded (e.g. quick reply with media was selected),
                             // always send — don't let the QR panel interfere.
-                            if (selectedFile) {
+                            if (selectedFiles.length > 0) {
                                 handleSubmit();
                                 return;
                             }
@@ -1089,7 +1114,7 @@ const MessageInput = ({ onSend, onSendFile, disabled, isMobile, replyToMessage, 
                 />
 
                 {/* Mic button - hidden when typing */}
-                {!message.trim() && !selectedFile && (
+                {!message.trim() && selectedFiles.length === 0 && (
                     <button
                         className="btn btn-icon"
                         onClick={startRecording}
@@ -1108,11 +1133,11 @@ const MessageInput = ({ onSend, onSendFile, disabled, isMobile, replyToMessage, 
                 <button
                     className="btn btn-send"
                     onClick={handleSubmit}
-                    disabled={(!message.trim() && !selectedFile) || disabled || isUploading}
-                    title={selectedFile ? "Enviar archivo" : "Enviar mensaje"}
+                    disabled={(!message.trim() && selectedFiles.length === 0) || disabled || isUploading}
+                    title={selectedFiles.length > 0 ? "Enviar archivo(s)" : "Enviar mensaje"}
                     style={{
                         flexShrink: 0,
-                        backgroundColor: (message.trim() || selectedFile)
+                        backgroundColor: (message.trim() || selectedFiles.length > 0)
                             ? 'var(--color-primary)'
                             : 'var(--color-gray-300)'
                     }}
