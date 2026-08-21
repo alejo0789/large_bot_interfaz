@@ -122,6 +122,52 @@ const MainLayout = ({
                     </div>
                 )}
 
+                {/* Desktop Top Header Bar for non-chat tabs or when left menu is collapsed */}
+                {!isMobile && (isCollapsed || activeTab !== 'chat') && (
+                    <div style={{
+                        height: '50px',
+                        padding: '0 20px',
+                        borderBottom: '1px solid #e5e7eb',
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '12px',
+                        backgroundColor: 'white',
+                        flexShrink: 0,
+                        zIndex: 50
+                    }}>
+                        <button
+                            className="btn btn-icon"
+                            onClick={onToggleCollapse}
+                            style={{
+                                color: 'var(--color-primary)',
+                                backgroundColor: 'rgba(7,94,84,0.1)',
+                                borderRadius: '8px',
+                                padding: '6px',
+                                cursor: 'pointer',
+                                border: 'none',
+                                display: 'flex',
+                                alignItems: 'center',
+                                justifyContent: 'center'
+                            }}
+                            title={isCollapsed ? "Mostrar Menú Principal" : "Ocultar Menú Principal"}
+                        >
+                            <Menu className="w-5 h-5" />
+                        </button>
+                        <span style={{ fontWeight: 700, fontSize: '0.95rem', color: '#1f2937' }}>
+                            {activeTab === 'chat' && 'Conversaciones'}
+                            {activeTab === 'ai' && 'Inteligencia Artificial'}
+                            {activeTab === 'dashboard' && 'Dashboard'}
+                            {activeTab === 'bulk' && 'Envíos Masivos'}
+                            {activeTab === 'wa-templates' && 'Plantillas Meta'}
+                            {activeTab === 'wa-bulk' && 'Envíos Oficiales'}
+                            {activeTab === 'bulk-tracking' && 'Seguimiento Masivos'}
+                            {activeTab === 'admin' && 'Administración'}
+                            {activeTab === 'payments_dashboard' && 'Control de Pagos'}
+                            {activeTab === 'settings' && 'Configuración'}
+                        </span>
+                    </div>
+                )}
+
                 {/* Content */}
                 <div style={{ flex: 1, overflow: 'hidden', position: 'relative', display: 'flex', flexDirection: 'column' }}>
                     {children}

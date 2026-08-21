@@ -78,7 +78,7 @@ const AuthenticatedApp = () => {
     const [showSidebar, setShowSidebar] = useState(true);
     const [isRailCollapsed, setIsRailCollapsed] = useState(() => {
         const saved = localStorage.getItem('isRailCollapsed');
-        return saved !== null ? JSON.parse(saved) : false;
+        return saved !== null ? JSON.parse(saved) : true;
     });
     const [searchQuery, setSearchQuery] = useState('');
     const [sidebarWidth, setSidebarWidth] = useState(() => {
