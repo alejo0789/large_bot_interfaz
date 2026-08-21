@@ -67,7 +67,8 @@ const SedeSelector = ({ isCollapsed = false }) => {
                         boxShadow: '0 10px 25px -5px rgba(0, 0, 0, 0.1), 0 8px 10px -6px rgba(0, 0, 0, 0.1)',
                         border: '1px solid #e2e8f0',
                         zIndex: 1001,
-                        overflow: 'hidden',
+                        overflowY: 'auto',
+                        maxHeight: '60vh',
                         padding: '4px'
                     }}>
                         <div style={{ padding: '8px 12px', fontSize: '12px', fontWeight: '700', color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
