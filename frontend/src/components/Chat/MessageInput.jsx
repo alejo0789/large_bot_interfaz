@@ -1145,6 +1145,56 @@ const MessageInput = ({ onSend, onSendFile, disabled, isMobile, replyToMessage, 
                     {isUploading ? '⏳' : <Send className="w-5 h-5" />}
                 </button>
             </div>
+
+            {/* Clear input button (canequita) - centered below text area */}
+            {(message.trim() || selectedFiles.length > 0) && (
+                <div style={{
+                    display: 'flex',
+                    justifyContent: 'center',
+                    alignItems: 'center',
+                    paddingTop: '6px',
+                    paddingBottom: '2px'
+                }}>
+                    <button
+                        type="button"
+                        onClick={() => {
+                            setMessage('');
+                            clearFile();
+                            if (textareaRef.current) {
+                                textareaRef.current.style.height = 'auto';
+                                textareaRef.current.focus();
+                            }
+                        }}
+                        title="Limpiar mensaje e imágenes"
+                        style={{
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: '6px',
+                            padding: '4px 12px',
+                            backgroundColor: '#fee2e2',
+                            color: '#dc2626',
+                            border: '1px solid #fca5a5',
+                            borderRadius: '16px',
+                            fontSize: '12px',
+                            fontWeight: 600,
+                            cursor: 'pointer',
+                            transition: 'all 0.2s ease',
+                            boxShadow: '0 1px 3px rgba(0,0,0,0.05)'
+                        }}
+                        onMouseEnter={(e) => {
+                            e.currentTarget.style.backgroundColor = '#fecaca';
+                            e.currentTarget.style.borderColor = '#f87171';
+                        }}
+                        onMouseLeave={(e) => {
+                            e.currentTarget.style.backgroundColor = '#fee2e2';
+                            e.currentTarget.style.borderColor = '#fca5a5';
+                        }}
+                    >
+                        <Trash2 style={{ width: '14px', height: '14px' }} />
+                        <span>Limpiar todo</span>
+                    </button>
+                </div>
+            )}
         </div>
     );
 };
