@@ -1,13 +1,20 @@
 import React, { useState } from 'react';
-import { ShoppingBag, Megaphone, Wrench, FileText } from 'lucide-react';
+import { ShoppingBag, Megaphone, Wrench, Building2 } from 'lucide-react';
 import ProductosManager from './ProductosManager';
 import PromocionesManager from './PromocionesManager';
 import ServiciosManager from './ServiciosManager';
+import SedeInfoManager from './SedeInfoManager';
 
 const AIArea = ({ isMobile }) => {
-    const [activeSection, setActiveSection] = useState('productos');
+    const [activeSection, setActiveSection] = useState('sede_info');
 
     const sections = [
+        {
+            id: 'sede_info',
+            label: 'Información de la Sede',
+            icon: Building2,
+            description: 'Ubicación, teléfono, medios de pago y datos específicos de esta sede para la IA.'
+        },
         {
             id: 'productos',
             label: 'Productos',
@@ -108,6 +115,7 @@ const AIArea = ({ isMobile }) => {
                     width: '100%',
                     boxSizing: 'border-box'
                 }}>
+                    {activeSection === 'sede_info' && <SedeInfoManager />}
                     {activeSection === 'productos' && <ProductosManager />}
                     {activeSection === 'promociones' && <PromocionesManager />}
                     {activeSection === 'servicios' && <ServiciosManager />}

@@ -579,5 +579,102 @@ router.get('/servicios', async (req, res, next) => {
     }
 });
 
+/**
+ * GET /api/ai-knowledge/sede
+ * Obtener toda la información configurada de la sede
+ */
+router.get('/sede', async (req, res, next) => {
+    try {
+        const activePool = req.db || pool;
+        const query = `
+            SELECT id, title, content, keywords, active, created_at, updated_at
+            FROM ai_knowledge
+            WHERE 'info_sede' = ANY(keywords)
+            ORDER BY created_at ASC
+        `;
+        const result = await activePool.query(query);
+
+        res.json(result.rows);
+    } catch (error) {
+        console.error('❌ Error en GET /api/ai-knowledge/sede:', error.message);
+        next(error);
+    }
+});
+
+/**
+ * POST /api/ai-knowledge/sede
+ * Guardar o actualizar la información de la sede (Ubicación, Teléfono, Medios de Pago, Campos Personalizados)
+ */
+router.post('/sede', async (req, res, next) => {
+    try {
+        const { items } = req.body;
+        if (!Array.isArray(items)) {
+            return res.status(400).json({ error: 'Formato inválido. Se requiere un array "items".' });
+        }
+
+        const activePool = req.db || pool;
+        const hasEmbedCol = await checkEmbeddingColumn(activePool);
+        const savedItems = [];
+
+        for (const item of items) {
+            const { id, title, content, sub_type } = item;
+            if (!title || !title.trim()) continue;
+
+            const keywords = ['info_sede'];
+            if (sub_type) keywords.push(sub_type);
+
+            const embeddingText = `${title} ${content || ''}`.trim();
+            let embedding = null;
+            try {
+                embedding = await getEmbedding(embeddingText);
+            } catch (e) {
+                console.warn(`⚠️ Embedding no generado para ${title}:`, e.message);
+            }
+
+            if (id) {
+                let updateQuery = `
+                    UPDATE ai_knowledge 
+                    SET title = $1, content = $2, keywords = $3, updated_at = NOW()
+                `;
+                let values = [title, content || '', keywords];
+                let valIdx = 4;
+
+                if (embedding && hasEmbedCol) {
+                    updateQuery += `, embedding = $${valIdx}`;
+                    values.push(embedding);
+                    valIdx++;
+                }
+
+                updateQuery += ` WHERE id = $${valIdx} RETURNING *`;
+                values.push(id);
+
+                const upRes = await activePool.query(updateQuery, values);
+                if (upRes.rows.length > 0) savedItems.push(upRes.rows[0]);
+            } else {
+                let columns = '(type, title, content, keywords, active)';
+                let placeholders = 'VALUES ($1, $2, $3, $4, $5)';
+                let values = ['text', title, content || '', keywords, true];
+
+                if (embedding && hasEmbedCol) {
+                    columns = '(type, title, content, keywords, active, embedding)';
+                    placeholders = 'VALUES ($1, $2, $3, $4, $5, $6)';
+                    values.push(embedding);
+                }
+
+                const insRes = await activePool.query(
+                    `INSERT INTO ai_knowledge ${columns} ${placeholders} RETURNING *`,
+                    values
+                );
+                savedItems.push(insRes.rows[0]);
+            }
+        }
+
+        res.json({ success: true, count: savedItems.length, items: savedItems });
+    } catch (error) {
+        console.error('❌ Error en POST /api/ai-knowledge/sede:', error.message);
+        next(error);
+    }
+});
+
 module.exports = router;
 
