@@ -41,6 +41,10 @@ export const apiFetch = async (endpoint, options = {}) => {
         headers['Authorization'] = `Bearer ${token}`;
     }
 
+    if (endpoint.includes('global=true') || endpoint.includes('is_global=true')) {
+        headers['x-is-global'] = 'true';
+    }
+
     if (tenantSlug) {
         headers['x-sede-slug'] = tenantSlug;
     }

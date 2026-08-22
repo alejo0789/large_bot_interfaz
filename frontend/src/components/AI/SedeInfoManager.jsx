@@ -49,12 +49,12 @@ const SedeInfoManager = ({ isGlobal = false }) => {
             if (Array.isArray(data)) {
                 data.forEach(item => {
                     const kw = item.keywords || [];
-                    if (kw.includes('ubicacion')) {
-                        foundUbi = { id: item.id, title: item.title || (isGlobal ? 'Ubicación Central / Sede Principal' : 'Ubicación y Dirección'), content: item.content || '', sub_type: 'ubicacion' };
-                    } else if (kw.includes('telefono')) {
-                        foundTel = { id: item.id, title: item.title || (isGlobal ? 'Teléfono Central / Atención Corporativa' : 'Teléfono y Contacto de la Sede'), content: item.content || '', sub_type: 'telefono' };
-                    } else if (kw.includes('medios_pago')) {
-                        foundPago = { id: item.id, title: item.title || (isGlobal ? 'Políticas de Pago y Cuentas Corporativas' : 'Medios de Pago Aceptados'), content: item.content || '', sub_type: 'medios_pago' };
+                    if (!isGlobal && kw.includes('ubicacion')) {
+                        foundUbi = { id: item.id, title: item.title || 'Ubicación y Dirección', content: item.content || '', sub_type: 'ubicacion' };
+                    } else if (!isGlobal && kw.includes('telefono')) {
+                        foundTel = { id: item.id, title: item.title || 'Teléfono y Contacto de la Sede', content: item.content || '', sub_type: 'telefono' };
+                    } else if (!isGlobal && kw.includes('medios_pago')) {
+                        foundPago = { id: item.id, title: item.title || 'Medios de Pago Aceptados', content: item.content || '', sub_type: 'medios_pago' };
                     } else {
                         extra.push({
                             id: item.id,
@@ -66,9 +66,9 @@ const SedeInfoManager = ({ isGlobal = false }) => {
                 });
             }
 
-            setUbicacion(foundUbi || { id: null, title: isGlobal ? 'Ubicación Central / Sede Principal' : 'Ubicación y Dirección', content: '', sub_type: 'ubicacion' });
-            setTelefono(foundTel || { id: null, title: isGlobal ? 'Teléfono Central / Atención Corporativa' : 'Teléfono y Contacto de la Sede', content: '', sub_type: 'telefono' });
-            setMediosPago(foundPago || { id: null, title: isGlobal ? 'Políticas de Pago y Cuentas Corporativas' : 'Medios de Pago Aceptados', content: '', sub_type: 'medios_pago' });
+            setUbicacion(foundUbi || { id: null, title: 'Ubicación y Dirección', content: '', sub_type: 'ubicacion' });
+            setTelefono(foundTel || { id: null, title: 'Teléfono y Contacto de la Sede', content: '', sub_type: 'telefono' });
+            setMediosPago(foundPago || { id: null, title: 'Medios de Pago Aceptados', content: '', sub_type: 'medios_pago' });
             setCustomFields(extra);
         } catch (err) {
             console.error('Error fetching info:', err);
@@ -115,9 +115,9 @@ const SedeInfoManager = ({ isGlobal = false }) => {
             updated.splice(index, 1);
             setCustomFields(updated);
         } else {
-            if (item.sub_type === 'ubicacion') setUbicacion({ id: null, title: isGlobal ? 'Ubicación Central / Sede Principal' : 'Ubicación y Dirección', content: '', sub_type: 'ubicacion' });
-            if (item.sub_type === 'telefono') setTelefono({ id: null, title: isGlobal ? 'Teléfono Central / Atención Corporativa' : 'Teléfono y Contacto de la Sede', content: '', sub_type: 'telefono' });
-            if (item.sub_type === 'medios_pago') setMediosPago({ id: null, title: isGlobal ? 'Políticas de Pago y Cuentas Corporativas' : 'Medios de Pago Aceptados', content: '', sub_type: 'medios_pago' });
+            if (item.sub_type === 'ubicacion') setUbicacion({ id: null, title: 'Ubicación y Dirección', content: '', sub_type: 'ubicacion' });
+            if (item.sub_type === 'telefono') setTelefono({ id: null, title: 'Teléfono y Contacto de la Sede', content: '', sub_type: 'telefono' });
+            if (item.sub_type === 'medios_pago') setMediosPago({ id: null, title: 'Medios de Pago Aceptados', content: '', sub_type: 'medios_pago' });
         }
     };
 
@@ -131,9 +131,11 @@ const SedeInfoManager = ({ isGlobal = false }) => {
         try {
             const itemsToSave = [];
 
-            if (ubicacion.content.trim()) itemsToSave.push(ubicacion);
-            if (telefono.content.trim()) itemsToSave.push(telefono);
-            if (mediosPago.content.trim()) itemsToSave.push(mediosPago);
+            if (!isGlobal) {
+                if (ubicacion.content.trim()) itemsToSave.push(ubicacion);
+                if (telefono.content.trim()) itemsToSave.push(telefono);
+                if (mediosPago.content.trim()) itemsToSave.push(mediosPago);
+            }
 
             customFields.forEach(cf => {
                 if (cf.title.trim() && cf.content.trim()) {

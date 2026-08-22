@@ -13,20 +13,27 @@ const tenantMiddleware = async (req, res, next) => {
             (req.query && req.query.sede) ||
             (req.body && (req.body.sede || req.body.instance));
 
+        const isGlobalRequest = 
+            req.query?.global === 'true' || 
+            req.query?.is_global === 'true' || 
+            req.headers['x-is-global'] === 'true';
+
         if (!tenantSlug) {
-            // Allow health check and authentication routes to bypass tenant check
-            // We check both absolute path and internal express path (without /api prefix if mounted there)
+            // Allow health check, auth, uploads and global knowledge base requests to bypass tenant check
             const isPublicRoute =
                 req.path.startsWith('/api/auth') ||
                 req.path.startsWith('/auth') ||
                 req.path.startsWith('/uploads') ||
                 req.path === '/health' ||
                 req.path === '/api/health' ||
-                req.method === 'OPTIONS';
+                req.method === 'OPTIONS' ||
+                isGlobalRequest;
 
             if (isPublicRoute) {
                 req.db = dbManager.masterPool;
-                return next();
+                return tenantContext.run({ tenant: { slug: 'global', name: 'Global' }, db: dbManager.masterPool }, () => {
+                    next();
+                });
             }
 
             console.warn(`⚠️ Sede no especificada para la ruta: ${req.method} ${req.path}. Headers:`, req.headers['x-sede-slug'] ? 'Present' : 'Missing');

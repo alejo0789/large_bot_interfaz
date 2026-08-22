@@ -611,18 +611,19 @@ router.get('/servicios', async (req, res, next) => {
 router.get('/sede', async (req, res, next) => {
     try {
         const { activePool, tableName } = getKnowledgeContext(req);
+        if (!activePool) return res.json([]);
         const query = `
             SELECT id, title, content, keywords, active, created_at, updated_at
             FROM ${tableName}
-            WHERE 'info_sede' = ANY(keywords) OR type = 'sede'
+            WHERE (keywords IS NOT NULL AND 'info_sede' = ANY(keywords)) OR type = 'sede'
             ORDER BY created_at ASC
         `;
         const result = await activePool.query(query);
 
-        res.json(result.rows);
+        res.json(result.rows || []);
     } catch (error) {
         console.error('❌ Error en GET /api/ai-knowledge/sede:', error.message);
-        next(error);
+        res.json([]);
     }
 });
 
