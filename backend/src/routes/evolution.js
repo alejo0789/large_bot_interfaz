@@ -150,7 +150,7 @@ router.post('/', async (req, res) => {
 
             if (global.recentAiMessages && global.recentAiMessages.has(cacheKey)) {
                 console.log(`♻️ Skipping webhook for recent AI ${mediaTypeToMatch || 'text'} message: ${cacheKey.substring(0, 50)}...`);
-                return res.sendStatus(200);
+                return;
             }
         }
 
@@ -221,7 +221,7 @@ router.post('/', async (req, res) => {
 
         if (!phone) {
             console.log(`⚠️ Could not extract phone/id from JID: ${remoteJid}`);
-            return res.sendStatus(200);
+            return;
         }
 
         console.log(`📱 [WEBHOOK] Final Phone/ID used: ${phone}`);
@@ -398,7 +398,7 @@ router.post('/', async (req, res) => {
                     }
             }
             // Protocol messages (like edit) should NOT be saved as new messages
-            return res.sendStatus(200);
+            return;
         }
 
         // --- ROBUST REPLY EXTRACTION ---
@@ -497,7 +497,7 @@ router.post('/', async (req, res) => {
             }
         }
 
-        if (!text && !mediaType) return res.sendStatus(200);
+        if (!text && !mediaType) return;
 
         // If it's a group, prefix the message with the sender's name for clarity in our dashboard
         if (isGroup) {

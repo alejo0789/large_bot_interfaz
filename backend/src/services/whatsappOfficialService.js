@@ -13,6 +13,7 @@ const fetch = (...args) => import('node-fetch').then(({ default: fetch }) => fet
 const { tenantContext } = require('../utils/tenantContext');
 const fs = require('fs');
 const path = require('path');
+const sharp = require('sharp');
 
 const GRAPH_API_VERSION = 'v19.0';
 const GRAPH_BASE = `https://graph.facebook.com/${GRAPH_API_VERSION}`;
@@ -65,6 +66,35 @@ class WhatsappOfficialService {
      */
     _cleanPhone(phone) {
         return phone.replace(/\D/g, '');
+    }
+
+    /**
+     * Compress and resize an image if it exceeds 4.5MB threshold
+     */
+    async compressImageIfNeeded(filePath) {
+        if (!filePath || !fs.existsSync(filePath)) return filePath;
+        try {
+            const stats = fs.statSync(filePath);
+            const maxBytes = 4.5 * 1024 * 1024; // 4.5 MB threshold
+            if (stats.size <= maxBytes) return filePath;
+
+            const ext = path.extname(filePath) || '.jpg';
+            const compressedPath = filePath.replace(ext, `_compressed.jpg`);
+
+            console.log(`🖼️ [Sharp] Image size is ${(stats.size / (1024 * 1024)).toFixed(2)}MB (> 4.5MB limit). Resizing to 2048px max and compressing...`);
+
+            await sharp(filePath)
+                .resize({ width: 2048, height: 2048, fit: 'inside', withoutEnlargement: true })
+                .jpeg({ quality: 82 })
+                .toFile(compressedPath);
+
+            const newStats = fs.statSync(compressedPath);
+            console.log(`✅ [Sharp] Image successfully compressed from ${(stats.size / (1024 * 1024)).toFixed(2)}MB to ${(newStats.size / (1024 * 1024)).toFixed(2)}MB`);
+            return compressedPath;
+        } catch (err) {
+            console.error('❌ [Sharp] Error compressing image:', err.message);
+            return filePath;
+        }
     }
 
     // ─────────────────────────────────────────────
@@ -208,6 +238,14 @@ class WhatsappOfficialService {
                 }
             }
 
+            // If it's an image, auto-compress/resize if file size > 4.5MB
+            if (validMediaType === 'image' && targetFilePath && fs.existsSync(targetFilePath)) {
+                targetFilePath = await this.compressImageIfNeeded(targetFilePath);
+            }
+
+            let effectiveMediaType = validMediaType;
+            let effectiveFileName = fileName;
+
             // Determine explicit MIME type for Meta upload
             const mimeMap = {
                 image: 'image/jpeg',
@@ -215,7 +253,7 @@ class WhatsappOfficialService {
                 audio: 'audio/mpeg',
                 document: 'application/pdf'
             };
-            const explicitMime = mimeMap[validMediaType] || 'application/octet-stream';
+            const explicitMime = mimeMap[effectiveMediaType] || 'application/octet-stream';
 
             // Attempt direct upload to Meta Media API
             let mediaId = null;
@@ -224,26 +262,26 @@ class WhatsappOfficialService {
             }
 
             const mediaObj = mediaId ? { id: mediaId } : { link: mediaUrl };
-            if (caption && ['image', 'video', 'document'].includes(validMediaType)) {
+            if (caption && ['image', 'video', 'document'].includes(effectiveMediaType)) {
                 mediaObj.caption = caption;
             }
-            if (fileName && validMediaType === 'document') {
-                mediaObj.filename = fileName;
+            if (effectiveFileName && effectiveMediaType === 'document') {
+                mediaObj.filename = effectiveFileName;
             }
 
             const body = {
                 messaging_product: 'whatsapp',
                 recipient_type: 'individual',
                 to: cleanNumber,
-                type: validMediaType,
-                [validMediaType]: mediaObj
+                type: effectiveMediaType,
+                [effectiveMediaType]: mediaObj
             };
 
             if (replyMessageId) {
                 body.context = { message_id: replyMessageId };
             }
 
-            console.log(`📡 [OfficialAPI] sendMedia → ${cleanNumber} | type=${validMediaType} | ${mediaId ? 'media_id=' + mediaId : 'link=' + mediaUrl}`);
+            console.log(`📡 [OfficialAPI] sendMedia → ${cleanNumber} | type=${effectiveMediaType} | ${mediaId ? 'media_id=' + mediaId : 'link=' + mediaUrl}`);
 
             const { ok, data } = await this._post(url, body, accessToken);
 
@@ -252,11 +290,10 @@ class WhatsappOfficialService {
                 return { success: true, data };
             }
 
-            // Fallback for videos: If Meta rejected native video (e.g. size > 16MB),
-            // automatically retry sending as a document attachment (.mp4) which accepts up to 100MB.
-            if (!ok && validMediaType === 'video') {
-                console.warn(`⚠️ [OfficialAPI] sendMedia as video failed. Retrying fallback send as document...`);
-                const docObj = mediaId ? { id: mediaId, filename: fileName || 'video.mp4' } : { link: mediaUrl, filename: fileName || 'video.mp4' };
+            // Fallback 1: If native image or video failed, retry sending as document
+            if (!ok && (effectiveMediaType === 'image' || effectiveMediaType === 'video')) {
+                console.warn(`⚠️ [OfficialAPI] sendMedia as ${effectiveMediaType} failed. Retrying fallback send as document...`);
+                const docObj = mediaId ? { id: mediaId, filename: effectiveFileName || (effectiveMediaType === 'image' ? 'imagen.jpg' : 'video.mp4') } : { link: mediaUrl, filename: effectiveFileName || (effectiveMediaType === 'image' ? 'imagen.jpg' : 'video.mp4') };
                 if (caption) docObj.caption = caption;
 
                 const docBody = {
@@ -280,7 +317,17 @@ class WhatsappOfficialService {
                 }
             }
 
-            console.error(`❌ [OfficialAPI] sendMedia failed:`, JSON.stringify(data));
+            // Fallback 2: Last resort - send text message with link so content is never lost
+            console.warn(`⚠️ [OfficialAPI] All media sending attempts failed for ${cleanNumber}. Falling back to text message with link...`);
+            const fallbackText = caption ? `${caption}\n\n📎 Adjunto: ${mediaUrl}` : `📎 Adjunto: ${mediaUrl}`;
+            const textRes = await this.sendText(phone, fallbackText, replyMessageId);
+            
+            if (textRes.success) {
+                console.log(`✅ [OfficialAPI] Fallback sendText succeeded for ${cleanNumber}!`);
+                return { success: true, data: textRes.data, fallbackAsText: true };
+            }
+
+            console.error(`❌ [OfficialAPI] sendMedia failed completely:`, JSON.stringify(data));
             return { success: false, error: data };
 
         } catch (error) {
