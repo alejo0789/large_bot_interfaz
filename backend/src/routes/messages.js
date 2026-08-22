@@ -155,24 +155,32 @@ router.post('/send-message', requireApiKey, asyncHandler(async (req, res) => {
 
     // UPDATE STATUS IN DB after successful send
     if (sendResult.sent) {
-        // Extract WhatsApp ID if available (Evolution v2: result.data.key.id)
+        // Extract WhatsApp ID if available (Evolution v2 or Meta Official API)
         let whatsappId = null;
         if (sendResult.platform === 'evolution' && sendResult.data) {
             if (sendResult.data.key && sendResult.data.key.id) {
                 whatsappId = sendResult.data.key.id;
             }
+        } else if (sendResult.platform === 'official' && sendResult.data) {
+            if (sendResult.data.messages && sendResult.data.messages[0] && sendResult.data.messages[0].id) {
+                whatsappId = sendResult.data.messages[0].id;
+            }
         }
+
+        const initialStatus = 'sent';
 
         if (whatsappId) {
             console.log(`✅ Updating message ${savedMessage.id} with WhatsApp ID: ${whatsappId}`);
-            await messageService.updateWhatsappId(savedMessage.id, whatsappId, 'delivered');
-            // Update the whatsapp_id that will be emitted to frontend
+            await messageService.updateWhatsappId(savedMessage.id, whatsappId, initialStatus);
             savedMessage.whatsapp_id = whatsappId;
+            savedMessage.status = initialStatus;
         } else {
-            await messageService.updateStatus(savedMessage.id, 'delivered');
+            await messageService.updateStatus(savedMessage.id, initialStatus);
+            savedMessage.status = initialStatus;
         }
     } else {
         await messageService.updateStatus(savedMessage.id, 'failed');
+        savedMessage.status = 'failed';
     }
 
     emitToConversation(normalizedPhone, 'agent-message', {
@@ -185,7 +193,7 @@ router.post('/send-message', requireApiKey, asyncHandler(async (req, res) => {
         agent_id: finalAgentId,
         agent_name: finalAgentName,
         sender_name: finalAgentName,
-        status: sendResult.sent ? 'delivered' : 'failed',
+        status: savedMessage.status,
         replyTo: replyToData,
         temp_id: temp_id
     });
@@ -288,23 +296,32 @@ router.post('/send-file', requireApiKey, upload.single('file'), restoreTenantCon
 
     // UPDATE STATUS IN DB after successful send
     if (sendResult.sent) {
-        // Extract WhatsApp ID if available (Evolution v2: result.data.key.id)
+        // Extract WhatsApp ID if available (Evolution v2 or Meta Official API)
         let whatsappId = null;
         if (sendResult.platform === 'evolution' && sendResult.data) {
             if (sendResult.data.key && sendResult.data.key.id) {
                 whatsappId = sendResult.data.key.id;
             }
+        } else if (sendResult.platform === 'official' && sendResult.data) {
+            if (sendResult.data.messages && sendResult.data.messages[0] && sendResult.data.messages[0].id) {
+                whatsappId = sendResult.data.messages[0].id;
+            }
         }
+
+        const initialStatus = 'sent';
 
         if (whatsappId) {
             console.log(`✅ Updating message ${savedMessage.id} with WhatsApp ID: ${whatsappId}`);
-            await messageService.updateWhatsappId(savedMessage.id, whatsappId, 'delivered');
+            await messageService.updateWhatsappId(savedMessage.id, whatsappId, initialStatus);
             savedMessage.whatsapp_id = whatsappId;
+            savedMessage.status = initialStatus;
         } else {
-            await messageService.updateStatus(savedMessage.id, 'delivered');
+            await messageService.updateStatus(savedMessage.id, initialStatus);
+            savedMessage.status = initialStatus;
         }
     } else {
         await messageService.updateStatus(savedMessage.id, 'failed');
+        savedMessage.status = 'failed';
     }
 
     // Emit to frontend (OPTIMIZED: uses rooms)
@@ -321,7 +338,7 @@ router.post('/send-file', requireApiKey, upload.single('file'), restoreTenantCon
         agent_id,
         agent_name,
         sender_name: agent_name,
-        status: sendResult.sent ? 'delivered' : 'failed',
+        status: savedMessage.status,
         temp_id: temp_id, // Emitting back the temp_id so frontend can match
         replyTo: replyToData
     });
