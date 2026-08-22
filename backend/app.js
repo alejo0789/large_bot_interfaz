@@ -83,7 +83,13 @@ app.use(cors({
 app.use(express.json({ limit: '10mb' }));
 
 // 1. Static files (uploads) - MUST BE FIRST to avoid tenant middleware interference
-app.use('/uploads', express.static(config.uploadDir));
+app.use('/uploads', express.static(config.uploadDir, {
+    setHeaders: (res, filePath) => {
+        if (filePath.toLowerCase().endsWith('.mp4')) {
+            res.setHeader('Content-Type', 'video/mp4');
+        }
+    }
+}));
 
 // 2. Request logging
 app.use((req, res, next) => {

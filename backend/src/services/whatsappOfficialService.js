@@ -127,14 +127,60 @@ class WhatsappOfficialService {
     }
 
     /**
+    /**
+     * Upload media binary directly to Meta Cloud Media API to get a media_id.
+     * This avoids Meta download errors when using external links (e.g. Content-Type mismatches).
+     */
+    async uploadMediaToMeta(filePath, mimetype) {
+        try {
+            const { phoneNumberId, accessToken } = this.getConfig();
+            if (!phoneNumberId || !accessToken) return null;
+            if (!filePath || !fs.existsSync(filePath)) return null;
+
+            const url = `${this.baseUrl}/${phoneNumberId}/media`;
+
+            const fileBuffer = fs.readFileSync(filePath);
+            const blob = new Blob([fileBuffer], { type: mimetype || 'application/octet-stream' });
+
+            const formData = new FormData();
+            formData.append('messaging_product', 'whatsapp');
+            formData.append('file', blob, path.basename(filePath));
+
+            console.log(`📡 [OfficialAPI] Uploading binary to Meta Media API: ${path.basename(filePath)} (${(fileBuffer.length / (1024 * 1024)).toFixed(2)}MB, mime=${mimetype})...`);
+
+            const response = await fetch(url, {
+                method: 'POST',
+                headers: {
+                    'Authorization': `Bearer ${accessToken}`
+                },
+                body: formData
+            });
+
+            const data = await response.json();
+            if (response.ok && data.id) {
+                console.log(`✅ [OfficialAPI] Uploaded media to Meta. ID: ${data.id}`);
+                return data.id;
+            } else {
+                console.warn(`⚠️ [OfficialAPI] Meta media upload failed:`, JSON.stringify(data));
+                return null;
+            }
+        } catch (err) {
+            console.error(`❌ [OfficialAPI] Error uploading media to Meta:`, err.message);
+            return null;
+        }
+    }
+
+    /**
      * Send a media message (image, video, audio, document)
      * @param {string} phone
      * @param {string} mediaUrl - Publicly accessible URL of the media file
      * @param {string} mediaType - 'image' | 'video' | 'audio' | 'document'
      * @param {string} [caption]
      * @param {string} [fileName] - Only used for documents
+     * @param {string} [replyMessageId]
+     * @param {string} [filePath] - Disk path for direct upload to Meta
      */
-    async sendMedia(phone, mediaUrl, mediaType, caption, fileName) {
+    async sendMedia(phone, mediaUrl, mediaType, caption, fileName, replyMessageId = null, filePath = null) {
         try {
             const { phoneNumberId, accessToken } = this.getConfig();
             if (!phoneNumberId || !accessToken) {
@@ -149,7 +195,35 @@ class WhatsappOfficialService {
             const cleanNumber = this._cleanPhone(phone);
             const url = `${this.baseUrl}/${phoneNumberId}/messages`;
 
-            const mediaObj = { link: mediaUrl };
+            // Try to find disk path if not explicitly provided
+            let targetFilePath = filePath;
+            if (!targetFilePath && mediaUrl && mediaUrl.includes('/uploads/')) {
+                const parts = mediaUrl.split('/uploads/');
+                if (parts[1]) {
+                    const relativePath = parts[1].split('?')[0];
+                    const candidate = path.join(config.uploadDir, relativePath);
+                    if (fs.existsSync(candidate)) {
+                        targetFilePath = candidate;
+                    }
+                }
+            }
+
+            // Determine explicit MIME type for Meta upload
+            const mimeMap = {
+                image: 'image/jpeg',
+                video: 'video/mp4',
+                audio: 'audio/mpeg',
+                document: 'application/pdf'
+            };
+            const explicitMime = mimeMap[validMediaType] || 'application/octet-stream';
+
+            // Attempt direct upload to Meta Media API
+            let mediaId = null;
+            if (targetFilePath && fs.existsSync(targetFilePath)) {
+                mediaId = await this.uploadMediaToMeta(targetFilePath, explicitMime);
+            }
+
+            const mediaObj = mediaId ? { id: mediaId } : { link: mediaUrl };
             if (caption && ['image', 'video', 'document'].includes(validMediaType)) {
                 mediaObj.caption = caption;
             }
@@ -165,7 +239,11 @@ class WhatsappOfficialService {
                 [validMediaType]: mediaObj
             };
 
-            console.log(`📡 [OfficialAPI] sendMedia → ${cleanNumber} | type=${validMediaType}`);
+            if (replyMessageId) {
+                body.context = { message_id: replyMessageId };
+            }
+
+            console.log(`📡 [OfficialAPI] sendMedia → ${cleanNumber} | type=${validMediaType} | ${mediaId ? 'media_id=' + mediaId : 'link=' + mediaUrl}`);
 
             const { ok, data } = await this._post(url, body, accessToken);
 
@@ -174,14 +252,11 @@ class WhatsappOfficialService {
                 return { success: true, data };
             }
 
-            // Fallback for videos: If Meta rejected native video (e.g. unsupported codec H.265/HEVC or size > 16MB),
-            // automatically retry sending as a document attachment (.mp4) which accepts up to 100MB and any codec.
+            // Fallback for videos: If Meta rejected native video (e.g. size > 16MB),
+            // automatically retry sending as a document attachment (.mp4) which accepts up to 100MB.
             if (!ok && validMediaType === 'video') {
                 console.warn(`⚠️ [OfficialAPI] sendMedia as video failed. Retrying fallback send as document...`);
-                const docObj = {
-                    link: mediaUrl,
-                    filename: fileName || 'video.mp4'
-                };
+                const docObj = mediaId ? { id: mediaId, filename: fileName || 'video.mp4' } : { link: mediaUrl, filename: fileName || 'video.mp4' };
                 if (caption) docObj.caption = caption;
 
                 const docBody = {
@@ -191,6 +266,10 @@ class WhatsappOfficialService {
                     type: 'document',
                     document: docObj
                 };
+
+                if (replyMessageId) {
+                    docBody.context = { message_id: replyMessageId };
+                }
 
                 const docRes = await this._post(url, docBody, accessToken);
                 if (docRes.ok) {
