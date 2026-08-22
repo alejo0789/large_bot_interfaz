@@ -934,7 +934,7 @@ export const useConversations = (socket) => {
 
         const handleMessageUpdated = (data) => {
             console.log('🔄 Message updated:', data);
-            const { id, whatsapp_id, phone, status, text, media_url, media_type, edited } = data;
+            const { id, whatsapp_id, phone, status, text, media_url, media_type, edited, temp_id } = data;
 
             const updates = {
                 ...(status && { status }),
@@ -945,19 +945,24 @@ export const useConversations = (socket) => {
             };
 
             const targetId = whatsapp_id || id;
+            const targetTempId = temp_id || data._tempId;
             const targetPhone = phone ? String(phone).replace(/\D/g, '') : null;
 
             setMessagesByConversation(prev => {
-                const keysToUpdate = targetPhone ? [targetPhone] : Object.keys(prev);
                 const nextState = { ...prev };
 
-                keysToUpdate.forEach(k => {
-                    if (nextState[k]) {
-                        nextState[k] = nextState[k].map(msg =>
-                            (msg.id === targetId || msg.whatsapp_id === targetId || String(msg.id) === String(targetId))
-                                ? { ...msg, ...updates }
-                                : msg
-                        );
+                Object.keys(prev).forEach(k => {
+                    const cleanK = String(k).replace(/\D/g, '');
+                    if (!targetPhone || cleanK === targetPhone) {
+                        if (nextState[k]) {
+                            nextState[k] = nextState[k].map(msg => {
+                                const isMatch =
+                                    (targetId && (msg.id === targetId || msg.whatsapp_id === targetId || String(msg.id) === String(targetId))) ||
+                                    (targetTempId && (msg.id === targetTempId || msg.temp_id === targetTempId || msg._tempId === targetTempId || String(msg.id) === String(targetTempId)));
+
+                                return isMatch ? { ...msg, ...updates } : msg;
+                            });
+                        }
                     }
                 });
 
