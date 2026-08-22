@@ -1,0 +1,882 @@
+{
+  "name": "ciudad_montes_crm",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "f6d22e49-3142-455c-a420-43c1ddcbfe2f",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2.1,
+      "position": [
+        -960,
+        400
+      ],
+      "id": "295ca436-17d5-478a-95f4-e52e3d7bd30e",
+      "name": "Webhook",
+      "webhookId": "f6d22e49-3142-455c-a420-43c1ddcbfe2f"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Detectar y procesar el tipo de media\nconst body = $json.body || $json;\nconst mediaType = body.media_type || 'text';\nconst mediaUrl = body.media_url || '';\nconst phone = body.phone || '';\nconst name = body.name || '';\nconst message = body.message || '';\nconst timestamp = body.timestamp || new Date().toISOString();\n\nlet processedData = {\n  phone,\n  name,\n  message,\n  timestamp,\n  media_type: mediaType,\n  media_url: mediaUrl,\n  has_media: mediaType !== 'text' && mediaType !== '' && mediaUrl !== ''\n};\n\n// Si es audio, extraer el base64 y mime type\nif (mediaType === 'audio' && mediaUrl) {\n  if (mediaUrl.startsWith('data:')) {\n    const matches = mediaUrl.match(/^data:([^;]+);base64,(.+)$/);\n    if (matches) {\n      processedData.audio_mime_type = matches[1];\n      processedData.audio_base64 = matches[2];\n    }\n  }\n}\n\n// Si es imagen, extraer base64 y mime type\nif (mediaType === 'image' && mediaUrl) {\n  if (mediaUrl.startsWith('data:')) {\n    const matches = mediaUrl.match(/^data:([^;]+);base64,(.+)$/);\n    if (matches) {\n      processedData.image_mime_type = matches[1];\n      processedData.image_base64 = matches[2];\n    }\n  }\n  processedData.image_data = mediaUrl;\n}\n\n// Determinar ruta\nlet route = 'text';\nif (mediaType === 'audio') route = 'audio';\nelse if (mediaType === 'image') route = 'image';\nelse if (mediaType === 'video' || mediaType === 'document') route = 'unsupported';\n\nprocessedData.route = route;\n\nreturn [{ json: processedData }];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -720,
+        400
+      ],
+      "id": "8094c946-7162-4b28-861d-2dddd5dafd73",
+      "name": "Procesar Media Entrante"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "leftValue": "={{ $json.route }}",
+              "rightValue": "audio",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              },
+              "id": "63c5e54e-789c-49b9-9caa-bacc0673f0c2"
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        -464,
+        400
+      ],
+      "id": "8152380e-df41-4d72-8914-e8f52fcc5264",
+      "name": "Es Audio?"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "leftValue": "={{ $json.route }}",
+              "rightValue": "image",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        -208,
+        448
+      ],
+      "id": "3c424c42-faa1-459d-b929-6de6bd4bc692",
+      "name": "Es Imagen?"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "leftValue": "={{ $json.route }}",
+              "rightValue": "unsupported",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              },
+              "id": "fa781327-e01b-4ef2-a906-babfcc444989"
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        -16,
+        688
+      ],
+      "id": "60ff954a-92a3-435c-ac16-326a791ac913",
+      "name": "Es No Soportado?"
+    },
+    {
+      "parameters": {
+        "jsCode": "let transcription = '';\n\ntry {\n  // Estructura que devuelve el nodo Gemini de n8n\n  if ($json.content && $json.content.parts && $json.content.parts[0]) {\n    transcription = $json.content.parts[0].text || '';\n  }\n  // Fallback por si acaso viene la estructura REST clásica\n  else if ($json.candidates && $json.candidates[0]) {\n    transcription = $json.candidates[0].content.parts[0].text || '';\n  }\n} catch (e) {\n  transcription = 'No se pudo transcribir el audio';\n}\n\nconst originalData = $('Es Audio?').first().json;\n\nreturn [{\n  json: {\n    phone: originalData.phone,\n    name: originalData.name,\n    timestamp: originalData.timestamp,\n    media_type: 'audio',\n    original_message: originalData.message,\n    transcription: transcription.trim(),\n    ai_message: `[Nota de voz transcrita]: ${transcription.trim()}`,\n    unsupported_media: false\n  }\n}];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        288,
+        160
+      ],
+      "id": "097c936d-386f-4d7e-84b7-8dbc60eafd08",
+      "name": "Extraer Transcripcion"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Para video y documentos - respuesta por defecto\nreturn [{\n  json: {\n    phone: $json.phone,\n    name: $json.name,\n    timestamp: $json.timestamp,\n    media_type: $json.media_type,\n    original_message: $json.message,\n    ai_message: $json.message,\n    unsupported_media: true,\n    default_response: `¡Hola hermosa! 🌿✨ Recibí tu ${$json.media_type === 'video' ? 'video' : 'documento'}, pero por el momento no puedo procesarlo. ¿Podrías contarme en texto o con una nota de voz qué necesitas? 💚🌸`\n  }\n}];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        592,
+        672
+      ],
+      "id": "5a7b9230-5b84-4cae-bbd9-16c981e44440",
+      "name": "Media No Soportada"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Texto normal sin media\nreturn [{\n  json: {\n    phone: $json.phone,\n    name: $json.name,\n    timestamp: $json.timestamp,\n    media_type: 'text',\n    original_message: $json.message,\n    ai_message: $json.message,\n    unsupported_media: false\n  }\n}];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        592,
+        896
+      ],
+      "id": "1be661a9-f309-4e67-a03b-a0f959beab58",
+      "name": "Texto Normal"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "leftValue": "={{ $json.unsupported_media }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "true"
+              },
+              "id": "11472ef0-eafe-42b3-b12f-eb422f710038"
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        1216,
+        256
+      ],
+      "id": "970a2c83-9781-461f-942d-fc1604250934",
+      "name": "Es Media No Soportada?"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Usar respuesta predefinida para media no soportada\nreturn [{\n  json: {\n    output: $json.default_response,\n    phone: $json.phone,\n    name: $json.name,\n    media_type: $json.media_type\n  }\n}];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1680,
+        240
+      ],
+      "id": "0908222c-7691-4c7e-9d89-104fb5a01167",
+      "name": "Respuesta por Defecto"
+    },
+    {
+      "parameters": {
+        "sessionIdType": "customKey",
+        "sessionKey": "={{ $json.phone }}"
+      },
+      "type": "@n8n/n8n-nodes-langchain.memoryBufferWindow",
+      "typeVersion": 1.3,
+      "position": [
+        1520,
+        832
+      ],
+      "id": "f5abefc5-7ccd-43e0-8abb-b046ee951e9a",
+      "name": "Memory por Telefono"
+    },
+    {
+      "parameters": {
+        "jsCode": "// 1. Extraer el output inicial\nconst output = $('AI Agent').first().json.output;\nlet result;\nif (Array.isArray(output)) {\n  result = output[0];\n} else {\n  result = output;\n}\n\n// 2. EXTRAER Y BORRAR EL TAG DEL TEXTO\nlet tag = null;\nconst regex = /\\{tag:(.*?)\\}/i;\n// Nos aseguramos que result sea texto continuo\nif (typeof result === 'string') {\n  const match = result.match(regex);\n  if (match) {\n    tag = match[1].trim(); // Guardamos lo que extrajo (ej: \"Agendar\")\n    result = result.replace(regex, '').trim(); // Borramos el texto del tag del mensaje real\n  }\n}\n\n// 3. Tomar la data original\nconst originalData = $('Es Media No Soportada?').first().json;\n\n// 4. Retornar todo de vuelta en el json\nreturn [{\n  json: {\n    output: result, // Este output ahora ya NO tiene el texto de la etiqueta\n    phone: originalData.phone,\n    name: originalData.name,\n    media_type: originalData.media_type,\n    tag: tag // <--- Aquí pasamos la nueva propiedad con la etiqueta\n  }\n}];\n"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1984,
+        528
+      ],
+      "id": "780a370c-6f0c-4632-b613-42c6a9ce744a",
+      "name": "Limpiar Output AI"
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ { \"success\": true, \"response\": $json.output, \"phone\": $json.phone, \"media_type\": $json.media_type } }}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.5,
+      "position": [
+        2432,
+        256
+      ],
+      "id": "eb861804-5b9d-4550-86cf-dd026ad73d2f",
+      "name": "Respond to Webhook"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://largebotinterfaz-production-5b38.up.railway.app/webhook/receive-message",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            },
+            {
+              "name": "x-tenant-Slug",
+              "value": "ciudadmontes"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"phone\": \"{{ $json.phone }}\",\n  \"contact_name\": \"{{ $json.name }}\",\n  \"message\": {{ JSON.stringify($json.output) }},\n  \"whatsapp_id\": \"bot_{{ Date.now() }}_{{ Math.floor(Math.random() * 1000) }}\",\n  \"sender_type\": \"bot\",\n  \"timestamp\": \"{{ $now.toISO() }}\",\n  \"media_type\": \"{{ $json.media_type }}\",\n  \"tag\":\"{{ $json.tag}}\"\n}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        2400,
+        640
+      ],
+      "id": "f232e868-e4aa-4298-bcd5-d20f4355b474",
+      "name": "Guardar Respuesta en Backend"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Merge final - preparar para respuesta\nconst data = $json;\n\nreturn [{\n  json: {\n    output: data.output,\n    phone: data.phone,\n    name: data.name,\n    media_type: data.media_type,\n    tag:data.tag\n  }\n}];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2160,
+        256
+      ],
+      "id": "830d66a8-c379-4dd5-8074-6394c72da888",
+      "name": "Preparar Respuesta Final"
+    },
+    {
+      "parameters": {
+        "resource": "audio",
+        "modelId": {
+          "__rl": true,
+          "value": "models/gemini-flash-latest",
+          "mode": "list",
+          "cachedResultName": "models/gemini-flash-latest"
+        },
+        "inputType": "binary",
+        "binaryPropertyName": "=data",
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.googleGemini",
+      "typeVersion": 1,
+      "position": [
+        32,
+        160
+      ],
+      "id": "799767d0-2836-469f-adc8-e5023cb6e155",
+      "name": "Transcribe a recording",
+      "credentials": {
+        "googlePalmApi": {
+          "id": "CDjIjnAjMCpD3jc9",
+          "name": "Google Gemini(PaLM) Api account"
+        }
+      }
+    },
+    {
+      "parameters": {},
+      "type": "@n8n/n8n-nodes-langchain.embeddingsGoogleGemini",
+      "typeVersion": 1,
+      "position": [
+        1920,
+        944
+      ],
+      "id": "e1ca941f-fb24-47b2-b0fa-ac30e65e55e8",
+      "name": "Embeddings Google Gemini",
+      "credentials": {
+        "googlePalmApi": {
+          "id": "CDjIjnAjMCpD3jc9",
+          "name": "Google Gemini(PaLM) Api account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "mode": "retrieve-as-tool",
+        "toolDescription": "Usa esta herramienta para responder cualquier pregunta sobre servicios (keratinas, alisados), productos, sedes, precios e información técnica. Es la única fuente de información oficial del Club de Alisados Large.",
+        "tableName": "ai_knowledge",
+        "options": {
+          "columnNames": {
+            "values": {
+              "contentColumnName": "content",
+              "metadataColumnName": "id"
+            }
+          }
+        }
+      },
+      "type": "@n8n/n8n-nodes-langchain.vectorStorePGVector",
+      "typeVersion": 1.3,
+      "position": [
+        1872,
+        768
+      ],
+      "id": "bd62552d-446e-43a9-961b-31fd4eb71653",
+      "name": "knowledge_large",
+      "credentials": {
+        "postgres": {
+          "id": "vCXi3VgaOyxSSgGK",
+          "name": "Postgres account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "model": {
+          "__rl": true,
+          "mode": "list",
+          "value": "gpt-5-mini",
+          "cachedResultName": "gpt-5-mini",
+          "cachedResultUrl": ""
+        },
+        "builtInTools": {},
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.lmChatOpenAi",
+      "typeVersion": 1.3,
+      "position": [
+        1280,
+        752
+      ],
+      "id": "125fae74-37da-453f-885d-61d6fa755599",
+      "name": "OpenAI Chat Model",
+      "credentials": {
+        "openAiApi": {
+          "id": "7yrZ9PFCWzyNozQJ",
+          "name": "coidad_montes_key"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "promptType": "define",
+        "text": "={{ $json.ai_message}}",
+        "options": {
+          "systemMessage": "=# IDENTIDAD Y PERSONALIDAD\nEres una asistente virtual del Club de Alisados Large.\nTu misión: resolver dudas con información oficial y motivar a agendar, no esta permitido responder cosas y ahcer cosas difernetes.\n\nPersonalidad:\n- Cálida, profesional, cordial\n- Usas ocasionalmente: \"hermosa\", \"querida\", \"princesa\"\n- 2-3 emojis por mensaje 🌿💚🌸✨💆‍♀️💫🃏⭐🌺\n\n---\n\n# SALUDO INICIAL (solo la primera vez)\n¡Hola hermosa! 🌿✨\nBienvenida al Club Alisados Large Ciudad Montes💚🌸\n\n---\n\n# ⚠️ REGLAS CRÍTICAS DE HERRAMIENTAS\n\n## get_promotions y get_servicios— SOLO para precios y servicios\nLlama a get_promotions y get_servicios ÚNICAMENTE cuando el usuario pregunte EXPLÍCITAMENTE sobre:\n- Precios, costos, tarifas, cuánto vale\n- Promociones, descuentos, ofertas del mes\n- Servicios específicos: alisado, keratina, corte, tinte, tratamiento, etc.\n- Combos o paquetes\nincluye al final de la respuesta que generes basada en la datq eu llegue y al final inlcuye el id de la metada ejemplo:  \\n\\n[ID: 5a2466ea-2174-413a-ac6d-ab2d49f6a80c] solo el id una vez y tal cual aprece ahi no mas.\nesto es inofrmaciona dicional a lo que tienes en el prompt nuestra especialidad son los alisados, ejemplo:\n**Productos / Keratina:**\nSin formol, sin amoníaco, vegana, orgánica, enjuagable, sin vapores 🌱✨\nOfrecemos 2 tipos según tu cabello:\n🌿 Keratina Ambrosía: cacao, té verde y café → hidratación profunda\n💎 Keratina Amatista: extracto de lino → fortalecimiento y luminosidad\n\n\n**Duración del procedimiento:**\nEntre 4 y 5 horas, dependiendo del largo, volumen y condición 💆‍♀️\n\nnuestros alisados duran de 4 a 6 meses depndiendo del post cuidado.\n\n**NO llames get_promotions en saludos, preguntas de ubicación, horarios, dudas sobre el proceso, o temas generales.**\n**NUNCA inventes precios. NUNCA uses memoria para dar precios.**\n**Si la herramienta no devuelve info relevante → avisa que un asesor la contactará pronto.**\n\n## knowledge_large — Para productos específicos\nÚsala para preguntas sobre shampoos, acondicionadores, productos para llevar a casa o productos en general de la compañia, keratinas combos.\nincluye al final de la respuesta que generes basada en la datq eu llegue y al final inlcuye el id de la metada ejemplo:  \\n\\n[ID: 5a2466ea-2174-413a-ac6d-ab2d49f6a80c] solo el id una vez y tal cual aprece ahi no mas.\n\n# FLUJO DE AGENDAMIENTO\n\nEl abono y los datos se piden SOLO cuando el usuario exprese intención clara de agendar.\nSeñales de intención: \"quiero cita\", \"cuándo tienen disponible\", \"me quiero agendar\", \"quiero ir\", etc.\n\n**Paso 1 — Ofrecer cita (cuando hay intención clara):**\nTenemos disponibilidad de domingo a domingo en estos turnos:\n- 7:00 am  • 10:00 am  • 1:00 pm  • 4:00 pm\n\n¿Qué fecha y hora te quedaría mejor? 💆‍♀️\n\n**Paso 2 — Confirmar disponibilidad:**\nSi piden horario diferente antes de las 4:00 pm → confirmar disponibilidad.\nSi piden después de las 4:00 pm → solo ofrecer los turnos disponibles.\n\n**Paso 3 — Solicitar abono (solo después de acordar fecha/hora):**\nPara confirmar tu espacio manejamos un abono de $20.000 💖\nEste se descuenta del valor de tu procedimiento.\n\n🏦 Bancolombia\nPuedes realizarlo a través de:\n🏦 Bancolombia\nTitular: Club de Alisados\nNIT: 901846673\nTipo de cuenta: Ahorros\nNúmero de cuenta:  58900003461 \nLlave: 0091055093\nPor favor, envíanos el comprobante para dejar tu cita confirmada ✅.\n¡Gracias por elegirnos! 💆‍♀️✨\n\nEnvíanos el comprobante para dejar tu cita confirmada ✅\n\n**Paso 4 — Solicitar datos (SOLO después de que el cliente confirme que ya hizo el abono):**\nEnviar en mensaje SEPARADO:\n\n✨ Perfecta, ya quedamos casi listas. Por favor envíame estos datos:\n\n📌 Nombre Completo:\n📌 Cédula:\n📌 Teléfono:\n📌 Correo:\n📌 Fecha:\n📌 Hora:\n📌 Sede: Cali Frente a Chipichape\n\n¡Quedo atenta! 😊💕\n\n\npaso 5. confirmacion de agenda:\n\nUna vez recibido los datos vas a enaviar muy coridal, un mensjae de que la cita ha sido confirmada, muchas gracis y esperamso atenderte como te lo mereces te esperamos.\nal final agrega esto {tag:Agendar}\n---\n\n# RESPUESTAS RÁPIDAS (de memoria, sin herramientas)\n\n**Ubicación:**\nHermosa, estamos al Estamos ubicados en el barrio Ciudad Montes📍AK 50 # 1 - 77  https://maps.app.goo.gl/hxrjKQHHBKjrYnnJ8 \nTe esperamos 💇🏼‍♀️\n\n**Embarazo:**\nNo hay problema con la keratina durante el embarazo 🤰✨\nEs tópica, no se absorbe en el torrente sanguíneo. Sin riesgo para ti ni tu bebé 👶💖\n\n**Garantía:**\n🌟 Garantía de tu Alisado 🌟\n✔️ Vigencia: 20 días desde la aplicación\n✔️ No aplica si fuiste al mar\n✔️ Primera aplicación: resultado entre 50%–70% de alisado\n\nEl proceso: traes tu cabello limpio → hacemos termoactivación → si presenta ondas, repetimos la aplicación. Si prefieres que lo lavemos aquí: $15.000 💇🏻‍♀️\nGarantías: lunes a jueves 🎀 7:30 am / 10:30 am / 1:30 pm / 4:30 pm\n\n**Productos / Keratina:**\nSin formol, sin amoníaco, vegana, orgánica, enjuagable, sin vapores 🌱✨\nOfrecemos 2 tipos según tu cabello:\n🌿 Keratina Ambrosía: cacao, té verde y café → hidratación profunda\n💎 Keratina Amatista: extracto de lino → fortalecimiento y luminosidad\n¿Cómo es tu cabello? Así te ayudo a elegir 💁‍♀️\n\n**Duración del procedimiento:**\nEntre 4 y 5 horas, dependiendo del largo, volumen y condición 💆‍♀️\n\nnuestros alisados duran de 4 a 6 meses depndiendo del post cuidado.\n\n**Termoactivado:**\nSí hermosa, se activa con calor 🌡️ Secar el cabello después de cada lavado sella el tratamiento y mantiene el liso ✨\n\n**Tinte reciente:**\nSi está recién tinturado o decolorado, esperar 15-20 días antes de la keratina 🌸\nMientras tanto te ofrecemos hidrataciones o repolarización + spa capilar 💆‍♀️\n\n**¿Cambia el color?**\nSolo en cabellos tinturados puede variar 1-2 tonos. Depende del tinte y estado del cabello 🌸\n\n**¿Largo o extralargo?**\nEnvíame una foto reciente sin cepillar ni planchar 📸\nManejamos: largo, extralargo, Rapunzel y afro 💇‍♀️\n\n**Lavados:**\nLo más recomendable es hacerlos en sede: usamos shampoos sin parabenos ni sal para mejores resultados. Lavado inicial y final: $20.000 los dos 💧\n\n**Repolarización:**\nTratamiento profundo que reestructura la fibra capilar 💆‍♀️\nProceso: limpieza profunda → mascarilla → vapor de ozono → sellado con plancha\nBeneficios: hidratación intensa, sin frizz, brillo, fortalecimiento\nValor: $80.000 💎\n ** Importante: preguntas sobre hidrataciones, nutriciones, botox, repolarizacion*\n✨ Descubre el poder de nuestras terapias de  Hidratacion y Nutricion ✨\n\nSon una reparación profunda desde la raíz hasta las puntas💛\n\nNuestras terapias Capilares han sido diseñadas con una combinación avanzada de aminoácidos, péptidos, proteínas y ácido hialurónico, que trabajan en sinergia para transformar completamente la fibra capilar,  NO alisa te brinda muchos beneficios como: ✨\n\n✔️ Rellena porosidad y reconstruye la hebra capilar dañada\n✔️ Brinda hidratación profunda y duradera\n✔️ Elimina el frizz y mejora la manejabilidad\n✔️ Promueve brillo tipo espejo y suavidad extrema\n✔️ Protege contra el calor y los rayos UV\n✔️ Mejora la fuerza y la resistencia del cabello\n✔️ Deja un acabado saludable, ligero y natural\n✔️ Restaurador de cabellos sometidos a tratamientos quimicos. \n\n Gracias a su tecnología de oleosomas y activos hidratantes, tu cabello no solo se ve bonito…\n👉 se siente más fuerte, más sano y más vivo\n\n🔥 Ideal para cabellos maltratados, opacos, con frizz o procesos químicos\n\nprecio 120.000\n---\n\n--- Soporte adicional--\nen caso de que la perosna desee hablar con un asesor o tengas que remitirla con un aseosr porque tienes dudas o n sabes alguna respuetsa, dile al suario que pronto un aseosr se contactara ocn ella.\nagrega al final {tag:Soporte}\n\n# ESTILO DE COMUNICACIÓN\n- Oraciones de máximo 15-20 palabras\n- NUNCA mensajes de más de 8 renglones (excepción: solicitud de datos de agendamiento)\n- NUNCA digas \"voy a consultar\" o \"déjame verificar\"\n- Lenguaje cercano, humano, breve"
+        }
+      },
+      "type": "@n8n/n8n-nodes-langchain.agent",
+      "typeVersion": 3.1,
+      "position": [
+        1600,
+        432
+      ],
+      "id": "57264922-4177-48ba-a378-f4884c688f1f",
+      "name": "AI Agent"
+    },
+    {
+      "parameters": {
+        "toolDescription": "consultar servicios y precios de algunos servicios",
+        "url": "https://largebotinterfaz-production-5b38.up.railway.app/api/ai-knowledge/promociones?active=true",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "X-Tenant-Slug",
+              "value": "ciudadmontes"
+            },
+            {
+              "name": "SYSTEM_API_KEY",
+              "value": "IA_w1232_r3quest_20dos?"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequestTool",
+      "typeVersion": 4.4,
+      "position": [
+        1632,
+        912
+      ],
+      "id": "32f9340b-8ba5-423e-8ed5-32efa6890f08",
+      "name": "get_promotions"
+    },
+    {
+      "parameters": {
+        "url": "={{ $json.media_url }}",
+        "options": {
+          "response": {
+            "response": {
+              "responseFormat": "file"
+            }
+          }
+        }
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.4,
+      "position": [
+        -208,
+        160
+      ],
+      "id": "cf2e91e0-5549-44df-a6fb-7817b3703246",
+      "name": "HTTP Request"
+    },
+    {
+      "parameters": {
+        "url": "={{ $json.media_url }}",
+        "options": {
+          "response": {
+            "response": {
+              "responseFormat": "file"
+            }
+          }
+        }
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.4,
+      "position": [
+        0,
+        448
+      ],
+      "id": "464b8c49-8178-4690-8c75-dec68462f607",
+      "name": "download_image"
+    },
+    {
+      "parameters": {
+        "jsCode": "const items = $input.all();\n\nconst results = [];\n\nfor (const item of items) {\n  let raw = '';\n  let cleaned = '';\n  let parsed = {};\n\n  try {\n    // 🔥 detectar estructura (OpenAI vs Gemini)\n    raw =\n      item.json?.output?.[0]?.content?.[0]?.text ||\n      item.json?.candidates?.[0]?.content?.parts?.[0]?.text ||\n      item.json?.text ||\n      '';\n\n    // 🔥 limpiar markdown ```json\n    cleaned = raw\n      .replace(/```json/g, '')\n      .replace(/```/g, '')\n      .trim();\n\n    // 🔥 parsear JSON\n    parsed = JSON.parse(cleaned);\n\n  } catch (e) {\n    parsed = { tipo: 'error', raw };\n  }\n\n  const originalData = $('Es Imagen?').first().json;\n\n  results.push({\n    json: {\n      phone: originalData.phone,\n      name: originalData.name,\n      timestamp: originalData.timestamp,\n      media_type: 'image',\n      original_message: originalData.message,\n\n      image_analysis: parsed,\n\n      ai_message: generarMensaje(parsed, originalData.message),\n\n      unsupported_media: false\n    }\n  });\n}\n\nreturn results;\n\n\n// 🔥 generador de mensaje\nfunction generarMensaje(parsed, userMessage) {\n  if (parsed.tipo === 'abono') {\n    return `El usuario envió un comprobante de pago:\nReferencia: ${parsed.referencia}\nValor: ${parsed.valor}\nFecha: ${parsed.fecha}\nDestino: ${parsed.destino}`;\n  }\n\n  if (parsed.tipo === 'cabello') {\n    return `El usuario envió una imagen de su cabello. ${parsed.mensaje}`;\n  }\n\n  return `No se pudo interpretar la imagen correctamente. Mensaje usuario: ${userMessage}`;\n}"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        592,
+        448
+      ],
+      "id": "2b3ded7f-2921-4098-992b-db25fd741cea",
+      "name": "Extraer Descripcion Imagen"
+    },
+    {
+      "parameters": {
+        "modelId": {
+          "__rl": true,
+          "value": "gpt-4.1-mini",
+          "mode": "list",
+          "cachedResultName": "GPT-4.1-MINI"
+        },
+        "responses": {
+          "values": [
+            {
+              "content": "=Analiza esta imagen {{ $binary.data.fileName }} y si es una foto de un abono con valor y refrencia vamos a extarer el contenido, la referencia, el valor y la fecha y el destino, si es una foto de un cabello le decimos que pronto un asesorar se va contactar.\" \n\nSi es un comprobante de pago (abono), responde SOLO en JSON:Responde SOLO JSON válido sin usar ```json ni backticks.\n\n{\n  \"tipo\": \"abono\",\n  \"abono_recibido\": true,\n  \"referencia\": \"\",\n  \"valor\": \"\",\n  \"fecha\": \"\",\n  \"destino\": \"\"\n}\n\nSi es una imagen de cabello:\n\n{\n  \"tipo\": \"cabello\",\n  \"mensaje\": \"Pronto un asesor se pondrá en contacto\"\n}\n\nNO agregues texto adicional.\nNO expliques nada.\nSOLO responde JSON válido.\n"
+            },
+            {
+              "type": "image",
+              "imageType": "base64"
+            }
+          ]
+        },
+        "builtInTools": {},
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.openAi",
+      "typeVersion": 2.1,
+      "position": [
+        192,
+        448
+      ],
+      "id": "88769472-d37f-4303-96e4-047e79ba2e41",
+      "name": "Message a model",
+      "credentials": {
+        "openAiApi": {
+          "id": "y7qmoFO6eSWGsnbC",
+          "name": "OpenAi account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "toolDescription": "consultar servicos adicionales",
+        "url": "https://largebotinterfaz-production-5b38.up.railway.app/api/ai-knowledge/servicios",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "X-Tenant-Slug",
+              "value": "ciudadmontes"
+            },
+            {
+              "name": "SYSTEM_API_KEY",
+              "value": "IA_w1232_r3quest_20dos?"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequestTool",
+      "typeVersion": 4.4,
+      "position": [
+        1776,
+        944
+      ],
+      "id": "df384fa9-1b87-4e29-a2f8-96e89aaf431c",
+      "name": "get_servicios"
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "Webhook": {
+      "main": [
+        [
+          {
+            "node": "Procesar Media Entrante",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Procesar Media Entrante": {
+      "main": [
+        [
+          {
+            "node": "Es Audio?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Es Audio?": {
+      "main": [
+        [
+          {
+            "node": "HTTP Request",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Es Imagen?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Es Imagen?": {
+      "main": [
+        [
+          {
+            "node": "download_image",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Es No Soportado?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Es No Soportado?": {
+      "main": [
+        [
+          {
+            "node": "Media No Soportada",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Texto Normal",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Extraer Transcripcion": {
+      "main": [
+        [
+          {
+            "node": "Es Media No Soportada?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Media No Soportada": {
+      "main": [
+        [
+          {
+            "node": "Es Media No Soportada?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Texto Normal": {
+      "main": [
+        [
+          {
+            "node": "Es Media No Soportada?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Es Media No Soportada?": {
+      "main": [
+        [
+          {
+            "node": "Respuesta por Defecto",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "AI Agent",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Respuesta por Defecto": {
+      "main": [
+        [
+          {
+            "node": "Preparar Respuesta Final",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Memory por Telefono": {
+      "ai_memory": [
+        [
+          {
+            "node": "AI Agent",
+            "type": "ai_memory",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Limpiar Output AI": {
+      "main": [
+        [
+          {
+            "node": "Preparar Respuesta Final",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Preparar Respuesta Final": {
+      "main": [
+        [
+          {
+            "node": "Respond to Webhook",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Guardar Respuesta en Backend",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Transcribe a recording": {
+      "main": [
+        [
+          {
+            "node": "Extraer Transcripcion",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Embeddings Google Gemini": {
+      "ai_embedding": [
+        [
+          {
+            "node": "knowledge_large",
+            "type": "ai_embedding",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "knowledge_large": {
+      "ai_tool": [
+        [
+          {
+            "node": "AI Agent",
+            "type": "ai_tool",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "OpenAI Chat Model": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "AI Agent",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "AI Agent": {
+      "main": [
+        [
+          {
+            "node": "Limpiar Output AI",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "get_promotions": {
+      "ai_tool": [
+        [
+          {
+            "node": "AI Agent",
+            "type": "ai_tool",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "HTTP Request": {
+      "main": [
+        [
+          {
+            "node": "Transcribe a recording",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "download_image": {
+      "main": [
+        [
+          {
+            "node": "Message a model",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Extraer Descripcion Imagen": {
+      "main": [
+        [
+          {
+            "node": "Es Media No Soportada?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Message a model": {
+      "main": [
+        [
+          {
+            "node": "Extraer Descripcion Imagen",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "get_servicios": {
+      "ai_tool": [
+        [
+          {
+            "node": "AI Agent",
+            "type": "ai_tool",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": true,
+  "settings": {
+    "executionOrder": "v1",
+    "binaryMode": "separate",
+    "availableInMCP": false
+  },
+  "versionId": "6e382b1d-eef7-4698-9ea2-c3c624e8be53",
+  "meta": {
+    "templateCredsSetupCompleted": true,
+    "instanceId": "9d3dca8d6aa02f6d8b93cec87b44e118adc566c8aef43c67bbf89a4968e8773f"
+  },
+  "nodeGroups": [],
+  "id": "jA3nuwB4EwROJeEf",
+  "tags": []
+}

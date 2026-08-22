@@ -74,37 +74,58 @@ const SedeSelector = ({ isCollapsed = false }) => {
                         <div style={{ padding: '8px 12px', fontSize: '12px', fontWeight: '700', color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
                             Mis Sedes
                         </div>
-                        {tenants.map((tenant) => (
-                            <button
-                                key={tenant.id}
-                                onClick={() => {
-                                    selectTenant(tenant);
-                                    setIsOpen(false);
-                                }}
-                                style={{
-                                    display: 'flex',
-                                    alignItems: 'center',
-                                    justifyContent: 'space-between',
-                                    width: '100%',
-                                    padding: '10px 12px',
-                                    background: currentTenant?.slug === tenant.slug ? '#f1f5f9' : 'transparent',
-                                    border: 'none',
-                                    borderRadius: '8px',
-                                    cursor: 'pointer',
-                                    fontSize: '14px',
-                                    color: currentTenant?.slug === tenant.slug ? '#1e293b' : '#64748b',
-                                    textAlign: 'left',
-                                    transition: 'all 0.1s ease',
-                                }}
-                                onMouseEnter={(e) => e.target.style.background = '#f8fafc'}
-                                onMouseLeave={(e) => e.target.style.background = currentTenant?.slug === tenant.slug ? '#f1f5f9' : 'transparent'}
-                            >
-                                <span style={{ fontWeight: currentTenant?.slug === tenant.slug ? '600' : '400' }}>
-                                    {tenant.name}
-                                </span>
-                                {currentTenant?.slug === tenant.slug && <Check size={16} color="#10b981" />}
-                            </button>
-                        ))}
+                        {tenants.map((tenant) => {
+                            const isMarketingOrDisconnected = tenant.slug?.includes('marketing') || tenant.is_connected === false;
+                            return (
+                                <button
+                                    key={tenant.id}
+                                    onClick={() => {
+                                        selectTenant(tenant);
+                                        setIsOpen(false);
+                                    }}
+                                    style={{
+                                        display: 'flex',
+                                        alignItems: 'center',
+                                        justifyContent: 'space-between',
+                                        width: '100%',
+                                        padding: '10px 12px',
+                                        background: currentTenant?.slug === tenant.slug ? '#f1f5f9' : 'transparent',
+                                        border: 'none',
+                                        borderRadius: '8px',
+                                        cursor: 'pointer',
+                                        fontSize: '14px',
+                                        color: currentTenant?.slug === tenant.slug ? '#1e293b' : '#64748b',
+                                        textAlign: 'left',
+                                        transition: 'all 0.1s ease',
+                                    }}
+                                    onMouseEnter={(e) => e.target.style.background = '#f8fafc'}
+                                    onMouseLeave={(e) => e.target.style.background = currentTenant?.slug === tenant.slug ? '#f1f5f9' : 'transparent'}
+                                >
+                                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                                        <span style={{ fontWeight: currentTenant?.slug === tenant.slug ? '600' : '400' }}>
+                                            {tenant.name}
+                                        </span>
+                                        {isMarketingOrDisconnected && (
+                                            <span style={{
+                                                fontSize: '10px',
+                                                padding: '2px 6px',
+                                                borderRadius: '10px',
+                                                backgroundColor: '#fee2e2',
+                                                color: '#ef4444',
+                                                fontWeight: '700',
+                                                display: 'inline-flex',
+                                                alignItems: 'center',
+                                                gap: '3px'
+                                            }} title="Sede no conectada a WhatsApp">
+                                                <span style={{ width: '5px', height: '5px', borderRadius: '50%', backgroundColor: '#ef4444' }} />
+                                                Sin WA
+                                            </span>
+                                        )}
+                                    </div>
+                                    {currentTenant?.slug === tenant.slug && <Check size={16} color="#10b981" />}
+                                </button>
+                            );
+                        })}
 
                         {user?.role === 'SUPER_ADMIN' && (
                             <>

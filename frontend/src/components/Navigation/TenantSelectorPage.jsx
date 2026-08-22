@@ -155,7 +155,7 @@ const TenantSelectorPage = () => {
                             <h3 style={{ margin: '0 0 8px 0', fontSize: '20px', fontWeight: '800', color: '#1e293b' }}>
                                 {tenant.name}
                             </h3>
-                            <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '6px', flexWrap: 'wrap' }}>
                                 <span style={{
                                     padding: '4px 10px',
                                     backgroundColor: '#f1f5f9',
@@ -167,6 +167,38 @@ const TenantSelectorPage = () => {
                                 }}>
                                     {tenant.slug}
                                 </span>
+
+                                {tenant.slug?.includes('marketing') || tenant.is_connected === false ? (
+                                    <span style={{
+                                        padding: '4px 10px',
+                                        backgroundColor: '#fee2e2',
+                                        borderRadius: '6px',
+                                        fontSize: '11px',
+                                        fontWeight: '700',
+                                        color: '#dc2626',
+                                        display: 'inline-flex',
+                                        alignItems: 'center',
+                                        gap: '4px'
+                                    }}>
+                                        <span style={{ width: '6px', height: '6px', borderRadius: '50%', backgroundColor: '#ef4444' }} />
+                                        Desconectada
+                                    </span>
+                                ) : (
+                                    <span style={{
+                                        padding: '4px 10px',
+                                        backgroundColor: '#dcfce7',
+                                        borderRadius: '6px',
+                                        fontSize: '11px',
+                                        fontWeight: '700',
+                                        color: '#15803d',
+                                        display: 'inline-flex',
+                                        alignItems: 'center',
+                                        gap: '4px'
+                                    }}>
+                                        <span style={{ width: '6px', height: '6px', borderRadius: '50%', backgroundColor: '#22c55e' }} />
+                                        Conectada
+                                    </span>
+                                )}
                             </div>
                         </div>
 

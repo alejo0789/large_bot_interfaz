@@ -86,6 +86,11 @@ router.get('/', async (req, res, next) => {
             query += ` AND type = $${paramCount}`;
             params.push(type);
             paramCount++;
+            if (type === 'text') {
+                query += ` AND (keywords IS NULL OR NOT ('info_sede' = ANY(keywords)))`;
+            }
+        } else {
+            query += ` AND (keywords IS NULL OR NOT ('info_sede' = ANY(keywords))) AND type != 'sede'`;
         }
 
         if (active !== undefined) {
@@ -589,7 +594,7 @@ router.get('/sede', async (req, res, next) => {
         const query = `
             SELECT id, title, content, keywords, active, created_at, updated_at
             FROM ai_knowledge
-            WHERE 'info_sede' = ANY(keywords)
+            WHERE 'info_sede' = ANY(keywords) OR type = 'sede'
             ORDER BY created_at ASC
         `;
         const result = await activePool.query(query);
@@ -634,7 +639,7 @@ router.post('/sede', async (req, res, next) => {
             if (id) {
                 let updateQuery = `
                     UPDATE ai_knowledge 
-                    SET title = $1, content = $2, keywords = $3, updated_at = NOW()
+                    SET type = 'sede', title = $1, content = $2, keywords = $3, updated_at = NOW()
                 `;
                 let values = [title, content || '', keywords];
                 let valIdx = 4;
@@ -653,7 +658,7 @@ router.post('/sede', async (req, res, next) => {
             } else {
                 let columns = '(type, title, content, keywords, active)';
                 let placeholders = 'VALUES ($1, $2, $3, $4, $5)';
-                let values = ['text', title, content || '', keywords, true];
+                let values = ['sede', title, content || '', keywords, true];
 
                 if (embedding && hasEmbedCol) {
                     columns = '(type, title, content, keywords, active, embedding)';

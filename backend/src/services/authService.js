@@ -28,18 +28,23 @@ class AuthService {
             const validPassword = await bcrypt.compare(password, user.password_hash);
             if (!validPassword) return { success: false, error: 'Contraseña incorrecta' };
 
-            // Get associated tenants
+            // Get associated tenants (prioritize 'cali' and main sedes before marketing)
             const tenantsResult = await masterPool.query(
                 `SELECT t.id, t.name, t.slug, t.whatsapp_provider 
                  FROM tenants t
                  JOIN user_tenants ut ON t.id = ut.tenant_id
-                 WHERE ut.user_id = $1 AND t.is_active = TRUE`,
+                 WHERE ut.user_id = $1 AND t.is_active = TRUE
+                 ORDER BY CASE WHEN t.slug = 'cali' THEN 0 WHEN t.slug NOT LIKE '%marketing%' THEN 1 ELSE 2 END, t.name`,
                 [user.id]
             );
 
             let allowedTenants = tenantsResult.rows;
             if (user.role === 'SUPER_ADMIN') {
-                const allTenants = await masterPool.query('SELECT id, name, slug, whatsapp_provider FROM tenants WHERE is_active = TRUE');
+                const allTenants = await masterPool.query(
+                    `SELECT id, name, slug, whatsapp_provider FROM tenants 
+                     WHERE is_active = TRUE 
+                     ORDER BY CASE WHEN slug = 'cali' THEN 0 WHEN slug NOT LIKE '%marketing%' THEN 1 ELSE 2 END, name`
+                );
                 allowedTenants = allTenants.rows;
             }
 
@@ -108,13 +113,18 @@ class AuthService {
 
         let allowedTenants = [];
         if (user.role === 'SUPER_ADMIN') {
-            const { rows: allTenants } = await masterPool.query('SELECT id, name, slug, whatsapp_provider FROM tenants WHERE is_active = TRUE');
+            const { rows: allTenants } = await masterPool.query(
+                `SELECT id, name, slug, whatsapp_provider FROM tenants 
+                 WHERE is_active = TRUE 
+                 ORDER BY CASE WHEN slug = 'cali' THEN 0 WHEN slug NOT LIKE '%marketing%' THEN 1 ELSE 2 END, name`
+            );
             allowedTenants = allTenants;
         } else {
             const { rows: tenantRows } = await masterPool.query(
                 `SELECT t.id, t.name, t.slug, t.whatsapp_provider FROM tenants t
                  JOIN user_tenants ut ON t.id = ut.tenant_id
-                 WHERE ut.user_id = $1 AND t.is_active = TRUE`,
+                 WHERE ut.user_id = $1 AND t.is_active = TRUE
+                 ORDER BY CASE WHEN t.slug = 'cali' THEN 0 WHEN t.slug NOT LIKE '%marketing%' THEN 1 ELSE 2 END, t.name`,
                 [user.id]
             );
             allowedTenants = tenantRows;
@@ -343,7 +353,9 @@ class AuthService {
     async getAllTenants() {
         const masterPool = dbManager.masterPool;
         const { rows } = await masterPool.query(
-            'SELECT id, name, slug, whatsapp_provider FROM tenants WHERE is_active = TRUE ORDER BY name'
+            `SELECT id, name, slug, whatsapp_provider FROM tenants 
+             WHERE is_active = TRUE 
+             ORDER BY CASE WHEN slug = 'cali' THEN 0 WHEN slug NOT LIKE '%marketing%' THEN 1 ELSE 2 END, name`
         );
         return rows;
     }
