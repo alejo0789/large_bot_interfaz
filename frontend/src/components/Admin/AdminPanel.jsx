@@ -880,17 +880,6 @@ const AdminPanel = ({ isMobile, onNavigateTab }) => {
                                         }
                                     </div>
                                 </div>
-                                {t.slug?.includes('marketing') || t.is_connected === false ? (
-                                    <span style={{ display: 'inline-flex', alignItems: 'center', gap: '4px', padding: '3px 10px', borderRadius: '999px', fontSize: '12px', fontWeight: 600, backgroundColor: '#fee2e2', color: '#dc2626' }}>
-                                        <span style={{ width: '6px', height: '6px', borderRadius: '50%', backgroundColor: '#ef4444' }} />
-                                        Desconectada
-                                    </span>
-                                ) : (
-                                    <span style={{ display: 'inline-flex', alignItems: 'center', gap: '4px', padding: '3px 10px', borderRadius: '999px', fontSize: '12px', fontWeight: 600, backgroundColor: '#dcfce7', color: '#16a34a' }}>
-                                        <span style={{ width: '6px', height: '6px', borderRadius: '50%', backgroundColor: '#16a34a' }} />
-                                        Conectada
-                                    </span>
-                                )}
                                 {/* WhatsApp Config button */}
                                 <button
                                     onClick={() => setWhatsappConfigTenant(t)}
@@ -898,15 +887,6 @@ const AdminPanel = ({ isMobile, onNavigateTab }) => {
                                     style={{ display: 'flex', alignItems: 'center', gap: '6px', padding: '6px 12px', borderRadius: '8px', border: '1px solid #c7d2fe', background: '#eef2ff', color: '#4338ca', cursor: 'pointer', fontSize: '12px', fontWeight: 600 }}
                                 >
                                     <Settings size={13} /> WhatsApp
-                                </button>
-                                <button
-                                    onClick={() => handleSyncConversations(t.slug)}
-                                    disabled={syncingSlug === t.slug}
-                                    title="Sincronizar conversaciones históricas desde Evolution"
-                                    style={{ display: 'flex', alignItems: 'center', gap: '6px', padding: '6px 12px', borderRadius: '8px', border: '1px solid #bbf7d0', background: '#f0fdf4', color: '#15803d', cursor: syncingSlug === t.slug ? 'wait' : 'pointer', fontSize: '12px', fontWeight: 600, opacity: syncingSlug === t.slug ? 0.7 : 1 }}
-                                >
-                                    <RotateCw size={13} style={syncingSlug === t.slug ? { animation: 'spin 1s linear infinite' } : {}} />
-                                    {syncingSlug === t.slug ? 'Sincronizando...' : 'Sincronizar chats'}
                                 </button>
                             </div>
                         ))}

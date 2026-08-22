@@ -281,38 +281,6 @@ const TenantSelectorPage = () => {
                                             }}>
                                                 {tenant.slug}
                                             </span>
-
-                                            {tenant.slug?.includes('marketing') || tenant.is_connected === false ? (
-                                                <span style={{
-                                                    padding: '3px 8px',
-                                                    backgroundColor: '#fee2e2',
-                                                    borderRadius: '6px',
-                                                    fontSize: '11px',
-                                                    fontWeight: '700',
-                                                    color: '#dc2626',
-                                                    display: 'inline-flex',
-                                                    alignItems: 'center',
-                                                    gap: '4px'
-                                                }}>
-                                                    <span style={{ width: '6px', height: '6px', borderRadius: '50%', backgroundColor: '#ef4444' }} />
-                                                    Desconectada
-                                                </span>
-                                            ) : (
-                                                <span style={{
-                                                    padding: '3px 8px',
-                                                    backgroundColor: '#dcfce7',
-                                                    borderRadius: '6px',
-                                                    fontSize: '11px',
-                                                    fontWeight: '700',
-                                                    color: '#15803d',
-                                                    display: 'inline-flex',
-                                                    alignItems: 'center',
-                                                    gap: '4px'
-                                                }}>
-                                                    <span style={{ width: '6px', height: '6px', borderRadius: '50%', backgroundColor: '#22c55e' }} />
-                                                    Conectada
-                                                </span>
-                                            )}
                                         </div>
                                     </div>
 
