@@ -1,5 +1,5 @@
 import React from 'react';
-import { MessageSquare, Brain, Settings, X, LogOut, Send, LayoutDashboard, Menu, ShieldCheck, FileText, Megaphone, CircleDollarSign, BarChart3, LayoutGrid, ArrowLeft } from 'lucide-react';
+import { MessageSquare, Brain, Settings, X, LogOut, Send, LayoutDashboard, Menu, ShieldCheck, FileText, Megaphone, CircleDollarSign, BarChart3, LayoutGrid, ArrowLeft, Globe } from 'lucide-react';
 
 const NavRail = ({ activeTab, onTabChange, isMobile, isOpen, onClose, onOpen, onLogout, onBulkMessage, isCollapsed, onToggleCollapse, user, isOfficialTenant }) => {
     const isAdmin = user?.role === 'SUPER_ADMIN' || user?.role === 'SEDE_ADMIN';
@@ -184,6 +184,16 @@ const NavRail = ({ activeTab, onTabChange, isMobile, isOpen, onClose, onOpen, on
                                     fullWidth
                                     adminStyle
                                 />
+                                {isSuperAdmin && (
+                                    <NavButton
+                                        icon={<Globe />}
+                                        label="IA Base General"
+                                        active={activeTab === 'ai_global'}
+                                        onClick={() => { onTabChange('ai_global'); onClose(); }}
+                                        fullWidth
+                                        adminStyle
+                                    />
+                                )}
                             </>
                         )}
 
@@ -317,6 +327,15 @@ const NavRail = ({ activeTab, onTabChange, isMobile, isOpen, onClose, onOpen, on
                             onClick={() => onTabChange('payments_dashboard')}
                             adminStyle
                         />
+                        {isSuperAdmin && (
+                            <NavButton
+                                icon={<Globe />}
+                                label="IA General"
+                                active={activeTab === 'ai_global'}
+                                onClick={() => onTabChange('ai_global')}
+                                adminStyle
+                            />
+                        )}
                     </>
                 )}
 

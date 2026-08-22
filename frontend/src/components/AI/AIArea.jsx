@@ -1,16 +1,17 @@
-import React, { useState } from 'react';
-import { ShoppingBag, Megaphone, Wrench, Building2, Globe } from 'lucide-react';
+import React, { useState, useEffect } from 'react';
+import { ShoppingBag, Megaphone, Wrench, Building2, Globe, Database } from 'lucide-react';
 import ProductosManager from './ProductosManager';
 import PromocionesManager from './PromocionesManager';
 import ServiciosManager from './ServiciosManager';
 import SedeInfoManager from './SedeInfoManager';
 
-const AIArea = ({ isMobile, user }) => {
-    const [isGlobalScope, setIsGlobalScope] = useState(false);
+const AIArea = ({ isMobile, user, isGlobalOnly = false }) => {
+    const [isGlobalScope, setIsGlobalScope] = useState(isGlobalOnly);
     const [activeSection, setActiveSection] = useState('sede_info');
 
-    // Permitir switch global a SUPER_ADMIN o según requerimiento
-    const isSuperAdmin = user?.role === 'SUPER_ADMIN' || user?.isSuperAdmin || true; // habilitado para administración
+    useEffect(() => {
+        setIsGlobalScope(isGlobalOnly);
+    }, [isGlobalOnly]);
 
     const sections = [
         {
@@ -26,7 +27,7 @@ const AIArea = ({ isMobile, user }) => {
             label: 'Productos',
             icon: ShoppingBag,
             description: isGlobalScope 
-                ? 'Catálogo global de productos compartido con todas las sedes.'
+                ? 'Catálogo global de productos compartido automáticamente con todas las sedes.'
                 : 'Catálogo de productos específico de esta sede para la IA.'
         },
         {
@@ -70,14 +71,14 @@ const AIArea = ({ isMobile, user }) => {
                     <div>
                         <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
                             <h2 style={{ fontSize: isSmallScreen ? '1.4rem' : '1.75rem', fontWeight: 800, color: '#111827', margin: 0 }}>
-                                {isGlobalScope ? 'Base de Conocimiento Global' : 'Base de Conocimiento de Sede'}
+                                {isGlobalOnly ? 'IA Base de Datos General' : (isGlobalScope ? 'Base de Conocimiento Global' : 'Base de Conocimiento de Sede')}
                             </h2>
                             {isGlobalScope && (
                                 <span style={{
                                     display: 'inline-flex',
                                     alignItems: 'center',
                                     gap: '4px',
-                                    padding: '4px 10px',
+                                    padding: '4px 12px',
                                     borderRadius: '20px',
                                     fontSize: '0.75rem',
                                     fontWeight: 700,
@@ -94,60 +95,6 @@ const AIArea = ({ isMobile, user }) => {
                             {currentSection.description}
                         </p>
                     </div>
-
-                    {/* Scope Selector: Sede Local vs Global */}
-                    {isSuperAdmin && (
-                        <div style={{
-                            display: 'flex',
-                            backgroundColor: '#eef2ff',
-                            padding: '3px',
-                            borderRadius: '12px',
-                            border: '1px solid #c7d2fe'
-                        }}>
-                            <button
-                                onClick={() => setIsGlobalScope(false)}
-                                style={{
-                                    display: 'flex',
-                                    alignItems: 'center',
-                                    gap: '6px',
-                                    padding: '8px 14px',
-                                    borderRadius: '9px',
-                                    border: 'none',
-                                    backgroundColor: !isGlobalScope ? 'white' : 'transparent',
-                                    color: !isGlobalScope ? '#1e40af' : '#6b7280',
-                                    fontWeight: !isGlobalScope ? 700 : 500,
-                                    fontSize: '0.825rem',
-                                    cursor: 'pointer',
-                                    boxShadow: !isGlobalScope ? '0 1px 3px rgba(0,0,0,0.1)' : 'none',
-                                    transition: 'all 0.2s'
-                                }}
-                            >
-                                <Building2 size={14} />
-                                <span>🏢 Sede Actual</span>
-                            </button>
-                            <button
-                                onClick={() => setIsGlobalScope(true)}
-                                style={{
-                                    display: 'flex',
-                                    alignItems: 'center',
-                                    gap: '6px',
-                                    padding: '8px 14px',
-                                    borderRadius: '9px',
-                                    border: 'none',
-                                    backgroundColor: isGlobalScope ? '#2563eb' : 'transparent',
-                                    color: isGlobalScope ? 'white' : '#6b7280',
-                                    fontWeight: isGlobalScope ? 700 : 500,
-                                    fontSize: '0.825rem',
-                                    cursor: 'pointer',
-                                    boxShadow: isGlobalScope ? '0 2px 4px rgba(37,99,235,0.3)' : 'none',
-                                    transition: 'all 0.2s'
-                                }}
-                            >
-                                <Globe size={14} />
-                                <span>🌐 Conocimiento Global</span>
-                            </button>
-                        </div>
-                    )}
                 </div>
 
                 <div style={{
@@ -177,7 +124,7 @@ const AIArea = ({ isMobile, user }) => {
                                     borderRadius: '10px',
                                     border: 'none',
                                     backgroundColor: isActive ? 'white' : 'transparent',
-                                    color: isActive ? 'var(--color-primary)' : '#6b7280',
+                                    color: isActive ? (isGlobalScope ? '#2563eb' : 'var(--color-primary)') : '#6b7280',
                                     fontWeight: isActive ? 700 : 500,
                                     fontSize: isSmallScreen ? '0.8rem' : '0.9rem',
                                     cursor: 'pointer',

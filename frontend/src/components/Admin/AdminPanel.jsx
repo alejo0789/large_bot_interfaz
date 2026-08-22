@@ -5,7 +5,7 @@ import { useTenant } from '../../hooks/useTenant';
 import {
     Users, UserPlus, Shield, Building2, Trash2, Eye, EyeOff,
     X, Check, AlertCircle, Search, RotateCw, PlusCircle, Wifi, WifiOff,
-    Settings, MessageSquare, Zap, Copy, ExternalLink
+    Settings, MessageSquare, Zap, Copy, ExternalLink, Globe, Database
 } from 'lucide-react';
 import CreateSedeModal from './CreateSedeModal';
 
@@ -515,7 +515,7 @@ const WhatsAppConfigModal = ({ tenant, onClose, onSaved, showToast }) => {
 };
 
 // ─── AdminPanel Principal ─────────────────────────────────────────────────────
-const AdminPanel = ({ isMobile }) => {
+const AdminPanel = ({ isMobile, onNavigateTab }) => {
     const { user, token, refreshUser } = useAuth();
     const { currentTenant } = useTenant();
 
@@ -697,13 +697,35 @@ const AdminPanel = ({ isMobile }) => {
                         <Users size={22} color="white" />
                     </div>
                     <div>
-                        <h1 style={{ margin: 0, fontSize: '22px', fontWeight: 800, color: '#111827' }}>Gestión de Usuarios</h1>
+                        <h1 style={{ margin: 0, fontSize: '22px', fontWeight: 800, color: '#111827' }}>Gestión de Usuarios y Sedes</h1>
                         <p style={{ margin: 0, fontSize: '13px', color: '#6b7280' }}>
-                            {isSuperAdmin ? 'Administración global de usuarios por sede' : 'Administración de tu sede'}
+                            {isSuperAdmin ? 'Administración global de usuarios y configuración por sede' : 'Administración de tu sede'}
                         </p>
                     </div>
                 </div>
             </div>
+
+            {/* Banner IA Base General (Super Admin) */}
+            {isSuperAdmin && (
+                <div style={{ background: 'linear-gradient(135deg, #1e1b4b, #312e81)', color: 'white', borderRadius: '14px', padding: '20px 24px', marginBottom: '20px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '16px', boxShadow: '0 4px 14px rgba(30, 27, 75, 0.15)' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '14px', flex: 1, minWidth: '240px' }}>
+                        <div style={{ background: 'rgba(255,255,255,0.15)', borderRadius: '12px', padding: '12px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                            <Globe size={24} color="#60a5fa" />
+                        </div>
+                        <div>
+                            <h3 style={{ margin: 0, fontSize: '16px', fontWeight: 700, color: 'white' }}>IA Base de Datos General (Todas las Sedes)</h3>
+                            <p style={{ margin: '4px 0 0 0', fontSize: '13px', color: '#c7d2fe' }}>
+                                Administra productos, promociones, servicios y políticas corporativas compartidas con todas las sedes.
+                            </p>
+                        </div>
+                    </div>
+                    {onNavigateTab && (
+                        <button onClick={() => onNavigateTab('ai_global')} style={{ background: 'white', color: '#1e1b4b', border: 'none', borderRadius: '10px', padding: '11px 22px', cursor: 'pointer', fontWeight: 700, fontSize: '14px', display: 'flex', alignItems: 'center', gap: '8px', boxShadow: '0 2px 8px rgba(0,0,0,0.1)', transition: 'all 0.2s' }}>
+                            <Globe size={16} color="#2563eb" /> Abrir IA Base General
+                        </button>
+                    )}
+                </div>
+            )}
 
             {/* Barra de controles */}
             <div style={{ background: 'white', borderRadius: '12px', padding: '16px', marginBottom: '20px', boxShadow: '0 1px 3px rgba(0,0,0,0.06)', display: 'flex', flexWrap: 'wrap', gap: '12px', alignItems: 'center' }}>

@@ -1608,8 +1608,9 @@ const AuthenticatedApp = () => {
 
             {activeTab === 'dashboard' && <Dashboard isMobile={isMobile} />}
             {activeTab === 'payments_dashboard' && <PaymentsDashboard isMobile={isMobile} />}
-            {activeTab === 'ai' && <AIArea isMobile={isMobile} user={user} />}
-            {activeTab === 'admin' && <AdminPanel isMobile={isMobile} />}
+            {activeTab === 'ai' && <AIArea isMobile={isMobile} user={user} isGlobalOnly={false} />}
+            {activeTab === 'ai_global' && <AIArea isMobile={isMobile} user={user} isGlobalOnly={true} />}
+            {activeTab === 'admin' && <AdminPanel isMobile={isMobile} onNavigateTab={(tab) => setActiveTab(tab)} />}
             {activeTab === 'wa-templates' && <WaTemplates onBulkSend={(tpl) => setActiveTab('wa-bulk')} />}
             {activeTab === 'wa-bulk' && <WaBulkOfficial conversations={conversations} tags={tags} />}
             {activeTab === 'bulk-tracking' && <BulkTracking onOpenConversation={(phone) => {
