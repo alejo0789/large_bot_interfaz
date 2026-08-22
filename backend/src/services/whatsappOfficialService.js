@@ -276,10 +276,29 @@ class WhatsappOfficialService {
             }
 
             if (!messageId) {
-                // Without a message ID, we can't mark as read in the Official API.
-                // This is a known limitation — log and return gracefully.
-                console.info(`ℹ️ [OfficialAPI] markAsRead: no messageId provided for ${phone} — skipping`);
-                return { success: true, skipped: true, reason: 'No messageId provided' };
+                // Without a message ID, try to lookup latest incoming message from this phone in DB
+                try {
+                    const { pool } = require('../config/database');
+                    const clean = this._cleanPhone(phone);
+                    const { rows } = await pool.query(`
+                        SELECT whatsapp_id FROM messages 
+                        WHERE (conversation_phone = $1 OR conversation_phone = $2) 
+                          AND sender = 'user' 
+                          AND whatsapp_id IS NOT NULL 
+                        ORDER BY timestamp DESC LIMIT 1
+                    `, [clean, '+' + clean]);
+                    
+                    if (rows.length > 0 && rows[0].whatsapp_id) {
+                        messageId = rows[0].whatsapp_id;
+                    }
+                } catch (dbErr) {
+                    console.warn(`⚠️ [OfficialAPI] Error looking up latest whatsapp_id for markAsRead:`, dbErr.message);
+                }
+            }
+
+            if (!messageId) {
+                console.info(`ℹ️ [OfficialAPI] markAsRead: no messageId found for ${phone} — skipping`);
+                return { success: true, skipped: true, reason: 'No messageId found' };
             }
 
             const url = `${this.baseUrl}/${phoneNumberId}/messages`;

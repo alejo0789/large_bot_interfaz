@@ -282,14 +282,6 @@ router.post('/', async (req, res) => {
             await conversationService.updateLastMessage(dbPhone, messageText);
             await conversationService.incrementUnread(dbPhone);
 
-            // ── Mark as read via Official API (sends read receipt to WhatsApp) ──
-            try {
-                const officialService = require('../services/whatsappOfficialService');
-                await officialService.markAsRead(dbPhone, whatsapp_id);
-            } catch (readErr) {
-                console.warn(`⚠️ [OfficialWebk] Could not send read receipt: ${readErr.message}`);
-            }
-
             // ── Forward to n8n for AI processing if enabled ──
             if (shouldActivateAI && currentState === 'ai_active') {
                 try {
