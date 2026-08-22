@@ -122,8 +122,8 @@ const MainLayout = ({
                     </div>
                 )}
 
-                {/* Desktop Top Header Bar for non-chat tabs or when left menu is collapsed */}
-                {!isMobile && (isCollapsed || activeTab !== 'chat') && (
+                {/* Desktop Top Header Bar for non-chat tabs */}
+                {!isMobile && activeTab !== 'chat' && (
                     <div style={{
                         height: '50px',
                         padding: '0 20px',
