@@ -154,7 +154,6 @@ const MainLayout = ({
                             <Menu className="w-5 h-5" />
                         </button>
                         <span style={{ fontWeight: 700, fontSize: '0.95rem', color: '#1f2937' }}>
-                            {activeTab === 'chat' && 'Conversaciones'}
                             {activeTab === 'ai' && 'Inteligencia Artificial'}
                             {activeTab === 'dashboard' && 'Dashboard'}
                             {activeTab === 'bulk' && 'Envíos Masivos'}
