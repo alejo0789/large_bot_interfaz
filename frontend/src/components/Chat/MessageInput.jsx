@@ -378,8 +378,8 @@ const MessageInput = ({ onSend, onSendFile, disabled, isMobile, replyToMessage, 
     const handleFileSelect = (e) => {
         const files = Array.from(e.target.files);
         if (files.length > 0) {
-            if (files.some(f => f.size > 16 * 1024 * 1024)) {
-                alert('Uno o más archivos son muy grandes. Máximo 16MB por archivo.');
+            if (files.some(f => f.size > 100 * 1024 * 1024)) {
+                alert('Uno o más archivos superan el límite máximo de 100MB permitido.');
                 return;
             }
             setSelectedFiles(prev => [...prev, ...files]);

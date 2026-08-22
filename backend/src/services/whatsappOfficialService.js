@@ -174,6 +174,33 @@ class WhatsappOfficialService {
                 return { success: true, data };
             }
 
+            // Fallback for videos: If Meta rejected native video (e.g. unsupported codec H.265/HEVC or size > 16MB),
+            // automatically retry sending as a document attachment (.mp4) which accepts up to 100MB and any codec.
+            if (!ok && validMediaType === 'video') {
+                console.warn(`⚠️ [OfficialAPI] sendMedia as video failed. Retrying fallback send as document...`);
+                const docObj = {
+                    link: mediaUrl,
+                    filename: fileName || 'video.mp4'
+                };
+                if (caption) docObj.caption = caption;
+
+                const docBody = {
+                    messaging_product: 'whatsapp',
+                    recipient_type: 'individual',
+                    to: cleanNumber,
+                    type: 'document',
+                    document: docObj
+                };
+
+                const docRes = await this._post(url, docBody, accessToken);
+                if (docRes.ok) {
+                    console.log(`✅ [OfficialAPI] Fallback sendMedia as document succeeded for ${cleanNumber}!`);
+                    return { success: true, data: docRes.data, fallbackAsDocument: true };
+                } else {
+                    console.error(`❌ [OfficialAPI] Fallback sendMedia as document also failed:`, JSON.stringify(docRes.data));
+                }
+            }
+
             console.error(`❌ [OfficialAPI] sendMedia failed:`, JSON.stringify(data));
             return { success: false, error: data };
 

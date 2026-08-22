@@ -14,7 +14,7 @@ const config = {
 
     // File uploads
     uploadDir: process.env.UPLOADS_PATH || path.join(__dirname, '../../uploads'),
-    maxFileSize: 16 * 1024 * 1024, // 16MB
+    maxFileSize: 100 * 1024 * 1024, // 100MB (WhatsApp Cloud API document max size)
     allowedFileTypes: [
         'image/jpeg', 'image/png', 'image/gif', 'image/webp',
         'video/mp4', 'video/quicktime', 'video/webm',
