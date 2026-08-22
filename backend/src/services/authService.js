@@ -353,8 +353,7 @@ class AuthService {
     async getAllTenants() {
         const masterPool = dbManager.masterPool;
         const { rows } = await masterPool.query(
-            `SELECT id, name, slug, whatsapp_provider FROM tenants 
-             WHERE is_active = TRUE 
+            `SELECT id, name, slug, whatsapp_provider, evolution_instance, is_active FROM tenants 
              ORDER BY CASE WHEN slug = 'cali' THEN 0 WHEN slug NOT LIKE '%marketing%' THEN 1 ELSE 2 END, name`
         );
         return rows;

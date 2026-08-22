@@ -880,7 +880,17 @@ const AdminPanel = ({ isMobile, onNavigateTab }) => {
                                         }
                                     </div>
                                 </div>
-                                <StatusBadge isActive={t.is_active} />
+                                {t.slug?.includes('marketing') || t.is_connected === false ? (
+                                    <span style={{ display: 'inline-flex', alignItems: 'center', gap: '4px', padding: '3px 10px', borderRadius: '999px', fontSize: '12px', fontWeight: 600, backgroundColor: '#fee2e2', color: '#dc2626' }}>
+                                        <span style={{ width: '6px', height: '6px', borderRadius: '50%', backgroundColor: '#ef4444' }} />
+                                        Desconectada
+                                    </span>
+                                ) : (
+                                    <span style={{ display: 'inline-flex', alignItems: 'center', gap: '4px', padding: '3px 10px', borderRadius: '999px', fontSize: '12px', fontWeight: 600, backgroundColor: '#dcfce7', color: '#16a34a' }}>
+                                        <span style={{ width: '6px', height: '6px', borderRadius: '50%', backgroundColor: '#16a34a' }} />
+                                        Conectada
+                                    </span>
+                                )}
                                 {/* WhatsApp Config button */}
                                 <button
                                     onClick={() => setWhatsappConfigTenant(t)}
