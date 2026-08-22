@@ -705,9 +705,17 @@ router.post('/', async (req, res) => {
                                 console.log(`   Querying ai_knowledge table...`);
 
                                 try {
-                                    const { pool } = require('../config/database');
+                                    const { pool, dbManager } = require('../config/database');
                                     const { config } = require('../config/app');
-                                    const resourceResult = await pool.query('SELECT id, type, media_url, title FROM ai_knowledge WHERE id = $1', [resourceId]);
+                                    let resourceResult = await pool.query('SELECT id, type, media_url, title FROM ai_knowledge WHERE id = $1', [resourceId]);
+
+                                    // Fallback: if not found in tenant table, check global table
+                                    if (resourceResult.rows.length === 0 && dbManager && dbManager.masterPool) {
+                                        resourceResult = await dbManager.masterPool.query('SELECT id, type, media_url, title FROM ai_knowledge_global WHERE id = $1', [resourceId]);
+                                        if (resourceResult.rows.length > 0) {
+                                            console.log(`🌍 Producto encontrado en ai_knowledge_global: ${resourceId}`);
+                                        }
+                                    }
 
                                     console.log(`📊 Query result: ${resourceResult.rows.length} rows found`);
 
@@ -721,7 +729,21 @@ router.post('/', async (req, res) => {
                                         });
 
                                         if (resource.media_url) {
-                                            finalMediaUrl = resource.media_url;
+                                            // Check for duplicate: don't send same image twice in 12 hours
+                                            const duplicateCheck = await pool.query(
+                                                `SELECT id FROM messages 
+                                                 WHERE conversation_phone = $1 
+                                                 AND media_url LIKE $2
+                                                 AND (sender = 'bot' OR sender = 'ai') 
+                                                 AND timestamp > NOW() - INTERVAL '12 hours'
+                                                 LIMIT 1`,
+                                                [phone, `%${resource.media_url}%`]
+                                            );
+
+                                            if (duplicateCheck.rows.length > 0) {
+                                                console.log(`🚫 Imagen ya enviada recientemente a ${phone}. Omitiendo envío duplicado.`);
+                                            } else {
+                                                finalMediaUrl = resource.media_url;
 
                                             if (finalMediaUrl.startsWith('/') && !finalMediaUrl.startsWith('http')) {
                                                 const originalUrl = finalMediaUrl;
@@ -752,6 +774,7 @@ router.post('/', async (req, res) => {
 
                                             console.log(`✅ Media will be sent!`);
                                             console.log(`   URL: ${finalMediaUrl}`);
+                                            } // end else (not duplicate)
                                         } else {
                                             console.warn(`⚠️ Resource found but media_url is empty/null`);
                                         }

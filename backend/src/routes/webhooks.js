@@ -132,7 +132,19 @@ router.post('/receive-message', asyncHandler(async (req, res) => {
             console.log(`🔍 Detectado ID de contexto: ${contextId}. Buscando imagen...`);
 
             try {
-                const result = await pool.query('SELECT media_url, type FROM ai_knowledge WHERE id = $1', [contextId]);
+                let result = await pool.query('SELECT media_url, type FROM ai_knowledge WHERE id = $1', [contextId]);
+                
+                // Fallback: if not found in tenant table, check global table
+                if (result.rows.length === 0) {
+                    const { dbManager } = require('../config/database');
+                    if (dbManager && dbManager.masterPool) {
+                        result = await dbManager.masterPool.query('SELECT media_url, type FROM ai_knowledge_global WHERE id = $1', [contextId]);
+                        if (result.rows.length > 0) {
+                            console.log(`🌍 Producto encontrado en ai_knowledge_global: ${contextId}`);
+                        }
+                    }
+                }
+
                 if (result.rows.length > 0 && result.rows[0].media_url) {
                     const candidateUrl = result.rows[0].media_url;
 
