@@ -701,4 +701,62 @@ router.post('/sede', async (req, res, next) => {
     }
 });
 
+/**
+ * POST /api/ai-knowledge/sync-embeddings
+ * Regenerate embeddings for all rows that are missing them.
+ * Works on both tenant-specific and global tables.
+ */
+router.post('/sync-embeddings', async (req, res, next) => {
+    try {
+        const { activePool, tableName } = getKnowledgeContext(req);
+        const hasEmbedCol = await checkEmbeddingColumn(activePool, tableName);
+
+        if (!hasEmbedCol) {
+            return res.status(400).json({ error: 'La columna embedding no existe en esta tabla.' });
+        }
+
+        const { rows } = await activePool.query(
+            `SELECT id, title, content FROM ${tableName} WHERE embedding IS NULL`
+        );
+
+        if (rows.length === 0) {
+            return res.json({ success: true, message: 'Todos los registros ya tienen embedding.', synced: 0 });
+        }
+
+        let synced = 0;
+        let errors = 0;
+        const errorDetails = [];
+
+        for (const row of rows) {
+            const text = `${row.title || ''} ${row.content || ''}`.trim();
+            if (!text) continue;
+
+            try {
+                const embedding = await getEmbedding(text);
+                if (embedding) {
+                    await activePool.query(
+                        `UPDATE ${tableName} SET embedding = $1, updated_at = NOW() WHERE id = $2`,
+                        [embedding, row.id]
+                    );
+                    synced++;
+                }
+            } catch (err) {
+                errors++;
+                errorDetails.push({ id: row.id, title: row.title, error: err.message });
+            }
+        }
+
+        res.json({
+            success: true,
+            total: rows.length,
+            synced,
+            errors,
+            errorDetails: errorDetails.length > 0 ? errorDetails : undefined
+        });
+    } catch (error) {
+        console.error('❌ Error en POST /api/ai-knowledge/sync-embeddings:', error.message);
+        next(error);
+    }
+});
+
 module.exports = router;
