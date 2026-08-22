@@ -1153,37 +1153,12 @@ const AuthenticatedApp = () => {
                                     backgroundColor: 'rgba(7,94,84,0.1)',
                                     borderRadius: '8px',
                                     padding: '6px',
-                                    marginRight: '4px'
+                                    marginRight: '8px'
                                 }}
                                 title={isMobile ? "Menú" : (isRailCollapsed ? "Mostrar Navegación" : "Ocultar Navegación")}
                             >
                                 <Menu className="w-5 h-5" />
                             </button>
-
-                            {user?.role === 'SUPER_ADMIN' && (
-                                <button
-                                    className="btn btn-icon"
-                                    onClick={() => {
-                                        localStorage.removeItem('current_tenant');
-                                        window.location.reload();
-                                    }}
-                                    style={{
-                                        color: '#11ab9c',
-                                        backgroundColor: '#e6fffa',
-                                        borderRadius: '8px',
-                                        padding: '6px',
-                                        marginRight: '6px',
-                                        border: '1px solid #b2f5ea',
-                                        cursor: 'pointer',
-                                        display: 'flex',
-                                        alignItems: 'center',
-                                        justifyContent: 'center'
-                                    }}
-                                    title="Volver al Panel de Sedes"
-                                >
-                                    <ArrowLeft className="w-5 h-5" />
-                                </button>
-                            )}
 
                             <span style={{ fontWeight: 700, fontSize: 'var(--font-size-lg)', color: 'var(--color-gray-800)' }}>Chat</span>
                         </div>
