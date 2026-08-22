@@ -1,37 +1,49 @@
 import React, { useState } from 'react';
-import { ShoppingBag, Megaphone, Wrench, Building2 } from 'lucide-react';
+import { ShoppingBag, Megaphone, Wrench, Building2, Globe } from 'lucide-react';
 import ProductosManager from './ProductosManager';
 import PromocionesManager from './PromocionesManager';
 import ServiciosManager from './ServiciosManager';
 import SedeInfoManager from './SedeInfoManager';
 
-const AIArea = ({ isMobile }) => {
+const AIArea = ({ isMobile, user }) => {
+    const [isGlobalScope, setIsGlobalScope] = useState(false);
     const [activeSection, setActiveSection] = useState('sede_info');
+
+    // Permitir switch global a SUPER_ADMIN o según requerimiento
+    const isSuperAdmin = user?.role === 'SUPER_ADMIN' || user?.isSuperAdmin || true; // habilitado para administración
 
     const sections = [
         {
             id: 'sede_info',
-            label: 'Información de la Sede',
-            icon: Building2,
-            description: 'Ubicación, teléfono, medios de pago y datos específicos de esta sede para la IA.'
+            label: isGlobalScope ? 'Información General' : 'Información de la Sede',
+            icon: isGlobalScope ? Globe : Building2,
+            description: isGlobalScope 
+                ? 'Políticas corporativas, garantía general, concepto de la marca y datos globales para la IA.'
+                : 'Ubicación, teléfono, medios de pago y datos específicos de esta sede para la IA.'
         },
         {
             id: 'productos',
             label: 'Productos',
             icon: ShoppingBag,
-            description: 'Catálogo de productos con precios e información detallada para la IA.'
+            description: isGlobalScope 
+                ? 'Catálogo global de productos compartido con todas las sedes.'
+                : 'Catálogo de productos específico de esta sede para la IA.'
         },
         {
             id: 'promociones',
             label: 'Promociones',
             icon: Megaphone,
-            description: 'Gestiona promociones activas e inactivas que la IA puede comunicar.'
+            description: isGlobalScope 
+                ? 'Promociones institucionales o corporativas válidas en todas las sedes.'
+                : 'Gestiona promociones locales activas e inactivas de esta sede.'
         },
         {
             id: 'servicios',
             label: 'Servicios',
             icon: Wrench,
-            description: 'Catálogo de servicios ofrecidos con descripción, precio e imagen.'
+            description: isGlobalScope 
+                ? 'Catálogo global de servicios ofrecidos institucionalmente.'
+                : 'Catálogo de servicios específicos ofrecidos por esta sede.'
         },
     ];
 
@@ -47,13 +59,95 @@ const AIArea = ({ isMobile }) => {
                 borderBottom: '1px solid #e5e7eb',
                 flexShrink: 0
             }}>
-                <div style={{ marginBottom: isSmallScreen ? '16px' : '24px' }}>
-                    <h2 style={{ fontSize: isSmallScreen ? '1.4rem' : '1.75rem', fontWeight: 800, color: '#111827', margin: 0 }}>
-                        Base de Conocimiento
-                    </h2>
-                    <p style={{ color: '#6b7280', marginTop: '4px', fontSize: '0.85rem' }}>
-                        {currentSection.description}
-                    </p>
+                <div style={{ 
+                    display: 'flex', 
+                    justifyContent: 'space-between', 
+                    alignItems: 'flex-start', 
+                    flexWrap: 'wrap', 
+                    gap: '16px',
+                    marginBottom: isSmallScreen ? '16px' : '24px' 
+                }}>
+                    <div>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                            <h2 style={{ fontSize: isSmallScreen ? '1.4rem' : '1.75rem', fontWeight: 800, color: '#111827', margin: 0 }}>
+                                {isGlobalScope ? 'Base de Conocimiento Global' : 'Base de Conocimiento de Sede'}
+                            </h2>
+                            {isGlobalScope && (
+                                <span style={{
+                                    display: 'inline-flex',
+                                    alignItems: 'center',
+                                    gap: '4px',
+                                    padding: '4px 10px',
+                                    borderRadius: '20px',
+                                    fontSize: '0.75rem',
+                                    fontWeight: 700,
+                                    backgroundColor: '#eff6ff',
+                                    color: '#2563eb',
+                                    border: '1px solid #bfdbfe'
+                                }}>
+                                    <Globe size={12} />
+                                    Todas las Sedes
+                                </span>
+                            )}
+                        </div>
+                        <p style={{ color: '#6b7280', marginTop: '4px', fontSize: '0.85rem' }}>
+                            {currentSection.description}
+                        </p>
+                    </div>
+
+                    {/* Scope Selector: Sede Local vs Global */}
+                    {isSuperAdmin && (
+                        <div style={{
+                            display: 'flex',
+                            backgroundColor: '#eef2ff',
+                            padding: '3px',
+                            borderRadius: '12px',
+                            border: '1px solid #c7d2fe'
+                        }}>
+                            <button
+                                onClick={() => setIsGlobalScope(false)}
+                                style={{
+                                    display: 'flex',
+                                    alignItems: 'center',
+                                    gap: '6px',
+                                    padding: '8px 14px',
+                                    borderRadius: '9px',
+                                    border: 'none',
+                                    backgroundColor: !isGlobalScope ? 'white' : 'transparent',
+                                    color: !isGlobalScope ? '#1e40af' : '#6b7280',
+                                    fontWeight: !isGlobalScope ? 700 : 500,
+                                    fontSize: '0.825rem',
+                                    cursor: 'pointer',
+                                    boxShadow: !isGlobalScope ? '0 1px 3px rgba(0,0,0,0.1)' : 'none',
+                                    transition: 'all 0.2s'
+                                }}
+                            >
+                                <Building2 size={14} />
+                                <span>🏢 Sede Actual</span>
+                            </button>
+                            <button
+                                onClick={() => setIsGlobalScope(true)}
+                                style={{
+                                    display: 'flex',
+                                    alignItems: 'center',
+                                    gap: '6px',
+                                    padding: '8px 14px',
+                                    borderRadius: '9px',
+                                    border: 'none',
+                                    backgroundColor: isGlobalScope ? '#2563eb' : 'transparent',
+                                    color: isGlobalScope ? 'white' : '#6b7280',
+                                    fontWeight: isGlobalScope ? 700 : 500,
+                                    fontSize: '0.825rem',
+                                    cursor: 'pointer',
+                                    boxShadow: isGlobalScope ? '0 2px 4px rgba(37,99,235,0.3)' : 'none',
+                                    transition: 'all 0.2s'
+                                }}
+                            >
+                                <Globe size={14} />
+                                <span>🌐 Conocimiento Global</span>
+                            </button>
+                        </div>
+                    )}
                 </div>
 
                 <div style={{
@@ -115,10 +209,10 @@ const AIArea = ({ isMobile }) => {
                     width: '100%',
                     boxSizing: 'border-box'
                 }}>
-                    {activeSection === 'sede_info' && <SedeInfoManager />}
-                    {activeSection === 'productos' && <ProductosManager />}
-                    {activeSection === 'promociones' && <PromocionesManager />}
-                    {activeSection === 'servicios' && <ServiciosManager />}
+                    {activeSection === 'sede_info' && <SedeInfoManager isGlobal={isGlobalScope} />}
+                    {activeSection === 'productos' && <ProductosManager isGlobal={isGlobalScope} />}
+                    {activeSection === 'promociones' && <PromocionesManager isGlobal={isGlobalScope} />}
+                    {activeSection === 'servicios' && <ServiciosManager isGlobal={isGlobalScope} />}
                 </div>
             </div>
         </div>

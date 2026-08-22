@@ -13,7 +13,7 @@ const inputStyle = {
     boxSizing: 'border-box', fontFamily: 'inherit'
 };
 
-const ProductoModal = ({ isOpen, onClose, item, onSuccess }) => {
+const ProductoModal = ({ isOpen, onClose, item, isGlobal = false, onSuccess }) => {
     const [title, setTitle] = useState('');
     const [content, setContent] = useState('');
     const [keywords, setKeywords] = useState('');
@@ -56,7 +56,9 @@ const ProductoModal = ({ isOpen, onClose, item, onSuccess }) => {
         else if (item?.media_url) formData.append('media_url', item.media_url);
 
         try {
-            const url = item ? `/api/ai-knowledge/${item.id}` : `/api/ai-knowledge/text`;
+            const url = item 
+                ? `/api/ai-knowledge/${item.id}${isGlobal ? '?global=true' : ''}` 
+                : `/api/ai-knowledge/text${isGlobal ? '?global=true' : ''}`;
             const method = item ? 'PUT' : 'POST';
             const response = await apiFetch(url, { method, body: formData });
             if (!response.ok) {

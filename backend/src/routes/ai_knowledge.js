@@ -7,6 +7,52 @@ const { pool, dbManager } = require('../config/database');
 const { config } = require('../config/app');
 const { tenantContext } = require('../utils/tenantContext');
 
+// Helper to ensure global knowledge base table exists in Master DB
+async function ensureGlobalTable() {
+    try {
+        if (!dbManager || !dbManager.masterPool) return;
+        await dbManager.masterPool.query(`
+            CREATE TABLE IF NOT EXISTS ai_knowledge_global (
+                id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+                type VARCHAR(20) NOT NULL,
+                title VARCHAR(255),
+                content TEXT,
+                media_url TEXT,
+                filename VARCHAR(255),
+                keywords TEXT[],
+                price NUMERIC(12,2),
+                active BOOLEAN DEFAULT TRUE,
+                created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+                updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+            );
+        `).catch(() => {});
+        
+        await dbManager.masterPool.query(`
+            ALTER TABLE ai_knowledge_global ADD COLUMN IF NOT EXISTS embedding vector(3072);
+        `).catch(() => {});
+    } catch (e) {
+        console.warn('⚠️ Error asegurando ai_knowledge_global:', e.message);
+    }
+}
+ensureGlobalTable();
+
+// Helper to select target pool and table name based on global query param or header
+function getKnowledgeContext(req) {
+    const isGlobal = req.query.global === 'true' || req.query.is_global === 'true' || req.headers['x-is-global'] === 'true';
+    if (isGlobal && dbManager && dbManager.masterPool) {
+        return {
+            activePool: dbManager.masterPool,
+            tableName: 'ai_knowledge_global',
+            isGlobal: true
+        };
+    }
+    return {
+        activePool: req.db || pool,
+        tableName: 'ai_knowledge',
+        isGlobal: false
+    };
+}
+
 // Helper to get tenant-specific knowledge upload directory
 const getKnowledgeDir = (req) => {
     let slug = req?.tenant?.slug;
@@ -21,19 +67,14 @@ const getKnowledgeDir = (req) => {
     }
 
     const kDir = path.join(baseDir, 'ai_knowledge');
-    console.log(`📂 [AI Knowledge] uploadDir base: ${config.uploadDir}`);
-    console.log(`📂 [AI Knowledge] kDir objetivo: ${kDir}`);
 
     try {
         if (!fs.existsSync(kDir)) {
             fs.mkdirSync(kDir, { recursive: true });
-            console.log(`✅ [AI Knowledge] Directorio creado: ${kDir}`);
-        } else {
-            console.log(`✅ [AI Knowledge] Directorio existe: ${kDir}`);
         }
     } catch (err) {
         console.error(`❌ [AI Knowledge] Error creando directorio ${kDir}:`, err.message);
-        throw err; // propagar para que multer devuelva 500
+        throw err;
     }
     return { dir: kDir, slug };
 };
@@ -59,7 +100,6 @@ const upload = multer({
         fileSize: 50 * 1024 * 1024 // 50MB límite
     },
     fileFilter: (req, file, cb) => {
-        // Aceptar imágenes, audios y videos
         if (file.mimetype.startsWith('image/') ||
             file.mimetype.startsWith('audio/') ||
             file.mimetype.startsWith('video/')) {
@@ -70,87 +110,16 @@ const upload = multer({
     }
 });
 
-/**
- * GET /api/ai-knowledge
- * Listar recursos de conocimiento
- * Query params: type (image, video, audio, text), active (true/false)
- */
-router.get('/', async (req, res, next) => {
-    try {
-        const { type, active } = req.query;
-        let query = 'SELECT * FROM ai_knowledge WHERE 1=1';
-        const params = [];
-        let paramCount = 1;
-
-        if (type) {
-            query += ` AND type = $${paramCount}`;
-            params.push(type);
-            paramCount++;
-            if (type === 'text') {
-                query += ` AND (keywords IS NULL OR NOT ('info_sede' = ANY(keywords)))`;
-            }
-        } else {
-            query += ` AND (keywords IS NULL OR NOT ('info_sede' = ANY(keywords))) AND type != 'sede'`;
-        }
-
-        if (active !== undefined) {
-            query += ` AND active = $${paramCount}`;
-            params.push(active === 'true');
-            paramCount++;
-        }
-
-        query += ' ORDER BY created_at DESC';
-
-        const activePool = req.db || pool;
-        const result = await activePool.query(query, params);
-
-        let globalRows = [];
-        try {
-            const globalQuery = query.replace('FROM ai_knowledge', 'FROM ai_knowledge_global');
-            const globalResult = await dbManager.masterPool.query(globalQuery, params);
-            globalRows = globalResult.rows;
-        } catch(err) {
-            console.error('⚠️ No se pudo obtener knowledge global:', err.message);
-        }
-
-        const allRows = [...globalRows, ...result.rows];
-
-        // Mapear resultados para incluir URL completa si es necesario
-        const resources = allRows.map(row => {
-            let fullUrl = row.media_url;
-            if (fullUrl && fullUrl.startsWith('/uploads')) {
-                fullUrl = `${config.publicUrl}${fullUrl}`;
-            }
-            return {
-                ...row,
-                full_url: fullUrl
-            };
-        });
-
-        res.json(resources);
-    } catch (error) {
-        console.error('❌ Error en GET /api/ai-knowledge:', {
-            message: error.message,
-            stack: error.stack,
-            query: req.query
-        });
-        next(error);
-    }
-});
-
 const fetch = (...args) => import('node-fetch').then(({ default: fetch }) => fetch(...args));
 
-// Función para generar embeddings automáticamente
 // Función para generar embeddings automáticamente
 async function getEmbedding(text) {
     const API_KEY = process.env.GOOGLE_AI_API_KEY;
     if (!API_KEY) {
-        console.error('❌ Error: GOOGLE_AI_API_KEY no configurada');
         return null;
     }
 
     if (!text || !text.trim()) {
-        console.warn('⚠️ Texto vacío para embedding, omitiendo...');
         return null;
     }
 
@@ -180,18 +149,83 @@ async function getEmbedding(text) {
 }
 
 // Helper to check if embedding column exists in the database
-async function checkEmbeddingColumn(poolInstance) {
+async function checkEmbeddingColumn(poolInstance, tableName = 'ai_knowledge') {
     try {
         const checkCol = await poolInstance.query(`
             SELECT 1 FROM information_schema.columns 
-            WHERE table_name='ai_knowledge' AND column_name='embedding'
-        `);
+            WHERE table_name=$1 AND column_name='embedding'
+        `, [tableName]);
         return checkCol.rows.length > 0;
     } catch (e) {
-        console.warn('⚠️ Error checking embedding column:', e.message);
         return false;
     }
 }
+
+/**
+ * GET /api/ai-knowledge
+ * Listar recursos de conocimiento
+ * Query params: type (image, video, audio, text), active (true/false), global (true/false)
+ */
+router.get('/', async (req, res, next) => {
+    try {
+        const { type, active } = req.query;
+        const { activePool, tableName, isGlobal } = getKnowledgeContext(req);
+
+        let query = `SELECT * FROM ${tableName} WHERE 1=1`;
+        const params = [];
+        let paramCount = 1;
+
+        if (type) {
+            query += ` AND type = $${paramCount}`;
+            params.push(type);
+            paramCount++;
+            if (type === 'text') {
+                query += ` AND (keywords IS NULL OR NOT ('info_sede' = ANY(keywords)))`;
+            }
+        } else {
+            query += ` AND (keywords IS NULL OR NOT ('info_sede' = ANY(keywords))) AND type != 'sede'`;
+        }
+
+        if (active !== undefined) {
+            query += ` AND active = $${paramCount}`;
+            params.push(active === 'true');
+            paramCount++;
+        }
+
+        query += ' ORDER BY created_at DESC';
+
+        const result = await activePool.query(query, params);
+
+        let globalRows = [];
+        if (!isGlobal && dbManager && dbManager.masterPool) {
+            try {
+                const globalQuery = query.replace(`FROM ${tableName}`, 'FROM ai_knowledge_global');
+                const globalResult = await dbManager.masterPool.query(globalQuery, params);
+                globalRows = globalResult.rows.map(r => ({ ...r, is_global: true }));
+            } catch(err) {
+                // Ignore if global table not yet populated
+            }
+        }
+
+        const allRows = [...globalRows, ...result.rows];
+
+        const resources = allRows.map(row => {
+            let fullUrl = row.media_url;
+            if (fullUrl && fullUrl.startsWith('/uploads')) {
+                fullUrl = `${config.publicUrl}${fullUrl}`;
+            }
+            return {
+                ...row,
+                full_url: fullUrl
+            };
+        });
+
+        res.json(resources);
+    } catch (error) {
+        console.error('❌ Error en GET /api/ai-knowledge:', error.message);
+        next(error);
+    }
+});
 
 /**
  * POST /api/ai-knowledge/upload
@@ -204,6 +238,8 @@ router.post('/upload', upload.single('file'), async (req, res, next) => {
         }
 
         const { description, keywords, title, price, active } = req.body;
+        const { activePool, tableName } = getKnowledgeContext(req);
+
         const descriptionVal = description || req.body.content || '';
         let type = 'image';
         if (req.file.mimetype.startsWith('audio/')) type = 'audio';
@@ -215,7 +251,6 @@ router.post('/upload', upload.single('file'), async (req, res, next) => {
             : `/uploads/ai_knowledge/${req.file.filename}`;
         const keywordArray = keywords ? (Array.isArray(keywords) ? keywords : keywords.split(',').map(k => k.trim())) : [];
 
-        // Generar embedding automático (opcional — no falla si la columna no existe)
         const embeddingText = `${title || ''} ${descriptionVal}`.trim();
         let embedding = null;
         try { embedding = await getEmbedding(embeddingText); } catch (e) { console.warn('⚠️ Embedding no generado:', e.message); }
@@ -223,9 +258,7 @@ router.post('/upload', upload.single('file'), async (req, res, next) => {
         const priceVal = price ? parseFloat(price) : null;
         const activeVal = active === 'false' ? false : true;
 
-        const activePool = req.db || pool;
-        // Construir query dinámico según si el embedding está disponible y la columna existe en BD
-        const hasEmbedCol = await checkEmbeddingColumn(activePool);
+        const hasEmbedCol = await checkEmbeddingColumn(activePool, tableName);
         let columns = '(type, title, content, media_url, filename, keywords, price, active)';
         let placeholders = 'VALUES ($1, $2, $3, $4, $5, $6, $7, $8)';
         let values = [type, title || '', descriptionVal, mediaUrl, req.file.originalname, keywordArray, priceVal, activeVal];
@@ -235,7 +268,7 @@ router.post('/upload', upload.single('file'), async (req, res, next) => {
             values = [type, title || '', descriptionVal, mediaUrl, req.file.originalname, keywordArray, embedding, priceVal, activeVal];
         }
 
-        const result = await activePool.query(`INSERT INTO ai_knowledge ${columns} ${placeholders} RETURNING *`, values);
+        const result = await activePool.query(`INSERT INTO ${tableName} ${columns} ${placeholders} RETURNING *`, values);
         res.status(201).json(result.rows[0]);
     } catch (error) {
         if (req.file && req.file.path) {
@@ -254,39 +287,33 @@ router.post('/upload', upload.single('file'), async (req, res, next) => {
 router.post('/text', upload.single('file'), async (req, res, next) => {
     try {
         const { title, content, keywords, media_url, price, active } = req.body;
+        const { activePool, tableName } = getKnowledgeContext(req);
 
         if (!content) {
             return res.status(400).json({ error: 'El contenido es obligatorio' });
         }
 
-        // Si se subió un archivo, generamos la URL, de lo contrario usamos la URL del body si existe
         let finalMediaUrl = null;
         if (req.file) {
             const { slug } = getKnowledgeDir(req);
             finalMediaUrl = slug
                 ? `/uploads/${slug}/ai_knowledge/${req.file.filename}`
                 : `/uploads/ai_knowledge/${req.file.filename}`;
-            console.log(`📸 Imagen subida para contexto: ${finalMediaUrl}`);
         } else if (media_url) {
             finalMediaUrl = media_url;
-            console.log(`🔗 URL de imagen recibida: ${finalMediaUrl}`);
         }
 
         const keywordArray = keywords ? (Array.isArray(keywords) ? keywords : keywords.split(',').map(k => k.trim())) : [];
         const priceVal = price ? parseFloat(price) : null;
         const activeVal = active === 'false' ? false : true;
 
-        // Generar embedding automático (opcional — no falla si la columna no existe)
         const embeddingText = `${title || ''} ${content || ''}`.trim();
         let embedding = null;
         try {
-            console.log(`🧬 Generando embedding para: ${title || 'Sin título'}`);
             embedding = await getEmbedding(embeddingText);
         } catch (e) { console.warn('⚠️ Embedding no generado:', e.message); }
 
-        const activePool = req.db || pool;
-        // Construir query dinámico según si el embedding está disponible y la columna existe en BD
-        const hasEmbedCol = await checkEmbeddingColumn(activePool);
+        const hasEmbedCol = await checkEmbeddingColumn(activePool, tableName);
         let columns = '(type, title, content, keywords, media_url, price, active)';
         let placeholders = 'VALUES ($1, $2, $3, $4, $5, $6, $7)';
         let values = ['text', title || '', content, keywordArray, finalMediaUrl, priceVal, activeVal];
@@ -296,10 +323,9 @@ router.post('/text', upload.single('file'), async (req, res, next) => {
             values = ['text', title || '', content, keywordArray, embedding, finalMediaUrl, priceVal, activeVal];
         }
 
-        const result = await activePool.query(`INSERT INTO ai_knowledge ${columns} ${placeholders} RETURNING *`, values);
+        const result = await activePool.query(`INSERT INTO ${tableName} ${columns} ${placeholders} RETURNING *`, values);
         res.status(201).json(result.rows[0]);
     } catch (error) {
-        // Si hubo error, borrar el archivo subido si existe
         if (req.file) {
             fs.unlink(req.file.path, (err) => {
                 if (err) console.error('Error borrando archivo tras fallo:', err);
@@ -317,10 +343,18 @@ router.put('/:id', upload.single('file'), async (req, res, next) => {
     try {
         const { id } = req.params;
         const { title, content, keywords, media_url, price, active } = req.body;
+        let { activePool, tableName, isGlobal } = getKnowledgeContext(req);
 
-        const activePool = req.db || pool;
-        // Verificar si existe
-        const checkResult = await activePool.query('SELECT * FROM ai_knowledge WHERE id = $1', [id]);
+        let checkResult = await activePool.query(`SELECT * FROM ${tableName} WHERE id = $1`, [id]);
+        if (checkResult.rows.length === 0 && !isGlobal && dbManager && dbManager.masterPool) {
+            const globalCheck = await dbManager.masterPool.query('SELECT * FROM ai_knowledge_global WHERE id = $1', [id]);
+            if (globalCheck.rows.length > 0) {
+                activePool = dbManager.masterPool;
+                tableName = 'ai_knowledge_global';
+                checkResult = globalCheck;
+            }
+        }
+
         if (checkResult.rows.length === 0) {
             return res.status(404).json({ error: 'Recurso no encontrado' });
         }
@@ -328,14 +362,12 @@ router.put('/:id', upload.single('file'), async (req, res, next) => {
         const oldResource = checkResult.rows[0];
         let finalMediaUrl = oldResource.media_url;
 
-        // Si se subió un nuevo archivo o se envió una nueva URL
         if (req.file) {
             const { slug } = getKnowledgeDir(req);
             finalMediaUrl = slug
                 ? `/uploads/${slug}/ai_knowledge/${req.file.filename}`
                 : `/uploads/ai_knowledge/${req.file.filename}`;
 
-            // Borrar archivo anterior si existía localmente
             if (oldResource.media_url && oldResource.media_url.startsWith('/uploads')) {
                 const oldPath = path.join(__dirname, '../../', oldResource.media_url.substring(1));
                 if (fs.existsSync(oldPath)) {
@@ -360,18 +392,15 @@ router.put('/:id', upload.single('file'), async (req, res, next) => {
         const priceVal = price !== undefined ? (price === '' || price === null ? null : parseFloat(price)) : oldResource.price;
         const activeVal = active !== undefined ? (active === 'false' || active === false ? false : true) : oldResource.active;
 
-        // Re-generar embedding si cambió el contenido o título (opcional)
         let embeddingUpdate = null;
         if ((content !== undefined && content !== oldResource.content) || (title !== undefined && title !== oldResource.title)) {
             try {
-                console.log(`🧬 Re-generando embedding para: ${title || 'Sin título'}`);
                 const embeddingText = `${title || ''} ${content || ''}`.trim();
                 embeddingUpdate = await getEmbedding(embeddingText);
             } catch (e) { console.warn('⚠️ Embedding no re-generado:', e.message); }
         }
 
-        // Construir UPDATE dinámico según si la columna embedding existe en BD
-        const hasEmbedCol = await checkEmbeddingColumn(activePool);
+        const hasEmbedCol = await checkEmbeddingColumn(activePool, tableName);
         const setClauses = [
             'title = $1', 'content = $2', 'keywords = $3',
             'media_url = $4', 'price = $5', 'active = $6', 'updated_at = NOW()'
@@ -387,7 +416,7 @@ router.put('/:id', upload.single('file'), async (req, res, next) => {
 
         values.push(id);
         const result = await activePool.query(
-            `UPDATE ai_knowledge SET ${setClauses.join(', ')} WHERE id = $${paramIdx} RETURNING *`,
+            `UPDATE ${tableName} SET ${setClauses.join(', ')} WHERE id = $${paramIdx} RETURNING *`,
             values
         );
 
@@ -401,14 +430,24 @@ router.put('/:id', upload.single('file'), async (req, res, next) => {
         next(error);
     }
 });
+
+/**
+ * DELETE /api/ai-knowledge/:id
+ */
 router.delete('/:id', async (req, res, next) => {
     try {
         const { id } = req.params;
+        let { activePool, tableName, isGlobal } = getKnowledgeContext(req);
 
-        const activePool = req.db || pool;
-        // Obtener info del recurso antes de borrar para eliminar archivo si existe
-        const checkQuery = 'SELECT * FROM ai_knowledge WHERE id = $1';
-        const checkResult = await activePool.query(checkQuery, [id]);
+        let checkResult = await activePool.query(`SELECT * FROM ${tableName} WHERE id = $1`, [id]);
+        if (checkResult.rows.length === 0 && !isGlobal && dbManager && dbManager.masterPool) {
+            const globalCheck = await dbManager.masterPool.query('SELECT * FROM ai_knowledge_global WHERE id = $1', [id]);
+            if (globalCheck.rows.length > 0) {
+                activePool = dbManager.masterPool;
+                tableName = 'ai_knowledge_global';
+                checkResult = globalCheck;
+            }
+        }
 
         if (checkResult.rows.length === 0) {
             return res.status(404).json({ error: 'Recurso no encontrado' });
@@ -416,14 +455,9 @@ router.delete('/:id', async (req, res, next) => {
 
         const resource = checkResult.rows[0];
 
-        // Borrar de DB
-        await activePool.query('DELETE FROM ai_knowledge WHERE id = $1', [id]);
+        await activePool.query(`DELETE FROM ${tableName} WHERE id = $1`, [id]);
 
-        // Borrar archivo físico si existe
         if (resource.media_url) {
-            // media_url es relativo: /uploads/ai_knowledge/filename.ext
-            // convertir a ruta absoluta del sistema
-            // media_url empieza con /, quitamos el primer caracter
             const relativePath = resource.media_url.substring(1);
             const filePath = path.join(config.uploadDir, '../', relativePath);
 
@@ -442,24 +476,20 @@ router.delete('/:id', async (req, res, next) => {
 
 /**
  * GET /api/ai-knowledge/promociones
- * Retorna las promociones del tenant.
- * Query params:
- *   active=true  → solo activas (default: todas)
- *   active=false → solo inactivas
  */
 router.get('/promociones', async (req, res, next) => {
     try {
         const { active } = req.query;
+        const { activePool, tableName, isGlobal } = getKnowledgeContext(req);
 
         let query = `
             SELECT id, title, content, media_url, active, price, keywords, created_at, updated_at
-            FROM ai_knowledge
+            FROM ${tableName}
             WHERE $1 = ANY(keywords)
         `;
         const params = ['promocion'];
         let paramCount = 2;
 
-        // Filtrar por estado activo si se especifica
         if (active !== undefined) {
             query += ` AND active = $${paramCount}`;
             params.push(active === 'true');
@@ -468,16 +498,15 @@ router.get('/promociones', async (req, res, next) => {
 
         query += ' ORDER BY active DESC, created_at DESC';
 
-        const activePool = req.db || pool;
         const result = await activePool.query(query, params);
 
         let globalRows = [];
-        try {
-            const globalQuery = query.replace('FROM ai_knowledge', 'FROM ai_knowledge_global');
-            const globalResult = await dbManager.masterPool.query(globalQuery, params);
-            globalRows = globalResult.rows;
-        } catch(err) {
-            console.error('⚠️ No se pudo obtener knowledge global:', err.message);
+        if (!isGlobal && dbManager && dbManager.masterPool) {
+            try {
+                const globalQuery = query.replace(`FROM ${tableName}`, 'FROM ai_knowledge_global');
+                const globalResult = await dbManager.masterPool.query(globalQuery, params);
+                globalRows = globalResult.rows.map(r => ({ ...r, is_global: true }));
+            } catch(err) {}
         }
 
         const allRows = [...globalRows, ...result.rows];
@@ -495,6 +524,7 @@ router.get('/promociones', async (req, res, next) => {
                 precio: row.price,
                 imagen_url: imageUrl || null,
                 keywords: row.keywords,
+                is_global: row.is_global || false,
                 creado: row.created_at,
                 actualizado: row.updated_at
             };
@@ -514,24 +544,20 @@ router.get('/promociones', async (req, res, next) => {
 
 /**
  * GET /api/ai-knowledge/servicios
- * Retorna los servicios del tenant (registros con la keyword 'servicio').
- * Query params:
- *   active=true  → solo activos (default: todos)
- *   active=false → solo inactivos
  */
 router.get('/servicios', async (req, res, next) => {
     try {
         const { active } = req.query;
+        const { activePool, tableName, isGlobal } = getKnowledgeContext(req);
 
         let query = `
             SELECT id, title, content, media_url, active, price, keywords, created_at, updated_at
-            FROM ai_knowledge
+            FROM ${tableName}
             WHERE $1 = ANY(keywords)
         `;
         const params = ['servicio'];
         let paramCount = 2;
 
-        // Filtrar por estado activo si se especifica
         if (active !== undefined) {
             query += ` AND active = $${paramCount}`;
             params.push(active === 'true');
@@ -540,16 +566,15 @@ router.get('/servicios', async (req, res, next) => {
 
         query += ' ORDER BY active DESC, created_at DESC';
 
-        const activePool = req.db || pool;
         const result = await activePool.query(query, params);
 
         let globalRows = [];
-        try {
-            const globalQuery = query.replace('FROM ai_knowledge', 'FROM ai_knowledge_global');
-            const globalResult = await dbManager.masterPool.query(globalQuery, params);
-            globalRows = globalResult.rows;
-        } catch(err) {
-            console.error('⚠️ No se pudo obtener knowledge global:', err.message);
+        if (!isGlobal && dbManager && dbManager.masterPool) {
+            try {
+                const globalQuery = query.replace(`FROM ${tableName}`, 'FROM ai_knowledge_global');
+                const globalResult = await dbManager.masterPool.query(globalQuery, params);
+                globalRows = globalResult.rows.map(r => ({ ...r, is_global: true }));
+            } catch(err) {}
         }
 
         const allRows = [...globalRows, ...result.rows];
@@ -567,17 +592,13 @@ router.get('/servicios', async (req, res, next) => {
                 precio: row.price,
                 imagen_url: imageUrl || null,
                 keywords: row.keywords,
+                is_global: row.is_global || false,
                 creado: row.created_at,
                 actualizado: row.updated_at
             };
         });
 
-        res.json({
-            total: servicios.length,
-            activos: servicios.filter(s => s.activa).length,
-            inactivos: servicios.filter(s => !s.activa).length,
-            servicios
-        });
+        res.json(servicios);
     } catch (error) {
         console.error('❌ Error en GET /api/ai-knowledge/servicios:', error.message);
         next(error);
@@ -586,14 +607,13 @@ router.get('/servicios', async (req, res, next) => {
 
 /**
  * GET /api/ai-knowledge/sede
- * Obtener toda la información configurada de la sede
  */
 router.get('/sede', async (req, res, next) => {
     try {
-        const activePool = req.db || pool;
+        const { activePool, tableName } = getKnowledgeContext(req);
         const query = `
             SELECT id, title, content, keywords, active, created_at, updated_at
-            FROM ai_knowledge
+            FROM ${tableName}
             WHERE 'info_sede' = ANY(keywords) OR type = 'sede'
             ORDER BY created_at ASC
         `;
@@ -608,7 +628,6 @@ router.get('/sede', async (req, res, next) => {
 
 /**
  * POST /api/ai-knowledge/sede
- * Guardar o actualizar la información de la sede (Ubicación, Teléfono, Medios de Pago, Campos Personalizados)
  */
 router.post('/sede', async (req, res, next) => {
     try {
@@ -617,8 +636,8 @@ router.post('/sede', async (req, res, next) => {
             return res.status(400).json({ error: 'Formato inválido. Se requiere un array "items".' });
         }
 
-        const activePool = req.db || pool;
-        const hasEmbedCol = await checkEmbeddingColumn(activePool);
+        const { activePool, tableName } = getKnowledgeContext(req);
+        const hasEmbedCol = await checkEmbeddingColumn(activePool, tableName);
         const savedItems = [];
 
         for (const item of items) {
@@ -638,7 +657,7 @@ router.post('/sede', async (req, res, next) => {
 
             if (id) {
                 let updateQuery = `
-                    UPDATE ai_knowledge 
+                    UPDATE ${tableName} 
                     SET type = 'sede', title = $1, content = $2, keywords = $3, updated_at = NOW()
                 `;
                 let values = [title, content || '', keywords];
@@ -667,7 +686,7 @@ router.post('/sede', async (req, res, next) => {
                 }
 
                 const insRes = await activePool.query(
-                    `INSERT INTO ai_knowledge ${columns} ${placeholders} RETURNING *`,
+                    `INSERT INTO ${tableName} ${columns} ${placeholders} RETURNING *`,
                     values
                 );
                 savedItems.push(insRes.rows[0]);
@@ -682,4 +701,3 @@ router.post('/sede', async (req, res, next) => {
 });
 
 module.exports = router;
-

@@ -10,7 +10,7 @@ const inputStyle = {
 };
 const labelStyle = { display: 'block', fontSize: '0.875rem', fontWeight: 600, marginBottom: '8px', color: '#374151' };
 
-const ServicioModal = ({ isOpen, onClose, item, onSuccess }) => {
+const ServicioModal = ({ isOpen, onClose, item, isGlobal = false, onSuccess }) => {
     const [title, setTitle] = useState('');
     const [content, setContent] = useState('');
     const [price, setPrice] = useState('');
@@ -47,9 +47,10 @@ const ServicioModal = ({ isOpen, onClose, item, onSuccess }) => {
 
         try {
             let url, method;
-            if (item) { url = `/api/ai-knowledge/${item.id}`; method = 'PUT'; }
-            else if (file) { url = `/api/ai-knowledge/upload`; method = 'POST'; }
-            else { url = `/api/ai-knowledge/text`; method = 'POST'; }
+            const globalSuffix = isGlobal ? '?global=true' : '';
+            if (item) { url = `/api/ai-knowledge/${item.id}${globalSuffix}`; method = 'PUT'; }
+            else if (file) { url = `/api/ai-knowledge/upload${globalSuffix}`; method = 'POST'; }
+            else { url = `/api/ai-knowledge/text${globalSuffix}`; method = 'POST'; }
 
             const res = await apiFetch(url, { method, body: formData });
             if (!res.ok) { const d = await res.json(); throw new Error(d.error || 'Error'); }

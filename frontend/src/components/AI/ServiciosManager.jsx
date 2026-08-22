@@ -3,7 +3,7 @@ import { Plus, Trash2, Edit2, Search, Wrench, DollarSign } from 'lucide-react';
 import ServicioModal from './ServicioModal';
 import apiFetch, { API_URL } from '../../utils/api';
 
-const ServiciosManager = () => {
+const ServiciosManager = ({ isGlobal = false }) => {
     const [items, setItems] = useState([]);
     const [loading, setLoading] = useState(false);
     const [searchQuery, setSearchQuery] = useState('');
@@ -13,9 +13,8 @@ const ServiciosManager = () => {
     const fetchItems = async () => {
         setLoading(true);
         try {
-            // Los servicios se guardan via /upload con imagen, type='audio' era el tab anterior
-            // Ahora: filtramos por keyword 'servicio' entre todos los registros
-            const res = await apiFetch('/api/ai-knowledge');
+            const endpoint = `/api/ai-knowledge${isGlobal ? '?global=true' : ''}`;
+            const res = await apiFetch(endpoint);
             const data = await res.json();
             const arr = Array.isArray(data) ? data : [];
             // Filtrar: tienen keyword 'servicio'
@@ -28,12 +27,12 @@ const ServiciosManager = () => {
         }
     };
 
-    useEffect(() => { fetchItems(); }, []);
+    useEffect(() => { fetchItems(); }, [isGlobal]);
 
     const handleDelete = async (id) => {
         if (!window.confirm('¿Eliminar este servicio?')) return;
         try {
-            await apiFetch(`/api/ai-knowledge/${id}`, { method: 'DELETE' });
+            await apiFetch(`/api/ai-knowledge/${id}${isGlobal ? '?global=true' : ''}`, { method: 'DELETE' });
             setItems(prev => prev.filter(c => c.id !== id));
         } catch (err) {
             console.error('Error deleting servicio:', err);
@@ -155,7 +154,7 @@ const ServiciosManager = () => {
                 )}
             </div>
 
-            <ServicioModal isOpen={showModal} onClose={() => setShowModal(false)} item={selected} onSuccess={handleSuccess} />
+            <ServicioModal isOpen={showModal} onClose={() => setShowModal(false)} item={selected} isGlobal={isGlobal} onSuccess={handleSuccess} />
         </div>
     );
 };

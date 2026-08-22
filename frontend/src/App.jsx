@@ -1608,7 +1608,7 @@ const AuthenticatedApp = () => {
 
             {activeTab === 'dashboard' && <Dashboard isMobile={isMobile} />}
             {activeTab === 'payments_dashboard' && <PaymentsDashboard isMobile={isMobile} />}
-            {activeTab === 'ai' && <AIArea isMobile={isMobile} />}
+            {activeTab === 'ai' && <AIArea isMobile={isMobile} user={user} />}
             {activeTab === 'admin' && <AdminPanel isMobile={isMobile} />}
             {activeTab === 'wa-templates' && <WaTemplates onBulkSend={(tpl) => setActiveTab('wa-bulk')} />}
             {activeTab === 'wa-bulk' && <WaBulkOfficial conversations={conversations} tags={tags} />}

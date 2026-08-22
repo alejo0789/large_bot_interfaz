@@ -10,7 +10,7 @@ const inputStyle = {
 };
 const labelStyle = { display: 'block', fontSize: '0.875rem', fontWeight: 600, marginBottom: '8px', color: '#374151' };
 
-const PromocionModal = ({ isOpen, onClose, item, onSuccess }) => {
+const PromocionModal = ({ isOpen, onClose, item, isGlobal = false, onSuccess }) => {
     const [title, setTitle] = useState('');
     const [content, setContent] = useState('');
     const [active, setActive] = useState(true);
@@ -49,14 +49,15 @@ const PromocionModal = ({ isOpen, onClose, item, onSuccess }) => {
         try {
             // Si hay archivo nuevo y es creación, usar /upload; si no, usar /text
             let url, method;
+            const globalSuffix = isGlobal ? '?global=true' : '';
             if (item) {
-                url = `/api/ai-knowledge/${item.id}`;
+                url = `/api/ai-knowledge/${item.id}${globalSuffix}`;
                 method = 'PUT';
             } else if (file) {
-                url = `/api/ai-knowledge/upload`;
+                url = `/api/ai-knowledge/upload${globalSuffix}`;
                 method = 'POST';
             } else {
-                url = `/api/ai-knowledge/text`;
+                url = `/api/ai-knowledge/text${globalSuffix}`;
                 method = 'POST';
             }
 

@@ -2,16 +2,31 @@ import React, { useState, useEffect } from 'react';
 import { MapPin, Phone, CreditCard, Plus, Trash2, Save, RefreshCw, CheckCircle, HelpCircle, Sparkles, Building2 } from 'lucide-react';
 import apiFetch from '../../utils/api';
 
-const SedeInfoManager = () => {
+const SedeInfoManager = ({ isGlobal = false }) => {
     const [loading, setLoading] = useState(true);
     const [saving, setSaving] = useState(false);
     const [savedSuccess, setSavedSuccess] = useState(false);
     const [error, setError] = useState(null);
 
     // Standard fields
-    const [ubicacion, setUbicacion] = useState({ id: null, title: 'Ubicación y Dirección', content: '', sub_type: 'ubicacion' });
-    const [telefono, setTelefono] = useState({ id: null, title: 'Teléfono y Contacto de la Sede', content: '', sub_type: 'telefono' });
-    const [mediosPago, setMediosPago] = useState({ id: null, title: 'Medios de Pago Aceptados', content: '', sub_type: 'medios_pago' });
+    const [ubicacion, setUbicacion] = useState({ 
+        id: null, 
+        title: isGlobal ? 'Ubicación Central / Sede Principal' : 'Ubicación y Dirección', 
+        content: '', 
+        sub_type: 'ubicacion' 
+    });
+    const [telefono, setTelefono] = useState({ 
+        id: null, 
+        title: isGlobal ? 'Teléfono Central / Atención Corporativa' : 'Teléfono y Contacto de la Sede', 
+        content: '', 
+        sub_type: 'telefono' 
+    });
+    const [mediosPago, setMediosPago] = useState({ 
+        id: null, 
+        title: isGlobal ? 'Políticas de Pago y Cuentas Corporativas' : 'Medios de Pago Aceptados', 
+        content: '', 
+        sub_type: 'medios_pago' 
+    });
 
     // Custom fields list [{ id, title, content, sub_type: 'custom' }]
     const [customFields, setCustomFields] = useState([]);
@@ -21,8 +36,8 @@ const SedeInfoManager = () => {
         setLoading(true);
         setError(null);
         try {
-            const res = await apiFetch('/api/ai-knowledge/sede');
-            if (!res.ok) throw new Error('Error al cargar la información de la sede');
+            const res = await apiFetch(`/api/ai-knowledge/sede${isGlobal ? '?global=true' : ''}`);
+            if (!res.ok) throw new Error('Error al cargar la información');
             const data = await res.json();
 
             // Reset standard fields
@@ -35,11 +50,11 @@ const SedeInfoManager = () => {
                 data.forEach(item => {
                     const kw = item.keywords || [];
                     if (kw.includes('ubicacion')) {
-                        foundUbi = { id: item.id, title: item.title || 'Ubicación y Dirección', content: item.content || '', sub_type: 'ubicacion' };
+                        foundUbi = { id: item.id, title: item.title || (isGlobal ? 'Ubicación Central / Sede Principal' : 'Ubicación y Dirección'), content: item.content || '', sub_type: 'ubicacion' };
                     } else if (kw.includes('telefono')) {
-                        foundTel = { id: item.id, title: item.title || 'Teléfono y Contacto de la Sede', content: item.content || '', sub_type: 'telefono' };
+                        foundTel = { id: item.id, title: item.title || (isGlobal ? 'Teléfono Central / Atención Corporativa' : 'Teléfono y Contacto de la Sede'), content: item.content || '', sub_type: 'telefono' };
                     } else if (kw.includes('medios_pago')) {
-                        foundPago = { id: item.id, title: item.title || 'Medios de Pago Aceptados', content: item.content || '', sub_type: 'medios_pago' };
+                        foundPago = { id: item.id, title: item.title || (isGlobal ? 'Políticas de Pago y Cuentas Corporativas' : 'Medios de Pago Aceptados'), content: item.content || '', sub_type: 'medios_pago' };
                     } else {
                         extra.push({
                             id: item.id,
@@ -51,12 +66,12 @@ const SedeInfoManager = () => {
                 });
             }
 
-            if (foundUbi) setUbicacion(foundUbi);
-            if (foundTel) setTelefono(foundTel);
-            if (foundPago) setMediosPago(foundPago);
+            setUbicacion(foundUbi || { id: null, title: isGlobal ? 'Ubicación Central / Sede Principal' : 'Ubicación y Dirección', content: '', sub_type: 'ubicacion' });
+            setTelefono(foundTel || { id: null, title: isGlobal ? 'Teléfono Central / Atención Corporativa' : 'Teléfono y Contacto de la Sede', content: '', sub_type: 'telefono' });
+            setMediosPago(foundPago || { id: null, title: isGlobal ? 'Políticas de Pago y Cuentas Corporativas' : 'Medios de Pago Aceptados', content: '', sub_type: 'medios_pago' });
             setCustomFields(extra);
         } catch (err) {
-            console.error('Error fetching sede info:', err);
+            console.error('Error fetching info:', err);
             setError(err.message);
         } finally {
             setLoading(false);
@@ -65,7 +80,7 @@ const SedeInfoManager = () => {
 
     useEffect(() => {
         fetchSedeInfo();
-    }, []);
+    }, [isGlobal]);
 
     // Add new custom field
     const handleAddCustomField = () => {
@@ -87,7 +102,7 @@ const SedeInfoManager = () => {
         if (item.id) {
             if (!window.confirm(`¿Estás seguro de eliminar el campo "${item.title || 'Información'}"?`)) return;
             try {
-                const res = await apiFetch(`/api/ai-knowledge/${item.id}`, { method: 'DELETE' });
+                const res = await apiFetch(`/api/ai-knowledge/${item.id}${isGlobal ? '?global=true' : ''}`, { method: 'DELETE' });
                 if (!res.ok) throw new Error('No se pudo eliminar el campo');
             } catch (err) {
                 alert('Error al eliminar: ' + err.message);
@@ -99,6 +114,10 @@ const SedeInfoManager = () => {
             const updated = [...customFields];
             updated.splice(index, 1);
             setCustomFields(updated);
+        } else {
+            if (item.sub_type === 'ubicacion') setUbicacion({ id: null, title: isGlobal ? 'Ubicación Central / Sede Principal' : 'Ubicación y Dirección', content: '', sub_type: 'ubicacion' });
+            if (item.sub_type === 'telefono') setTelefono({ id: null, title: isGlobal ? 'Teléfono Central / Atención Corporativa' : 'Teléfono y Contacto de la Sede', content: '', sub_type: 'telefono' });
+            if (item.sub_type === 'medios_pago') setMediosPago({ id: null, title: isGlobal ? 'Políticas de Pago y Cuentas Corporativas' : 'Medios de Pago Aceptados', content: '', sub_type: 'medios_pago' });
         }
     };
 
@@ -122,7 +141,7 @@ const SedeInfoManager = () => {
                 }
             });
 
-            const res = await apiFetch('/api/ai-knowledge/sede', {
+            const res = await apiFetch(`/api/ai-knowledge/sede${isGlobal ? '?global=true' : ''}`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ items: itemsToSave })
@@ -130,14 +149,14 @@ const SedeInfoManager = () => {
 
             if (!res.ok) {
                 const data = await res.json();
-                throw new Error(data.error || 'Error guardando información de la sede');
+                throw new Error(data.error || 'Error guardando información');
             }
 
             setSavedSuccess(true);
             setTimeout(() => setSavedSuccess(false), 4000);
             await fetchSedeInfo();
         } catch (err) {
-            console.error('Error saving sede info:', err);
+            console.error('Error saving info:', err);
             setError(err.message);
         } finally {
             setSaving(false);

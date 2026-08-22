@@ -3,7 +3,7 @@ import { Plus, Trash2, Edit2, Search, ShoppingBag, DollarSign } from 'lucide-rea
 import ProductoModal from './ProductoModal';
 import apiFetch, { API_URL } from '../../utils/api';
 
-const ProductosManager = () => {
+const ProductosManager = ({ isGlobal = false }) => {
     const [items, setItems] = useState([]);
     const [loading, setLoading] = useState(false);
     const [searchQuery, setSearchQuery] = useState('');
@@ -13,7 +13,8 @@ const ProductosManager = () => {
     const fetchItems = async () => {
         setLoading(true);
         try {
-            const res = await apiFetch('/api/ai-knowledge?type=text');
+            const endpoint = `/api/ai-knowledge?type=text${isGlobal ? '&global=true' : ''}`;
+            const res = await apiFetch(endpoint);
             const data = await res.json();
             const arr = Array.isArray(data) ? data : [];
             // Excluir promociones y servicios (tienen keyword específica)
@@ -29,12 +30,12 @@ const ProductosManager = () => {
         }
     };
 
-    useEffect(() => { fetchItems(); }, []);
+    useEffect(() => { fetchItems(); }, [isGlobal]);
 
     const handleDelete = async (id) => {
         if (!window.confirm('¿Eliminar este producto?')) return;
         try {
-            await apiFetch(`/api/ai-knowledge/${id}`, { method: 'DELETE' });
+            await apiFetch(`/api/ai-knowledge/${id}${isGlobal ? '?global=true' : ''}`, { method: 'DELETE' });
             setItems(prev => prev.filter(c => c.id !== id));
         } catch (error) {
             console.error('Error deleting producto:', error);
@@ -222,6 +223,7 @@ const ProductosManager = () => {
                 isOpen={showModal}
                 onClose={() => setShowModal(false)}
                 item={selected}
+                isGlobal={isGlobal}
                 onSuccess={handleSuccess}
             />
         </div>

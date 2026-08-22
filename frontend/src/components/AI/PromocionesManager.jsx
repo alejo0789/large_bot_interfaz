@@ -3,7 +3,7 @@ import { Plus, Trash2, Edit2, Search, Megaphone, ToggleLeft, ToggleRight } from 
 import PromocionModal from './PromocionModal';
 import apiFetch, { API_URL } from '../../utils/api';
 
-const PromocionesManager = () => {
+const PromocionesManager = ({ isGlobal = false }) => {
     const [items, setItems] = useState([]);
     const [loading, setLoading] = useState(false);
     const [searchQuery, setSearchQuery] = useState('');
@@ -13,7 +13,8 @@ const PromocionesManager = () => {
     const fetchItems = async () => {
         setLoading(true);
         try {
-            const res = await apiFetch('/api/ai-knowledge');
+            const endpoint = `/api/ai-knowledge${isGlobal ? '?global=true' : ''}`;
+            const res = await apiFetch(endpoint);
             const data = await res.json();
             const arr = Array.isArray(data) ? data : [];
             // Identificar promociones por keyword 'promocion'
@@ -26,12 +27,12 @@ const PromocionesManager = () => {
         }
     };
 
-    useEffect(() => { fetchItems(); }, []);
+    useEffect(() => { fetchItems(); }, [isGlobal]);
 
     const handleDelete = async (id) => {
         if (!window.confirm('¿Eliminar esta promoción?')) return;
         try {
-            await apiFetch(`/api/ai-knowledge/${id}`, { method: 'DELETE' });
+            await apiFetch(`/api/ai-knowledge/${id}${isGlobal ? '?global=true' : ''}`, { method: 'DELETE' });
             setItems(prev => prev.filter(c => c.id !== id));
         } catch (error) {
             console.error('Error deleting promocion:', error);
@@ -47,7 +48,7 @@ const PromocionesManager = () => {
             formData.append('keywords', (item.keywords || []).join(', '));
             if (item.media_url) formData.append('media_url', item.media_url);
 
-            const res = await apiFetch(`/api/ai-knowledge/${item.id}`, { method: 'PUT', body: formData });
+            const res = await apiFetch(`/api/ai-knowledge/${item.id}${isGlobal ? '?global=true' : ''}`, { method: 'PUT', body: formData });
             if (res.ok) {
                 const updated = await res.json();
                 setItems(prev => prev.map(p => p.id === item.id ? updated : p));
@@ -236,6 +237,7 @@ const PromocionesManager = () => {
                 isOpen={showModal}
                 onClose={() => setShowModal(false)}
                 item={selected}
+                isGlobal={isGlobal}
                 onSuccess={handleSuccess}
             />
         </div>
