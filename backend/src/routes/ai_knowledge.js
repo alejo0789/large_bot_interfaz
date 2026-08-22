@@ -3,6 +3,7 @@ const router = express.Router();
 const multer = require('multer');
 const path = require('path');
 const fs = require('fs');
+const sharp = require('sharp');
 const { pool, dbManager } = require('../config/database');
 const { config } = require('../config/app');
 const { tenantContext } = require('../utils/tenantContext');
@@ -109,6 +110,39 @@ const upload = multer({
         }
     }
 });
+
+// Helper para comprimir/optimizar imágenes subidas si superan los 4MB (límite Meta 5MB)
+async function processUploadedImage(req) {
+    if (!req.file || !req.file.mimetype.startsWith('image/')) return;
+
+    try {
+        const filePath = req.file.path;
+        if (!fs.existsSync(filePath)) return;
+
+        const stats = fs.statSync(filePath);
+        const maxBytes = 4 * 1024 * 1024; // 4 MB threshold
+
+        if (stats.size > maxBytes) {
+            console.log(`🖼️ [AI Knowledge Upload] Optimizando imagen subida (${(stats.size / (1024 * 1024)).toFixed(2)}MB > 4MB)...`);
+
+            const tempPath = filePath + '_compressed.jpg';
+
+            await sharp(filePath)
+                .resize({ width: 2048, height: 2048, fit: 'inside', withoutEnlargement: true })
+                .jpeg({ quality: 82 })
+                .toFile(tempPath);
+
+            fs.unlinkSync(filePath);
+            fs.renameSync(tempPath, filePath);
+
+            const newStats = fs.statSync(filePath);
+            console.log(`✅ [AI Knowledge Upload] Imagen reducida exitosamente a ${(newStats.size / (1024 * 1024)).toFixed(2)}MB`);
+            req.file.size = newStats.size;
+        }
+    } catch (err) {
+        console.error('❌ [AI Knowledge Upload] Error comprimiendo imagen:', err.message);
+    }
+}
 
 const fetch = (...args) => import('node-fetch').then(({ default: fetch }) => fetch(...args));
 
@@ -237,6 +271,8 @@ router.post('/upload', upload.single('file'), async (req, res, next) => {
             return res.status(400).json({ error: 'No se ha subido ningún archivo' });
         }
 
+        await processUploadedImage(req);
+
         const { description, keywords, title, price, active } = req.body;
         const { activePool, tableName } = getKnowledgeContext(req);
 
@@ -295,6 +331,7 @@ router.post('/text', upload.single('file'), async (req, res, next) => {
 
         let finalMediaUrl = null;
         if (req.file) {
+            await processUploadedImage(req);
             const { slug } = getKnowledgeDir(req);
             finalMediaUrl = slug
                 ? `/uploads/${slug}/ai_knowledge/${req.file.filename}`
@@ -363,6 +400,7 @@ router.put('/:id', upload.single('file'), async (req, res, next) => {
         let finalMediaUrl = oldResource.media_url;
 
         if (req.file) {
+            await processUploadedImage(req);
             const { slug } = getKnowledgeDir(req);
             finalMediaUrl = slug
                 ? `/uploads/${slug}/ai_knowledge/${req.file.filename}`
