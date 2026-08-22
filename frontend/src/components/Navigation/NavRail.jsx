@@ -1,8 +1,14 @@
 import React from 'react';
-import { MessageSquare, Brain, Settings, X, LogOut, Send, LayoutDashboard, Menu, ShieldCheck, FileText, Megaphone, CircleDollarSign, BarChart3 } from 'lucide-react';
+import { MessageSquare, Brain, Settings, X, LogOut, Send, LayoutDashboard, Menu, ShieldCheck, FileText, Megaphone, CircleDollarSign, BarChart3, LayoutGrid } from 'lucide-react';
 
 const NavRail = ({ activeTab, onTabChange, isMobile, isOpen, onClose, onOpen, onLogout, onBulkMessage, isCollapsed, onToggleCollapse, user, isOfficialTenant }) => {
     const isAdmin = user?.role === 'SUPER_ADMIN' || user?.role === 'SEDE_ADMIN';
+    const isSuperAdmin = user?.role === 'SUPER_ADMIN';
+
+    const handleGoToTenants = () => {
+        localStorage.removeItem('current_tenant');
+        window.location.reload();
+    };
 
     // Mobile Drawer Style
     if (isMobile) {
@@ -151,6 +157,16 @@ const NavRail = ({ activeTab, onTabChange, isMobile, isOpen, onClose, onOpen, on
                                 <div style={{ marginTop: '24px', padding: '0 12px 12px 12px', fontSize: '0.75rem', fontWeight: 700, color: 'var(--color-gray-400)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
                                     Administración
                                 </div>
+                                {isSuperAdmin && (
+                                    <NavButton
+                                        icon={<LayoutGrid />}
+                                        label="Panel de Sedes"
+                                        active={false}
+                                        onClick={() => { handleGoToTenants(); onClose(); }}
+                                        fullWidth
+                                        adminStyle
+                                    />
+                                )}
                                 <NavButton
                                     icon={<ShieldCheck />}
                                     label="Usuarios"
@@ -277,6 +293,15 @@ const NavRail = ({ activeTab, onTabChange, isMobile, isOpen, onClose, onOpen, on
 
                 {isAdmin && (
                     <>
+                        {isSuperAdmin && (
+                            <NavButton
+                                icon={<LayoutGrid />}
+                                label="Sedes"
+                                active={false}
+                                onClick={handleGoToTenants}
+                                adminStyle
+                            />
+                        )}
                         <NavButton
                             icon={<ShieldCheck />}
                             label="Admin"
