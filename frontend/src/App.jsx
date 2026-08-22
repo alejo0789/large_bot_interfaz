@@ -1442,6 +1442,7 @@ const AuthenticatedApp = () => {
 
                             <div {...bindSwipe()} style={{ flex: 1, display: 'flex', flexDirection: 'column', minHeight: 0, touchAction: 'none' }}>
                                 <MessageList
+                                    conversationId={selectedConversation?.contact?.phone || selectedConversation?.id}
                                     messages={currentMessages}
                                     isLoading={isLoadingMessages}
                                     onForward={handleForwardMessage}

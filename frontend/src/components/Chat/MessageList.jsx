@@ -7,6 +7,7 @@ import { groupMessagesByDate } from '../../utils/dateUtils';
  * Message list component with date grouping + scroll-to-top pagination
  */
 const MessageList = ({
+    conversationId,
     messages,
     isLoading,
     onForward,
@@ -31,6 +32,7 @@ const MessageList = ({
     const prevMessageCountRef = useRef(0);
     const prevScrollHeightRef = useRef(0);
     const isInitialLoadRef = useRef(true);
+    const activeConvIdRef = useRef(conversationId);
     const scrollThrottleRef = useRef(null);
 
     // Group messages by date
@@ -55,6 +57,16 @@ const MessageList = ({
     const [previewQuote, setPreviewQuote] = useState(null);
     const isAddingOlderRef = useRef(false);
 
+    // Helper to scroll to bottom reliably
+    const scrollToBottom = useCallback((behavior = 'auto') => {
+        const list = listRef.current;
+        if (!list) return;
+        list.scrollTop = list.scrollHeight;
+        if (messagesEndRef.current) {
+            messagesEndRef.current.scrollIntoView({ behavior, block: 'end' });
+        }
+    }, []);
+
     // Detect when messages are prepended (length increase)
     useEffect(() => {
         if (isLoadingOlder) {
@@ -62,20 +74,50 @@ const MessageList = ({
         }
     }, [isLoadingOlder]);
 
+    // Reset initial load state when conversation ID changes
+    useEffect(() => {
+        if (conversationId !== activeConvIdRef.current) {
+            activeConvIdRef.current = conversationId;
+            isInitialLoadRef.current = true;
+            prevMessageCountRef.current = 0;
+            prevScrollHeightRef.current = 0;
+        }
+    }, [conversationId]);
+
+    // Reset initial load status when the message list becomes empty
+    useEffect(() => {
+        if (!messages || messages.length === 0) {
+            isInitialLoadRef.current = true;
+            prevMessageCountRef.current = 0;
+            prevScrollHeightRef.current = 0;
+        }
+    }, [messages]);
+
     useLayoutEffect(() => {
         const list = listRef.current;
-        if (!list) return;
+        if (!list || !messages || messages.length === 0 || isLoading) return;
 
-        // Initial load: scroll to bottom
-        if (isInitialLoadRef.current && messages && messages.length > 0) {
-            list.scrollTop = list.scrollHeight;
+        // Initial load for conversation: scroll to bottom
+        if (isInitialLoadRef.current) {
             isInitialLoadRef.current = false;
             prevScrollHeightRef.current = list.scrollHeight;
             prevMessageCountRef.current = messages.length;
-            return;
+
+            scrollToBottom('auto');
+
+            // Re-scroll after layout paint and image render cycles
+            const t1 = setTimeout(() => scrollToBottom('auto'), 50);
+            const t2 = setTimeout(() => scrollToBottom('auto'), 150);
+            const t3 = setTimeout(() => scrollToBottom('auto'), 350);
+
+            return () => {
+                clearTimeout(t1);
+                clearTimeout(t2);
+                clearTimeout(t3);
+            };
         }
 
-        const currentCount = messages ? messages.length : 0;
+        const currentCount = messages.length;
         const newScrollHeight = list.scrollHeight;
         const countDiff = currentCount - prevMessageCountRef.current;
         const heightDiff = newScrollHeight - prevScrollHeightRef.current;
@@ -87,27 +129,18 @@ const MessageList = ({
         } 
         // Case 2: New messages arrived (appended)
         else if (countDiff > 0) {
-            const isNearBottom = list.scrollHeight - list.scrollTop - list.clientHeight < 300;
+            const isNearBottom = list.scrollHeight - list.scrollTop - list.clientHeight < 350;
             const lastMsg = messages[messages.length - 1];
-            const wasSentByMe = lastMsg?.sender === 'agent' || lastMsg?.agentId;
+            const wasSentByMe = lastMsg?.sender === 'agent' || lastMsg?.agentId || lastMsg?.sender_type === 'bot';
 
             if (isNearBottom || wasSentByMe) {
-                list.scrollTo({ top: list.scrollHeight, behavior: 'smooth' });
+                scrollToBottom('smooth');
             }
         }
 
         prevScrollHeightRef.current = newScrollHeight;
         prevMessageCountRef.current = currentCount;
-    }, [messages, isLoadingOlder]);
-
-    // Reset initial load status when the message list becomes empty (new conversation)
-    useEffect(() => {
-        if (!messages || messages.length === 0) {
-            isInitialLoadRef.current = true;
-            prevMessageCountRef.current = 0;
-            prevScrollHeightRef.current = 0;
-        }
-    }, [messages]);
+    }, [messages, isLoading, isLoadingOlder, scrollToBottom]);
 
     const handleScroll = useCallback(() => {
         // Throttle scroll handler to max once per 150ms to prevent perf issues
