@@ -2,7 +2,7 @@ import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import apiFetch from './utils/api';
 import { useDrag } from '@use-gesture/react';
 import { io } from 'socket.io-client';
-import { Tag, MessageSquare, Settings, RotateCw, Menu, EyeOff, CheckSquare, Forward } from 'lucide-react';
+import { Tag, MessageSquare, Settings, RotateCw, Menu, EyeOff, CheckSquare, Forward, LayoutGrid, ArrowLeft } from 'lucide-react';
 
 // Auth
 import { AuthProvider, useAuth } from './hooks/useAuth';
@@ -1153,12 +1153,38 @@ const AuthenticatedApp = () => {
                                     backgroundColor: 'rgba(7,94,84,0.1)',
                                     borderRadius: '8px',
                                     padding: '6px',
-                                    marginRight: '8px'
+                                    marginRight: '4px'
                                 }}
-                                title={isMobile ? "MenÃº" : (isRailCollapsed ? "Mostrar NavegaciÃ³n" : "Ocultar NavegaciÃ³n")}
+                                title={isMobile ? "Menú" : (isRailCollapsed ? "Mostrar Navegación" : "Ocultar Navegación")}
                             >
                                 <Menu className="w-5 h-5" />
                             </button>
+
+                            {user?.role === 'SUPER_ADMIN' && (
+                                <button
+                                    className="btn btn-icon"
+                                    onClick={() => {
+                                        localStorage.removeItem('current_tenant');
+                                        window.location.reload();
+                                    }}
+                                    style={{
+                                        color: '#11ab9c',
+                                        backgroundColor: '#e6fffa',
+                                        borderRadius: '8px',
+                                        padding: '6px',
+                                        marginRight: '6px',
+                                        border: '1px solid #b2f5ea',
+                                        cursor: 'pointer',
+                                        display: 'flex',
+                                        alignItems: 'center',
+                                        justifyContent: 'center'
+                                    }}
+                                    title="Volver al Panel de Sedes"
+                                >
+                                    <ArrowLeft className="w-5 h-5" />
+                                </button>
+                            )}
+
                             <span style={{ fontWeight: 700, fontSize: 'var(--font-size-lg)', color: 'var(--color-gray-800)' }}>Chat</span>
                         </div>
 
