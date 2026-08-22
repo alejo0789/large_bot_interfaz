@@ -203,10 +203,12 @@ const SedeInfoManager = ({ isGlobal = false }) => {
                 </div>
                 <div style={{ flex: 1 }}>
                     <h3 style={{ margin: 0, fontSize: '1.1rem', fontWeight: 700, color: '#4c1d95' }}>
-                        Información Institucional de la Sede
+                        {isGlobal ? 'Información General Corporativa' : 'Información Institucional de la Sede'}
                     </h3>
                     <p style={{ margin: '4px 0 0', fontSize: '0.85rem', color: '#5b21b6' }}>
-                        Toda la información registrada aquí ingresará automáticamente a la Base de Conocimiento de la IA con vectores de búsqueda para que el bot responda a tus clientes.
+                        {isGlobal 
+                            ? 'Toda la información registrada aquí se compartirá entre todas las sedes en la Base de Conocimiento Global de la IA.' 
+                            : 'Toda la información registrada aquí ingresará automáticamente a la Base de Conocimiento de la IA con vectores de búsqueda para que el bot responda a tus clientes.'}
                     </p>
                 </div>
             </div>
@@ -226,7 +228,7 @@ const SedeInfoManager = ({ isGlobal = false }) => {
                     fontSize: '0.9rem'
                 }}>
                     <CheckCircle className="w-5 h-5" />
-                    ¡Información de la sede guardada y sincronizada correctamente con la IA!
+                    {isGlobal ? '¡Información general guardada correctamente en la IA Global!' : '¡Información de la sede guardada y sincronizada correctamente con la IA!'}
                 </div>
             )}
 
@@ -243,112 +245,117 @@ const SedeInfoManager = ({ isGlobal = false }) => {
                 </div>
             )}
 
-            {/* 1. Ubicación */}
-            <div style={{
-                background: 'white',
-                borderRadius: '16px',
-                border: '1px solid #e5e7eb',
-                padding: '20px 24px',
-                boxShadow: '0 1px 3px rgba(0,0,0,0.05)'
-            }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '12px' }}>
-                    <MapPin className="w-5 h-5 text-purple-600" style={{ color: '#8b5cf6' }} />
-                    <h4 style={{ margin: 0, fontSize: '1rem', fontWeight: 700, color: '#111827' }}>
-                        1. Ubicación y Dirección
-                    </h4>
-                </div>
-                <p style={{ fontSize: '0.82rem', color: '#6b7280', margin: '0 0 12px' }}>
-                    Indica la dirección exacta, ciudad, barrio y puntos de referencia útiles para llegar.
-                </p>
-                <textarea
-                    rows={3}
-                    value={ubicacion.content}
-                    onChange={(e) => setUbicacion({ ...ubicacion, content: e.target.value })}
-                    placeholder="Ej. Calle 15 # 4-20, Barrio San Fernando, Cali. Frente al parque principal. Atención Lunes a Sábado de 8am a 6pm."
-                    style={{
-                        width: '100%',
-                        padding: '12px 14px',
-                        borderRadius: '10px',
-                        border: '1px solid #d1d5db',
-                        fontSize: '0.9rem',
-                        outline: 'none',
-                        boxSizing: 'border-box',
-                        resize: 'vertical'
-                    }}
-                />
-            </div>
+            {/* Standard fields only for specific sedes */}
+            {!isGlobal && (
+                <>
+                    {/* 1. Ubicación */}
+                    <div style={{
+                        background: 'white',
+                        borderRadius: '16px',
+                        border: '1px solid #e5e7eb',
+                        padding: '20px 24px',
+                        boxShadow: '0 1px 3px rgba(0,0,0,0.05)'
+                    }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '12px' }}>
+                            <MapPin className="w-5 h-5 text-purple-600" style={{ color: '#8b5cf6' }} />
+                            <h4 style={{ margin: 0, fontSize: '1rem', fontWeight: 700, color: '#111827' }}>
+                                1. Ubicación y Dirección
+                            </h4>
+                        </div>
+                        <p style={{ fontSize: '0.82rem', color: '#6b7280', margin: '0 0 12px' }}>
+                            Indica la dirección exacta, ciudad, barrio y puntos de referencia útiles para llegar.
+                        </p>
+                        <textarea
+                            rows={3}
+                            value={ubicacion.content}
+                            onChange={(e) => setUbicacion({ ...ubicacion, content: e.target.value })}
+                            placeholder="Ej. Calle 15 # 4-20, Barrio San Fernando, Cali. Frente al parque principal. Atención Lunes a Sábado de 8am a 6pm."
+                            style={{
+                                width: '100%',
+                                padding: '12px 14px',
+                                borderRadius: '10px',
+                                border: '1px solid #d1d5db',
+                                fontSize: '0.9rem',
+                                outline: 'none',
+                                boxSizing: 'border-box',
+                                resize: 'vertical'
+                            }}
+                        />
+                    </div>
 
-            {/* 2. Teléfono */}
-            <div style={{
-                background: 'white',
-                borderRadius: '16px',
-                border: '1px solid #e5e7eb',
-                padding: '20px 24px',
-                boxShadow: '0 1px 3px rgba(0,0,0,0.05)'
-            }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '12px' }}>
-                    <Phone className="w-5 h-5 text-purple-600" style={{ color: '#8b5cf6' }} />
-                    <h4 style={{ margin: 0, fontSize: '1rem', fontWeight: 700, color: '#111827' }}>
-                        2. Teléfono y Contactos de la Sede
-                    </h4>
-                </div>
-                <p style={{ fontSize: '0.82rem', color: '#6b7280', margin: '0 0 12px' }}>
-                    Números fijos, líneas de WhatsApp, extensiones o correos de soporte de esta sede.
-                </p>
-                <textarea
-                    rows={2}
-                    value={telefono.content}
-                    onChange={(e) => setTelefono({ ...telefono, content: e.target.value })}
-                    placeholder="Ej. WhatsApp de atención: +57 315 340 4327. Teléfono fijo: (602) 485 0000 Ext 102."
-                    style={{
-                        width: '100%',
-                        padding: '12px 14px',
-                        borderRadius: '10px',
-                        border: '1px solid #d1d5db',
-                        fontSize: '0.9rem',
-                        outline: 'none',
-                        boxSizing: 'border-box',
-                        resize: 'vertical'
-                    }}
-                />
-            </div>
+                    {/* 2. Teléfono */}
+                    <div style={{
+                        background: 'white',
+                        borderRadius: '16px',
+                        border: '1px solid #e5e7eb',
+                        padding: '20px 24px',
+                        boxShadow: '0 1px 3px rgba(0,0,0,0.05)'
+                    }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '12px' }}>
+                            <Phone className="w-5 h-5 text-purple-600" style={{ color: '#8b5cf6' }} />
+                            <h4 style={{ margin: 0, fontSize: '1rem', fontWeight: 700, color: '#111827' }}>
+                                2. Teléfono y Contactos de la Sede
+                            </h4>
+                        </div>
+                        <p style={{ fontSize: '0.82rem', color: '#6b7280', margin: '0 0 12px' }}>
+                            Números fijos, líneas de WhatsApp, extensiones o correos de soporte de esta sede.
+                        </p>
+                        <textarea
+                            rows={2}
+                            value={telefono.content}
+                            onChange={(e) => setTelefono({ ...telefono, content: e.target.value })}
+                            placeholder="Ej. WhatsApp de atención: +57 315 340 4327. Teléfono fijo: (602) 485 0000 Ext 102."
+                            style={{
+                                width: '100%',
+                                padding: '12px 14px',
+                                borderRadius: '10px',
+                                border: '1px solid #d1d5db',
+                                fontSize: '0.9rem',
+                                outline: 'none',
+                                boxSizing: 'border-box',
+                                resize: 'vertical'
+                            }}
+                        />
+                    </div>
 
-            {/* 3. Medios de Pago */}
-            <div style={{
-                background: 'white',
-                borderRadius: '16px',
-                border: '1px solid #e5e7eb',
-                padding: '20px 24px',
-                boxShadow: '0 1px 3px rgba(0,0,0,0.05)'
-            }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '12px' }}>
-                    <CreditCard className="w-5 h-5 text-purple-600" style={{ color: '#8b5cf6' }} />
-                    <h4 style={{ margin: 0, fontSize: '1rem', fontWeight: 700, color: '#111827' }}>
-                        3. Medios de Pago Aceptados
-                    </h4>
-                </div>
-                <p style={{ fontSize: '0.82rem', color: '#6b7280', margin: '0 0 12px' }}>
-                    Indica si aceptan Nequi, Daviplata, Transferencia Bancolombia (con número de cuenta o QR), Efectivo o Tarjetas de Crédito/Débito.
-                </p>
-                <textarea
-                    rows={3}
-                    value={mediosPago.content}
-                    onChange={(e) => setMediosPago({ ...mediosPago, content: e.target.value })}
-                    placeholder="Ej. Recibimos Nequi al 3153404327, Daviplata, Transferencia Bancolombia Ahorros N° 123-456789-0, Tarjetas Visa/Mastercard y Efectivo en punto de venta."
-                    style={{
-                        width: '100%',
-                        padding: '12px 14px',
-                        borderRadius: '10px',
-                        border: '1px solid #d1d5db',
-                        fontSize: '0.9rem',
-                        outline: 'none',
-                        boxSizing: 'border-box',
-                        resize: 'vertical'
-                    }}
-                />
-            </div>
+                    {/* 3. Medios de Pago */}
+                    <div style={{
+                        background: 'white',
+                        borderRadius: '16px',
+                        border: '1px solid #e5e7eb',
+                        padding: '20px 24px',
+                        boxShadow: '0 1px 3px rgba(0,0,0,0.05)'
+                    }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '12px' }}>
+                            <CreditCard className="w-5 h-5 text-purple-600" style={{ color: '#8b5cf6' }} />
+                            <h4 style={{ margin: 0, fontSize: '1rem', fontWeight: 700, color: '#111827' }}>
+                                3. Medios de Pago Aceptados
+                            </h4>
+                        </div>
+                        <p style={{ fontSize: '0.82rem', color: '#6b7280', margin: '0 0 12px' }}>
+                            Indica si aceptan Nequi, Daviplata, Transferencia Bancolombia (con número de cuenta o QR), Efectivo o Tarjetas de Crédito/Débito.
+                        </p>
+                        <textarea
+                            rows={3}
+                            value={mediosPago.content}
+                            onChange={(e) => setMediosPago({ ...mediosPago, content: e.target.value })}
+                            placeholder="Ej. Recibimos Nequi al 3153404327, Daviplata, Transferencia Bancolombia Ahorros N° 123-456789-0, Tarjetas Visa/Mastercard y Efectivo en punto de venta."
+                            style={{
+                                width: '100%',
+                                padding: '12px 14px',
+                                borderRadius: '10px',
+                                border: '1px solid #d1d5db',
+                                fontSize: '0.9rem',
+                                outline: 'none',
+                                boxSizing: 'border-box',
+                                resize: 'vertical'
+                            }}
+                        />
+                    </div>
+                </>
+            )}
 
-            {/* 4. Campos Personalizados */}
+            {/* 4. Campos Personalizados / Información General */}
             <div style={{
                 background: 'white',
                 borderRadius: '16px',
@@ -360,7 +367,7 @@ const SedeInfoManager = ({ isGlobal = false }) => {
                     <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
                         <Sparkles className="w-5 h-5 text-purple-600" style={{ color: '#8b5cf6' }} />
                         <h4 style={{ margin: 0, fontSize: '1rem', fontWeight: 700, color: '#111827' }}>
-                            4. Campos Personalizados / Información Adicional
+                            {isGlobal ? 'Información General Global' : '4. Campos Personalizados / Información Adicional'}
                         </h4>
                     </div>
                     <button
@@ -495,7 +502,7 @@ const SedeInfoManager = ({ isGlobal = false }) => {
                     ) : (
                         <>
                             <Save className="w-5 h-5" />
-                            Guardar Información de la Sede
+                            {isGlobal ? 'Guardar Información General' : 'Guardar Información de la Sede'}
                         </>
                     )}
                 </button>
