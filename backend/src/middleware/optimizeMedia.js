@@ -96,7 +96,53 @@ const optimizeMedia = async (req, res, next) => {
                 })
                 .save(optimizedPath);
 
-            return; // Esperamos asícronamente a ffmpeg
+            return; // Esperamos asíncronamente a ffmpeg
+        }
+        // Transcodificación y optimización de videos para WhatsApp (H.264 + AAC en contenedor MP4)
+        else if (ffmpeg && mimetype.startsWith('video/')) {
+            const ext = path.extname(filename);
+            const optimizedPath = filePath.replace(ext, `_opt.mp4`);
+
+            console.log(`🎬 Transcodificando/comprimiendo video para Meta API (H.264/AAC): ${filename}...`);
+            const oldSize = req.file.size;
+
+            ffmpeg(filePath)
+                .videoCodec('libx264')
+                .audioCodec('aac')
+                .outputOptions([
+                    '-movflags +faststart',
+                    '-pix_fmt yuv420p',
+                    '-preset ultrafast',
+                    '-crf 28'
+                ])
+                .on('end', () => {
+                    try {
+                        if (fs.existsSync(filePath) && filePath !== optimizedPath) {
+                            fs.unlinkSync(filePath);
+                        }
+                        
+                        req.file.path = optimizedPath;
+                        req.file.filename = path.basename(optimizedPath);
+                        req.file.mimetype = 'video/mp4';
+                        req.file.originalname = req.file.originalname.replace(ext, '.mp4');
+
+                        const stats = fs.statSync(optimizedPath);
+                        req.file.size = stats.size;
+                        const savedPercentage = oldSize > 0 ? ((oldSize - stats.size) / oldSize * 100).toFixed(1) : '0';
+                        console.log(`✅ Video transcodificado exitosamente: ${req.file.filename} (De ${(oldSize / (1024*1024)).toFixed(1)}MB a ${(stats.size / (1024*1024)).toFixed(1)}MB - Reducción: ${savedPercentage}%)`);
+                        return next();
+                    } catch (err) {
+                        console.error('❌ Error al finalizar procesamiento de video:', err);
+                        return next();
+                    }
+                })
+                .on('error', (err) => {
+                    console.error('❌ Error al transcodificar video (pasando archivo original):', err.message);
+                    return next();
+                })
+                .save(optimizedPath);
+
+            return;
         }
     } catch (error) {
         console.error('❌ Error general al optimizar archivo:', {
