@@ -444,7 +444,7 @@ export const useConversations = (socket) => {
                 [phone]: prev[phone].map(msg =>
                     (msg.id === tempId || String(msg.id) === String(tempId)) ? {
                         ...msg,
-                        status: 'delivered',
+                        status: data.newMessage?.status || 'sent',
                         id: data.newMessage?.whatsapp_id || data.newMessage?.id || msg.id,
                         whatsapp_id: data.newMessage?.whatsapp_id || msg.whatsapp_id,
                         _tempId: String(tempId), // keep original tempId for socket dedup
@@ -540,7 +540,7 @@ export const useConversations = (socket) => {
                                 id: realId,
                                 whatsapp_id: realId,
                                 media_url: realMediaUrl,
-                                status: 'delivered',
+                                status: realMessage?.status || 'sent',
                                 _isOptimistic: false,
                                 replyTo: realMessage?.replyTo || m.replyTo
                             }
@@ -934,56 +934,65 @@ export const useConversations = (socket) => {
 
         const handleMessageUpdated = (data) => {
             console.log('🔄 Message updated:', data);
-            const { id, phone, edited } = data;
+            const { id, whatsapp_id, phone, status, text, media_url, media_type, edited } = data;
 
-            // formatting for consistency
             const updates = {
-                status: data.status,
-                text: data.text,
-                media_url: data.media_url,
-                media_type: data.media_type,
-                edited: data.edited || false
+                ...(status && { status }),
+                ...(text !== undefined && { text }),
+                ...(media_url !== undefined && { media_url }),
+                ...(media_type !== undefined && { media_type }),
+                ...(edited !== undefined && { edited })
             };
 
+            const targetId = whatsapp_id || id;
+            const targetPhone = phone ? String(phone).replace(/\D/g, '') : null;
+
             setMessagesByConversation(prev => {
-                const current = prev[phone] || [];
-                return {
-                    ...prev,
-                    [phone]: current.map(msg =>
-                        (msg.id === id || (data.whatsapp_id && msg.id === data.whatsapp_id))
-                            ? { ...msg, ...updates }
-                            : msg
-                    )
-                };
+                const keysToUpdate = targetPhone ? [targetPhone] : Object.keys(prev);
+                const nextState = { ...prev };
+
+                keysToUpdate.forEach(k => {
+                    if (nextState[k]) {
+                        nextState[k] = nextState[k].map(msg =>
+                            (msg.id === targetId || msg.whatsapp_id === targetId || String(msg.id) === String(targetId))
+                                ? { ...msg, ...updates }
+                                : msg
+                        );
+                    }
+                });
+
+                return nextState;
             });
 
-            // Also update conversation preview if it's the last message
-            setConversations(prev => {
-                const currentConversations = [...prev];
-                const index = currentConversations.findIndex(c =>
-                    c && c.contact && String(c.contact.phone).replace(/\D/g, '') === String(phone).replace(/\D/g, '')
-                );
+            // Also update conversation preview if text changed
+            if (text !== undefined && targetPhone) {
+                setConversations(prev => {
+                    const currentConversations = [...prev];
+                    const index = currentConversations.findIndex(c =>
+                        c && c.contact && String(c.contact.phone).replace(/\D/g, '') === targetPhone
+                    );
 
-                if (index !== -1) {
-                    const targetConv = currentConversations[index];
-                    // If the updated message is the last one (or just update always to be safe)
-                    // We typically want to show the new text in the sidebar
-                    const updatedConv = {
-                        ...targetConv,
-                        lastMessage: updates.text
-                    };
-                    currentConversations[index] = updatedConv;
-                    return currentConversations;
-                }
-                return prev;
-            });
+                    if (index !== -1) {
+                        const targetConv = currentConversations[index];
+                        currentConversations[index] = { ...targetConv, lastMessage: text };
+                        return currentConversations;
+                    }
+                    return prev;
+                });
+            }
+        };
+
+        const handleStatusUpdate = (data) => {
+            console.log('📊 Message status update:', data);
+            handleMessageUpdated(data);
         };
 
         socket.on('new-message', (data) => handleSocketMessage(data, false));
         socket.on('agent-message', (data) => handleSocketMessage(data, true));
         socket.on('conversation-updated', handleConversationUpdated);
         socket.on('conversation-state-changed', handleStateChange);
-        socket.on('message-updated', handleMessageUpdated); // New listener
+        socket.on('message-updated', handleMessageUpdated);
+        socket.on('message-status-update', handleStatusUpdate);
 
         return () => {
             socket.off('new-message');
@@ -991,6 +1000,7 @@ export const useConversations = (socket) => {
             socket.off('conversation-updated');
             socket.off('conversation-state-changed');
             socket.off('message-updated');
+            socket.off('message-status-update');
         };
     }, [socket, selectedId, selectedConversation, globalDefaultAi]);
 

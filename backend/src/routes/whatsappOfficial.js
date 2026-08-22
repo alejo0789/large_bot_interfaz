@@ -340,12 +340,29 @@ router.post('/', async (req, res) => {
             if (io) {
                 const context = tenantContext.getStore();
                 const tenantSlug = context?.tenant?.slug;
+                const recipientPhone = statusObj.recipient_id ? normalizePhone(statusObj.recipient_id) : null;
+                const purePhone = statusObj.recipient_id ? getPureDigits(statusObj.recipient_id) : null;
+
+                const eventPayload = {
+                    id: statusObj.id,
+                    whatsapp_id: statusObj.id,
+                    status: statusObj.status,
+                    phone: recipientPhone
+                };
+
                 if (tenantSlug) {
-                    io.to(`tenant:${tenantSlug}:conversations:list`).emit('message-status-update', {
-                        whatsapp_id: statusObj.id,
-                        status: statusObj.status,
-                        phone: statusObj.recipient_id
-                    });
+                    io.to(`tenant:${tenantSlug}`)
+                      .to(`tenant:${tenantSlug}:conversations:list`)
+                      .to(`tenant:${tenantSlug}:conversation:${purePhone}`)
+                      .emit('message-status-update', eventPayload);
+
+                    io.to(`tenant:${tenantSlug}`)
+                      .to(`tenant:${tenantSlug}:conversations:list`)
+                      .to(`tenant:${tenantSlug}:conversation:${purePhone}`)
+                      .emit('message-updated', eventPayload);
+                } else {
+                    io.emit('message-status-update', eventPayload);
+                    io.emit('message-updated', eventPayload);
                 }
             }
         }

@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { createPortal } from 'react-dom';
-import { CheckCheck, Clock, Download, FileText, Image as ImageIcon, Mic, Forward, Reply, Trash2, Smile, MoreHorizontal, ChevronDown, Copy, Edit2, Calendar } from 'lucide-react';
+import { CheckCheck, Check, Clock, Download, FileText, Image as ImageIcon, Mic, Forward, Reply, Trash2, Smile, MoreHorizontal, ChevronDown, Copy, Edit2, Calendar } from 'lucide-react';
 import EmojiPicker from 'emoji-picker-react';
 
 /**
@@ -61,14 +61,17 @@ const MessageBubble = React.memo(({ message, onForward, onReact, onDelete, onRep
         switch (status) {
             case 'sending':
                 return <Clock className="w-3 h-3" style={{ opacity: 0.7 }} />;
+            case 'sent':
+                return <Check className="w-3 h-3" style={{ opacity: 0.7 }} />;
             case 'delivered':
                 return <CheckCheck className="w-3 h-3" style={{ opacity: 0.7 }} />;
             case 'read':
                 return <CheckCheck className="w-3 h-3" style={{ color: '#34B7F1' }} />;
             case 'failed':
-                return <span style={{ color: '#EF4444', fontSize: '12px' }}>❌</span>;
+            case 'error':
+                return <span style={{ color: '#EF4444', fontSize: '12px', fontWeight: 'bold' }}>❌</span>;
             default:
-                return <CheckCheck className="w-3 h-3" style={{ opacity: 0.7 }} />;
+                return <Check className="w-3 h-3" style={{ opacity: 0.7 }} />;
         }
     };
 
