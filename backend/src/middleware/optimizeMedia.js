@@ -112,6 +112,7 @@ const optimizeMedia = async (req, res, next) => {
                 .outputOptions([
                     '-movflags +faststart',
                     '-pix_fmt yuv420p',
+                    '-vf scale=w=\'min(1280,iw)\':h=\'min(720,ih)\':force_original_aspect_ratio=decrease,scale=trunc(iw/2)*2:trunc(ih/2)*2',
                     '-preset ultrafast',
                     '-crf 28'
                 ])

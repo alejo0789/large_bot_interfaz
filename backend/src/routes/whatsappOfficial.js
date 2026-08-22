@@ -325,6 +325,9 @@ router.post('/', async (req, res) => {
         } else if (value.statuses?.[0]) {
             const statusObj = value.statuses[0];
             console.log(`📊 [OfficialWebk] Status: ${statusObj.id} → ${statusObj.status} for ${statusObj.recipient_id}`);
+            if (statusObj.status === 'failed') {
+                console.error(`❌ [OfficialWebk] Message delivery failed. Error details:`, JSON.stringify(statusObj.errors || statusObj));
+            }
 
             await messageService.updateStatus(statusObj.id, statusObj.status);
 
