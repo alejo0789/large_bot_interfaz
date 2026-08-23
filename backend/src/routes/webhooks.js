@@ -243,10 +243,18 @@ router.post('/receive-message', asyncHandler(async (req, res) => {
                 ON CONFLICT DO NOTHING
             `, [dbPhone, createdTag.id, 'n8n_agent']);
 
-            // 3. Evaluar si forzamos pasar a agente
+            // 3. Evaluar si forzamos pasar a agente humano
+            // NOTA: Las etiquetas como 'Soporte' o 'Agendar' etiquetan la conversación en el CRM,
+            // pero NO desactivan la IA salvo que se pida explícitamente una transferencia a humano.
             const normalizedTagName = createdTag.name.toLowerCase();
-            if (normalizedTagName === 'agendar' || normalizedTagName === 'soporte') {
-                console.log(`✅ Etiqueta '${createdTag.name}' detectada desde n8n. Forzando a estado AGENTE.`);
+            const isExplicitTransfer = 
+                req.body.transfer_agent === true ||
+                normalizedTagName === 'transferir_agente' || 
+                normalizedTagName === 'agente_humano' || 
+                normalizedTagName === 'humano';
+
+            if (isExplicitTransfer) {
+                console.log(`👤 Etiqueta/Acción de transferencia a AGENTE HUMANO detectada desde n8n. Desactivando IA.`);
                 
                 await pool.query(`
                     UPDATE conversations 
@@ -258,7 +266,7 @@ router.post('/receive-message', asyncHandler(async (req, res) => {
                 conversation.ai_enabled = false;
                 conversation.conversation_state = 'agent_active';
             } else {
-                console.log(`✅ Etiqueta "${tagName}" asignada a ${dbPhone} exitosamente.`);
+                console.log(`✅ Etiqueta "${tagName}" asignada a ${dbPhone} exitosamente (IA continúa activa).`);
             }
         } catch (tagError) {
             console.error('❌ Error procesando etiqueta desde n8n:', tagError);

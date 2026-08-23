@@ -72,7 +72,8 @@ CREATE TABLE IF NOT EXISTS messages (
     reactions JSONB DEFAULT '[]',
     reply_to_id VARCHAR(255),
     reply_to_text TEXT,
-    reply_to_sender VARCHAR(255)
+    reply_to_sender VARCHAR(255),
+    temp_id VARCHAR(255)
 );
 
 -- 6. QUICK REPLIES

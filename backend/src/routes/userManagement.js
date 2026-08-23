@@ -313,6 +313,7 @@ router.post('/tenants', asyncHandler(async (req, res) => {
             ALTER TABLE messages ADD COLUMN IF NOT EXISTS reply_to_id VARCHAR(255);
             ALTER TABLE messages ADD COLUMN IF NOT EXISTS reply_to_text TEXT;
             ALTER TABLE messages ADD COLUMN IF NOT EXISTS reply_to_sender VARCHAR(255);
+            ALTER TABLE messages ADD COLUMN IF NOT EXISTS temp_id VARCHAR(255);
 
             -- conversation_tags: ensure all columns
             ALTER TABLE conversation_tags ADD COLUMN IF NOT EXISTS assigned_at TIMESTAMP WITH TIME ZONE DEFAULT NOW();
