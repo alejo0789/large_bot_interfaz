@@ -126,41 +126,35 @@ const RecipientRow = ({ r, onOpenChat }) => {
                 </div>
             </div>
 
-            {/* Message Time Info - Two Columns */}
-            <div style={{ display: 'flex', gap: 16, flexShrink: 0 }}>
-                {/* User Message Time */}
-                <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', width: 90 }}>
-                    <div style={{ fontSize: 9, color: '#6b7280', fontWeight: 600, textTransform: 'uppercase' }}>
-                        Msg Usuario
+            {/* Message Time Info & Badges - Fixed Widths for Alignment */}
+            <div style={{ display: 'flex', alignItems: 'center', width: 260, justifyContent: 'flex-end', flexShrink: 0 }}>
+                {/* Message Time Info - Two Columns */}
+                <div style={{ display: 'flex', gap: 16, flexShrink: 0, marginRight: 12 }}>
+                    {/* User Message Time */}
+                    <div style={{ width: 80, textAlign: 'right' }}>
+                        <div style={{ fontSize: 11, color: r.last_user_msg_time ? '#4f46e5' : '#9ca3af' }}>
+                            {r.last_user_msg_time ? timeAgo(r.last_user_msg_time) : '--'}
+                        </div>
                     </div>
-                    <div style={{ fontSize: 11, color: r.last_user_msg_time ? '#4f46e5' : '#9ca3af', marginTop: 2 }}>
-                        {r.last_user_msg_time ? timeAgo(r.last_user_msg_time) : '--'}
+
+                    {/* Agent Message Time */}
+                    <div style={{ width: 80, textAlign: 'right' }}>
+                        <div style={{ fontSize: 11, color: r.last_agent_msg_time ? '#15803d' : '#9ca3af' }}>
+                            {r.last_agent_msg_time ? timeAgo(r.last_agent_msg_time) : '--'}
+                        </div>
                     </div>
                 </div>
 
-                {/* Agent Message Time */}
-                <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', width: 90 }}>
-                    <div style={{ fontSize: 9, color: '#6b7280', fontWeight: 600, textTransform: 'uppercase' }}>
-                        Msg Enviado
-                    </div>
-                    <div style={{ fontSize: 11, color: r.last_agent_msg_time ? '#15803d' : '#9ca3af', marginTop: 2 }}>
-                        {r.last_agent_msg_time ? timeAgo(r.last_agent_msg_time) : '--'}
-                    </div>
+                {/* Badges & Icons container */}
+                <div style={{ width: 80, display: 'flex', justifyContent: 'flex-end', alignItems: 'center' }}>
+                    {r.is_scheduled && (
+                        <div style={{ padding: '2px 8px', borderRadius: 999, fontSize: 10, fontWeight: 700, background: '#ede9fe', color: '#8b5cf6', border: `1px solid #ddd6fe`, flexShrink: 0, marginRight: 8 }}>
+                            📅
+                        </div>
+                    )}
+                    <ExternalLink size={14} style={{ color: '#9ca3af', flexShrink: 0 }} />
                 </div>
             </div>
-
-            {/* Scheduled badge */}
-            {r.is_scheduled && (
-                <div style={{
-                    padding: '2px 8px', borderRadius: 999, fontSize: 11, fontWeight: 700,
-                    background: '#ede9fe', color: '#8b5cf6', border: `1px solid #ddd6fe`,
-                    flexShrink: 0
-                }}>
-                    📅 Agendado
-                </div>
-            )}
-
-            <ExternalLink size={14} style={{ color: '#9ca3af', flexShrink: 0 }} />
         </div>
     );
 };
@@ -175,6 +169,7 @@ const BulkTracking = ({ onOpenConversation }) => {
     const [activeTab, setActiveTab] = useState('no_reply');
     const [searchQ, setSearchQ] = useState('');
     const [urgencyFilter, setUrgencyFilter] = useState(null);
+    const [sortConfig, setSortConfig] = useState({ key: null, direction: 'desc' });
 
     // Load campaigns
     const fetchCampaigns = useCallback(async () => {
@@ -241,6 +236,14 @@ const BulkTracking = ({ onOpenConversation }) => {
         if (onOpenConversation) onOpenConversation(phone);
     };
 
+    const handleSort = (key) => {
+        let direction = 'desc'; // default to desc
+        if (sortConfig.key === key && sortConfig.direction === 'desc') {
+            direction = 'asc';
+        }
+        setSortConfig({ key, direction });
+    };
+
     // Filter recipients
     const filtered = recipients.filter(r => {
         const q = searchQ.toLowerCase();
@@ -265,6 +268,18 @@ const BulkTracking = ({ onOpenConversation }) => {
             return true;
         }
         return matchesSearch;
+    });
+
+    // Sort recipients
+    const sortedFiltered = [...filtered].sort((a, b) => {
+        if (!sortConfig.key) return 0;
+        
+        const aVal = a[sortConfig.key] ? new Date(a[sortConfig.key]).getTime() : 0;
+        const bVal = b[sortConfig.key] ? new Date(b[sortConfig.key]).getTime() : 0;
+        
+        if (aVal < bVal) return sortConfig.direction === 'asc' ? -1 : 1;
+        if (aVal > bVal) return sortConfig.direction === 'asc' ? 1 : -1;
+        return 0;
     });
 
     // Tab counts
@@ -421,6 +436,32 @@ const BulkTracking = ({ onOpenConversation }) => {
                 </div>
             </div>
 
+            {/* Table Header */}
+            {sortedFiltered.length > 0 && !loadingDetail && (
+                <div style={{ display: 'flex', padding: '8px 16px', background: '#f9fafb', borderBottom: '1px solid #e5e7eb', fontSize: 11, fontWeight: 700, color: '#6b7280', textTransform: 'uppercase', alignItems: 'center' }}>
+                    <div style={{ flex: 1, paddingLeft: 48 }}>Destinatario</div>
+                    <div style={{ display: 'flex', width: 260, justifyContent: 'flex-end', paddingRight: 0 }}>
+                        <div style={{ display: 'flex', gap: 16, marginRight: 12 }}>
+                            <div 
+                                onClick={() => handleSort('last_user_msg_time')}
+                                style={{ width: 80, textAlign: 'right', cursor: 'pointer', userSelect: 'none', color: sortConfig.key === 'last_user_msg_time' ? '#4f46e5' : '#6b7280' }}
+                                title="Ordenar por mensaje del usuario"
+                            >
+                                Msg Usuario {sortConfig.key === 'last_user_msg_time' ? (sortConfig.direction === 'desc' ? '↓' : '↑') : ''}
+                            </div>
+                            <div 
+                                onClick={() => handleSort('last_agent_msg_time')}
+                                style={{ width: 80, textAlign: 'right', cursor: 'pointer', userSelect: 'none', color: sortConfig.key === 'last_agent_msg_time' ? '#15803d' : '#6b7280' }}
+                                title="Ordenar por mensaje enviado"
+                            >
+                                Msg Enviado {sortConfig.key === 'last_agent_msg_time' ? (sortConfig.direction === 'desc' ? '↓' : '↑') : ''}
+                            </div>
+                        </div>
+                        <div style={{ width: 80 }}></div> {/* Empty space for badges/icons */}
+                    </div>
+                </div>
+            )}
+
             {/* Recipients list */}
             <div style={{ flex: 1, overflowY: 'auto', background: 'white' }}>
                 {loadingDetail ? (
@@ -428,14 +469,14 @@ const BulkTracking = ({ onOpenConversation }) => {
                         <RefreshCw size={20} style={{ animation: 'spin 1s linear infinite', margin: '0 auto 8px', display: 'block' }} />
                         Cargando...
                     </div>
-                ) : filtered.length === 0 ? (
+                ) : sortedFiltered.length === 0 ? (
                     <div style={{ textAlign: 'center', padding: 40, color: '#9ca3af', fontSize: 13 }}>
                         {activeTab === 'no_reply' && '🎉 ¡Todos han respondido!'}
                         {activeTab === 'active' && 'No hay conversaciones activas aún.'}
                         {activeTab === 'follow_up' && 'No hay conversaciones pendientes de seguimiento.'}
                     </div>
                 ) : (
-                    filtered.map(r => <RecipientRow key={r.phone} r={r} onOpenChat={handleOpenChat} />)
+                    sortedFiltered.map(r => <RecipientRow key={r.phone} r={r} onOpenChat={handleOpenChat} />)
                 )}
             </div>
 
