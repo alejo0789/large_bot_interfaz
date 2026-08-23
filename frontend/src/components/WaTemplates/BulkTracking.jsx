@@ -92,6 +92,17 @@ const CampaignCard = ({ campaign, onClick, onDelete }) => {
 
 // ─── Recipient Row ────────────────────────────────────────────────────────────
 const RecipientRow = ({ r, onOpenChat }) => {
+    let userMsgColor = '#9ca3af';
+    if (r.last_user_msg_time) {
+        const h = (Date.now() - new Date(r.last_user_msg_time).getTime()) / 3600000;
+        if (h >= 18) {
+            userMsgColor = '#ef4444'; // Red
+        } else if (h > 12) {
+            userMsgColor = '#d97706'; // Yellow/Orange
+        } else {
+            userMsgColor = '#4f46e5'; // Indigo
+        }
+    }
     const urgency = getUrgencyLevel(r.hours_since_last_agent_msg);
 
     return (
@@ -132,7 +143,7 @@ const RecipientRow = ({ r, onOpenChat }) => {
                 <div style={{ display: 'flex', gap: 16, flexShrink: 0, marginRight: 12 }}>
                     {/* User Message Time */}
                     <div style={{ width: 80, textAlign: 'right' }}>
-                        <div style={{ fontSize: 11, color: r.last_user_msg_time ? '#4f46e5' : '#9ca3af' }}>
+                        <div style={{ fontSize: 11, color: userMsgColor, fontWeight: userMsgColor !== '#4f46e5' ? 600 : 400 }}>
                             {r.last_user_msg_time ? timeAgo(r.last_user_msg_time) : '--'}
                         </div>
                     </div>
@@ -257,8 +268,8 @@ const BulkTracking = ({ onOpenConversation }) => {
             if (!isFollowUp) return false;
             if (!matchesSearch) return false;
             if (urgencyFilter === null) return true;
-            const h = r.last_agent_msg_time 
-                ? (Date.now() - new Date(r.last_agent_msg_time).getTime()) / 3600000 
+            const h = r.last_user_msg_time 
+                ? (Date.now() - new Date(r.last_user_msg_time).getTime()) / 3600000 
                 : 0;
             if (urgencyFilter === 3) return h < 3;
             if (urgencyFilter === 6) return h >= 3 && h < 6;
