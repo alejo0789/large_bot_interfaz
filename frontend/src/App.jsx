@@ -1507,6 +1507,7 @@ const AuthenticatedApp = () => {
                                 draftMessage={draftMessage}
                                 onDraftConsumed={() => setDraftMessage(null)}
                                 currentPhone={selectedConversation?.contact?.phone}
+                                isOfficialTenant={isOfficialTenant}
                             />
                         </>
                     ) : (

@@ -8,7 +8,7 @@ import WaTemplateSelectorModal from './WaTemplateSelectorModal';
 /**
  * Message input component with file attachment and voice recording
  */
-const MessageInput = ({ onSend, onSendFile, disabled, isMobile, replyToMessage, onCancelReply, editingMessage, onCancelEdit, draftMessage, onDraftConsumed, currentPhone }) => {
+const MessageInput = ({ onSend, onSendFile, disabled, isMobile, replyToMessage, onCancelReply, editingMessage, onCancelEdit, draftMessage, onDraftConsumed, currentPhone, isOfficialTenant }) => {
     const [showEmojiPicker, setShowEmojiPicker] = useState(false);
     const [showTemplateModal, setShowTemplateModal] = useState(false);
     const [message, setMessage] = useState('');
@@ -1050,24 +1050,28 @@ const MessageInput = ({ onSend, onSendFile, disabled, isMobile, replyToMessage, 
                     )}
                 </div>
 
-                {/* Templates Button */}
-                <button
-                    className="btn btn-icon"
-                    title="Plantillas Oficiales"
-                    onClick={() => setShowTemplateModal(true)}
-                    disabled={disabled || isUploading}
-                    style={{
-                        flexShrink: 0,
-                        color: 'var(--color-gray-600)'
-                    }}
-                >
-                    <LayoutTemplate className="w-5 h-5" />
-                </button>
-                <WaTemplateSelectorModal
-                    isOpen={showTemplateModal}
-                    onClose={() => setShowTemplateModal(false)}
-                    currentPhone={currentPhone}
-                />
+                {/* Templates Button (Only for official tenants) */}
+                {isOfficialTenant && (
+                    <>
+                        <button
+                            className="btn btn-icon"
+                            title="Plantillas Oficiales"
+                            onClick={() => setShowTemplateModal(true)}
+                            disabled={disabled || isUploading}
+                            style={{
+                                flexShrink: 0,
+                                color: 'var(--color-gray-600)'
+                            }}
+                        >
+                            <LayoutTemplate className="w-5 h-5" />
+                        </button>
+                        <WaTemplateSelectorModal
+                            isOpen={showTemplateModal}
+                            onClose={() => setShowTemplateModal(false)}
+                            currentPhone={currentPhone}
+                        />
+                    </>
+                )}
 
                 <textarea
                     ref={textareaRef}
