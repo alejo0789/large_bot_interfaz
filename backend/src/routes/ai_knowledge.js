@@ -276,6 +276,10 @@ router.post('/upload', upload.single('file'), async (req, res, next) => {
         const { description, keywords, title, price, active } = req.body;
         const { activePool, tableName } = getKnowledgeContext(req);
 
+        if (tableName === 'ai_knowledge_global' && req.user && req.user.role !== 'SUPER_ADMIN') {
+            return res.status(403).json({ error: 'No tienes permisos para crear productos globales.' });
+        }
+
         const descriptionVal = description || req.body.content || '';
         let type = 'image';
         if (req.file.mimetype.startsWith('audio/')) type = 'audio';
@@ -324,6 +328,10 @@ router.post('/text', upload.single('file'), async (req, res, next) => {
     try {
         const { title, content, keywords, media_url, price, active } = req.body;
         const { activePool, tableName } = getKnowledgeContext(req);
+
+        if (tableName === 'ai_knowledge_global' && req.user && req.user.role !== 'SUPER_ADMIN') {
+            return res.status(403).json({ error: 'No tienes permisos para crear productos globales.' });
+        }
 
         if (!content) {
             return res.status(400).json({ error: 'El contenido es obligatorio' });
@@ -394,6 +402,10 @@ router.put('/:id', upload.single('file'), async (req, res, next) => {
 
         if (checkResult.rows.length === 0) {
             return res.status(404).json({ error: 'Recurso no encontrado' });
+        }
+
+        if (tableName === 'ai_knowledge_global' && req.user && req.user.role !== 'SUPER_ADMIN') {
+            return res.status(403).json({ error: 'No tienes permisos para editar productos globales.' });
         }
 
         const oldResource = checkResult.rows[0];
@@ -489,6 +501,10 @@ router.delete('/:id', async (req, res, next) => {
 
         if (checkResult.rows.length === 0) {
             return res.status(404).json({ error: 'Recurso no encontrado' });
+        }
+
+        if (tableName === 'ai_knowledge_global' && req.user && req.user.role !== 'SUPER_ADMIN') {
+            return res.status(403).json({ error: 'No tienes permisos para eliminar productos globales.' });
         }
 
         const resource = checkResult.rows[0];
@@ -676,6 +692,11 @@ router.post('/sede', async (req, res, next) => {
         }
 
         const { activePool, tableName } = getKnowledgeContext(req);
+
+        if (tableName === 'ai_knowledge_global' && req.user && req.user.role !== 'SUPER_ADMIN') {
+            return res.status(403).json({ error: 'No tienes permisos para modificar productos globales.' });
+        }
+
         const hasEmbedCol = await checkEmbeddingColumn(activePool, tableName);
         const savedItems = [];
 
