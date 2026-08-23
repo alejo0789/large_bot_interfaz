@@ -1506,6 +1506,7 @@ const AuthenticatedApp = () => {
                                 onCancelEdit={() => setEditingMessage(null)}
                                 draftMessage={draftMessage}
                                 onDraftConsumed={() => setDraftMessage(null)}
+                                currentPhone={selectedConversation?.contact?.phone}
                             />
                         </>
                     ) : (

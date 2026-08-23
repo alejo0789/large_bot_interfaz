@@ -1,14 +1,16 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { Send, Paperclip, X, Image, FileText, Film, Mic, Square, Trash2, Smile, Zap, Plus, Edit2 } from 'lucide-react';
+import { Send, Paperclip, X, Image, FileText, Film, Mic, Square, Trash2, Smile, Zap, Plus, Edit2, LayoutTemplate } from 'lucide-react';
 import { useQuickReplies } from '../../hooks/useQuickReplies';
 import QuickReplyManager from '../QuickReplies/QuickReplyManager';
 import EmojiPicker from 'emoji-picker-react';
+import WaTemplateSelectorModal from './WaTemplateSelectorModal';
 
 /**
  * Message input component with file attachment and voice recording
  */
-const MessageInput = ({ onSend, onSendFile, disabled, isMobile, replyToMessage, onCancelReply, editingMessage, onCancelEdit, draftMessage, onDraftConsumed }) => {
+const MessageInput = ({ onSend, onSendFile, disabled, isMobile, replyToMessage, onCancelReply, editingMessage, onCancelEdit, draftMessage, onDraftConsumed, currentPhone }) => {
     const [showEmojiPicker, setShowEmojiPicker] = useState(false);
+    const [showTemplateModal, setShowTemplateModal] = useState(false);
     const [message, setMessage] = useState('');
     const [selectedFiles, setSelectedFiles] = useState([]);
     const [filePreviews, setFilePreviews] = useState([]);
@@ -1047,6 +1049,25 @@ const MessageInput = ({ onSend, onSendFile, disabled, isMobile, replyToMessage, 
                         </div>
                     )}
                 </div>
+
+                {/* Templates Button */}
+                <button
+                    className="btn btn-icon"
+                    title="Plantillas Oficiales"
+                    onClick={() => setShowTemplateModal(true)}
+                    disabled={disabled || isUploading}
+                    style={{
+                        flexShrink: 0,
+                        color: 'var(--color-gray-600)'
+                    }}
+                >
+                    <LayoutTemplate className="w-5 h-5" />
+                </button>
+                <WaTemplateSelectorModal
+                    isOpen={showTemplateModal}
+                    onClose={() => setShowTemplateModal(false)}
+                    currentPhone={currentPhone}
+                />
 
                 <textarea
                     ref={textareaRef}
