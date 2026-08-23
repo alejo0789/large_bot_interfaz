@@ -61,6 +61,7 @@ setMessageSocketIO(io);
 setWebhookSocketIO(io);
 setEvolutionSocketIO(io);
 setWhatsappOfficialSocketIO(io);
+app.set('io', io); // For routes that use req.app.get('io')
 
 // =============================================
 // MIDDLEWARE

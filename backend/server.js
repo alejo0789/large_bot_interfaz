@@ -18,6 +18,9 @@ const io = socketIo(server, {
   }
 });
 
+// Hacer que io esté disponible en toda la app a través de req.app.get('io')
+app.set('io', io);
+
 // Middleware Global
 app.use(cors());
 app.use(express.json({ limit: '10mb' }));
