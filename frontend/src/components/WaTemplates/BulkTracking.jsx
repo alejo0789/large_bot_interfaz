@@ -126,21 +126,15 @@ const RecipientRow = ({ r, onOpenChat }) => {
                 </div>
             </div>
 
-            {/* Urgency badge */}
-            {urgency && (
-                <div style={{
-                    padding: '2px 8px', borderRadius: 999, fontSize: 11, fontWeight: 700,
-                    background: urgency.bg, color: urgency.color, border: `1px solid ${urgency.color}20`,
-                    flexShrink: 0
-                }}>
-                    ⏱ {urgency.label}
-                </div>
-            )}
-
-            {/* Replied time */}
-            {r.replied_at && (
-                <div style={{ fontSize: 11, color: '#9ca3af', flexShrink: 0 }}>
-                    {timeAgo(r.replied_at)}
+            {/* Message Time Info */}
+            {r.last_message_timestamp && (
+                <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', flexShrink: 0 }}>
+                    <div style={{ fontSize: 10, color: '#6b7280', fontWeight: 600, textTransform: 'uppercase' }}>
+                        {r.tracking_status === 'no_reply' || r.last_message_from_me ? 'Mensaje enviado' : 'Mensaje usuario'}
+                    </div>
+                    <div style={{ fontSize: 11, color: '#9ca3af', marginTop: 2 }}>
+                        {timeAgo(r.last_message_timestamp)}
+                    </div>
                 </div>
             )}
 
