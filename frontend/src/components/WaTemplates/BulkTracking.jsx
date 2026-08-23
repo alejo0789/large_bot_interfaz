@@ -126,17 +126,28 @@ const RecipientRow = ({ r, onOpenChat }) => {
                 </div>
             </div>
 
-            {/* Message Time Info */}
-            {r.last_message_timestamp && (
-                <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', flexShrink: 0 }}>
-                    <div style={{ fontSize: 10, color: '#6b7280', fontWeight: 600, textTransform: 'uppercase' }}>
-                        {r.tracking_status === 'no_reply' || r.last_message_from_me ? 'Mensaje enviado' : 'Mensaje usuario'}
+            {/* Message Time Info - Two Columns */}
+            <div style={{ display: 'flex', gap: 16, flexShrink: 0 }}>
+                {/* User Message Time */}
+                <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', width: 90 }}>
+                    <div style={{ fontSize: 9, color: '#6b7280', fontWeight: 600, textTransform: 'uppercase' }}>
+                        Msg Usuario
                     </div>
-                    <div style={{ fontSize: 11, color: '#9ca3af', marginTop: 2 }}>
-                        {timeAgo(r.last_message_timestamp)}
+                    <div style={{ fontSize: 11, color: r.last_user_msg_time ? '#4f46e5' : '#9ca3af', marginTop: 2 }}>
+                        {r.last_user_msg_time ? timeAgo(r.last_user_msg_time) : '--'}
                     </div>
                 </div>
-            )}
+
+                {/* Agent Message Time */}
+                <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', width: 90 }}>
+                    <div style={{ fontSize: 9, color: '#6b7280', fontWeight: 600, textTransform: 'uppercase' }}>
+                        Msg Enviado
+                    </div>
+                    <div style={{ fontSize: 11, color: r.last_agent_msg_time ? '#15803d' : '#9ca3af', marginTop: 2 }}>
+                        {r.last_agent_msg_time ? timeAgo(r.last_agent_msg_time) : '--'}
+                    </div>
+                </div>
+            </div>
 
             {/* Scheduled badge */}
             {r.is_scheduled && (
@@ -243,7 +254,9 @@ const BulkTracking = ({ onOpenConversation }) => {
             if (!isFollowUp) return false;
             if (!matchesSearch) return false;
             if (urgencyFilter === null) return true;
-            const h = r.hours_since_last_agent_msg || 0;
+            const h = r.last_agent_msg_time 
+                ? (Date.now() - new Date(r.last_agent_msg_time).getTime()) / 3600000 
+                : 0;
             if (urgencyFilter === 3) return h < 3;
             if (urgencyFilter === 6) return h >= 3 && h < 6;
             if (urgencyFilter === 12) return h >= 6 && h < 12;

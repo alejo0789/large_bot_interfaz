@@ -727,11 +727,8 @@ router.get('/campaigns/:id', asyncHandler(async (req, res) => {
                 WHEN bcr.status = 'replied' THEN 'active'
                 ELSE 'no_reply'
             END as tracking_status,
-            CASE 
-                WHEN bcr.status = 'replied' AND c.last_message_from_me = true 
-                THEN EXTRACT(EPOCH FROM (NOW() - c.last_message_timestamp)) / 3600
-                ELSE NULL
-            END as hours_since_last_agent_msg
+            (SELECT MAX(timestamp) FROM messages m WHERE m.conversation_phone = bcr.phone AND m.sender = 'user') as last_user_msg_time,
+            (SELECT MAX(timestamp) FROM messages m WHERE m.conversation_phone = bcr.phone AND m.sender != 'user') as last_agent_msg_time
         FROM bulk_campaign_recipients bcr
         LEFT JOIN conversations c ON c.phone = bcr.phone
         WHERE bcr.campaign_id = $1
