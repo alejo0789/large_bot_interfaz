@@ -458,14 +458,14 @@ const BulkTracking = ({ onOpenConversation }) => {
                                 style={{ width: 80, textAlign: 'right', cursor: 'pointer', userSelect: 'none', color: sortConfig.key === 'last_user_msg_time' ? '#4f46e5' : '#6b7280' }}
                                 title="Ordenar por mensaje del usuario"
                             >
-                                Msg Usuario {sortConfig.key === 'last_user_msg_time' ? (sortConfig.direction === 'desc' ? '↓' : '↑') : ''}
+                                Msg Usuario <span style={{ opacity: sortConfig.key === 'last_user_msg_time' ? 1 : 0.5 }}>{sortConfig.key === 'last_user_msg_time' ? (sortConfig.direction === 'desc' ? '↓' : '↑') : '↕'}</span>
                             </div>
                             <div 
                                 onClick={() => handleSort('last_agent_msg_time')}
                                 style={{ width: 80, textAlign: 'right', cursor: 'pointer', userSelect: 'none', color: sortConfig.key === 'last_agent_msg_time' ? '#15803d' : '#6b7280' }}
                                 title="Ordenar por mensaje enviado"
                             >
-                                Msg Enviado {sortConfig.key === 'last_agent_msg_time' ? (sortConfig.direction === 'desc' ? '↓' : '↑') : ''}
+                                Msg Enviado <span style={{ opacity: sortConfig.key === 'last_agent_msg_time' ? 1 : 0.5 }}>{sortConfig.key === 'last_agent_msg_time' ? (sortConfig.direction === 'desc' ? '↓' : '↑') : '↕'}</span>
                             </div>
                         </div>
                         <div style={{ width: 80 }}></div> {/* Empty space for badges/icons */}
