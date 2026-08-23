@@ -769,11 +769,18 @@ router.post('/cleanup-media', asyncHandler(async (req, res) => {
     function cleanupDir(dirPath) {
         const items = fs.readdirSync(dirPath);
 
+        // Directorios protegidos que no deben ser eliminados por la limpieza (plantillas, IA, etc)
+        const protectedDirs = ['bulk', 'ai_knowledge', 'templates'];
+
         items.forEach(item => {
             const fullPath = path.join(dirPath, item);
             const stats = fs.statSync(fullPath);
 
             if (stats.isDirectory()) {
+                if (protectedDirs.includes(item.toLowerCase())) {
+                    return; // Skip protected directories completely
+                }
+
                 cleanupDir(fullPath);
                 try {
                     if (fs.readdirSync(fullPath).length === 0) {
