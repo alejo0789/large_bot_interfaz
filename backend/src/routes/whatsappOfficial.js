@@ -286,14 +286,68 @@ router.post('/', async (req, res) => {
             if (shouldActivateAI && currentState === 'ai_active') {
                 try {
                     if (tenant?.n8n_webhook_url) {
-                        console.log(`🤖 [OfficialWebk] Forwarding to n8n for AI...`);
-                        await n8nService.triggerAIProcessing({
-                            phone: dbPhone,
-                            text: messageText,
-                            contactName: contact_name,
-                            mediaType: messageObj.referral ? null : mediaType,
-                            mediaUrl: messageObj.referral ? null : mediaUrl
-                        });
+                        console.log(`🤖 [OfficialWebk] AI enabled for ${dbPhone}, buffering message for N8N...`);
+
+                        if (!global.officialAiBuffer) {
+                            global.officialAiBuffer = new Map();
+                        }
+
+                        let bufferData = global.officialAiBuffer.get(dbPhone);
+                        if (!bufferData) {
+                            bufferData = {
+                                messages: [],
+                                media: [],
+                                timeoutId: null,
+                                pushName: contact_name,
+                                context: tenantContext.getStore()
+                            };
+                            global.officialAiBuffer.set(dbPhone, bufferData);
+                        }
+
+                        // Append the new content
+                        if (messageText) {
+                            bufferData.messages.push(messageText);
+                        }
+                        
+                        const actualMediaType = messageObj.referral ? null : mediaType;
+                        const actualMediaUrl = messageObj.referral ? null : mediaUrl;
+                        if (actualMediaUrl) {
+                            bufferData.media.push({ mediaType: actualMediaType, mediaUrl: actualMediaUrl });
+                        }
+
+                        bufferData.pushName = contact_name || bufferData.pushName;
+
+                        // Clear previous timeout
+                        if (bufferData.timeoutId) {
+                            clearTimeout(bufferData.timeoutId);
+                        }
+
+                        // Set new timeout for 30s
+                        bufferData.timeoutId = setTimeout(async () => {
+                            // Remove from buffer when executing
+                            global.officialAiBuffer.delete(dbPhone);
+
+                            // Run inside the correct tenant context
+                            tenantContext.run(bufferData.context || {}, async () => {
+                                const combinedText = bufferData.messages.join('\n');
+                                const lastMedia = bufferData.media.length > 0 ? bufferData.media[bufferData.media.length - 1] : null;
+
+                                console.log(`⏱️ [OfficialWebk] Buffer timeout reached for ${dbPhone}. Sending combined message to N8N (${bufferData.messages.length} messages merged)`);
+
+                                try {
+                                    await n8nService.triggerAIProcessing({
+                                        phone: dbPhone,
+                                        text: combinedText,
+                                        contactName: bufferData.pushName,
+                                        mediaType: lastMedia ? lastMedia.mediaType : null,
+                                        mediaUrl: lastMedia ? lastMedia.mediaUrl : null
+                                    });
+                                } catch (aiErr) {
+                                    console.error(`❌ [OfficialWebk] Error in buffered AI run for ${dbPhone}:`, aiErr);
+                                }
+                            });
+                        }, 30000); // 30 seconds buffer
+                        
                     } else {
                         console.warn(`⚠️ [OfficialWebk] No n8n_webhook_url for tenant ${tenant?.slug}`);
                     }
