@@ -253,7 +253,28 @@ class WhatsappOfficialService {
                 audio: 'audio/mpeg',
                 document: 'application/pdf'
             };
-            const explicitMime = mimeMap[effectiveMediaType] || 'application/octet-stream';
+            let explicitMime = mimeMap[effectiveMediaType] || 'application/octet-stream';
+
+            // Refine MIME type based on actual file extension to prevent Meta upload errors (e.g. 131053)
+            if (targetFilePath && fs.existsSync(targetFilePath)) {
+                const ext = path.extname(targetFilePath).toLowerCase();
+                const extMimeMap = {
+                    '.ogg': 'audio/ogg; codecs=opus',
+                    '.mp3': 'audio/mpeg',
+                    '.aac': 'audio/aac',
+                    '.m4a': 'audio/mp4',
+                    '.amr': 'audio/amr',
+                    '.png': 'image/png',
+                    '.webp': 'image/webp',
+                    '.jpg': 'image/jpeg',
+                    '.jpeg': 'image/jpeg',
+                    '.3gp': 'video/3gpp',
+                    '.pdf': 'application/pdf'
+                };
+                if (extMimeMap[ext]) {
+                    explicitMime = extMimeMap[ext];
+                }
+            }
 
             // Attempt direct upload to Meta Media API
             let mediaId = null;

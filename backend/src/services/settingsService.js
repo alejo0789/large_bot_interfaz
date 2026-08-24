@@ -16,7 +16,11 @@ class SettingsService {
         try {
             const res = await pool.query('SELECT value FROM settings WHERE key = $1', [key]);
             if (res.rows.length > 0) {
-                return res.rows[0].value;
+                let val = res.rows[0].value;
+                try {
+                    val = JSON.parse(val);
+                } catch (e) {}
+                return val;
             }
             return defaultValue;
         } catch (error) {
@@ -53,7 +57,11 @@ class SettingsService {
             const res = await pool.query('SELECT key, value FROM settings');
             const settings = {};
             res.rows.forEach(row => {
-                settings[row.key] = row.value;
+                let val = row.value;
+                try {
+                    val = JSON.parse(val);
+                } catch (e) {}
+                settings[row.key] = val;
             });
             return settings;
         } catch (error) {
