@@ -291,8 +291,8 @@ router.post('/', async (req, res) => {
                             phone: dbPhone,
                             text: messageText,
                             contactName: contact_name,
-                            mediaType,
-                            mediaUrl
+                            mediaType: messageObj.referral ? null : mediaType,
+                            mediaUrl: messageObj.referral ? null : mediaUrl
                         });
                     } else {
                         console.warn(`⚠️ [OfficialWebk] No n8n_webhook_url for tenant ${tenant?.slug}`);
