@@ -101,6 +101,18 @@
   --gradient-subtle: linear-gradient(135deg, #f8fafc 0%, #f1f5f9 100%);
 }
 
+/* Cali Marketing Theme */
+body.theme-marketing {
+  --color-primary: #d946ef; /* Fuchsia */
+  --color-primary-dark: #a21caf;
+  --color-primary-light: #e879f9;
+  --color-secondary: #f472b6; /* Pink */
+  --color-accent: #c026d3;
+  --gradient-premium: linear-gradient(135deg, #e879f9 0%, #a21caf 100%);
+  --color-bubble-outgoing: #fdf4ff; /* Light Fuchsia for outgoing bubbles */
+  --color-bubble-agent: #fdf4ff;
+}
+
 .glass-morphism {
   background: var(--glass-bg);
   backdrop-filter: var(--glass-blur);

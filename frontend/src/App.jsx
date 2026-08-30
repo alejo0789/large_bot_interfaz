@@ -1928,6 +1928,14 @@ const AppContent = () => {
     const { isAuthenticated, loading, user } = useAuth();
     const { currentTenant } = useTenant();
 
+    useEffect(() => {
+        if (currentTenant?.slug?.includes('marketing')) {
+            document.body.classList.add('theme-marketing');
+        } else {
+            document.body.classList.remove('theme-marketing');
+        }
+    }, [currentTenant]);
+
     const isTermsPage = window.location.pathname === '/terminosycondiciones' || 
                         window.location.pathname === '/terminosycondiciones/';
 
