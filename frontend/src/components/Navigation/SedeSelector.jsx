@@ -23,19 +23,19 @@ const SedeSelector = ({ isCollapsed = false }) => {
                     justifyContent: isCollapsed ? 'center' : 'space-between',
                     width: '100%',
                     padding: '10px 12px',
-                    background: '#f8fafc',
-                    border: '1px solid #e2e8f0',
+                    background: 'var(--color-gray-50)',
+                    border: '1px solid var(--color-gray-200)',
                     borderRadius: '12px',
                     cursor: 'pointer',
                     fontSize: '14px',
                     fontWeight: '600',
-                    color: '#334155',
+                    color: 'var(--color-gray-800)',
                     transition: 'all 0.2s ease',
                     overflow: 'hidden'
                 }}
             >
                 <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                    <MapPin size={18} color="#4f46e5" />
+                    <MapPin size={18} color="var(--color-primary)" />
                     {!isCollapsed && (
                         <span style={{
                             whiteSpace: 'nowrap',
@@ -146,7 +146,7 @@ const SedeSelector = ({ isCollapsed = false }) => {
                                         borderRadius: '8px',
                                         cursor: 'pointer',
                                         fontSize: '14px',
-                                        color: '#11ab9c',
+                                        color: 'var(--color-primary)',
                                         fontWeight: '700',
                                         textAlign: 'left',
                                         transition: 'all 0.1s ease',

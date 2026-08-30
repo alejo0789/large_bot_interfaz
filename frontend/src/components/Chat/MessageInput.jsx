@@ -1,6 +1,7 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { Send, Paperclip, X, Image, FileText, Film, Mic, Square, Trash2, Smile, Zap, Plus, Edit2, LayoutTemplate } from 'lucide-react';
+import { Send, Paperclip, X, Image, FileText, Film, Mic, Square, Trash2, Smile, Zap, Plus, Edit2, LayoutTemplate, MapPin } from 'lucide-react';
 import { useQuickReplies } from '../../hooks/useQuickReplies';
+import { useTenant } from '../../hooks/useTenant';
 import QuickReplyManager from '../QuickReplies/QuickReplyManager';
 import EmojiPicker from 'emoji-picker-react';
 import WaTemplateSelectorModal from './WaTemplateSelectorModal';
@@ -9,6 +10,7 @@ import WaTemplateSelectorModal from './WaTemplateSelectorModal';
  * Message input component with file attachment and voice recording
  */
 const MessageInput = ({ onSend, onSendFile, disabled, isMobile, replyToMessage, onCancelReply, editingMessage, onCancelEdit, draftMessage, onDraftConsumed, currentPhone, isOfficialTenant }) => {
+    const { currentTenant } = useTenant();
     const [showEmojiPicker, setShowEmojiPicker] = useState(false);
     const [showTemplateModal, setShowTemplateModal] = useState(false);
     const [message, setMessage] = useState('');
@@ -936,8 +938,31 @@ const MessageInput = ({ onSend, onSendFile, disabled, isMobile, replyToMessage, 
                 </div>
             )}
 
+            {/* Tenant Indicator */}
+            {currentTenant && (
+                <div style={{
+                    padding: '4px 16px',
+                    backgroundColor: 'var(--color-gray-50)',
+                    borderTop: '1px solid var(--color-gray-200)',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '6px'
+                }}>
+                    <MapPin size={12} color="var(--color-primary)" />
+                    <span style={{
+                        fontSize: '11px',
+                        fontWeight: '700',
+                        color: 'var(--color-gray-600)',
+                        textTransform: 'uppercase',
+                        letterSpacing: '0.05em'
+                    }}>
+                        Respondiendo por: <span style={{ color: 'var(--color-primary)' }}>{currentTenant.name}</span>
+                    </span>
+                </div>
+            )}
+
             {/* Input area */}
-            <div className="chat-input-container">
+            <div className="chat-input-container" style={{ borderTop: 'none', paddingTop: '4px' }}>
                 {/* Hidden file input */}
                 <input
                     ref={fileInputRef}
