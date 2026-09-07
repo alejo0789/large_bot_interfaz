@@ -82,7 +82,6 @@ const AuthenticatedApp = () => {
     // Navigation state
     const [activeTab, setActiveTab] = useState('chat');
     const [trackingReturnCampaign, setTrackingReturnCampaign] = useState(null);
-    const [pendingTrackingPhone, setPendingTrackingPhone] = useState(null);
     const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false); // Mobile menu state
     const isMounted = React.useRef(false);
 
@@ -439,15 +438,10 @@ const AuthenticatedApp = () => {
     }, []);
 
     const handleSelectConversation = useCallback((conversation, { preserveTrackingContext = false } = {}) => {
-        const identifiersMatch = sameConversationIdentifier(pendingTrackingPhone, conversation?.contact?.phone);
-
         // Selecting a conversation from the regular chat list starts a new navigation context.
-        // Keep it when this is the conversation that was sent to Chat through the tracking search.
-        if (!preserveTrackingContext && !identifiersMatch) {
+        // Tracking navigation passes preserveTrackingContext explicitly.
+        if (!preserveTrackingContext) {
             setTrackingReturnCampaign(null);
-        }
-        if (preserveTrackingContext || identifiersMatch) {
-            setPendingTrackingPhone(null);
         }
         if (conversation) {
             setLastSelectedPhone(conversation.contact.phone);
@@ -458,7 +452,7 @@ const AuthenticatedApp = () => {
         if (isMobile) {
             setShowSidebar(false);
         }
-    }, [pendingTrackingPhone, selectConversation, isMobile]);
+    }, [selectConversation, isMobile]);
 
     const handleReturnToTracking = useCallback(() => {
         if (!trackingReturnCampaign) return;
@@ -1652,19 +1646,24 @@ const AuthenticatedApp = () => {
             {activeTab === 'bulk-tracking' && <BulkTracking
                 initialCampaign={trackingReturnCampaign}
                 onInitialCampaignOpened={() => setTrackingReturnCampaign(null)}
-                onOpenConversation={(phone, campaign) => {
+                onOpenConversation={(phone, campaign, recipient) => {
                     const conv = conversations.find(c => sameConversationIdentifier(c?.contact?.phone, phone));
+                    const conversationToOpen = conv || {
+                        id: phone,
+                        contact: {
+                            phone,
+                            name: recipient?.contact_name || recipient?.name || phone
+                        },
+                        lastMessage: recipient?.last_message_text || '',
+                        rawTimestamp: recipient?.last_message_timestamp || null,
+                        unread: 0,
+                        aiEnabled: globalDefaultAi,
+                        state: 'ai_active'
+                    };
                     setTrackingReturnCampaign(campaign || null);
-
-                    if (conv) {
-                        handleSelectConversation(conv, { preserveTrackingContext: true });
-                        setPendingTrackingPhone(null);
-                        setActiveTab('chat');
-                    } else {
-                        setPendingTrackingPhone(phone);
-                        setActiveTab('chat');
-                        setTimeout(() => setSearchQuery(phone), 100);
-                    }
+                    setSearchQuery('');
+                    handleSelectConversation(conversationToOpen, { preserveTrackingContext: true });
+                    setActiveTab('chat');
                 }}
             />}
 

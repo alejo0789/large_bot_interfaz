@@ -111,7 +111,7 @@ const RecipientRow = ({ r, onOpenChat }) => {
             padding: '10px 16px', borderBottom: '1px solid #f3f4f6',
             cursor: 'pointer', transition: 'background 0.15s'
         }}
-            onClick={() => onOpenChat(r.phone)}
+            onClick={() => onOpenChat(r)}
             onMouseEnter={e => e.currentTarget.style.background = '#f9fafb'}
             onMouseLeave={e => e.currentTarget.style.background = 'transparent'}
         >
@@ -257,8 +257,14 @@ const BulkTracking = ({ onOpenConversation, initialCampaign, onInitialCampaignOp
         }
     };
 
-    const handleOpenChat = (phone) => {
-        if (onOpenConversation) onOpenConversation(phone, { ...selectedCampaign, trackingTab: activeTab });
+    const handleOpenChat = (recipient) => {
+        if (onOpenConversation) {
+            onOpenConversation(
+                recipient.phone,
+                { ...selectedCampaign, trackingTab: activeTab },
+                recipient
+            );
+        }
     };
 
     const handleSort = (key) => {
