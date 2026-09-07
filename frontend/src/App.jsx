@@ -64,6 +64,17 @@ const API_URL = envApiUrl ||
 console.log('ðŸŒ Configured API_URL:', API_URL);
 console.log('ðŸ”Œ Configured SOCKET_URL:', SOCKET_URL);
 
+const sameConversationIdentifier = (first, second) => {
+    const left = String(first || '').trim();
+    const right = String(second || '').trim();
+    if (!left || !right) return false;
+    if (left === right) return true;
+
+    const leftDigits = left.replace(/\D/g, '');
+    const rightDigits = right.replace(/\D/g, '');
+    return Boolean(leftDigits && rightDigits && leftDigits === rightDigits);
+};
+
 const AuthenticatedApp = () => {
     const { user, logout } = useAuth();
 
@@ -71,6 +82,7 @@ const AuthenticatedApp = () => {
     // Navigation state
     const [activeTab, setActiveTab] = useState('chat');
     const [trackingReturnCampaign, setTrackingReturnCampaign] = useState(null);
+    const [pendingTrackingPhone, setPendingTrackingPhone] = useState(null);
     const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false); // Mobile menu state
     const isMounted = React.useRef(false);
 
@@ -426,9 +438,17 @@ const AuthenticatedApp = () => {
         setSelectedChannel('all');
     }, []);
 
-    const handleSelectConversation = useCallback((conversation) => {
+    const handleSelectConversation = useCallback((conversation, { preserveTrackingContext = false } = {}) => {
+        const identifiersMatch = sameConversationIdentifier(pendingTrackingPhone, conversation?.contact?.phone);
+
         // Selecting a conversation from the regular chat list starts a new navigation context.
-        setTrackingReturnCampaign(null);
+        // Keep it when this is the conversation that was sent to Chat through the tracking search.
+        if (!preserveTrackingContext && !identifiersMatch) {
+            setTrackingReturnCampaign(null);
+        }
+        if (preserveTrackingContext || identifiersMatch) {
+            setPendingTrackingPhone(null);
+        }
         if (conversation) {
             setLastSelectedPhone(conversation.contact.phone);
             setLastSelectedTimestamp(conversation.rawTimestamp);
@@ -438,7 +458,7 @@ const AuthenticatedApp = () => {
         if (isMobile) {
             setShowSidebar(false);
         }
-    }, [selectConversation, isMobile]);
+    }, [pendingTrackingPhone, selectConversation, isMobile]);
 
     const handleReturnToTracking = useCallback(() => {
         if (!trackingReturnCampaign) return;
@@ -1633,15 +1653,15 @@ const AuthenticatedApp = () => {
                 initialCampaign={trackingReturnCampaign}
                 onInitialCampaignOpened={() => setTrackingReturnCampaign(null)}
                 onOpenConversation={(phone, campaign) => {
-                    const conv = conversations.find(c => c.contact.phone === phone);
+                    const conv = conversations.find(c => sameConversationIdentifier(c?.contact?.phone, phone));
                     setTrackingReturnCampaign(campaign || null);
 
                     if (conv) {
-                        handleSelectConversation(conv);
-                        // handleSelectConversation clears regular navigation context.
-                        setTrackingReturnCampaign(campaign || null);
+                        handleSelectConversation(conv, { preserveTrackingContext: true });
+                        setPendingTrackingPhone(null);
                         setActiveTab('chat');
                     } else {
+                        setPendingTrackingPhone(phone);
                         setActiveTab('chat');
                         setTimeout(() => setSearchQuery(phone), 100);
                     }
