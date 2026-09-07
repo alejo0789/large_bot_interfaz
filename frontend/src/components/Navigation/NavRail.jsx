@@ -108,8 +108,12 @@ const NavRail = ({ activeTab, onTabChange, isMobile, isOpen, onClose, onOpen, on
                         flexDirection: 'column',
                         gap: '4px',
                         flex: 1,
+                        minHeight: 0,
                         padding: '24px 12px',
-                        overflowY: 'auto'
+                        overflowY: 'auto',
+                        overflowX: 'hidden',
+                        WebkitOverflowScrolling: 'touch',
+                        overscrollBehaviorY: 'contain'
                     }}>
                         <div style={{ padding: '0 12px 12px 12px', fontSize: '0.75rem', fontWeight: 700, color: 'var(--color-gray-400)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
                             Navegación
@@ -259,7 +263,13 @@ const NavRail = ({ activeTab, onTabChange, isMobile, isOpen, onClose, onOpen, on
                 alignItems: 'center',
                 gap: '16px',
                 width: '100%',
-                height: '100%'
+                height: '100%',
+                minHeight: 0,
+                overflowY: 'auto',
+                overflowX: 'hidden',
+                scrollbarWidth: 'thin',
+                WebkitOverflowScrolling: 'touch',
+                overscrollBehaviorY: 'contain'
             }}>
                 {isSuperAdmin && (
                     <NavButton
