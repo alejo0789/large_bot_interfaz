@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { ArrowLeft, Phone, MoreVertical, User, Bot, UserCheck, Edit2 } from 'lucide-react';
+import { ArrowLeft, BarChart3, Phone, MoreVertical, User, Bot, UserCheck, Edit2 } from 'lucide-react';
 import EditContactModal from '../Sidebar/EditContactModal';
 
 import apiFetch from '../../utils/api';
@@ -23,6 +23,8 @@ const ChatHeader = ({
     onBack,
     isMobile,
     isSweepMode,
+    onBackToTracking,
+    trackingCampaignName,
     onNameUpdated,   // optional callback: (phone, newName) => void
     agendasCount = 0, // New prop for agenda counter
     hideLead
@@ -78,6 +80,32 @@ const ChatHeader = ({
         <>
             <div className="chat-header">
                 <div className="chat-header-info" style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-3)', flex: 1, minWidth: 0 }}>
+                    {onBackToTracking && (
+                        <button
+                            className="btn btn-icon"
+                            onClick={onBackToTracking}
+                            title={`Volver a seguimiento${trackingCampaignName ? `: ${trackingCampaignName}` : ''}`}
+                            style={{
+                                display: 'flex',
+                                alignItems: 'center',
+                                gap: '4px',
+                                padding: '6px 8px',
+                                border: '1px solid #ddd6fe',
+                                borderRadius: '8px',
+                                backgroundColor: '#f5f3ff',
+                                color: '#7c3aed',
+                                fontSize: '11px',
+                                fontWeight: 700,
+                                whiteSpace: 'nowrap',
+                                flexShrink: 0,
+                                cursor: 'pointer'
+                            }}
+                        >
+                            <BarChart3 size={15} />
+                            <span>Seguimiento</span>
+                        </button>
+                    )}
+
                     {(isMobile || isSweepMode) && (
                         <button
                             className="btn btn-icon"

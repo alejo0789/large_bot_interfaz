@@ -171,7 +171,7 @@ const RecipientRow = ({ r, onOpenChat }) => {
 };
 
 // ─── Main Component ───────────────────────────────────────────────────────────
-const BulkTracking = ({ onOpenConversation }) => {
+const BulkTracking = ({ onOpenConversation, initialCampaign, onInitialCampaignOpened }) => {
     const [campaigns, setCampaigns] = useState([]);
     const [loading, setLoading] = useState(true);
     const [selectedCampaign, setSelectedCampaign] = useState(null);
@@ -181,6 +181,7 @@ const BulkTracking = ({ onOpenConversation }) => {
     const [searchQ, setSearchQ] = useState('');
     const [urgencyFilter, setUrgencyFilter] = useState(null);
     const [sortConfig, setSortConfig] = useState({ key: null, direction: 'desc' });
+    const initialCampaignOpenedRef = React.useRef(false);
 
     // Load campaigns
     const fetchCampaigns = useCallback(async () => {
@@ -199,10 +200,10 @@ const BulkTracking = ({ onOpenConversation }) => {
     useEffect(() => { fetchCampaigns(); }, [fetchCampaigns]);
 
     // Load campaign detail
-    const openCampaign = async (campaign) => {
+    const openCampaign = useCallback(async (campaign, tab = 'no_reply') => {
         setSelectedCampaign(campaign);
         setLoadingDetail(true);
-        setActiveTab('no_reply');
+        setActiveTab(tab);
         setSearchQ('');
         setUrgencyFilter(null);
         try {
@@ -214,7 +215,20 @@ const BulkTracking = ({ onOpenConversation }) => {
         } finally {
             setLoadingDetail(false);
         }
-    };
+    }, []);
+
+    // Reopen the campaign when returning from a conversation opened here.
+    useEffect(() => {
+        if (!initialCampaign || loading || initialCampaignOpenedRef.current || campaigns.length === 0) return;
+
+        const campaignFromList = campaigns.find(c => String(c.id) === String(initialCampaign.id));
+        const campaign = campaignFromList
+            ? { ...campaignFromList, trackingTab: initialCampaign.trackingTab }
+            : initialCampaign;
+        initialCampaignOpenedRef.current = true;
+        openCampaign(campaign, initialCampaign.trackingTab || 'no_reply');
+        onInitialCampaignOpened?.();
+    }, [campaigns, initialCampaign, loading, onInitialCampaignOpened, openCampaign]);
 
     const refreshDetail = async () => {
         if (!selectedCampaign) return;
@@ -244,7 +258,7 @@ const BulkTracking = ({ onOpenConversation }) => {
     };
 
     const handleOpenChat = (phone) => {
-        if (onOpenConversation) onOpenConversation(phone);
+        if (onOpenConversation) onOpenConversation(phone, { ...selectedCampaign, trackingTab: activeTab });
     };
 
     const handleSort = (key) => {

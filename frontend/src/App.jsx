@@ -70,6 +70,7 @@ const AuthenticatedApp = () => {
 
     // Navigation state
     const [activeTab, setActiveTab] = useState('chat');
+    const [trackingReturnCampaign, setTrackingReturnCampaign] = useState(null);
     const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false); // Mobile menu state
     const isMounted = React.useRef(false);
 
@@ -426,6 +427,8 @@ const AuthenticatedApp = () => {
     }, []);
 
     const handleSelectConversation = useCallback((conversation) => {
+        // Selecting a conversation from the regular chat list starts a new navigation context.
+        setTrackingReturnCampaign(null);
         if (conversation) {
             setLastSelectedPhone(conversation.contact.phone);
             setLastSelectedTimestamp(conversation.rawTimestamp);
@@ -436,6 +439,15 @@ const AuthenticatedApp = () => {
             setShowSidebar(false);
         }
     }, [selectConversation, isMobile]);
+
+    const handleReturnToTracking = useCallback(() => {
+        if (!trackingReturnCampaign) return;
+
+        selectConversation(null);
+        setReplyToMessage(null);
+        setEditingMessage(null);
+        setActiveTab('bulk-tracking');
+    }, [selectConversation, trackingReturnCampaign]);
 
     // Sweep mode logic: find the one that was above the last processed one
     useEffect(() => {
@@ -1373,6 +1385,8 @@ const AuthenticatedApp = () => {
                                 }}
                                 isMobile={isMobile}
                                 isSweepMode={isSweepMode}
+                                onBackToTracking={trackingReturnCampaign ? handleReturnToTracking : undefined}
+                                trackingCampaignName={trackingReturnCampaign?.campaign_name || trackingReturnCampaign?.template_name}
                                 onNameUpdated={(phone, newName) => updateConversationLocal(phone, { contact: { name: newName } })}
                                 agendasCount={agendasCount}
                             />
@@ -1615,16 +1629,24 @@ const AuthenticatedApp = () => {
             {activeTab === 'admin' && <AdminPanel isMobile={isMobile} onNavigateTab={(tab) => setActiveTab(tab)} />}
             {activeTab === 'wa-templates' && <WaTemplates onBulkSend={(tpl) => setActiveTab('wa-bulk')} />}
             {activeTab === 'wa-bulk' && <WaBulkOfficial conversations={conversations} tags={tags} />}
-            {activeTab === 'bulk-tracking' && <BulkTracking onOpenConversation={(phone) => {
-                const conv = conversations.find(c => c.contact.phone === phone);
-                if (conv) {
-                    handleSelectConversation(conv);
-                    setActiveTab('chat');
-                } else {
-                    setActiveTab('chat');
-                    setTimeout(() => setSearchQuery(phone), 100);
-                }
-            }} />}
+            {activeTab === 'bulk-tracking' && <BulkTracking
+                initialCampaign={trackingReturnCampaign}
+                onInitialCampaignOpened={() => setTrackingReturnCampaign(null)}
+                onOpenConversation={(phone, campaign) => {
+                    const conv = conversations.find(c => c.contact.phone === phone);
+                    setTrackingReturnCampaign(campaign || null);
+
+                    if (conv) {
+                        handleSelectConversation(conv);
+                        // handleSelectConversation clears regular navigation context.
+                        setTrackingReturnCampaign(campaign || null);
+                        setActiveTab('chat');
+                    } else {
+                        setActiveTab('chat');
+                        setTimeout(() => setSearchQuery(phone), 100);
+                    }
+                }}
+            />}
 
             {verificationResult && (
                 <div style={{
