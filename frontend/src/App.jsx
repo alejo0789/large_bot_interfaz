@@ -82,6 +82,9 @@ const AuthenticatedApp = () => {
     // Navigation state
     const [activeTab, setActiveTab] = useState('chat');
     const [trackingReturnCampaign, setTrackingReturnCampaign] = useState(null);
+    // Temporary conversation list loaded from one campaign tab.
+    // null means the sidebar is showing the regular conversation list.
+    const [trackingConversationList, setTrackingConversationList] = useState(null);
     const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false); // Mobile menu state
     const isMounted = React.useRef(false);
 
@@ -356,6 +359,8 @@ const AuthenticatedApp = () => {
     // intentionally omit dateFilter here to avoid a double-fetch race condition
     // that causes the conversation list to "jump" when a date filter is applied.
     useEffect(() => {
+        if (trackingConversationList !== null) return;
+
         const activeTagId = selectedTagIds.length === 1 ? selectedTagIds[0] : null;
         const timeoutId = setTimeout(() => {
             fetchConversations(
@@ -373,7 +378,7 @@ const AuthenticatedApp = () => {
         }, 150);
         return () => clearTimeout(timeoutId);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [fetchConversations, activeTab, selectedTagIds, dateRange, searchQuery, showUnreadOnly, leadTimeFilter, selectedChannel]);
+    }, [fetchConversations, activeTab, selectedTagIds, dateRange, searchQuery, showUnreadOnly, leadTimeFilter, selectedChannel, trackingConversationList]);
 
     // Filter conversations
     const filteredConversations = useMemo(() => {
@@ -415,6 +420,22 @@ const AuthenticatedApp = () => {
         return result;
     }, [conversations, showUnreadOnly, selectedTagIds, tagsByPhone, leadTimeFilter, dateRange, selectedChannel]);
 
+    // When a campaign tab is loaded into Conversations, keep the campaign's
+    // contacts in the sidebar while still allowing its search box to filter
+    // that temporary list locally.
+    const sidebarConversations = useMemo(() => {
+        if (trackingConversationList === null) return filteredConversations;
+
+        const query = searchQuery.trim().toLowerCase();
+        if (!query) return trackingConversationList;
+
+        return trackingConversationList.filter(conversation =>
+            (conversation.contact?.name || '').toLowerCase().includes(query) ||
+            String(conversation.contact?.phone || '').toLowerCase().includes(query) ||
+            (conversation.lastMessage || '').toLowerCase().includes(query)
+        );
+    }, [filteredConversations, trackingConversationList, searchQuery]);
+
     // Count unread (total visible)
     const unreadCount = useMemo(() => {
         return conversations.filter(c => c.unread > 0).length;
@@ -442,6 +463,7 @@ const AuthenticatedApp = () => {
         // Tracking navigation passes preserveTrackingContext explicitly.
         if (!preserveTrackingContext) {
             setTrackingReturnCampaign(null);
+            setTrackingConversationList(null);
         }
         if (conversation) {
             setLastSelectedPhone(conversation.contact.phone);
@@ -460,8 +482,46 @@ const AuthenticatedApp = () => {
         selectConversation(null);
         setReplyToMessage(null);
         setEditingMessage(null);
+        setTrackingConversationList(null);
         setActiveTab('bulk-tracking');
     }, [selectConversation, trackingReturnCampaign]);
+
+    const handleLoadTrackingConversations = useCallback((recipients, campaign, tab) => {
+        const loadedConversations = recipients.map(recipient => {
+            const existing = conversations.find(conversation =>
+                sameConversationIdentifier(conversation?.contact?.phone, recipient.phone)
+            );
+
+            if (existing) return existing;
+
+            return {
+                id: recipient.phone,
+                contact: {
+                    phone: recipient.phone,
+                    name: recipient.contact_name || recipient.phone
+                },
+                lastMessage: recipient.last_message_text || '',
+                timestamp: recipient.last_message_timestamp || '',
+                rawTimestamp: recipient.last_message_timestamp || null,
+                unread: 0,
+                status: 'active',
+                aiEnabled: globalDefaultAi,
+                state: 'ai_active',
+                tags: [],
+                isPinned: false,
+                channel: 'whatsapp_official'
+            };
+        });
+
+        setTrackingConversationList(loadedConversations);
+        setTrackingReturnCampaign({ ...campaign, trackingTab: tab });
+        setSearchQuery('');
+        selectConversation(null);
+        setReplyToMessage(null);
+        setEditingMessage(null);
+        setShowSidebar(true);
+        setActiveTab('chat');
+    }, [conversations, globalDefaultAi, selectConversation]);
 
     // Sweep mode logic: find the one that was above the last processed one
     useEffect(() => {
@@ -1272,17 +1332,41 @@ const AuthenticatedApp = () => {
                     />
 
 
+                    {trackingConversationList !== null && (
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '10px 12px', background: '#f5f3ff', borderBottom: '1px solid #ddd6fe', color: '#5b21b6' }}>
+                            <div style={{ flex: 1, minWidth: 0 }}>
+                                <div style={{ fontSize: 11, fontWeight: 700, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                                    Campaña: {trackingReturnCampaign?.campaign_name || trackingReturnCampaign?.template_name || 'Seguimiento'}
+                                </div>
+                                <div style={{ fontSize: 10, marginTop: 2 }}>
+                                    {trackingConversationList.length} conversaciones cargadas
+                                </div>
+                            </div>
+                            <button
+                                onClick={() => {
+                                    setTrackingConversationList(null);
+                                    setTrackingReturnCampaign(null);
+                                }}
+                                style={{ border: 'none', background: 'transparent', color: '#7c3aed', cursor: 'pointer', fontSize: 11, fontWeight: 700, padding: '4px 6px' }}
+                            >
+                                Limpiar
+                            </button>
+                        </div>
+                    )}
+
                     {/* Conversation List */}
                     <ConversationList
-                        conversations={filteredConversations}
+                        conversations={sidebarConversations}
                         selectedId={selectedConversation?.id}
                         searchQuery={searchQuery}
                         aiStatesByPhone={aiStatesByPhone}
                         tagsByPhone={tagsByPhone}
-                        isLoading={isLoading}
-                        isLoadingMore={isLoadingMore}
-                        hasMore={hasMore}
-                        onSelect={handleSelectConversation}
+                        isLoading={trackingConversationList === null && isLoading}
+                        isLoadingMore={trackingConversationList === null && isLoadingMore}
+                        hasMore={trackingConversationList === null && hasMore}
+                        onSelect={(conversation) => handleSelectConversation(conversation, {
+                            preserveTrackingContext: trackingConversationList !== null
+                        })}
                         onTagClick={handleOpenTagManager}
                         onRefresh={() => {
                             const activeTagId = selectedTagIds.length === 1 ? selectedTagIds[0] : null;
@@ -1646,6 +1730,7 @@ const AuthenticatedApp = () => {
             {activeTab === 'bulk-tracking' && <BulkTracking
                 initialCampaign={trackingReturnCampaign}
                 onInitialCampaignOpened={() => setTrackingReturnCampaign(null)}
+                onLoadConversations={handleLoadTrackingConversations}
                 onOpenConversation={(phone, campaign, recipient) => {
                     const conv = conversations.find(c => sameConversationIdentifier(c?.contact?.phone, phone));
                     const conversationToOpen = conv || {

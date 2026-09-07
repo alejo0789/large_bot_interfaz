@@ -171,7 +171,7 @@ const RecipientRow = ({ r, onOpenChat }) => {
 };
 
 // ─── Main Component ───────────────────────────────────────────────────────────
-const BulkTracking = ({ onOpenConversation, initialCampaign, onInitialCampaignOpened }) => {
+const BulkTracking = ({ onOpenConversation, onLoadConversations, initialCampaign, onInitialCampaignOpened }) => {
     const [campaigns, setCampaigns] = useState([]);
     const [loading, setLoading] = useState(true);
     const [selectedCampaign, setSelectedCampaign] = useState(null);
@@ -391,6 +391,15 @@ const BulkTracking = ({ onOpenConversation, initialCampaign, onInitialCampaignOp
                         <h2 style={{ margin: 0, fontSize: 17, fontWeight: 700, color: '#111827' }}>📋 {selectedCampaign.campaign_name || selectedCampaign.template_name}</h2>
                         <p style={{ margin: 0, fontSize: 12, color: '#6b7280' }}>{formatDate(selectedCampaign.sent_at)} · {recipients.length} destinatarios</p>
                     </div>
+                    {onLoadConversations && sortedFiltered.length > 0 && (
+                        <button
+                            onClick={() => onLoadConversations(sortedFiltered, selectedCampaign, activeTab)}
+                            style={{ display: 'flex', alignItems: 'center', gap: 4, padding: '6px 12px', borderRadius: 8, border: '1px solid #bbf7d0', background: '#f0fdf4', color: '#15803d', cursor: 'pointer', fontSize: 12, fontWeight: 700 }}
+                            title={`Cargar ${sortedFiltered.length} conversaciones en el panel`}
+                        >
+                            <MessageCircle size={13} /> Cargar en conversaciones
+                        </button>
+                    )}
                     <button onClick={refreshDetail} style={{ display: 'flex', alignItems: 'center', gap: 4, padding: '6px 12px', borderRadius: 8, border: '1px solid #e5e7eb', background: 'white', cursor: 'pointer', fontSize: 12, fontWeight: 600, color: '#374151' }}>
                         <RefreshCw size={13} className={loadingDetail ? 'spinning' : ''} /> Refrescar
                     </button>
