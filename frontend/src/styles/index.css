@@ -1261,3 +1261,86 @@ body {
     opacity: 1 !important;
     pointer-events: auto !important;
 }
+
+/* =============================================
+   TENANT SELECTOR RESPONSIVE LAYOUT
+   ============================================= */
+
+@media (max-width: 900px) {
+    .tenant-selector-page {
+        flex-direction: column !important;
+        width: 100% !important;
+        min-height: 100dvh !important;
+        height: auto !important;
+        overflow-x: hidden !important;
+        overflow-y: auto !important;
+    }
+
+    .tenant-selector-sidebar {
+        width: 100% !important;
+        min-width: 0 !important;
+        max-width: none !important;
+        flex: 0 0 auto !important;
+    }
+
+    .tenant-selector-nav {
+        flex: 0 0 auto !important;
+        padding: 16px 12px !important;
+    }
+
+    .tenant-selector-nav > button {
+        width: 100% !important;
+    }
+
+    .tenant-selector-main {
+        width: 100% !important;
+        height: auto !important;
+        min-height: 0 !important;
+        overflow: visible !important;
+        flex: 0 0 auto !important;
+    }
+
+    .tenant-selector-content {
+        max-width: none !important;
+        padding: 24px 16px 32px !important;
+    }
+
+    .tenant-selector-header {
+        align-items: flex-start !important;
+        flex-direction: column !important;
+        margin-bottom: 28px !important;
+    }
+
+    .tenant-selector-header h1 {
+        font-size: 22px !important;
+        line-height: 1.2 !important;
+    }
+
+    .tenant-selector-welcome {
+        margin-bottom: 24px !important;
+    }
+
+    .tenant-selector-welcome h2 {
+        font-size: 24px !important;
+        line-height: 1.2 !important;
+    }
+
+    .tenant-selector-welcome p {
+        font-size: 14px !important;
+    }
+
+    .tenant-selector-grid {
+        grid-template-columns: repeat(auto-fit, minmax(min(280px, 100%), 1fr)) !important;
+        gap: 16px !important;
+    }
+
+    .tenant-selector-card {
+        min-width: 0 !important;
+        padding: 20px !important;
+        border-radius: 18px !important;
+    }
+
+    .tenant-selector-new-card {
+        min-height: 190px;
+    }
+}

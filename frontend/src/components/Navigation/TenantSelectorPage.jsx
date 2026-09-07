@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import ReactDOM from 'react-dom';
 import { useTenant } from '../../hooks/useTenant';
 import { useAuth } from '../../hooks/useAuth';
@@ -13,12 +13,19 @@ const TenantSelectorPage = () => {
     const [showSedeModal, setShowSedeModal] = useState(false);
     const [localTenants, setLocalTenants] = useState(null); // null = use context tenants
     const [activeView, setActiveView] = useState('sedes'); // 'sedes' | 'ai_global' | 'admin'
+    const [isMobile, setIsMobile] = useState(() => window.innerWidth <= 900);
+
+    useEffect(() => {
+        const handleResize = () => setIsMobile(window.innerWidth <= 900);
+        window.addEventListener('resize', handleResize);
+        return () => window.removeEventListener('resize', handleResize);
+    }, []);
 
     const displayTenants = localTenants ?? tenants;
     const isSuperAdmin = user?.role === 'SUPER_ADMIN';
 
     return (
-        <div style={{
+        <div className="tenant-selector-page" style={{
             minHeight: '100vh',
             width: '100vw',
             backgroundColor: '#f8fafc',
@@ -28,7 +35,7 @@ const TenantSelectorPage = () => {
             overflow: 'hidden'
         }}>
             {/* Sidebar Left */}
-            <div style={{
+            <div className="tenant-selector-sidebar" style={{
                 width: '270px',
                 backgroundColor: '#0f172a',
                 color: 'white',
@@ -65,7 +72,7 @@ const TenantSelectorPage = () => {
                 </div>
 
                 {/* Navigation Links */}
-                <div style={{ padding: '20px 12px', flex: 1, display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                <div className="tenant-selector-nav" style={{ padding: '20px 12px', flex: 1, display: 'flex', flexDirection: 'column', gap: '6px' }}>
                     <div style={{ padding: '0 12px 8px 12px', fontSize: '11px', fontWeight: 700, color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
                         Navegación
                     </div>
@@ -170,16 +177,16 @@ const TenantSelectorPage = () => {
             </div>
 
             {/* Main Content Area */}
-            <div style={{ flex: 1, height: '100vh', overflowY: 'auto', display: 'flex', flexDirection: 'column' }}>
+            <div className="tenant-selector-main" style={{ flex: 1, height: '100vh', overflowY: 'auto', display: 'flex', flexDirection: 'column' }}>
                 {activeView === 'ai_global' ? (
-                    <AIArea isMobile={false} user={user} isGlobalOnly={true} />
+                    <AIArea isMobile={isMobile} user={user} isGlobalOnly={true} />
                 ) : activeView === 'admin' ? (
-                    <AdminPanel isMobile={false} />
+                    <AdminPanel isMobile={isMobile} />
                 ) : (
                     /* Sedes View */
-                    <div style={{ padding: '40px 36px', maxWidth: '1200px', width: '100%', margin: '0 auto', boxSizing: 'border-box' }}>
+                    <div className="tenant-selector-content" style={{ padding: '40px 36px', maxWidth: '1200px', width: '100%', margin: '0 auto', boxSizing: 'border-box' }}>
                         {/* Header Area */}
-                        <div style={{
+                        <div className="tenant-selector-header" style={{
                             display: 'flex',
                             justifyContent: 'space-between',
                             alignItems: 'center',
@@ -194,7 +201,7 @@ const TenantSelectorPage = () => {
                         </div>
 
                         {/* Selection Text */}
-                        <div style={{ textAlign: 'center', marginBottom: '40px' }}>
+                        <div className="tenant-selector-welcome" style={{ textAlign: 'center', marginBottom: '40px' }}>
                             <h2 style={{ fontSize: '30px', fontWeight: '800', color: '#0f172a', marginBottom: '8px' }}>
                                 ¿A dónde vamos hoy?
                             </h2>
@@ -204,7 +211,7 @@ const TenantSelectorPage = () => {
                         </div>
 
                         {/* Cards Grid */}
-                        <div style={{
+                        <div className="tenant-selector-grid" style={{
                             display: 'grid',
                             gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))',
                             gap: '24px',
@@ -213,6 +220,7 @@ const TenantSelectorPage = () => {
                             {displayTenants.map((tenant) => (
                                 <div
                                     key={tenant.id}
+                                    className="tenant-selector-card"
                                     onClick={() => selectTenant(tenant)}
                                     style={{
                                         background: 'white',
@@ -311,6 +319,7 @@ const TenantSelectorPage = () => {
                             {/* Card Nueva Sede — solo SUPER_ADMIN */}
                             {user?.role === 'SUPER_ADMIN' && (
                                 <div
+                                    className="tenant-selector-card tenant-selector-new-card"
                                     onClick={() => setShowSedeModal(true)}
                                     style={{
                                         background: 'rgba(17,171,156,0.03)',
