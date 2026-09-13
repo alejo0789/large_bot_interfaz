@@ -154,6 +154,7 @@ async function alignDatabases() {
                         payment_date    TIMESTAMP,
                         email_subject   TEXT,
                         raw_email       TEXT,
+                        direction       VARCHAR(20) NOT NULL DEFAULT 'incoming',
                         status          VARCHAR(30) NOT NULL DEFAULT 'pending',
                         verified_at     TIMESTAMP,
                         verified_by     VARCHAR(100),

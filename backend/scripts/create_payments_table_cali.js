@@ -20,6 +20,7 @@ CREATE TABLE IF NOT EXISTS payments (
     payment_date    TIMESTAMP,
     email_subject   TEXT,
     raw_email       TEXT,
+    direction        VARCHAR(20) NOT NULL DEFAULT 'incoming',
 
     -- Estado del pago
     status          VARCHAR(30) NOT NULL DEFAULT 'pending',

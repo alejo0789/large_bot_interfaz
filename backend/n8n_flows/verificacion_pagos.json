@@ -1,0 +1,299 @@
+{
+  "name": "verificacion_pagos",
+  "nodes": [
+    {
+      "parameters": {
+        "pollTimes": {
+          "item": [
+            {
+              "mode": "everyMinute"
+            }
+          ]
+        },
+        "filters": {
+          "q": "={from:alertasynotificaciones@an.notificacionesbancolombia.com from:alertasynotificaciones@bancolombia.com.co from:alejo0789@gmail.com}"
+        }
+      },
+      "type": "n8n-nodes-base.gmailTrigger",
+      "typeVersion": 1.4,
+      "position": [
+        -304,
+        -32
+      ],
+      "id": "4f5189c0-2fc9-42d2-b4ce-844d24ad7b1a",
+      "name": "Gmail Trigger",
+      "credentials": {
+        "gmailOAuth2": {
+          "id": "KLNnJmopGcZxEMz1",
+          "name": "Gmail account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const items = $input.all();\nconst processedItems = [];\n\nfunction parseMoney(value) {\n    if (!value) return 0;\n    let number = String(value).replace(/[^0-9.,-]/g, '');\n    const lastComma = number.lastIndexOf(',');\n    const lastDot = number.lastIndexOf('.');\n\n    // Colombian format: 5.000,00 -> 5000.00\n    if (lastComma > lastDot) {\n        number = number.replace(/\\./g, '').replace(',', '.');\n    } else {\n        // US format: 1,674,300.00 -> 1674300.00; 5000 -> 5000\n        number = number.replace(/,/g, '');\n    }\n\n    const parsed = Number(number);\n    return Number.isFinite(parsed) ? parsed : 0;\n}\n\nfunction classifyMovement(text) {\n    const normalized = String(text || '')\n        .toLowerCase()\n        .normalize('NFD')\n        .replace(/[\\u0300-\\u036f]/g, ' ');\n\n    const outgoing = [\n        /compraste/, /compra realizada/, /enviaste/, /transferiste/,\n        /transferencia realizada/, /pago realizado/, /pago exitoso/,\n        /retiro/, /debito/, /debitado/, /salio de tu cuenta/\n    ];\n    const incoming = [\n        /recibiste/, /recibido/, /te consignaron/, /consignacion recibida/,\n        /transferencia recibida/, /abono recibido/, /ingreso a tu cuenta/,\n        /deposito recibido/, /se acredito/, /acreditado en tu cuenta/\n    ];\n\n    if (outgoing.some(pattern => pattern.test(normalized))) {\n        return { direction: 'outgoing', transaction_type: 'expense', is_received: false, is_outgoing: true, classification_reason: 'El correo indica compra, envío o débito' };\n    }\n    if (incoming.some(pattern => pattern.test(normalized))) {\n        return { direction: 'incoming', transaction_type: 'income', is_received: true, is_outgoing: false, classification_reason: 'El correo indica recepción o abono' };\n    }\n    return { direction: 'unknown', transaction_type: 'unknown', is_received: false, is_outgoing: false, classification_reason: 'No se pudo identificar entrada o salida' };\n}\n\nfor (const item of items) {\n    const email = item.json;\n    const body = email.textPlain || email.text || email.snippet || email.body || '';\n    const subject = email.Subject || email.subject || 'Sin asunto';\n    const fullText = `${subject}\\n${body}`;\n    const movement = classifyMovement(fullText);\n\n    const amountMatch = fullText.match(/\\$\\s*([\\d.,]+)/);\n    const amount = parseMoney(amountMatch ? amountMatch[1] : 0);\n\n    const refMatch = fullText.match(/(?:comprobante|referencia|aprobaci[óo]n|transacci[óo]n)\\s*#?\\s*([A-Z0-9-]+)/i);\n    const reference = refMatch\n        ? refMatch[1]\n        : 'BC-MAIL-' + (email.id || email.historyId || Math.random().toString(36).slice(2, 11));\n\n    const nameMatch = fullText.match(/\\bde\\s+(.+?)\\s+en\\s+tu\\s+cuenta/i);\n    const paymentDate = email.internalDate\n        ? new Date(Number(email.internalDate))\n        : new Date();\n\n    processedItems.push({\n        json: {\n            reference,\n            amount,\n            bank: 'Bancolombia',\n            payer_name: nameMatch ? nameMatch[1].trim() : 'Desconocido',\n            payment_date: paymentDate.toISOString(),\n            email_subject: subject,\n            raw_email: body,\n            direction: movement.direction,\n            transaction_type: movement.transaction_type,\n            is_received: movement.is_received,\n            is_outgoing: movement.is_outgoing,\n            classification_reason: movement.classification_reason,\n            classification_confidence: movement.direction === 'unknown' ? 'low' : 'high'\n        }\n    });\n}\n\nreturn processedItems;\n"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -112,
+        -32
+      ],
+      "id": "a14829c9-5574-4d47-97e9-02a7e10dd05b",
+      "name": "Code in JavaScript"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://largebotinterfaz-production-5b38.up.railway.app/api/payments/register",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "x-sede-slug",
+              "value": "cali"
+            },
+            {
+              "name": "SYSTEM_API_KEY",
+              "value": "IA_w1232_r3quest_20dos?"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ $json }}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.4,
+      "position": [
+        112,
+        -32
+      ],
+      "id": "512b1170-aeb7-463d-b1f4-a91e323902e4",
+      "name": "HTTP Request"
+    },
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "483c1092-27db-4e32-b28f-cde0a05b42e1",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2.1,
+      "position": [
+        -464,
+        208
+      ],
+      "id": "d93df682-993c-40ad-8a83-2360002e298e",
+      "name": "Webhook",
+      "webhookId": "483c1092-27db-4e32-b28f-cde0a05b42e1"
+    },
+    {
+      "parameters": {
+        "resource": "image",
+        "operation": "analyze",
+        "modelId": {
+          "__rl": true,
+          "value": "models/gemini-3.5-flash",
+          "mode": "list",
+          "cachedResultName": "models/gemini-3.5-flash"
+        },
+        "text": "=Analiza la imagen de este comprobante de transferencia bancaria y extrae los siguientes datos en formato JSON estructurado:\n1. \"reference\": El número de comprobante, número de transacción, código de autorización o número de aprobación (debe ser un valor numérico o alfanumérico).\n2. \"amount\": El valor exacto transferido (número entero o flotante, sin símbolos de moneda ni comas).\nRetorna únicamente este JSON:\n{\n  \"reference\": \"VALOR\",\n  \"amount\": 100000\n}",
+        "inputType": "binary",
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.googleGemini",
+      "typeVersion": 1.2,
+      "position": [
+        -112,
+        208
+      ],
+      "id": "bab870c2-66ad-4cdf-a896-2f084e9b5489",
+      "name": "Analyze an image",
+      "credentials": {
+        "googlePalmApi": {
+          "id": "CDjIjnAjMCpD3jc9",
+          "name": "Google Gemini(PaLM) Api account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "url": "={{ $json.body.imageUrl }}",
+        "options": {
+          "response": {
+            "response": {
+              "responseFormat": "file"
+            }
+          }
+        }
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.4,
+      "position": [
+        -256,
+        208
+      ],
+      "id": "973164b2-5ffe-4e7e-8230-df7c0d478e3e",
+      "name": "HTTP Request1"
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={\n  \"matched\": {{ $json.matched || false }},\n  \"payment\": {{ $json.payment ? JSON.stringify($json.payment) : \"null\" }},\n  \"ocr\": {\n    \"reference\": \"{{ $('Parse_AI_Result').item.json.reference || '' }}\",\n    \"amount\": {{ $('Parse_AI_Result').item.json.amount || 0 }}\n  }\n}\n\n",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.5,
+      "position": [
+        560,
+        208
+      ],
+      "id": "3644827b-01f0-4264-86e4-a827a58e2473",
+      "name": "Respond to Webhook"
+    },
+    {
+      "parameters": {
+        "jsCode": "// 1. Obtener la respuesta de texto de Gemini\nconst rawText = $input.item.json.content.parts[0].text;\n\n// 2. Limpiar los bloques de Markdown ```json y ```\nconst cleanJsonText = rawText.replace(/```json/g, '').replace(/```/g, '').trim();\n\n// 3. Convertir el texto a un Objeto JSON de JavaScript\nconst parsedData = JSON.parse(cleanJsonText);\n\n// 4. Retornar los datos limpios\nreturn {\n  json: {\n    reference: parsedData.reference,\n    amount: parseFloat(parsedData.amount)\n  }\n};\n"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        96,
+        208
+      ],
+      "id": "01aca020-ea65-4b7c-9b20-ae84ca96a360",
+      "name": "Parse_AI_Result"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://largebotinterfaz-production-5b38.up.railway.app/api/payments/verify",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            },
+            {
+              "name": "x-sede-slug",
+              "value": "={{ $('Webhook').item.json.body.tenantSlug }}"
+            },
+            {
+              "name": "SYSTEM_API_KEY",
+              "value": "IA_w1232_r3quest_20dos?"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ $json }}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.4,
+      "position": [
+        304,
+        208
+      ],
+      "id": "9e702efa-0d7b-4629-bc85-1e6781ef642f",
+      "name": "HTTP Request2"
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "Gmail Trigger": {
+      "main": [
+        [
+          {
+            "node": "Code in JavaScript",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Code in JavaScript": {
+      "main": [
+        [
+          {
+            "node": "HTTP Request",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Webhook": {
+      "main": [
+        [
+          {
+            "node": "HTTP Request1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "HTTP Request1": {
+      "main": [
+        [
+          {
+            "node": "Analyze an image",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Analyze an image": {
+      "main": [
+        [
+          {
+            "node": "Parse_AI_Result",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Parse_AI_Result": {
+      "main": [
+        [
+          {
+            "node": "HTTP Request2",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "HTTP Request2": {
+      "main": [
+        [
+          {
+            "node": "Respond to Webhook",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": true,
+  "settings": {
+    "executionOrder": "v1",
+    "binaryMode": "separate"
+  },
+  "versionId": "29454f0d-2593-4d20-990b-2047a28fe05c",
+  "meta": {
+    "templateCredsSetupCompleted": true,
+    "instanceId": "9d3dca8d6aa02f6d8b93cec87b44e118adc566c8aef43c67bbf89a4968e8773f"
+  },
+  "nodeGroups": [],
+  "id": "RuP6Wm4XEnpeoRPA",
+  "tags": []
+}

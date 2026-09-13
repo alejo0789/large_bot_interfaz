@@ -46,8 +46,14 @@ router.post('/register', async (req, res) => {
             payer_account,
             payment_date,
             email_subject,
-            raw_email
+            raw_email,
+            direction,
+            transaction_type
         } = req.body;
+
+        const normalizedDirection = direction === 'outgoing' || transaction_type === 'expense'
+            ? 'outgoing'
+            : 'incoming';
 
         if (!amount && !reference) {
             return res.status(400).json({ error: 'Se requiere al menos amount o reference' });
@@ -56,13 +62,14 @@ router.post('/register', async (req, res) => {
         // Try to insert; on duplicate (same reference + date) return existing record
         const result = await db.query(
             `INSERT INTO payments
-                (reference, amount, bank, payer_name, payer_account, payment_date, email_subject, raw_email, status)
-             VALUES ($1, $2, $3, $4, $5, $6, $7, $8, 'pending')
+                (reference, amount, bank, payer_name, payer_account, payment_date, email_subject, raw_email, direction, status)
+             VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, 'pending')
              ON CONFLICT (reference, payment_date) WHERE reference IS NOT NULL DO UPDATE
                 SET updated_at = NOW(), status = CASE WHEN payments.status = 'pending' THEN 'pending' ELSE payments.status END
              RETURNING *`,
             [reference || null, amount || null, bank || null, payer_name || null,
-             payer_account || null, payment_date || null, email_subject || null, raw_email || null]
+             payer_account || null, payment_date || null, email_subject || null, raw_email || null,
+             normalizedDirection]
         );
 
         const payment = result.rows[0];
@@ -208,7 +215,7 @@ router.post('/verify', async (req, res) => {
 
 // ─── GET / (list with filters) ────────────────────────────────────────────────
 /**
- * Query params: status, bank, startDate, endDate, page, limit
+ * Query params: status, bank, direction, startDate, endDate, page, limit
  */
 router.get('/', async (req, res) => {
     try {
@@ -216,6 +223,7 @@ router.get('/', async (req, res) => {
         const {
             status,
             bank,
+            direction,
             startDate,
             endDate,
             page = 1,
@@ -232,6 +240,10 @@ router.get('/', async (req, res) => {
         if (bank) {
             params.push(`%${bank}%`);
             conditions.push(`bank ILIKE $${params.length}`);
+        }
+        if (direction === 'incoming' || direction === 'outgoing') {
+            params.push(direction);
+            conditions.push(`COALESCE(direction, 'incoming') = $${params.length}`);
         }
         if (startDate) {
             params.push(startDate);
@@ -302,7 +314,14 @@ router.get('/stats', async (req, res) => {
                 COUNT(*) FILTER (WHERE status = 'rejected')    AS rejected,
                 COUNT(*) FILTER (WHERE status = 'duplicate')   AS duplicate,
                 COALESCE(SUM(amount), 0)                       AS total_amount,
-                COALESCE(SUM(amount) FILTER (WHERE status = 'verified'), 0) AS verified_amount,
+                COALESCE(SUM(amount) FILTER (WHERE direction = 'incoming' OR direction IS NULL), 0) AS incoming_amount,
+                COALESCE(SUM(amount) FILTER (WHERE direction = 'outgoing'), 0) AS outgoing_amount,
+                COALESCE(SUM(amount) FILTER (WHERE (direction = 'incoming' OR direction IS NULL) AND status = 'verified'), 0) AS verified_incoming_amount,
+                COALESCE(SUM(amount) FILTER (WHERE direction = 'outgoing' AND status = 'verified'), 0) AS verified_outgoing_amount,
+                COALESCE(SUM(amount) FILTER (WHERE direction = 'incoming' OR direction IS NULL), 0) -
+                    COALESCE(SUM(amount) FILTER (WHERE direction = 'outgoing'), 0) AS balance,
+                COUNT(*) FILTER (WHERE direction = 'incoming' OR direction IS NULL) AS incoming_count,
+                COUNT(*) FILTER (WHERE direction = 'outgoing') AS outgoing_count,
                 COUNT(*) FILTER (WHERE amount = 20000)         AS count_20k
              FROM payments
              WHERE ${dateFilter}`,

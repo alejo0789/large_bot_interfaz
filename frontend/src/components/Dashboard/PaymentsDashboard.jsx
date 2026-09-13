@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { 
-    CircleDollarSign, Hash, CheckCircle, Clock, XCircle, Search, 
-    Calendar, Filter, RefreshCw, ChevronLeft, ChevronRight, FileText
+    CircleDollarSign, Clock, Filter, RefreshCw, ChevronLeft, ChevronRight,
+    ArrowDownLeft, ArrowUpRight, WalletCards
 } from 'lucide-react';
 import apiFetch from '../../utils/api';
 
@@ -20,6 +20,7 @@ const PaymentsDashboard = ({ isMobile }) => {
     const [customStartDate, setCustomStartDate] = useState('');
     const [customEndDate, setCustomEndDate] = useState('');
     const [statusFilter, setStatusFilter] = useState(''); // '', 'pending', 'verified', 'rejected'
+    const [directionFilter, setDirectionFilter] = useState(''); // '', 'incoming', 'outgoing'
 
     // Calculate effective dates based on range type
     const dates = useMemo(() => {
@@ -51,7 +52,7 @@ const PaymentsDashboard = ({ isMobile }) => {
             return;
         }
         fetchData();
-    }, [dates, page, statusFilter]);
+    }, [dates, page, statusFilter, directionFilter]);
 
     const fetchData = async () => {
         setIsLoading(true);
@@ -64,6 +65,7 @@ const PaymentsDashboard = ({ isMobile }) => {
             if (dates.start) queryParams.append('startDate', dates.start);
             if (dates.end) queryParams.append('endDate', dates.end);
             if (statusFilter) queryParams.append('status', statusFilter);
+            if (directionFilter) queryParams.append('direction', directionFilter);
 
             const [statsRes, listRes] = await Promise.all([
                 apiFetch(`/api/payments/stats?${queryParams.toString()}`),
@@ -107,10 +109,10 @@ const PaymentsDashboard = ({ isMobile }) => {
 
     // Calculate raw numbers from stats safely
     const statsSource = stats?.summary || stats?.rows?.[0] || stats || {};
-    const totalAmount = parseFloat(statsSource.total_amount || 0);
-    const verifiedAmount = parseFloat(statsSource.verified_amount || 0);
-    const totalTransactions = parseInt(statsSource.total || 0, 10);
-    const count20k = parseInt(statsSource.count_20k || 0, 10);
+    const incomingAmount = parseFloat(statsSource.incoming_amount ?? statsSource.total_amount ?? 0);
+    const outgoingAmount = parseFloat(statsSource.outgoing_amount || 0);
+    const balance = parseFloat(statsSource.balance ?? (incomingAmount - outgoingAmount));
+    const verifiedIncomingAmount = parseFloat(statsSource.verified_incoming_amount ?? statsSource.verified_amount ?? 0);
     const pendingCount = parseInt(statsSource.pending || 0, 10);
 
     return (
@@ -216,24 +218,25 @@ const PaymentsDashboard = ({ isMobile }) => {
                 gap: '20px'
             }}>
                 <KPICard
-                    title="Total Ingresado a la Cuenta"
-                    value={`$${totalAmount.toLocaleString('es-CO')}`}
-                    icon={<CheckCircle className="w-6 h-6 text-emerald-600" />}
+                    title="Ingresos recibidos"
+                    value={`$${incomingAmount.toLocaleString('es-CO')}`}
+                    icon={<ArrowDownLeft className="w-6 h-6 text-emerald-600" />}
                     color="emerald"
-                    subtitle={`Verificados: $${verifiedAmount.toLocaleString('es-CO')}`}
+                    subtitle={`Verificados: $${verifiedIncomingAmount.toLocaleString('es-CO')}`}
                 />
                 <KPICard
-                    title="Transacciones Notificadas"
-                    value={totalTransactions}
-                    icon={<Hash className="w-6 h-6 text-blue-600" />}
+                    title="Salidas realizadas"
+                    value={`$${outgoingAmount.toLocaleString('es-CO')}`}
+                    icon={<ArrowUpRight className="w-6 h-6 text-rose-600" />}
+                    color="rose"
+                    subtitle={`Transacciones: ${parseInt(statsSource.outgoing_count || 0, 10)}`}
+                />
+                <KPICard
+                    title="Saldo neto"
+                    value={`$${balance.toLocaleString('es-CO')}`}
+                    icon={<WalletCards className="w-6 h-6 text-blue-600" />}
                     color="blue"
-                />
-                <KPICard
-                    title="Abonos de $20.000"
-                    value={count20k}
-                    icon={<CircleDollarSign className="w-6 h-6 text-purple-600" />}
-                    color="purple"
-                    subtitle="Cantidad de notificaciones"
+                    subtitle="Ingresos menos salidas"
                 />
                 <KPICard
                     title="Pendientes por Verificar"
@@ -259,6 +262,15 @@ const PaymentsDashboard = ({ isMobile }) => {
                     <h2 style={{ fontSize: '1.125rem', fontWeight: 600, color: '#1e293b', margin: 0 }}>Registro de Pagos</h2>
                     <div style={{ display: 'flex', gap: '12px', alignItems: 'center' }}>
                         <Filter className="w-4 h-4 text-gray-500" />
+                        <select
+                            value={directionFilter}
+                            onChange={(e) => { setDirectionFilter(e.target.value); setPage(1); }}
+                            style={{ padding: '6px 12px', borderRadius: '6px', border: '1px solid #cbd5e1', fontSize: '0.875rem', outline: 'none' }}
+                        >
+                            <option value="">Entradas y salidas</option>
+                            <option value="incoming">Solo ingresos</option>
+                            <option value="outgoing">Solo salidas</option>
+                        </select>
                         <select 
                             value={statusFilter}
                             onChange={(e) => { setStatusFilter(e.target.value); setPage(1); }}
@@ -281,6 +293,7 @@ const PaymentsDashboard = ({ isMobile }) => {
                                 <th style={{ padding: '12px 20px', fontWeight: 600 }}>Fecha Notificación</th>
                                 <th style={{ padding: '12px 20px', fontWeight: 600 }}>Pagador</th>
                                 <th style={{ padding: '12px 20px', fontWeight: 600 }}>Monto</th>
+                                <th style={{ padding: '12px 20px', fontWeight: 600 }}>Movimiento</th>
                                 <th style={{ padding: '12px 20px', fontWeight: 600 }}>Banco</th>
                                 <th style={{ padding: '12px 20px', fontWeight: 600 }}>Referencia</th>
                                 <th style={{ padding: '12px 20px', fontWeight: 600 }}>Estado</th>
@@ -289,15 +302,16 @@ const PaymentsDashboard = ({ isMobile }) => {
                         <tbody>
                             {isLoading ? (
                                 <tr>
-                                    <td colSpan="6" style={{ padding: '40px', textAlign: 'center', color: '#64748b' }}>Cargando pagos...</td>
+                                    <td colSpan="7" style={{ padding: '40px', textAlign: 'center', color: '#64748b' }}>Cargando pagos...</td>
                                 </tr>
                             ) : payments.length === 0 ? (
                                 <tr>
-                                    <td colSpan="6" style={{ padding: '40px', textAlign: 'center', color: '#64748b' }}>No se encontraron registros para los filtros seleccionados</td>
+                                    <td colSpan="7" style={{ padding: '40px', textAlign: 'center', color: '#64748b' }}>No se encontraron registros para los filtros seleccionados</td>
                                 </tr>
                             ) : (
                                 payments.map((payment) => {
                                     const st = getStatusColor(payment.status);
+                                    const isOutgoing = payment.direction === 'outgoing';
                                     return (
                                         <tr key={payment.id} style={{ borderBottom: '1px solid #f1f5f9' }}>
                                             <td style={{ padding: '12px 20px' }}>
@@ -308,7 +322,21 @@ const PaymentsDashboard = ({ isMobile }) => {
                                                 {payment.payer_name || 'Desconocido'}
                                             </td>
                                             <td style={{ padding: '12px 20px', fontWeight: 600, color: '#0f172a' }}>
-                                                ${parseFloat(payment.amount).toLocaleString('es-CO')}
+                                                <span style={{ color: isOutgoing ? '#be123c' : '#047857' }}>
+                                                    {isOutgoing ? '-' : '+'}${parseFloat(payment.amount || 0).toLocaleString('es-CO')}
+                                                </span>
+                                            </td>
+                                            <td style={{ padding: '12px 20px' }}>
+                                                <span style={{
+                                                    display: 'inline-flex', alignItems: 'center', gap: '4px',
+                                                    backgroundColor: isOutgoing ? '#fff1f2' : '#ecfdf5',
+                                                    color: isOutgoing ? '#be123c' : '#047857',
+                                                    padding: '4px 8px', borderRadius: '9999px',
+                                                    fontSize: '0.75rem', fontWeight: 600
+                                                }}>
+                                                    {isOutgoing ? <ArrowUpRight size={13} /> : <ArrowDownLeft size={13} />}
+                                                    {isOutgoing ? 'Salida' : 'Entrada'}
+                                                </span>
                                             </td>
                                             <td style={{ padding: '12px 20px', color: '#64748b' }}>
                                                 {payment.bank || 'N/A'}
@@ -369,6 +397,7 @@ const KPICard = ({ title, value, icon, color, subtitle }) => {
     const colors = {
         blue: { bg: '#eff6ff', text: '#2563eb' },
         emerald: { bg: '#ecfdf5', text: '#059669' },
+        rose: { bg: '#fff1f2', text: '#e11d48' },
         orange: { bg: '#fff7ed', text: '#ea580c' },
         purple: { bg: '#faf5ff', text: '#9333ea' }
     };
