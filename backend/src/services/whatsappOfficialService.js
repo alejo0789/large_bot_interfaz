@@ -15,7 +15,9 @@ const fs = require('fs');
 const path = require('path');
 const sharp = require('sharp');
 
-const GRAPH_API_VERSION = 'v19.0';
+// Keep the Graph API version configurable while using the version validated
+// for the current Meta recipient/user_id behavior by default.
+const GRAPH_API_VERSION = process.env.WHATSAPP_GRAPH_API_VERSION || 'v22.0';
 const GRAPH_BASE = `https://graph.facebook.com/${GRAPH_API_VERSION}`;
 
 class WhatsappOfficialService {

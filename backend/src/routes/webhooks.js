@@ -357,25 +357,39 @@ router.post('/receive-message', asyncHandler(async (req, res) => {
                 console.error(`❌ ERROR de Evolution API para ${purePhone}:`, result ? result.error : 'Sin respuesta');
             }
             // Reconciliar el registro provisional de n8n con el ID real y estado
-            // devueltos por Meta/Evolution.
-            if (result && result.success) {
-                const actualWhatsappId = result.data?.messages?.[0]?.id
-                    || result.data?.key?.id
-                    || result.data?.key?.messageId
-                    || result.data?.id
-                    || null;
+            // devueltos por Meta/Evolution. Un fallo de reconciliación no debe
+            // convertir una respuesta ya procesada en un 500 para n8n.
+            try {
+                if (result && result.success) {
+                    const actualWhatsappId = result.data?.messages?.[0]?.id
+                        || result.data?.key?.id
+                        || result.data?.key?.messageId
+                        || result.data?.id
+                        || null;
 
-                if (actualWhatsappId && actualWhatsappId !== whatsapp_id) {
-                    await messageService.updateWhatsappId(savedMessage.id, actualWhatsappId, 'sent');
-                    whatsapp_id = actualWhatsappId;
+                    if (actualWhatsappId && actualWhatsappId !== whatsapp_id) {
+                        await messageService.updateWhatsappId(savedMessage.id, actualWhatsappId, 'sent');
+                        whatsapp_id = actualWhatsappId;
+                    } else {
+                        await messageService.updateStatus(savedMessage.id, 'sent');
+                    }
                 } else {
-                    await messageService.updateStatus(savedMessage.id, 'sent');
+                    await messageService.updateStatus(savedMessage.id, 'failed');
                 }
-            } else {
-                await messageService.updateStatus(savedMessage.id, 'failed');
+            } catch (reconciliationError) {
+                console.error('Error reconciling n8n message:', reconciliationError.message);
+                try {
+                    await messageService.updateStatus(savedMessage.id, result && result.success ? 'sent' : 'failed');
+                } catch (statusError) {
+                    console.error('Error updating fallback message status:', statusError.message);
+                }
             }
         } catch (evoError) {
-            await messageService.updateStatus(savedMessage.id, 'failed');
+            try {
+                await messageService.updateStatus(savedMessage.id, 'failed');
+            } catch (statusError) {
+                console.error('Error updating failed message status:', statusError.message);
+            }
             console.error('❌ ERROR CRÍTICO contactando Evolution API:', evoError.message);
         }
     }
