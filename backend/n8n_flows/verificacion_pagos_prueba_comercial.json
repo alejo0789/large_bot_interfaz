@@ -1,0 +1,897 @@
+{
+  "name": "verificacion_pagos_prueba_comercial",
+  "nodes": [
+    {
+      "parameters": {
+        "resource": "image",
+        "operation": "analyze",
+        "modelId": {
+          "__rl": true,
+          "value": "models/gemini-3.5-flash",
+          "mode": "list",
+          "cachedResultName": "models/gemini-3.5-flash"
+        },
+        "text": "=Analiza la imagen de este comprobante de transferencia bancaria y extrae los siguientes datos en formato JSON estructurado:\n1. \"reference\": El número de comprobante, número de transacción, código de autorización o número de aprobación (debe ser un valor numérico o alfanumérico).\n2. \"amount\": El valor exacto transferido (número entero o flotante, sin símbolos de moneda ni comas).\nRetorna únicamente este JSON:\n{\n  \"reference\": \"VALOR\",\n  \"amount\": 100000\n}",
+        "inputType": "binary",
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.googleGemini",
+      "typeVersion": 1.2,
+      "position": [
+        -32,
+        -48
+      ],
+      "id": "f63a1c8c-d4cd-420a-a5a5-6648f6a7e722",
+      "name": "Analyze an image",
+      "credentials": {
+        "googlePalmApi": {
+          "id": "CDjIjnAjMCpD3jc9",
+          "name": "Google Gemini(PaLM) Api account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "url": "={{ $json.body.imageUrl }}",
+        "sendHeaders": true,
+        "specifyHeaders": "json",
+        "jsonHeaders": "{\"Authorization\": \"Bearer EAAYjZB9gG1HcBRy752L0sLhRNw6ZAidzv858MZCZBLAsmwmCGxm5N1r2axrx3UCpkLC6deUNWyMZAdkrbr8eb0snxAM8CVwCoTMriuBgl4kLDwtVrsOFvo9tULT8TOKTEAf1kEcsw3VFR9WPAB3batJJqWS5yjbZAqZCFBiFKcAaiVrfPC6yhreAEyXasDwZAWCuIQZDZD\"}",
+        "options": {
+          "response": {
+            "response": {
+              "responseFormat": "file"
+            }
+          }
+        }
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.4,
+      "position": [
+        -400,
+        -48
+      ],
+      "id": "021b2f0d-f4ea-40b2-9f0e-6e26fa8a65d5",
+      "name": "HTTP Request1"
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={\n  \"matched\": {{ $json.matched || false }},\n  \"payment\": {{ $json.payment ? JSON.stringify($json.payment) : \"null\" }},\n  \"ocr\": {\n    \"reference\": \"{{ $('Parse_AI_Result').item.json.reference || '' }}\",\n    \"amount\": {{ $('Parse_AI_Result').item.json.amount || 0 }}\n  }\n}\n\n",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.5,
+      "position": [
+        640,
+        -48
+      ],
+      "id": "b27bc82e-f51b-4021-8d79-7819cc1552b8",
+      "name": "Respond to Webhook"
+    },
+    {
+      "parameters": {
+        "jsCode": "// 1. Obtener la respuesta de texto de Gemini\nconst rawText = $input.item.json.content.parts[0].text;\n\n// 2. Limpiar los bloques de Markdown ```json y ```\nconst cleanJsonText = rawText.replace(/```json/g, '').replace(/```/g, '').trim();\n\n// 3. Convertir el texto a un Objeto JSON de JavaScript\nconst parsedData = JSON.parse(cleanJsonText);\n\n// 4. Retornar los datos limpios\nreturn {\n  json: {\n    reference: parsedData.reference,\n    amount: parseFloat(parsedData.amount)\n  }\n};\n"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        176,
+        -48
+      ],
+      "id": "ab301796-1906-442f-9395-ef2ed6acff4e",
+      "name": "Parse_AI_Result"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://verificador.movaiti.com/api/webhooks/verify",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            },
+            {
+              "name": "x-api-key",
+              "value": "=pagos_webhook_key_2024"
+            },
+            {}
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"local_slug\": \"{{ $('Webhook').item.json.body.tenant_slug }}\",\n  \"conversation_phone\": \"{{ $('Webhook').item.json.body.phone }}\",\n  \"amount\": \"{{ $json.amount }}\",\n  \"reference\": \"{{ $json.reference }}\",\n  \"image_url\": \"{{ $('Webhook').item.json.body.imageUrl }}\"\n}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.4,
+      "position": [
+        384,
+        -48
+      ],
+      "id": "0ec4a784-e49b-45f5-a551-cfd88abfad2a",
+      "name": "HTTP Request2"
+    },
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "3e7f9d1e-cfdb-426f-bbdb-58bb57bb5891",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2.1,
+      "position": [
+        -736,
+        -48
+      ],
+      "id": "6f4c38db-4d94-40ef-b8c9-f0aa94833bed",
+      "name": "Webhook",
+      "webhookId": "3e7f9d1e-cfdb-426f-bbdb-58bb57bb5891"
+    },
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "minutes",
+              "minutesInterval": 1
+            }
+          ]
+        }
+      },
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [
+        -1376,
+        -400
+      ],
+      "id": "dcafeb46-7d8d-49c5-9791-b7b57e0ca23d",
+      "name": "Cada minuto"
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "3fde7545-0907-40b6-b798-37f4639d8c53",
+              "name": "backend_url",
+              "value": "https://graceful-hope-production-380b.up.railway.app",
+              "type": "string"
+            },
+            {
+              "id": "6ddbcb91-734f-40c8-9a07-f2cc0b5e304f",
+              "name": "api_key",
+              "value": "pagos_webhook_key_2024",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        -1216,
+        -400
+      ],
+      "id": "937676c9-0ce6-424c-890b-fa9aa26bce81",
+      "name": "Config Backend",
+      "notes": "Único lugar donde se cambia la URL del backend y la API key de webhooks."
+    },
+    {
+      "parameters": {
+        "url": "={{ $json.backend_url }}/api/webhooks/email-accounts",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "x-api-key",
+              "value": "={{ $json.api_key }}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        -1008,
+        -400
+      ],
+      "id": "c3090f4d-5003-45f4-9ea7-92f34326a59f",
+      "name": "Buzones vinculados",
+      "notes": "Devuelve TODOS los locales con correo vinculado, cada uno con un access_token fresco. Aquí es donde el flujo se vuelve multi-tenant."
+    },
+    {
+      "parameters": {
+        "jsCode": "// El backend responde { accounts: [...] } en un solo item. Se expande a un\n// item por buzón para que el resto del flujo procese cada local por separado.\nconst res = $input.first().json || {};\nconst cuentas = res.accounts || [];\n\nif (!Array.isArray(cuentas) || cuentas.length === 0) {\n  return [];   // ningún local con correo vinculado → el ciclo termina aquí\n}\n\nreturn cuentas.map(c => ({ json: c }));\n"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -800,
+        -400
+      ],
+      "id": "7f51ef40-a7e1-41f3-83f4-cc279a8d1d9d",
+      "name": "Expandir Buzones"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "string": [
+            {
+              "value1": "={{ $json.provider }}",
+              "value2": "gmail"
+            }
+          ]
+        }
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 1,
+      "position": [
+        -592,
+        -400
+      ],
+      "id": "08b18ca0-8176-42d0-9778-4b120d5d5279",
+      "name": "¿Gmail o Outlook?"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Ancla de contexto de la rama Gmail. Los nodos HTTP pierden los campos del\n// item de entrada, así que los nodos siguientes recuperan el local y el token\n// desde aquí por posición ($itemIndex), que n8n sí preserva.\nreturn $input.all();\n"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -384,
+        -544
+      ],
+      "id": "108616a5-5d64-47ba-b222-92fbe0e0f3a3",
+      "name": "Gmail · Contexto"
+    },
+    {
+      "parameters": {
+        "url": "https://gmail.googleapis.com/gmail/v1/users/me/messages",
+        "sendQuery": true,
+        "queryParameters": {
+          "parameters": [
+            {
+              "name": "q",
+              "value": "={{ $json.gmail_query }}"
+            },
+            {
+              "name": "maxResults",
+              "value": "25"
+            }
+          ]
+        },
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": "=Bearer {{ $json.access_token }}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        -176,
+        -544
+      ],
+      "id": "8d800f5b-5786-4f8b-af19-7866ae27bd00",
+      "name": "Gmail · Listar correos",
+      "onError": "continueRegularOutput",
+      "notes": "El Bearer sale del payload, no de una credencial guardada: por eso un solo flujo sirve para todos los locales."
+    },
+    {
+      "parameters": {
+        "jsCode": "// Gmail responde { messages: [{id, threadId}] } por cada buzón consultado.\n// Se expande a un item por mensaje, arrastrando el contexto del local.\nconst contextos = $('Gmail · Contexto').all();\nconst entradas = $input.all();\nconst salida = [];\n\nfor (let i = 0; i < entradas.length; i++) {\n  const ctx = contextos[i]?.json || {};\n  const mensajes = entradas[i].json?.messages || [];\n  for (const m of mensajes) {\n    salida.push({\n      json: {\n        message_id: m.id,\n        local_slug: ctx.local_slug,\n        access_token: ctx.access_token,\n        // Checkpoint exacto del local. La búsqueda de Gmail trae de más a\n        // propósito (ver 'Buzones vinculados'), así que el descarte fino se\n        // hace en 'Parsear correo Gmail' contra este valor.\n        since_epoch_ms: ctx.since_epoch_ms || 0,\n      }\n    });\n  }\n}\n\nreturn salida;\n"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        32,
+        -544
+      ],
+      "id": "2c05b25d-ed38-4fa6-b68a-d8896d3e9aa1",
+      "name": "Gmail · Expandir mensajes"
+    },
+    {
+      "parameters": {
+        "url": "=https://gmail.googleapis.com/gmail/v1/users/me/messages/{{ $json.message_id }}",
+        "sendQuery": true,
+        "queryParameters": {
+          "parameters": [
+            {
+              "name": "format",
+              "value": "full"
+            }
+          ]
+        },
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": "=Bearer {{ $json.access_token }}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        240,
+        -544
+      ],
+      "id": "fbfa6a0b-89c2-46b6-9787-b1fb61ad0719",
+      "name": "Gmail · Obtener mensaje",
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "jsCode": "\n// ── Parseo de notificaciones bancarias ──────────────────────────────────────\n// Mismas reglas que el flujo original (monto con $, referencia por palabra\n// clave, pagador por \"de X en tu cuenta\"), aplicables tanto al snippet de\n// Gmail como al bodyPreview de Microsoft Graph.\n\nconst BANCOS = [\n  [/bancolombia/i, 'Bancolombia'],\n  [/davivienda/i, 'Davivienda'],\n  [/bbva/i, 'BBVA'],\n  [/bogota|bogotá/i, 'Banco de Bogotá'],\n  [/nequi/i, 'Nequi'],\n  [/daviplata/i, 'Daviplata'],\n  [/occidente/i, 'Banco de Occidente'],\n];\n\nfunction detectarBanco(remitente, asunto) {\n  const texto = `${remitente || ''} ${asunto || ''}`;\n  for (const [re, nombre] of BANCOS) {\n    if (re.test(texto)) return nombre;\n  }\n  // Default histórico del flujo: los correos vigilados eran de Bancolombia.\n  return 'Bancolombia';\n}\n\nfunction parsearNotificacion({ texto, asunto, remitente, fecha, idFallback }) {\n  const snippet = texto || '';\n\n  // Monto: primer \"$1.234.567\" del cuerpo.\n  let amount = 0;\n  const amountMatch = snippet.match(/\\$([\\d.,]+)/);\n  if (amountMatch) {\n    amount = parseFloat(amountMatch[1].replace(/,/g, ''));\n  }\n\n  // Referencia: número que sigue a comprobante / referencia / aprobación.\n  let reference = '';\n  const refMatch = snippet.match(/(?:comprobante|referencia|aprobaci[óo]n)\\s*#?\\s*(\\d+)/i);\n  if (refMatch) {\n    reference = refMatch[1];\n  } else {\n    // Sin referencia explícita se sintetiza una estable por mensaje, para que\n    // el UNIQUE(local_id, reference, payment_date) del backend deduplique.\n    reference = 'BC-MAIL-' + (idFallback || Math.random().toString(36).slice(2, 11));\n  }\n\n  let payerName = 'Desconocido';\n  const nameMatch = snippet.match(/\\bde\\s+(.+?)\\s+en\\s+tu\\s+cuenta/i);\n  if (nameMatch) payerName = nameMatch[1].trim();\n\n  return {\n    reference,\n    amount,\n    bank: detectarBanco(remitente, asunto),\n    payer_name: payerName,\n    payment_date: (fecha instanceof Date && !isNaN(fecha) ? fecha : new Date()).toISOString(),\n    email_subject: asunto || 'Sin asunto',\n    raw_email: snippet,\n  };\n}\n\nconst contextos = $('Gmail · Expandir mensajes').all();\nconst entradas = $input.all();\nconst salida = [];\n\nfor (let i = 0; i < entradas.length; i++) {\n  const ctx = contextos[i]?.json || {};\n  const correo = entradas[i].json || {};\n  const headers = correo.payload?.headers || [];\n\n  const asunto = headers.find(h => h.name === 'Subject')?.value || 'Sin asunto';\n  const remitente = headers.find(h => h.name === 'From')?.value || '';\n  const fecha = correo.internalDate ? new Date(parseInt(correo.internalDate, 10)) : new Date();\n\n  // Descarte exacto de lo ya procesado.\n  //\n  // El operador `after:` de Gmail no coincide con el internalDate del mensaje:\n  // medido contra un buzón real, sigue devolviendo un correo hasta ~13 s\n  // después de su propia marca de tiempo. Por eso el backend consulta desde\n  // `checkpoint - margen` y el corte de verdad se hace aquí, contra el\n  // timestamp real. Sin esto, el último correo procesado vuelve en cada ciclo.\n  const desde = Number(ctx.since_epoch_ms) || 0;\n  if (desde && fecha.getTime() <= desde) continue;\n\n  const pago = parsearNotificacion({\n    texto: correo.snippet || '',\n    asunto,\n    remitente,\n    fecha,\n    idFallback: correo.id || ctx.message_id,\n  });\n\n  // Sin monto no hay nada que cruzar contra el comprobante del cliente.\n  if (!pago.amount) continue;\n\n  salida.push({ json: { ...pago, local_slug: ctx.local_slug } });\n}\n\nreturn salida;\n"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        448,
+        -544
+      ],
+      "id": "472a6e28-4402-4166-87a6-1ebef73760a7",
+      "name": "Parsear correo Gmail"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Ancla de contexto de la rama Outlook (ver nota en 'Gmail · Contexto').\nreturn $input.all();\n"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -384,
+        -256
+      ],
+      "id": "ed9e0059-d955-4f0e-8b60-a94f034b8eba",
+      "name": "Outlook · Contexto"
+    },
+    {
+      "parameters": {
+        "url": "https://graph.microsoft.com/v1.0/me/mailFolders/inbox/messages",
+        "sendQuery": true,
+        "queryParameters": {
+          "parameters": [
+            {
+              "name": "$filter",
+              "value": "={{ $json.graph_filter }}"
+            },
+            {
+              "name": "$select",
+              "value": "id,subject,receivedDateTime,from,bodyPreview"
+            },
+            {
+              "name": "$top",
+              "value": "25"
+            },
+            {
+              "name": "$orderby",
+              "value": "receivedDateTime desc"
+            }
+          ]
+        },
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": "=Bearer {{ $json.access_token }}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        -176,
+        -256
+      ],
+      "id": "5af18995-f177-4e38-a23a-a2ecd06363f8",
+      "name": "Outlook · Listar correos",
+      "onError": "continueRegularOutput",
+      "notes": "Microsoft Graph con Bearer dinámico. bodyPreview basta: las notificaciones bancarias traen monto y referencia en las primeras líneas."
+    },
+    {
+      "parameters": {
+        "jsCode": "\n// ── Parseo de notificaciones bancarias ──────────────────────────────────────\n// Mismas reglas que el flujo original (monto con $, referencia por palabra\n// clave, pagador por \"de X en tu cuenta\"), aplicables tanto al snippet de\n// Gmail como al bodyPreview de Microsoft Graph.\n\nconst BANCOS = [\n  [/bancolombia/i, 'Bancolombia'],\n  [/davivienda/i, 'Davivienda'],\n  [/bbva/i, 'BBVA'],\n  [/bogota|bogotá/i, 'Banco de Bogotá'],\n  [/nequi/i, 'Nequi'],\n  [/daviplata/i, 'Daviplata'],\n  [/occidente/i, 'Banco de Occidente'],\n];\n\nfunction detectarBanco(remitente, asunto) {\n  const texto = `${remitente || ''} ${asunto || ''}`;\n  for (const [re, nombre] of BANCOS) {\n    if (re.test(texto)) return nombre;\n  }\n  // Default histórico del flujo: los correos vigilados eran de Bancolombia.\n  return 'Bancolombia';\n}\n\nfunction parsearNotificacion({ texto, asunto, remitente, fecha, idFallback }) {\n  const snippet = texto || '';\n\n  // Monto: primer \"$1.234.567\" del cuerpo.\n  let amount = 0;\n  const amountMatch = snippet.match(/\\$([\\d.,]+)/);\n  if (amountMatch) {\n    amount = parseFloat(amountMatch[1].replace(/,/g, ''));\n  }\n\n  // Referencia: número que sigue a comprobante / referencia / aprobación.\n  let reference = '';\n  const refMatch = snippet.match(/(?:comprobante|referencia|aprobaci[óo]n)\\s*#?\\s*(\\d+)/i);\n  if (refMatch) {\n    reference = refMatch[1];\n  } else {\n    // Sin referencia explícita se sintetiza una estable por mensaje, para que\n    // el UNIQUE(local_id, reference, payment_date) del backend deduplique.\n    reference = 'BC-MAIL-' + (idFallback || Math.random().toString(36).slice(2, 11));\n  }\n\n  let payerName = 'Desconocido';\n  const nameMatch = snippet.match(/\\bde\\s+(.+?)\\s+en\\s+tu\\s+cuenta/i);\n  if (nameMatch) payerName = nameMatch[1].trim();\n\n  return {\n    reference,\n    amount,\n    bank: detectarBanco(remitente, asunto),\n    payer_name: payerName,\n    payment_date: (fecha instanceof Date && !isNaN(fecha) ? fecha : new Date()).toISOString(),\n    email_subject: asunto || 'Sin asunto',\n    raw_email: snippet,\n  };\n}\n\n// Graph responde { value: [ ...mensajes ] } por cada buzón consultado.\nconst contextos = $('Outlook · Contexto').all();\nconst entradas = $input.all();\nconst salida = [];\n\nfor (let i = 0; i < entradas.length; i++) {\n  const ctx = contextos[i]?.json || {};\n  const mensajes = entradas[i].json?.value || [];\n\n  for (const correo of mensajes) {\n    const fecha = correo.receivedDateTime ? new Date(correo.receivedDateTime) : new Date();\n\n    // Mismo descarte exacto que en la rama de Gmail: la consulta a Graph\n    // arranca antes del checkpoint a propósito, y el corte real va aquí.\n    const desde = Number(ctx.since_epoch_ms) || 0;\n    if (desde && fecha.getTime() <= desde) continue;\n\n    const remitente = correo.from?.emailAddress?.address || '';\n    const pago = parsearNotificacion({\n      texto: correo.bodyPreview || '',\n      asunto: correo.subject || 'Sin asunto',\n      remitente,\n      fecha,\n      idFallback: correo.id,\n    });\n\n    if (!pago.amount) continue;\n\n    salida.push({ json: { ...pago, local_slug: ctx.local_slug } });\n  }\n}\n\nreturn salida;\n"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        32,
+        -256
+      ],
+      "id": "e79d7b33-e62c-424d-bf93-9d9168d5b09e",
+      "name": "Parsear correo Outlook"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $('Config Backend').first().json.backend_url }}/api/webhooks/register",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "x-local-slug",
+              "value": "={{ $json.local_slug }}"
+            },
+            {
+              "name": "x-api-key",
+              "value": "={{ $('Config Backend').first().json.api_key }}"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ local_slug: $json.local_slug, reference: $json.reference, amount: $json.amount, bank: $json.bank, payer_name: $json.payer_name, payment_date: $json.payment_date, email_subject: $json.email_subject, raw_email: $json.raw_email, direction: $json.direction, transaction_type: $json.transaction_type, is_received: $json.is_received, is_outgoing: $json.is_outgoing, classification_reason: $json.classification_reason }) }}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        656,
+        -544
+      ],
+      "id": "c28b3159-1c5e-4c1b-ac21-6e09acaaee3e",
+      "name": "Gmail · Registrar pago",
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Avanza el checkpoint de cada local hasta el correo más reciente que sí se\n// registró. Se corre DESPUÉS del registro: si el POST falla, el checkpoint no\n// avanza y el correo se reintenta en el próximo ciclo (el UNIQUE del backend\n// absorbe los duplicados).\nconst filas = $('Parsear correo Gmail').all();\nconst porLocal = {};\n\nfor (const fila of filas) {\n  const slug = fila.json.local_slug;\n  if (!slug) continue;\n  const ms = new Date(fila.json.payment_date || Date.now()).getTime();\n  porLocal[slug] = Math.max(porLocal[slug] || 0, ms);\n}\n\n// +1 s porque el operador `after:` de Gmail es inclusivo y volvería a traer\n// el mismo correo en el siguiente poll.\nreturn Object.entries(porLocal).map(([local_slug, ms]) => ({\n  json: { local_slug, checked_at: new Date(ms + 1000).toISOString() }\n}));\n"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        864,
+        -544
+      ],
+      "id": "90108f95-09e0-418d-bf21-6d0e88446783",
+      "name": "Gmail · Calcular checkpoint"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $('Config Backend').first().json.backend_url }}/api/webhooks/email-checkpoint",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "x-api-key",
+              "value": "={{ $('Config Backend').first().json.api_key }}"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ local_slug: $json.local_slug, checked_at: $json.checked_at }) }}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1072,
+        -544
+      ],
+      "id": "38362525-a1e4-4de6-a626-682c5d054243",
+      "name": "Gmail · Guardar checkpoint",
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $('Config Backend').first().json.backend_url }}/api/webhooks/register",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "x-local-slug",
+              "value": "={{ $json.local_slug }}"
+            },
+            {
+              "name": "x-api-key",
+              "value": "={{ $('Config Backend').first().json.api_key }}"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ local_slug: $json.local_slug, reference: $json.reference, amount: $json.amount, bank: $json.bank, payer_name: $json.payer_name, payment_date: $json.payment_date, email_subject: $json.email_subject, raw_email: $json.raw_email, direction: $json.direction, transaction_type: $json.transaction_type, is_received: $json.is_received, is_outgoing: $json.is_outgoing, classification_reason: $json.classification_reason }) }}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        240,
+        -256
+      ],
+      "id": "21964bff-4af3-4a3f-afd4-60adf9fea030",
+      "name": "Outlook · Registrar pago",
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Avanza el checkpoint de cada local hasta el correo más reciente que sí se\n// registró. Se corre DESPUÉS del registro: si el POST falla, el checkpoint no\n// avanza y el correo se reintenta en el próximo ciclo (el UNIQUE del backend\n// absorbe los duplicados).\nconst filas = $('Parsear correo Outlook').all();\nconst porLocal = {};\n\nfor (const fila of filas) {\n  const slug = fila.json.local_slug;\n  if (!slug) continue;\n  const ms = new Date(fila.json.payment_date || Date.now()).getTime();\n  porLocal[slug] = Math.max(porLocal[slug] || 0, ms);\n}\n\n// +1 s porque el operador `after:` de Gmail es inclusivo y volvería a traer\n// el mismo correo en el siguiente poll.\nreturn Object.entries(porLocal).map(([local_slug, ms]) => ({\n  json: { local_slug, checked_at: new Date(ms + 1000).toISOString() }\n}));\n"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        448,
+        -256
+      ],
+      "id": "c20d5b9c-f8c6-4272-8fad-d6f31a822341",
+      "name": "Outlook · Calcular checkpoint"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $('Config Backend').first().json.backend_url }}/api/webhooks/email-checkpoint",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "x-api-key",
+              "value": "={{ $('Config Backend').first().json.api_key }}"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ local_slug: $json.local_slug, checked_at: $json.checked_at }) }}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        656,
+        -256
+      ],
+      "id": "80bd3f82-5c24-492b-9f97-3807e7bbaeba",
+      "name": "Outlook · Guardar checkpoint",
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+          "jsCode": "const data = $json;\nconst text = String(data.raw_email || '').toLowerCase().normalize('NFD').replace(/[\\u0300-\\u036f]/g, '');\nconst amountMatch = String(data.raw_email || '').match(/\\$\\s*([\\d.,]+)/);\nlet amount = amountMatch ? amountMatch[1] : data.amount;\nif (amount !== null && amount !== undefined) {\n  amount = String(amount).replace(/[^0-9.,-]/g, '');\n  const comma = amount.lastIndexOf(',');\n  const dot = amount.lastIndexOf('.');\n  amount = Number(comma > dot ? amount.replace(/\\./g, '').replace(',', '.') : amount.replace(/,/g, ''));\n}\nconst outgoing = /compraste|enviaste|transferiste|transferencia realizada|pago realizado|retiro|debito|debitado|salio de tu cuenta/.test(text);\nconst incoming = /recibiste|recibido|abono recibido|transferencia recibida|consignacion recibida|ingreso a tu cuenta|deposito recibido|se acredito/.test(text);\nconst direction = outgoing ? 'outgoing' : incoming ? 'incoming' : 'incoming';\nreturn [{ json: { ...data, amount: Number.isFinite(amount) ? amount : 0, direction, transaction_type: direction === 'outgoing' ? 'expense' : 'income', is_received: direction === 'incoming', is_outgoing: direction === 'outgoing', classification_reason: outgoing ? 'El correo indica compra, envio o debito' : incoming ? 'El correo indica recepcion o abono' : 'Clasificacion historica por defecto', classification_confidence: outgoing || incoming ? 'high' : 'low' } }];"
+        },
+        "type": "n8n-nodes-base.code",
+        "typeVersion": 2,
+        "position": [
+          560,
+          -544
+        ],
+        "id": "c9e0c4b0-5f4d-4e03-9f52-0d8d7ce4f401",
+        "name": "Clasificar movimiento Gmail"
+      },
+      {
+        "parameters": {
+          "jsCode": "const data = $json;\nconst text = String(data.raw_email || '').toLowerCase().normalize('NFD').replace(/[\\u0300-\\u036f]/g, '');\nconst amountMatch = String(data.raw_email || '').match(/\\$\\s*([\\d.,]+)/);\nlet amount = amountMatch ? amountMatch[1] : data.amount;\nif (amount !== null && amount !== undefined) {\n  amount = String(amount).replace(/[^0-9.,-]/g, '');\n  const comma = amount.lastIndexOf(',');\n  const dot = amount.lastIndexOf('.');\n  amount = Number(comma > dot ? amount.replace(/\\./g, '').replace(',', '.') : amount.replace(/,/g, ''));\n}\nconst outgoing = /compraste|enviaste|transferiste|transferencia realizada|pago realizado|retiro|debito|debitado|salio de tu cuenta/.test(text);\nconst incoming = /recibiste|recibido|abono recibido|transferencia recibida|consignacion recibida|ingreso a tu cuenta|deposito recibido|se acredito/.test(text);\nconst direction = outgoing ? 'outgoing' : incoming ? 'incoming' : 'incoming';\nreturn [{ json: { ...data, amount: Number.isFinite(amount) ? amount : 0, direction, transaction_type: direction === 'outgoing' ? 'expense' : 'income', is_received: direction === 'incoming', is_outgoing: direction === 'outgoing', classification_reason: outgoing ? 'El correo indica compra, envio o debito' : incoming ? 'El correo indica recepcion o abono' : 'Clasificacion historica por defecto', classification_confidence: outgoing || incoming ? 'high' : 'low' } }];"
+        },
+        "type": "n8n-nodes-base.code",
+        "typeVersion": 2,
+        "position": [
+          240,
+          -256
+        ],
+        "id": "a73c9d27-0d8a-4ab2-b5a8-2cb6f0d0d4e2",
+        "name": "Clasificar movimiento Outlook"
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "Analyze an image": {
+      "main": [
+        [
+          {
+            "node": "Parse_AI_Result",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "HTTP Request1": {
+      "main": [
+        [
+          {
+            "node": "Analyze an image",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Parse_AI_Result": {
+      "main": [
+        [
+          {
+            "node": "HTTP Request2",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "HTTP Request2": {
+      "main": [
+        [
+          {
+            "node": "Respond to Webhook",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Webhook": {
+      "main": [
+        [
+          {
+            "node": "HTTP Request1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Cada minuto": {
+      "main": [
+        [
+          {
+            "node": "Config Backend",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Config Backend": {
+      "main": [
+        [
+          {
+            "node": "Buzones vinculados",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Buzones vinculados": {
+      "main": [
+        [
+          {
+            "node": "Expandir Buzones",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Expandir Buzones": {
+      "main": [
+        [
+          {
+            "node": "¿Gmail o Outlook?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "¿Gmail o Outlook?": {
+      "main": [
+        [
+          {
+            "node": "Gmail · Contexto",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Outlook · Contexto",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Gmail · Contexto": {
+      "main": [
+        [
+          {
+            "node": "Gmail · Listar correos",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Gmail · Listar correos": {
+      "main": [
+        [
+          {
+            "node": "Gmail · Expandir mensajes",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Gmail · Expandir mensajes": {
+      "main": [
+        [
+          {
+            "node": "Gmail · Obtener mensaje",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Gmail · Obtener mensaje": {
+      "main": [
+        [
+          {
+            "node": "Parsear correo Gmail",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Parsear correo Gmail": {
+      "main": [
+        [
+          {
+            "node": "Clasificar movimiento Gmail",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Clasificar movimiento Gmail": {
+      "main": [
+        [
+          {
+            "node": "Gmail · Registrar pago",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Outlook · Contexto": {
+      "main": [
+        [
+          {
+            "node": "Outlook · Listar correos",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Outlook · Listar correos": {
+      "main": [
+        [
+          {
+            "node": "Parsear correo Outlook",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Parsear correo Outlook": {
+      "main": [
+        [
+          {
+            "node": "Clasificar movimiento Outlook",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Clasificar movimiento Outlook": {
+      "main": [
+        [
+          {
+            "node": "Outlook · Registrar pago",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Gmail · Registrar pago": {
+      "main": [
+        [
+          {
+            "node": "Gmail · Calcular checkpoint",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Gmail · Calcular checkpoint": {
+      "main": [
+        [
+          {
+            "node": "Gmail · Guardar checkpoint",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Outlook · Registrar pago": {
+      "main": [
+        [
+          {
+            "node": "Outlook · Calcular checkpoint",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Outlook · Calcular checkpoint": {
+      "main": [
+        [
+          {
+            "node": "Outlook · Guardar checkpoint",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": true,
+  "settings": {
+    "executionOrder": "v1",
+    "binaryMode": "separate"
+  },
+  "versionId": "5a8a8ce7-eaa7-4ec3-b731-7af8fd555957",
+  "meta": {
+    "instanceId": "9d3dca8d6aa02f6d8b93cec87b44e118adc566c8aef43c67bbf89a4968e8773f"
+  },
+  "nodeGroups": [],
+  "id": "DKlhXHVvrQMJF4rb",
+  "tags": []
+}
