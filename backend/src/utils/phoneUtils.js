@@ -12,6 +12,12 @@ function normalizePhone(phone) {
 
     let phoneStr = String(phone);
 
+    // Meta puede identificar usuarios sin número con IDs como
+    // CO.963886769507161. Conservar el ID completo para usarlo con `recipient`.
+    if (/^[A-Za-z]{2}\.[0-9]+$/.test(phoneStr)) {
+        return phoneStr;
+    }
+
     // Handle groups
     if (phoneStr.includes('@g.us') || phoneStr.includes('-')) {
         return phoneStr;

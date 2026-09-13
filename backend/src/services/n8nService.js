@@ -99,7 +99,7 @@ class N8NService {
      * Trigger AI Processing in N8N
      * Call this when a new user message arrives and AI is enabled
      */
-    async triggerAIProcessing({ phone, text, contactName, mediaType, mediaUrl }) {
+    async triggerAIProcessing({ phone, text, contactName, recipientId, mediaType, mediaUrl }) {
         const { webhookUrl, slug } = this.getConfig();
         if (!webhookUrl) return null;
 
@@ -111,6 +111,8 @@ class N8NService {
                 type: 'incoming_message',
                 phone,
                 name: contactName,
+                recipient_id: recipientId || null,
+                user_id: recipientId || null,
                 message: text,
                 timestamp: new Date().toISOString(),
                 // Add media fields if present

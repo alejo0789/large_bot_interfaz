@@ -114,13 +114,18 @@ class WhatsappOfficialService {
                 return { success: false, error: 'Missing Official WhatsApp credentials for this tenant' };
             }
 
-            const cleanNumber = this._cleanPhone(phone);
+            const recipientValue = String(phone || '').trim();
+            const isMetaUserId = /^[A-Za-z]{2}\.[0-9]+$/.test(recipientValue);
+            const cleanNumber = this._cleanPhone(recipientValue);
+            if (!isMetaUserId && !cleanNumber) {
+                return { success: false, error: 'Missing valid phone or Meta recipient user_id' };
+            }
             const url = `${this.baseUrl}/${phoneNumberId}/messages`;
 
             const body = {
                 messaging_product: 'whatsapp',
                 recipient_type: 'individual',
-                to: cleanNumber,
+                ...(isMetaUserId ? { recipient: recipientValue } : { to: cleanNumber }),
                 type: 'text',
                 text: {
                     preview_url: false,
@@ -222,7 +227,12 @@ class WhatsappOfficialService {
                 ? mediaType.toLowerCase()
                 : 'document';
 
-            const cleanNumber = this._cleanPhone(phone);
+            const recipientValue = String(phone || '').trim();
+            const isMetaUserId = /^[A-Za-z]{2}\.[0-9]+$/.test(recipientValue);
+            const cleanNumber = this._cleanPhone(recipientValue);
+            if (!isMetaUserId && !cleanNumber) {
+                return { success: false, error: 'Missing valid phone or Meta recipient user_id' };
+            }
             const url = `${this.baseUrl}/${phoneNumberId}/messages`;
 
             // Try to find disk path if not explicitly provided
@@ -293,7 +303,7 @@ class WhatsappOfficialService {
             const body = {
                 messaging_product: 'whatsapp',
                 recipient_type: 'individual',
-                to: cleanNumber,
+                ...(isMetaUserId ? { recipient: recipientValue } : { to: cleanNumber }),
                 type: effectiveMediaType,
                 [effectiveMediaType]: mediaObj
             };
@@ -320,7 +330,7 @@ class WhatsappOfficialService {
                 const docBody = {
                     messaging_product: 'whatsapp',
                     recipient_type: 'individual',
-                    to: cleanNumber,
+                    ...(isMetaUserId ? { recipient: recipientValue } : { to: cleanNumber }),
                     type: 'document',
                     document: docObj
                 };

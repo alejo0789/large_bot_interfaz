@@ -67,6 +67,9 @@ router.post('/receive-message', asyncHandler(async (req, res) => {
 
     let {
         phone,
+        recipientId,
+        recipient_id,
+        user_id,
         contact_name,
         name,           // alias que usa n8n
         message,
@@ -87,14 +90,21 @@ router.post('/receive-message', asyncHandler(async (req, res) => {
     if (!rawBody.sender_type) sender_type = 'bot';
 
 
-    if (!phone) {
+    // El nombre es solo informativo. Usar recipientId como respaldo solo si es
+    // un identificador numérico válido; nunca enviar a contact_name/name.
+    if (!normalizePhone(phone)) {
+        phone = recipientId || recipient_id || user_id || null;
+    }
+
+    if (!phone || !normalizePhone(phone)) {
         console.error('❌ Error: El webhook no incluyó un número de teléfono (phone)');
-        return res.status(400).json({ error: 'Phone number required' });
+        return res.status(400).json({ error: 'Valid recipient phone/recipientId required' });
     }
 
     // Resolve WhatsApp LID (Linked Device) to real phone number if possible
     let resolvedPhone = phone;
-    const isLid = String(phone).includes('@lid') || (String(phone).replace(/\D/g, '').length > 13 && !String(phone).includes('@g.us') && !String(phone).includes('-'));
+    const isMetaUserId = /^[A-Za-z]{2}\.[0-9]+$/.test(String(phone));
+    const isLid = !isMetaUserId && (String(phone).includes('@lid') || (String(phone).replace(/\D/g, '').length > 13 && !String(phone).includes('@g.us') && !String(phone).includes('-')));
     if (isLid) {
         try {
             const resolved = await evolutionService.checkNumber(phone);
@@ -300,7 +310,8 @@ router.post('/receive-message', asyncHandler(async (req, res) => {
         text: message,
         whatsappId: whatsapp_id,
         mediaType: media_type, // Ahora guarda 'image' si detectó extensión
-        mediaUrl: media_url
+        mediaUrl: media_url,
+        timestamp
     });
 
     // Update conversation
@@ -345,7 +356,26 @@ router.post('/receive-message', asyncHandler(async (req, res) => {
             } else {
                 console.error(`❌ ERROR de Evolution API para ${purePhone}:`, result ? result.error : 'Sin respuesta');
             }
+            // Reconciliar el registro provisional de n8n con el ID real y estado
+            // devueltos por Meta/Evolution.
+            if (result && result.success) {
+                const actualWhatsappId = result.data?.messages?.[0]?.id
+                    || result.data?.key?.id
+                    || result.data?.key?.messageId
+                    || result.data?.id
+                    || null;
+
+                if (actualWhatsappId && actualWhatsappId !== whatsapp_id) {
+                    await messageService.updateWhatsappId(savedMessage.id, actualWhatsappId, 'sent');
+                    whatsapp_id = actualWhatsappId;
+                } else {
+                    await messageService.updateStatus(savedMessage.id, 'sent');
+                }
+            } else {
+                await messageService.updateStatus(savedMessage.id, 'failed');
+            }
         } catch (evoError) {
+            await messageService.updateStatus(savedMessage.id, 'failed');
             console.error('❌ ERROR CRÍTICO contactando Evolution API:', evoError.message);
         }
     }

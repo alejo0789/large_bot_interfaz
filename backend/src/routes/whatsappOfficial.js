@@ -8,6 +8,7 @@ const messageService = require('../services/messageService');
 const conversationService = require('../services/conversationService');
 const whatsappFactory = require('../services/whatsappFactory');
 const n8nService = require('../services/n8nService');
+const { pool } = require('../config/database');
 const { normalizePhone, getPureDigits } = require('../utils/phoneUtils');
 const { tenantContext } = require('../utils/tenantContext');
 
@@ -89,29 +90,42 @@ router.post('/', async (req, res) => {
         const context = tenantContext.getStore();
         const tenant = context?.tenant;
 
-        const entry = body.entry?.[0];
-        const change = entry?.changes?.[0];
-        const value = change?.value;
+        // Meta puede enviar varias entradas/cambios y varios mensajes o estados
+        // en una sola notificacion. Procesar solo [0] deja mensajes fuera del CRM.
+        const entries = Array.isArray(body.entry) ? body.entry : [];
 
-        if (!value) {
+        if (entries.length === 0) {
             return res.sendStatus(200); // Nothing to process
         }
+
+        for (const entry of entries) {
+            const changes = Array.isArray(entry?.changes) ? entry.changes : [];
+
+            for (const change of changes) {
+                const value = change?.value;
+                if (!value) continue;
 
         // ──────────────────────────────────────────────
         // INCOMING MESSAGE
         // ──────────────────────────────────────────────
-        if (value.messages?.[0]) {
-            const messageObj = value.messages[0];
-            const contactObj = value.contacts?.[0] || null;
+        if (Array.isArray(value.messages) && value.messages.length > 0) {
+            for (const messageObj of value.messages) {
+            // El nombre es informativo; el destinatario/remitente real es message.from.
+            // Buscar por wa_id evita asociar el nombre de otro contacto del lote.
+            const contactObj = value.contacts?.find(contact => contact.wa_id === messageObj.from)
+                || value.contacts?.[0]
+                || null;
 
             const phone = messageObj.from || contactObj?.wa_id || value.contacts?.[0]?.wa_id || null;
-            if (!phone) {
+            const metaUserId = messageObj.from_user_id || contactObj?.user_id || null;
+            const conversationIdentifier = phone || metaUserId;
+            if (!conversationIdentifier) {
                 console.warn('⚠️ [OfficialWebk] Message received without valid phone/from number, skipping.');
-                return res.sendStatus(200);
+                continue;
             }
 
             const whatsapp_id = messageObj.id;
-            const contact_name = contactObj?.profile?.name || `Usuario ${phone.slice(-4)}`;
+            const contact_name = contactObj?.profile?.name || `Usuario ${String(conversationIdentifier).slice(-4)}`;
             const timestamp = new Date(parseInt(messageObj.timestamp) * 1000).toISOString();
 
             let messageText = '';
@@ -169,7 +183,7 @@ router.post('/', async (req, res) => {
                     // Reaction to a previous message — store it and emit
                     console.log(`👍 [OfficialWebk] Reaction received: "${messageObj.reaction.emoji}" on msgId=${messageObj.reaction.message_id}`);
                     // TODO: update DB reaction on the target message
-                    return res.sendStatus(200);
+                    continue;
 
                 default:
                     messageText = (() => {
@@ -223,7 +237,7 @@ router.post('/', async (req, res) => {
             const exists = await messageService.existsByWhatsappId(whatsapp_id);
             if (exists) {
                 console.log(`⏭️ [OfficialWebk] Duplicate message ${whatsapp_id}, skipping.`);
-                return res.sendStatus(200);
+                continue;
             }
 
             // ── Download incoming media from Meta servers ──
@@ -240,7 +254,7 @@ router.post('/', async (req, res) => {
                 }
             }
 
-            const dbPhone = normalizePhone(phone);
+            const dbPhone = normalizePhone(conversationIdentifier);
 
             // ── Get or create conversation ──
             let conversation = await conversationService.getByPhone(dbPhone);
@@ -253,6 +267,21 @@ router.post('/', async (req, res) => {
                 await conversationService.updateContactName(dbPhone, contact_name);
             }
 
+            // Guardar el identificador de usuario de Meta cuando exista. Es
+            // necesario para responder con `recipient` si Meta no entrega phone.
+            if (metaUserId) {
+                try {
+                    await pool.query(`
+                        UPDATE conversations
+                        SET metadata = COALESCE(metadata, '{}'::jsonb) || $1::jsonb,
+                            updated_at = NOW()
+                        WHERE phone = $2
+                    `, [JSON.stringify({ meta_user_id: metaUserId }), dbPhone]);
+                } catch (metadataError) {
+                    console.warn(`⚠️ [OfficialWebk] No se pudo guardar meta_user_id para ${dbPhone}:`, metadataError.message);
+                }
+            }
+
             const currentState = conversation?.conversation_state || 'ai_active';
             const shouldActivateAI = conversation.ai_enabled !== false;
 
@@ -263,7 +292,8 @@ router.post('/', async (req, res) => {
                 text: messageText,
                 whatsappId: whatsapp_id,
                 mediaType,
-                mediaUrl
+                mediaUrl,
+                timestamp
             });
 
             // ── Auto-mark campaign reply (non-blocking) ──
@@ -299,6 +329,7 @@ router.post('/', async (req, res) => {
                                 media: [],
                                 timeoutId: null,
                                 pushName: contact_name,
+                                metaUserId,
                                 context: tenantContext.getStore()
                             };
                             global.officialAiBuffer.set(dbPhone, bufferData);
@@ -316,6 +347,7 @@ router.post('/', async (req, res) => {
                         }
 
                         bufferData.pushName = contact_name || bufferData.pushName;
+                        bufferData.metaUserId = metaUserId || bufferData.metaUserId;
 
                         // Clear previous timeout
                         if (bufferData.timeoutId) {
@@ -339,6 +371,7 @@ router.post('/', async (req, res) => {
                                         phone: dbPhone,
                                         text: combinedText,
                                         contactName: bufferData.pushName,
+                                        recipientId: bufferData.metaUserId,
                                         mediaType: lastMedia ? lastMedia.mediaType : null,
                                         mediaUrl: lastMedia ? lastMedia.mediaUrl : null
                                     });
@@ -372,12 +405,15 @@ router.post('/', async (req, res) => {
                 ai_enabled: shouldActivateAI,
                 isNew: isNewConversation
             });
+            }
 
         // ──────────────────────────────────────────────
         // MESSAGE STATUS UPDATE (sent/delivered/read)
         // ──────────────────────────────────────────────
-        } else if (value.statuses?.[0]) {
-            const statusObj = value.statuses[0];
+        }
+
+        if (Array.isArray(value.statuses) && value.statuses.length > 0) {
+            for (const statusObj of value.statuses) {
             console.log(`📊 [OfficialWebk] Status: ${statusObj.id} → ${statusObj.status} for ${statusObj.recipient_id}`);
             if (statusObj.status === 'failed') {
                 console.error(`❌ [OfficialWebk] Message delivery failed. Error details:`, JSON.stringify(statusObj.errors || statusObj));
@@ -413,6 +449,9 @@ router.post('/', async (req, res) => {
                     io.emit('message-status-update', eventPayload);
                     io.emit('message-updated', eventPayload);
                 }
+            }
+            }
+        }
             }
         }
 

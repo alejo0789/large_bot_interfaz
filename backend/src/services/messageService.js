@@ -182,7 +182,7 @@ class MessageService {
     /**
      * Create a new message
      */
-    async create({ phone, sender, text, whatsappId, mediaType, mediaUrl, status = 'delivered', agentId, agentName, senderName, replyToId, replyToText, replyToSender, tempId }) {
+    async create({ phone, sender, text, whatsappId, mediaType, mediaUrl, status = 'delivered', timestamp = null, agentId, agentName, senderName, replyToId, replyToText, replyToSender, tempId }) {
         // Verify if agent exists before inserting to avoid FK error
         let verifiedAgentId = null;
         if (agentId) {
@@ -215,7 +215,7 @@ class MessageService {
                 reply_to_text,
                 reply_to_sender,
                 temp_id
-            ) VALUES ($1, $2, $3, $4, $5, $6, $7, NOW(), $8, $9, $10, $11, $12, $13, $14)
+            ) VALUES ($1, $2, $3, $4, $5, $6, $7, COALESCE($8::timestamptz, NOW()), $9, $10, $11, $12, $13, $14, $15)
             RETURNING id, timestamp, temp_id
         `, [
             phone,
@@ -225,6 +225,7 @@ class MessageService {
             mediaType,
             mediaUrl,
             status,
+            timestamp,
             verifiedAgentId,
             agentName,
             senderName,
