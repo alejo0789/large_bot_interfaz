@@ -431,7 +431,7 @@ const WaBulkOfficial = ({ conversations, tags }) => {
                     selectionMode,
                     tagId: selectionMode === 'tag' ? selectedTagId : null,
                     createCampaign,
-                    campaignName,
+                    campaignName: createCampaign ? (campaignName?.trim() || selectedTemplate?.name) : null,
                     recipients: selectionMode === 'manual' 
                         ? selectedPhones.map(p => ({ phone: p })) 
                         : selectionMode === 'import'

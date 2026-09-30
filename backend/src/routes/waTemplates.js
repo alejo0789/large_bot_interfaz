@@ -400,6 +400,7 @@ router.post('/bulk-send', asyncHandler(async (req, res) => {
                         sent_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
                         sent_by VARCHAR(100)
                     );
+                    ALTER TABLE bulk_campaigns ADD COLUMN IF NOT EXISTS campaign_name VARCHAR(255);
                     CREATE TABLE IF NOT EXISTS bulk_campaign_recipients (
                         id SERIAL PRIMARY KEY,
                         campaign_id INTEGER REFERENCES bulk_campaigns(id) ON DELETE CASCADE,
@@ -412,7 +413,7 @@ router.post('/bulk-send', asyncHandler(async (req, res) => {
                     );
                 `);
 
-                const finalCampaignName = campaignName && campaignName.trim() ? campaignName.trim() : null;
+                const finalCampaignName = campaignName && campaignName.trim() ? campaignName.trim() : templateName;
 
                 const { rows: campRows } = await ctx.db.query(
                     'INSERT INTO bulk_campaigns (template_name, campaign_name, template_language, sent_count, failed_count) VALUES ($1, $2, $3, $4, $5) RETURNING id',
@@ -430,7 +431,7 @@ router.post('/bulk-send', asyncHandler(async (req, res) => {
                         params
                     );
                 }
-                console.log(`📊 Campaign #${campaignId} created: ${successPhones.length} recipients tracked`);
+                console.log(`📊 Campaign #${campaignId} created (${finalCampaignName}): ${successPhones.length} recipients tracked`);
             } catch (campErr) {
                 console.error('Error creating campaign tracking:', campErr.message);
             }
@@ -659,12 +660,14 @@ router.get('/campaigns', asyncHandler(async (req, res) => {
         CREATE TABLE IF NOT EXISTS bulk_campaigns (
             id SERIAL PRIMARY KEY,
             template_name VARCHAR(255) NOT NULL,
+            campaign_name VARCHAR(255),
             template_language VARCHAR(10),
             sent_count INTEGER DEFAULT 0,
             failed_count INTEGER DEFAULT 0,
             sent_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
             sent_by VARCHAR(100)
         );
+        ALTER TABLE bulk_campaigns ADD COLUMN IF NOT EXISTS campaign_name VARCHAR(255);
         CREATE TABLE IF NOT EXISTS bulk_campaign_recipients (
             id SERIAL PRIMARY KEY,
             campaign_id INTEGER REFERENCES bulk_campaigns(id) ON DELETE CASCADE,
@@ -681,6 +684,7 @@ router.get('/campaigns', asyncHandler(async (req, res) => {
         SELECT 
             bc.id,
             bc.template_name,
+            COALESCE(NULLIF(TRIM(bc.campaign_name), ''), bc.template_name) as campaign_name,
             bc.sent_count,
             bc.failed_count,
             bc.sent_at,
@@ -690,7 +694,7 @@ router.get('/campaigns', asyncHandler(async (req, res) => {
             COUNT(CASE WHEN bcr.is_scheduled THEN 1 END) as scheduled_count
         FROM bulk_campaigns bc
         LEFT JOIN bulk_campaign_recipients bcr ON bcr.campaign_id = bc.id
-        GROUP BY bc.id
+        GROUP BY bc.id, bc.template_name, bc.campaign_name, bc.sent_count, bc.failed_count, bc.sent_at
         ORDER BY bc.sent_at DESC
         LIMIT 50
     `);

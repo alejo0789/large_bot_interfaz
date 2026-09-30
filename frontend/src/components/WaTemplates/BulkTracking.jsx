@@ -53,7 +53,12 @@ const CampaignCard = ({ campaign, onClick, onDelete }) => {
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 12 }}>
                 <div>
                     <div style={{ fontWeight: 700, fontSize: 15, color: '#111827' }}>📋 {campaign.campaign_name || campaign.template_name}</div>
-                    <div style={{ fontSize: 12, color: '#6b7280', marginTop: 2 }}>{formatDate(campaign.sent_at)}</div>
+                    <div style={{ fontSize: 12, color: '#6b7280', marginTop: 2 }}>
+                        {campaign.campaign_name && campaign.campaign_name !== campaign.template_name && (
+                            <span style={{ color: '#7c3aed', fontWeight: 600, marginRight: 6 }}>{campaign.template_name} ·</span>
+                        )}
+                        {formatDate(campaign.sent_at)}
+                    </div>
                 </div>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                     <div style={{ background: '#f0fdf4', border: '1px solid #bbf7d0', borderRadius: 999, padding: '3px 10px', fontSize: 12, fontWeight: 700, color: '#15803d' }}>
@@ -209,6 +214,9 @@ const BulkTracking = ({ onOpenConversation, onLoadConversations, initialCampaign
         try {
             const res = await apiFetch(`/api/wa-templates/campaigns/${campaign.id}`);
             const data = await res.json();
+            if (data.campaign) {
+                setSelectedCampaign(prev => ({ ...prev, ...data.campaign }));
+            }
             setRecipients(data.recipients || []);
         } catch (e) {
             console.error('Error loading campaign detail:', e);
@@ -236,6 +244,9 @@ const BulkTracking = ({ onOpenConversation, onLoadConversations, initialCampaign
         try {
             const res = await apiFetch(`/api/wa-templates/campaigns/${selectedCampaign.id}`);
             const data = await res.json();
+            if (data.campaign) {
+                setSelectedCampaign(prev => ({ ...prev, ...data.campaign }));
+            }
             setRecipients(data.recipients || []);
         } catch (_) {} finally { setLoadingDetail(false); }
     };
@@ -389,7 +400,12 @@ const BulkTracking = ({ onOpenConversation, onLoadConversations, initialCampaign
                     </button>
                     <div style={{ flex: 1 }}>
                         <h2 style={{ margin: 0, fontSize: 17, fontWeight: 700, color: '#111827' }}>📋 {selectedCampaign.campaign_name || selectedCampaign.template_name}</h2>
-                        <p style={{ margin: 0, fontSize: 12, color: '#6b7280' }}>{formatDate(selectedCampaign.sent_at)} · {recipients.length} destinatarios</p>
+                        <p style={{ margin: 0, fontSize: 12, color: '#6b7280' }}>
+                            {selectedCampaign.campaign_name && selectedCampaign.campaign_name !== selectedCampaign.template_name && (
+                                <span style={{ color: '#7c3aed', fontWeight: 600, marginRight: 6 }}>Plantilla: {selectedCampaign.template_name} ·</span>
+                            )}
+                            {formatDate(selectedCampaign.sent_at)} · {recipients.length} destinatarios
+                        </p>
                     </div>
                     {onLoadConversations && sortedFiltered.length > 0 && (
                         <button
