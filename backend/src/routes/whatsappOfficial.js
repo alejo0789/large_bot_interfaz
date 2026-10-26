@@ -416,7 +416,18 @@ router.post('/', async (req, res) => {
             for (const statusObj of value.statuses) {
             console.log(`📊 [OfficialWebk] Status: ${statusObj.id} → ${statusObj.status} for ${statusObj.recipient_id}`);
             if (statusObj.status === 'failed') {
-                console.error(`❌ [OfficialWebk] Message delivery failed. Error details:`, JSON.stringify(statusObj.errors || statusObj));
+                const errDetails = JSON.stringify(statusObj.errors || statusObj);
+                console.error('❌ [OfficialWebk] Message delivery failed. Error details:', errDetails);
+                try {
+                    const currentContext = tenantContext.getStore();
+                    const tenantDb = currentContext?.db || pool;
+                    await tenantDb.query(
+                        'UPDATE messages SET reply_to_text = $1 WHERE whatsapp_id = $2',
+                        ['[META_ERR]: ' + errDetails, statusObj.id]
+                    );
+                } catch (saveErr) {
+                    console.error('Failed to save meta error details in DB:', saveErr.message);
+                }
             }
 
             await messageService.updateStatus(statusObj.id, statusObj.status);
