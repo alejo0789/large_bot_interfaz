@@ -175,7 +175,7 @@ router.post('/', async (req, res) => {
 
         // Resolve WhatsApp LID (Linked Device) to real phone number if possible
         if (!isGroup) {
-            const isLid = remoteJid.includes('@lid') || (remoteJid.split('@')[0].length > 14);
+            const isLid = remoteJid.includes('@lid') || (remoteJid.split('@')[0].length > 13);
             const altJid = msg.key.remoteJidAlt;
             const participantAlt = msg.key.participantAlt;
             
@@ -189,10 +189,10 @@ router.post('/', async (req, res) => {
             }
 
             // Fallback: If it's still a LID, attempt resolution via Evolution API
-            if (remoteJid.includes('@lid') || (remoteJid.split('@')[0].length > 14)) {
+            if (remoteJid.includes('@lid') || (remoteJid.split('@')[0].length > 13)) {
                 try {
                     const resolved = await evolutionService.checkNumber(remoteJid);
-                    if (resolved && resolved.exists && resolved.jid) {
+                    if (resolved && resolved.exists && resolved.jid && resolved.jid.includes('@s.whatsapp.net')) {
                         console.log(`🔄 [WEBHOOK] LID Resolved via Evolution API: replacing ${remoteJid} with ${resolved.jid}`);
                         remoteJid = resolved.jid;
                     }

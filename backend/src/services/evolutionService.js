@@ -461,11 +461,15 @@ class EvolutionService {
     async checkNumber(phone) {
         try {
             const { instance, apiKey } = this.getConfig();
-            // Clean number (only digits)
-            const cleanNumber = phone.replace(/\D/g, '');
+            const phoneStr = String(phone).trim();
+            const isLid = phoneStr.includes('@lid') || (phoneStr.replace(/\D/g, '').length > 13 && !phoneStr.includes('@g.us') && !phoneStr.includes('-'));
+            const targetNumber = isLid
+                ? (phoneStr.includes('@lid') ? phoneStr : `${phoneStr.replace(/\D/g, '')}@lid`)
+                : phoneStr.replace(/\D/g, '');
+
             const url = `${this.baseUrl}/chat/whatsappNumbers/${instance}`;
 
-            console.log(`🔍 [${instance}] Checking WhatsApp number in Evolution: ${url} -> ${cleanNumber}`);
+            console.log(`🔍 [${instance}] Checking WhatsApp number in Evolution: ${url} -> ${targetNumber}`);
 
             const response = await fetch(url, {
                 method: 'POST',
@@ -474,7 +478,7 @@ class EvolutionService {
                     'Content-Type': 'application/json'
                 },
                 body: JSON.stringify({
-                    "numbers": [cleanNumber]
+                    "numbers": [targetNumber]
                 })
             });
 

@@ -86,7 +86,34 @@ router.post('/send-message', requireApiKey, asyncHandler(async (req, res) => {
 
     console.log('📥 RAW BODY received:', JSON.stringify(req.body, null, 2));
 
-    const normalizedPhone = normalizePhone(phone);
+    let normalizedPhone = normalizePhone(phone);
+    if (String(normalizedPhone).includes('@lid')) {
+        try {
+            const resolved = await evolutionService.checkNumber(normalizedPhone);
+            if (resolved && resolved.exists && resolved.jid && resolved.jid.includes('@s.whatsapp.net')) {
+                const realPhone = normalizePhone(resolved.jid);
+                if (realPhone && realPhone !== normalizedPhone) {
+                    console.log(`🔄 [MESSAGES] Resolviendo y fusionando LID ${normalizedPhone} -> ${realPhone}`);
+                    const context = tenantContext.getStore();
+                    const tenantDb = context?.db;
+                    if (tenantDb) {
+                        await tenantDb.query(`
+                            INSERT INTO conversations (phone, contact_name, status, conversation_state, ai_enabled, updated_at)
+                            SELECT $1, contact_name, status, conversation_state, ai_enabled, NOW()
+                            FROM conversations WHERE phone = $2
+                            ON CONFLICT (phone) DO UPDATE SET updated_at = NOW()
+                        `, [realPhone, normalizedPhone]).catch(() => {});
+
+                        await tenantDb.query('UPDATE messages SET conversation_phone = $1 WHERE conversation_phone = $2', [realPhone, normalizedPhone]).catch(() => {});
+                        await tenantDb.query('DELETE FROM conversations WHERE phone = $1', [normalizedPhone]).catch(() => {});
+                    }
+                    normalizedPhone = realPhone;
+                }
+            }
+        } catch (lidErr) {
+            console.warn('⚠️ Error resolviendo LID en send-message:', lidErr.message);
+        }
+    }
 
 
     console.log(`📤 Processed phone for sending: ${normalizedPhone} (was: ${phone})`);
