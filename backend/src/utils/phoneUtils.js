@@ -12,6 +12,11 @@ function normalizePhone(phone) {
 
     let phoneStr = String(phone);
 
+    // TikTok conversation identifier
+    if (phoneStr.startsWith('tiktok_')) {
+        return phoneStr;
+    }
+
     // Meta puede identificar usuarios sin número con IDs como
     // CO.963886769507161. Conservar el ID completo para usarlo con `recipient`.
     if (/^[A-Za-z]{2}\.[0-9]+$/.test(phoneStr)) {
@@ -68,6 +73,7 @@ function isLid(phone) {
  */
 function getPureDigits(phone) {
     if (!phone) return phone;
+    if (String(phone).startsWith('tiktok_')) return String(phone);
     return String(phone).replace(/\D/g, '');
 }
 

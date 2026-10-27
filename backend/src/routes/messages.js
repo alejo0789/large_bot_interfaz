@@ -12,6 +12,7 @@ const conversationService = require('../services/conversationService');
 
 const n8nService = require('../services/n8nService');
 const evolutionService = require('../services/whatsappFactory');
+const tiktokService = require('../services/tiktokService');
 const { normalizePhone, getPureDigits } = require('../utils/phoneUtils');
 const { config } = require('../config/app');
 
@@ -136,7 +137,10 @@ router.post('/send-message', requireApiKey, asyncHandler(async (req, res) => {
     
     console.log(`📤 [SEND MESSAGE] Route called. Phone: ${normalizedPhone}, Sede: ${tenant?.slug}, Provider: ${tenant?.whatsapp_provider}, Evolution Instance: ${tenant?.evolution_instance}`);
 
-    if (isOfficialProvider || hasEvolutionUrl) {
+    if (normalizedPhone.startsWith('tiktok_')) {
+        const ttResult = await tiktokService.sendMessage(normalizedPhone, message);
+        sendResult = { sent: ttResult.success, platform: 'tiktok', ...ttResult };
+    } else if (isOfficialProvider || hasEvolutionUrl) {
         // Factory auto-routes to the correct provider
         const result = await evolutionService.sendText(normalizedPhone, message, replyToData?.id || null);
         sendResult = { sent: result.success, platform: isOfficialProvider ? 'official' : 'evolution', ...result };
@@ -157,7 +161,9 @@ router.post('/send-message', requireApiKey, asyncHandler(async (req, res) => {
     if (sendResult.sent) {
         // Extract WhatsApp ID if available (Evolution v2 or Meta Official API)
         let whatsappId = null;
-        if (sendResult.platform === 'evolution' && sendResult.data) {
+        if (sendResult.platform === 'tiktok') {
+            whatsappId = sendResult.messageId || `tt_${Date.now()}`;
+        } else if (sendResult.platform === 'evolution' && sendResult.data) {
             if (sendResult.data.key && sendResult.data.key.id) {
                 whatsappId = sendResult.data.key.id;
             }

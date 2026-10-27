@@ -39,6 +39,7 @@ const { router: messageRoutes, setSocketIO: setMessageSocketIO } = require('./sr
 const { router: webhookRoutes, setSocketIO: setWebhookSocketIO } = require('./src/routes/webhooks');
 const { router: evolutionRoutes, setSocketIO: setEvolutionSocketIO } = require('./src/routes/evolution');
 const { router: whatsappOfficialRoutes, setSocketIO: setWhatsappOfficialSocketIO } = require('./src/routes/whatsappOfficial');
+const { router: tiktokRoutes, setSocketIO: setTikTokSocketIO } = require('./src/routes/tiktok');
 const settingsRoutes = require('./src/routes/settings');
 const quickReplyRoutes = require('./src/routes/quickReplies');
 
@@ -61,6 +62,7 @@ setMessageSocketIO(io);
 setWebhookSocketIO(io);
 setEvolutionSocketIO(io);
 setWhatsappOfficialSocketIO(io);
+setTikTokSocketIO(io);
 app.set('io', io); // For routes that use req.app.get('io')
 
 // =============================================
@@ -133,6 +135,7 @@ app.use('/api', jwtAuth, messageRoutes);
 app.use('/webhook', webhookRoutes);
 app.use('/evolution', evolutionRoutes);
 app.use('/webhook/meta', whatsappOfficialRoutes);
+app.use('/webhook/tiktok', tiktokRoutes);
 
 // Health check
 app.get('/health', (req, res) => {
