@@ -15,7 +15,7 @@ const fetch = (...args) => import('node-fetch').then(({ default: f }) => f(...ar
 const messageService = require('../services/messageService');
 const conversationService = require('../services/conversationService');
 
-const GRAPH_VERSION = 'v19.0';
+const GRAPH_VERSION = process.env.WHATSAPP_GRAPH_API_VERSION || 'v22.0';
 
 const { normalizePhone } = require('../utils/phoneUtils');
 const { upload, getUploadUrl, getUploadUrlFromFile } = require('../middleware/upload');
@@ -175,17 +175,27 @@ router.post('/bulk-send', asyncHandler(async (req, res) => {
     let contactList = [];
 
     if (selectionMode === 'tag' && tagId) {
-        // Fetch contacts by tag from tenant DB
+        // Include Meta user IDs as well as phone numbers; neither is an Evolution LID.
         const ctx = tenantContext.getStore();
         const db = ctx?.db;
         if (!db) throw new AppError('Sin conexión a base de datos del tenant', 500);
 
         const { rows } = await db.query(`
-            SELECT DISTINCT c.phone, c.contact_name as name
+            SELECT c.phone, c.contact_name as name
             FROM conversations c
-            JOIN conversation_tags ct ON ct.conversation_phone = c.phone
-            WHERE ct.tag_id = $1 AND c.phone IS NOT NULL
-            ORDER BY c.phone
+            WHERE EXISTS (
+                SELECT 1 FROM conversation_tags ct
+                WHERE ct.conversation_phone = c.phone AND ct.tag_id = $1
+              )
+              AND c.phone IS NOT NULL
+              AND c.phone NOT LIKE '%@lid%'
+              AND (
+                c.phone ~ '^[A-Za-z]{2}[.][0-9]+$'
+                OR LENGTH(REGEXP_REPLACE(c.phone, '\\D', '', 'g')) BETWEEN 10 AND 13
+              )
+            ORDER BY
+              CASE WHEN c.phone LIKE '+573%' OR c.phone LIKE '573%' THEN 0 ELSE 1 END,
+              c.phone
         `, [tagId]);
         contactList = rows;
     } else if (selectionMode === 'all') {
@@ -195,8 +205,16 @@ router.post('/bulk-send', asyncHandler(async (req, res) => {
 
         const { rows } = await db.query(`
             SELECT phone, contact_name as name FROM conversations
-            WHERE phone IS NOT NULL AND status = 'active'
-            ORDER BY phone
+            WHERE phone IS NOT NULL
+              AND status = 'active'
+              AND phone NOT LIKE '%@lid%'
+              AND (
+                phone ~ '^[A-Za-z]{2}[.][0-9]+$'
+                OR LENGTH(REGEXP_REPLACE(phone, '\\D', '', 'g')) BETWEEN 10 AND 13
+              )
+            ORDER BY
+              CASE WHEN phone LIKE '+573%' OR phone LIKE '573%' THEN 0 ELSE 1 END,
+              phone
         `);
         contactList = rows;
     } else {
@@ -273,12 +291,27 @@ router.post('/bulk-send', asyncHandler(async (req, res) => {
         const batch = contactList.slice(i, i + BATCH_SIZE);
 
         await Promise.all(batch.map(async (contact) => {
-            const phone = normalizePhone(contact.phone);
-            if (!phone) { failed++; return; }
+            const rawPhone = String(contact.phone || '').trim();
+            const isMetaUserId = /^[A-Za-z]{2}\.[0-9]+$/.test(rawPhone);
+            const phoneDigits = rawPhone.replace(/\D/g, '');
+            const isPhoneNumber = /^[+\d\s().-]+$/.test(rawPhone)
+                && phoneDigits.length >= 10 && phoneDigits.length <= 13;
+            if (!isMetaUserId && !isPhoneNumber) {
+                failed++;
+                errors.push({ phone: rawPhone, error: 'Identificador no válido para API Oficial (se omiten LIDs y números incompletos)' });
+                return;
+            }
+
+            const phone = isMetaUserId ? rawPhone : normalizePhone(phoneDigits);
+            if (!phone || phone.includes('@lid')) {
+                failed++;
+                errors.push({ phone: rawPhone, error: 'Formato de teléfono no válido' });
+                return;
+            }
 
             const body = {
                 messaging_product: 'whatsapp',
-                to: phone.replace(/\D/g, ''),
+                ...(isMetaUserId ? { recipient: phone } : { to: phone.replace(/\D/g, '') }),
                 type: 'template',
                 template: {
                     name: templateName,
