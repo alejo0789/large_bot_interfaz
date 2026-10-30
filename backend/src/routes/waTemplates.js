@@ -124,7 +124,6 @@ router.get('/', asyncHandler(async (req, res) => {
 //   recipients: [{ phone: string, name?: string }] | tagId | 'all'
 //   tagId?: string                      // send to contacts with this tag
 // }
-router.post('/bulk-send', asyncHandler(async (req, res) => {
 // Shared selection for date preview and sending. Calendar days use Colombia time.
 function dateRecipientQuery(startDate, endDate) {
     const validDate = value => typeof value === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(value)
@@ -156,6 +155,7 @@ router.get('/date-recipients-count', asyncHandler(async (req, res) => {
     res.json({ total: Number(rows[0].total) });
 }));
 
+router.post('/bulk-send', asyncHandler(async (req, res) => {
     const { token, phoneNumberId, tenantSlug } = getOfficialConfig(req);
     const {
         templateName,
@@ -176,6 +176,8 @@ router.get('/date-recipients-count', asyncHandler(async (req, res) => {
         throw new AppError('templateName y templateLanguage son requeridos', 400);
     }
 
+    const dateQuery = selectionMode === 'date' ? dateRecipientQuery(startDate, endDate) : null;
+
     // Save/Update image URL locally for this template if provided
     if (headerImageUrl) {
         const ctx = tenantContext.getStore();
@@ -186,8 +188,6 @@ router.get('/date-recipients-count', asyncHandler(async (req, res) => {
                     CREATE TABLE IF NOT EXISTS official_templates_media (
                         template_name VARCHAR(255) PRIMARY KEY,
                         media_url TEXT NOT NULL,
-    const dateQuery = selectionMode === 'date' ? dateRecipientQuery(startDate, endDate) : null;
-
                         created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
                     );
                 `);

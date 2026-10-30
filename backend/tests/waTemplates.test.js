@@ -9,7 +9,8 @@ const { createRequire } = require('node:module');
 
 const routePath = path.resolve(__dirname, '../src/routes/waTemplates.js');
 const routeRequire = createRequire(routePath);
-const source = fs.readFileSync(routePath, 'utf8');
+// Allow validating the exact staged route while preserving unrelated working changes.
+const source = fs.readFileSync(process.env.WA_TEMPLATES_TEST_SOURCE || routePath, 'utf8');
 const metaId = 'CO.28778540205129908';
 
 function loadRoute(selectedContacts = []) {
@@ -165,3 +166,21 @@ test('missing, impossible and reversed dates reject preview and send before any 
         assert.equal(route.queries.length, 0);
     }
 });
+
+for (const selectionMode of ['manual', 'import', 'tag', 'all']) {
+    test(`${selectionMode} with an image works without dates and ignores unused date inputs`, async () => {
+        const route = loadRoute([{ phone: metaId }]);
+        const result = await route.send({
+            selectionMode, tagId: 7, recipients: [metaId],
+            headerImageUrl: 'https://example.com/template.jpg',
+            startDate: 'invalid', endDate: 'invalid'
+        });
+        assert.equal(result.sent, 1);
+        assert.equal(result.failed, 0);
+        assert.equal(route.requests[0].body.template.components[0].type, 'header');
+        const mediaCreate = route.queries.find(q => q.sql.includes('CREATE TABLE IF NOT EXISTS official_templates_media'));
+        assert.ok(mediaCreate);
+        assert.ok(!mediaCreate.sql.includes('const dateQuery'));
+        assert.ok(!route.queries.some(q => /last_message_timestamp [<>]/.test(q.sql)));
+    });
+}
