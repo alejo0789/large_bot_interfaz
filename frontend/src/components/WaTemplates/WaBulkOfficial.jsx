@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { Send, Search, Tag, Users, Image, Upload, CheckCircle, AlertCircle, X, RotateCw, ChevronDown, ChevronUp, User, Plus } from 'lucide-react';
+import { Send, Search, Tag, Users, Image, Upload, CheckCircle, AlertCircle, X, RotateCw, ChevronDown, ChevronUp, User, Plus, Calendar } from 'lucide-react';
 import apiFetch from '../../utils/api';
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
@@ -111,37 +111,45 @@ const ContactPanel = ({
 
     return (
         <div style={{ display: 'flex', flexDirection: 'column', height: '100%', overflow: 'hidden' }}>
-            {/* Mode tabs */}
-            <div style={{ display: 'flex', borderBottom: '1px solid #e5e7eb', flexShrink: 0 }}>
+            {/* Recipient selection: keep every option visible in the narrow panel. */}
+            <div style={{ padding: 12, borderBottom: '1px solid #e5e7eb', flexShrink: 0 }}>
+                <div style={{ fontSize: 12, fontWeight: 600, color: '#374151', marginBottom: 8 }}>¿A quién quieres enviar?</div>
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, minmax(0, 1fr))', gap: 8 }}>
                 {[
+                    ['date', <Calendar size={20} />, 'Por fecha del último mensaje'],
                     ['manual', <User size={14} />, 'Contactos'],
                     ['import', <Plus size={14} />, 'Nuevo/Pegar'],
                     ['tag', <Tag size={14} />, 'Etiqueta'],
-                    ['all', <Users size={14} />, 'Todos'],
-                    ['date', <Users size={14} />, 'Por fecha']
+                    ['all', <Users size={14} />, 'Todos']
                 ].map(([mode, icon, label]) => (
                     <button 
                         key={mode} 
+                        type="button"
+                        aria-pressed={selectionMode === mode}
                         onClick={() => setSelectionMode(mode)} 
                         style={{ 
-                            flex: 1, 
-                            padding: '10px 4px', 
-                            border: 'none', 
+                            gridColumn: mode === 'date' ? '1 / -1' : undefined,
+                            minWidth: 0,
+                            padding: '12px 10px',
+                            borderRadius: 8,
+                            border: selectionMode === mode ? '2px solid #059669' : '2px solid #e5e7eb',
                             background: selectionMode === mode ? '#f0fdf4' : 'white', 
                             color: selectionMode === mode ? '#059669' : '#6b7280', 
                             fontWeight: selectionMode === mode ? 700 : 500, 
-                            fontSize: 11, 
+                            fontSize: 13,
                             cursor: 'pointer', 
                             display: 'flex', 
                             alignItems: 'center', 
-                            justifyContent: 'center', 
-                            gap: 3, 
-                            borderBottom: selectionMode === mode ? '2px solid #25d366' : '2px solid transparent' 
+                            justifyContent: mode === 'date' ? 'flex-start' : 'center',
+                            gap: 8,
+                            textAlign: 'left'
                         }}
                     >
-                        {icon}{label}
+                        {icon}
+                        <span>{label}{mode === 'date' && <span style={{ display: 'block', fontSize: 11, fontWeight: 400, marginTop: 3 }}>Elige desde y hasta qué día enviar</span>}</span>
                     </button>
                 ))}
+                </div>
             </div>
 
             {selectionMode === 'date' && (
