@@ -93,7 +93,8 @@ const ContactPanel = ({
     importedPhones = [],
     setImportedPhones,
     importInput = '',
-    setImportInput
+    setImportInput,
+    startDate, setStartDate, endDate, setEndDate, datePreview
 }) => {
     const [searchTag, setSearchTag] = useState('');
 
@@ -116,7 +117,8 @@ const ContactPanel = ({
                     ['manual', <User size={14} />, 'Contactos'],
                     ['import', <Plus size={14} />, 'Nuevo/Pegar'],
                     ['tag', <Tag size={14} />, 'Etiqueta'],
-                    ['all', <Users size={14} />, 'Todos']
+                    ['all', <Users size={14} />, 'Todos'],
+                    ['date', <Users size={14} />, 'Por fecha']
                 ].map(([mode, icon, label]) => (
                     <button 
                         key={mode} 
@@ -141,6 +143,22 @@ const ContactPanel = ({
                     </button>
                 ))}
             </div>
+
+            {selectionMode === 'date' && (
+                <div style={{ padding: 16, fontSize: 13, display: 'flex', flexDirection: 'column', gap: 12 }}>
+                    <strong>Fecha del último mensaje</strong>
+                    <span>Conversaciones activas de esta sede. Incluye ambos días completos, hora de Colombia.</span>
+                    <label htmlFor="wa-bulk-start-date">Desde</label>
+                    <input id="wa-bulk-start-date" type="date" value={startDate} max={endDate || undefined} onChange={e => setStartDate(e.target.value)} />
+                    <label htmlFor="wa-bulk-end-date">Hasta</label>
+                    <input id="wa-bulk-end-date" type="date" value={endDate} min={startDate || undefined} onChange={e => setEndDate(e.target.value)} />
+                    {(!startDate || !endDate) ? <span>Selecciona ambas fechas.</span>
+                        : startDate > endDate ? <span role="alert">La fecha inicial debe ser anterior o igual a la final.</span>
+                        : datePreview?.key !== `${startDate}/${endDate}` ? <span>Consultando destinatarios...</span>
+                        : datePreview.error ? <span role="alert">{datePreview.error}</span>
+                        : <strong aria-live="polite">{datePreview.total} conversaciones para enviar</strong>}
+                </div>
+            )}
 
             {/* Tag selector */}
             {selectionMode === 'tag' && (
@@ -329,6 +347,7 @@ const ContactPanel = ({
                 {selectionMode === 'import' && `${importedPhones.length} número${importedPhones.length !== 1 ? 's' : ''} para enviar`}
                 {selectionMode === 'tag' && selectedTagId && `Etiqueta seleccionada`}
                 {selectionMode === 'all' && `Todos los contactos`}
+                {selectionMode === 'date' && datePreview?.key === `${startDate}/${endDate}` && !datePreview.error && `${datePreview.total} conversaciones en el rango`}
             </div>
         </div>
     );
@@ -344,6 +363,24 @@ const WaBulkOfficial = ({ conversations, tags }) => {
     const [imageFile, setImageFile] = useState(null);
     const [uploadingImage, setUploadingImage] = useState(false);
     const [selectionMode, setSelectionMode] = useState('manual');
+    const [startDate, setStartDate] = useState('');
+    const [endDate, setEndDate] = useState('');
+    const [datePreview, setDatePreview] = useState(null);
+
+    useEffect(() => {
+        if (selectionMode !== 'date' || !startDate || !endDate || startDate > endDate) return;
+        let cancelled = false;
+        const key = `${startDate}/${endDate}`;
+        setDatePreview(null);
+        apiFetch(`/api/wa-templates/date-recipients-count?startDate=${encodeURIComponent(startDate)}&endDate=${encodeURIComponent(endDate)}`)
+            .then(async res => {
+                const data = await res.json();
+                if (!res.ok) throw new Error(data.error || 'No se pudo consultar los destinatarios');
+                if (!cancelled) setDatePreview({ key, total: data.total });
+            })
+            .catch(error => { if (!cancelled) setDatePreview({ key, error: error.message }); });
+        return () => { cancelled = true; };
+    }, [selectionMode, startDate, endDate]);
     const [selectedTagId, setSelectedTagId] = useState(null);
     const [selectedPhones, setSelectedPhones] = useState([]);
     const [importedPhones, setImportedPhones] = useState([]);
@@ -408,7 +445,8 @@ const WaBulkOfficial = ({ conversations, tags }) => {
     const canSend = selectedTemplate &&
         vars.every(v => variables[v]?.trim()) &&
         (!needsImage || headerImageUrl) &&
-        (selectionMode === 'all' || 
+        (selectionMode === 'all' ||
+         (selectionMode === 'date' && startDate && endDate && startDate <= endDate && datePreview?.key === `${startDate}/${endDate}` && datePreview.total > 0 && !datePreview.error) ||
          (selectionMode === 'tag' && selectedTagId) || 
          (selectionMode === 'manual' && selectedPhones.length > 0) ||
          (selectionMode === 'import' && importedPhones.length > 0)) &&
@@ -429,6 +467,8 @@ const WaBulkOfficial = ({ conversations, tags }) => {
                     variables,
                     headerImageUrl: headerImageUrl || null,
                     selectionMode,
+                    startDate: selectionMode === 'date' ? startDate : undefined,
+                    endDate: selectionMode === 'date' ? endDate : undefined,
                     tagId: selectionMode === 'tag' ? selectedTagId : null,
                     createCampaign,
                     campaignName: createCampaign ? (campaignName?.trim() || selectedTemplate?.name) : null,
@@ -714,6 +754,11 @@ const WaBulkOfficial = ({ conversations, tags }) => {
                         setImportedPhones={setImportedPhones}
                         importInput={importInput}
                         setImportInput={setImportInput}
+                        startDate={startDate}
+                        setStartDate={setStartDate}
+                        endDate={endDate}
+                        setEndDate={setEndDate}
+                        datePreview={datePreview}
                     />
                 </div>
             </div>

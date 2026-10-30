@@ -125,6 +125,37 @@ router.get('/', asyncHandler(async (req, res) => {
 //   tagId?: string                      // send to contacts with this tag
 // }
 router.post('/bulk-send', asyncHandler(async (req, res) => {
+// Shared selection for date preview and sending. Calendar days use Colombia time.
+function dateRecipientQuery(startDate, endDate) {
+    const validDate = value => typeof value === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(value)
+        && Number.isFinite(Date.parse(`${value}T00:00:00Z`))
+        && new Date(`${value}T00:00:00Z`).toISOString().slice(0, 10) === value;
+    if (!validDate(startDate) || !validDate(endDate) || startDate > endDate) {
+        throw new AppError('Selecciona un rango de fechas válido: desde debe ser anterior o igual a hasta', 400);
+    }
+    const start = new Date(`${startDate}T00:00:00-05:00`);
+    const endExclusive = new Date(Date.parse(`${endDate}T00:00:00-05:00`) + 86400000);
+    return {
+        sql: `SELECT phone, contact_name as name FROM conversations
+              WHERE status = 'active' AND phone IS NOT NULL
+                AND phone NOT LIKE '%@lid%'
+                AND (phone ~ '^[A-Za-z]{2}[.][0-9]+$'
+                  OR LENGTH(REGEXP_REPLACE(phone, '\\D', '', 'g')) BETWEEN 10 AND 13)
+                AND last_message_timestamp >= $1
+                AND last_message_timestamp < $2`,
+        params: [start.toISOString(), endExclusive.toISOString()]
+    };
+}
+
+router.get('/date-recipients-count', asyncHandler(async (req, res) => {
+    getOfficialConfig(req);
+    const query = dateRecipientQuery(req.query.startDate, req.query.endDate);
+    const db = tenantContext.getStore()?.db || req.db;
+    if (!db) throw new AppError('Sin conexión a base de datos del tenant', 500);
+    const { rows } = await db.query(`SELECT COUNT(*) as total FROM (${query.sql}) recipients`, query.params);
+    res.json({ total: Number(rows[0].total) });
+}));
+
     const { token, phoneNumberId, tenantSlug } = getOfficialConfig(req);
     const {
         templateName,
@@ -136,7 +167,9 @@ router.post('/bulk-send', asyncHandler(async (req, res) => {
         selectionMode = 'manual',
         templateText = '',
         createCampaign = true,
-        campaignName = null
+        campaignName = null,
+        startDate = null,
+        endDate = null
     } = req.body;
 
     if (!templateName || !templateLanguage) {
@@ -153,6 +186,8 @@ router.post('/bulk-send', asyncHandler(async (req, res) => {
                     CREATE TABLE IF NOT EXISTS official_templates_media (
                         template_name VARCHAR(255) PRIMARY KEY,
                         media_url TEXT NOT NULL,
+    const dateQuery = selectionMode === 'date' ? dateRecipientQuery(startDate, endDate) : null;
+
                         created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
                     );
                 `);
@@ -174,7 +209,12 @@ router.post('/bulk-send', asyncHandler(async (req, res) => {
     // Resolve recipient list
     let contactList = [];
 
-    if (selectionMode === 'tag' && tagId) {
+    if (dateQuery) {
+        const db = tenantContext.getStore()?.db || req.db;
+        if (!db) throw new AppError('Sin conexión a base de datos del tenant', 500);
+        const { rows } = await db.query(`${dateQuery.sql} ORDER BY phone`, dateQuery.params);
+        contactList = rows;
+    } else if (selectionMode === 'tag' && tagId) {
         // Include Meta user IDs as well as phone numbers; neither is an Evolution LID.
         const ctx = tenantContext.getStore();
         const db = ctx?.db;

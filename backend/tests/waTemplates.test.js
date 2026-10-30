@@ -16,6 +16,7 @@ function loadRoute(selectedContacts = []) {
     const requests = [], savedMessages = [], queries = [], conversations = [];
     const db = { query: async (sql, params) => {
         queries.push({ sql, params });
+        if (sql.includes('COUNT(*)')) return { rows: [{ total: String(selectedContacts.length) }] };
         if (sql.includes('FROM conversations')) return { rows: selectedContacts };
         if (sql.includes('RETURNING id')) return { rows: [{ id: 1 }] };
         return { rows: [] };
@@ -67,6 +68,9 @@ function loadRoute(selectedContacts = []) {
     }).runInContext(context);
     return {
         requests, savedMessages, queries, conversations,
+        count: query => new Promise((resolve, reject) => {
+            handlers['get /date-recipients-count']({ tenant, db, query }, { json: resolve }, reject);
+        }),
         send: overrides => new Promise((resolve, reject) => {
             handlers['post /bulk-send']({
                 tenant, db, app: { get: () => null },
@@ -123,3 +127,41 @@ for (const selectionMode of ['tag', 'all']) {
         assert.equal(route.savedMessages[0].phone, metaId);
     });
 }
+
+test('date preview and send use identical last-message bounds for complete Colombian days', async () => {
+    const route = loadRoute([{ phone: metaId, name: 'Test contact' }]);
+    const dates = { startDate: '2026-10-15', endDate: '2026-10-30' };
+    const preview = await route.count(dates);
+    assert.equal(preview.total, 1);
+    const result = await route.send({ selectionMode: 'date', ...dates });
+    assert.equal(result.sent, 1);
+    const [countQuery, sendQuery] = route.queries.filter(q => q.sql.includes('FROM conversations'));
+    assert.deepEqual(Array.from(countQuery.params), ['2026-10-15T05:00:00.000Z', '2026-10-31T05:00:00.000Z']);
+    assert.deepEqual(Array.from(sendQuery.params), Array.from(countQuery.params));
+    assert.match(countQuery.sql, /last_message_timestamp >= \$1/);
+    assert.match(countQuery.sql, /last_message_timestamp < \$2/);
+    assert.match(countQuery.sql, /status = 'active'/);
+    assert.ok(countQuery.sql.includes("REGEXP_REPLACE(phone, '\\D', '', 'g')"));
+    assert.ok(!countQuery.sql.includes('COALESCE'));
+});
+
+test('a single selected day includes the full day across month boundaries', async () => {
+    const route = loadRoute([{ phone: metaId }]);
+    await route.count({ startDate: '2026-10-31', endDate: '2026-10-31' });
+    assert.deepEqual(Array.from(route.queries[0].params), ['2026-10-31T05:00:00.000Z', '2026-11-01T05:00:00.000Z']);
+});
+
+test('missing, impossible and reversed dates reject preview and send before any side effect', async () => {
+    for (const dates of [
+        {}, { startDate: '2026-10-15' },
+        { startDate: '2026-02-30', endDate: '2026-03-01' },
+        { startDate: '2026-10-30', endDate: '2026-10-15' },
+        { startDate: 'invalid', endDate: '2026-10-30' }
+    ]) {
+        const route = loadRoute([{ phone: metaId }]);
+        await assert.rejects(route.count(dates), /rango de fechas/);
+        await assert.rejects(route.send({ selectionMode: 'date', headerImageUrl: 'https://example.com/image.jpg', ...dates }), /rango de fechas/);
+        assert.equal(route.requests.length, 0);
+        assert.equal(route.queries.length, 0);
+    }
+});
