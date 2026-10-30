@@ -528,34 +528,8 @@ const WaBulkOfficial = ({ conversations, tags }) => {
 
             {/* Main split layout */}
             <div className="wa-bulk-workspace">
-                <section className="wa-bulk-recipients" aria-label="Destinatarios">
-                    <div className="wa-bulk-section-title">
-                        <Users size={18} color="#059669" /> 1. Destinatarios
-                    </div>
-                    <ContactPanel
-                        tags={tags}
-                        conversations={conversations}
-                        selectionMode={selectionMode}
-                        setSelectionMode={setSelectionMode}
-                        selectedTagId={selectedTagId}
-                        setSelectedTagId={setSelectedTagId}
-                        selectedPhones={selectedPhones}
-                        setSelectedPhones={setSelectedPhones}
-                        searchContact={searchContact}
-                        setSearchContact={setSearchContact}
-                        importedPhones={importedPhones}
-                        setImportedPhones={setImportedPhones}
-                        importInput={importInput}
-                        setImportInput={setImportInput}
-                        startDate={startDate}
-                        setStartDate={setStartDate}
-                        endDate={endDate}
-                        setEndDate={setEndDate}
-                        datePreview={datePreview}
-                    />
-                </section>
                 <section className="wa-bulk-template" aria-label="Plantilla y vista previa">
-                    <div className="wa-bulk-section-title">2. Plantilla y vista previa</div>
+                    <div className="wa-bulk-section-title">1. Plantilla y vista previa</div>
                     <div className="wa-bulk-template-content">
 
                     {/* Result banner */}
@@ -772,6 +746,32 @@ const WaBulkOfficial = ({ conversations, tags }) => {
 
                     </div>
                 </section>
+                <section className="wa-bulk-recipients" aria-label="Destinatarios">
+                    <div className="wa-bulk-section-title">
+                        <Users size={18} color="#059669" /> 2. Destinatarios
+                    </div>
+                    <ContactPanel
+                        tags={tags}
+                        conversations={conversations}
+                        selectionMode={selectionMode}
+                        setSelectionMode={setSelectionMode}
+                        selectedTagId={selectedTagId}
+                        setSelectedTagId={setSelectedTagId}
+                        selectedPhones={selectedPhones}
+                        setSelectedPhones={setSelectedPhones}
+                        searchContact={searchContact}
+                        setSearchContact={setSearchContact}
+                        importedPhones={importedPhones}
+                        setImportedPhones={setImportedPhones}
+                        importInput={importInput}
+                        setImportInput={setImportInput}
+                        startDate={startDate}
+                        setStartDate={setStartDate}
+                        endDate={endDate}
+                        setEndDate={setEndDate}
+                        datePreview={datePreview}
+                    />
+                </section>
             </div>
 
             <div className="wa-bulk-send-bar">
@@ -788,9 +788,9 @@ const WaBulkOfficial = ({ conversations, tags }) => {
                     </button>
             </div>
             <style>{`
-                .wa-bulk-workspace { flex: 1; min-height: 0; display: grid; grid-template-columns: minmax(0, 55fr) minmax(0, 45fr); overflow: hidden; }
+                .wa-bulk-workspace { flex: 1; min-height: 0; display: grid; grid-template-columns: minmax(0, 65fr) minmax(0, 35fr); overflow: hidden; }
                 .wa-bulk-recipients, .wa-bulk-template { min-width: 0; min-height: 0; display: flex; flex-direction: column; overflow: hidden; }
-                .wa-bulk-recipients { background: white; border-right: 1px solid #e5e7eb; }
+                .wa-bulk-recipients { background: white; border-left: 1px solid #e5e7eb; }
                 .wa-bulk-section-title { padding: 16px 20px; font-size: 15px; font-weight: 700; color: #111827; display: flex; align-items: center; gap: 8px; border-bottom: 1px solid #e5e7eb; flex-shrink: 0; }
                 .wa-bulk-contact-content { flex: 1; min-height: 0; display: flex; flex-direction: column; overflow: hidden; }
                 .wa-bulk-selection-modes { display: grid; grid-template-columns: repeat(auto-fit, minmax(115px, 1fr)); gap: 8px; }
@@ -799,7 +799,7 @@ const WaBulkOfficial = ({ conversations, tags }) => {
                 .wa-bulk-send-bar { flex-shrink: 0; display: flex; align-items: center; justify-content: space-between; gap: 16px; padding: 16px 24px; background: white; border-top: 1px solid #e5e7eb; box-shadow: 0 -4px 12px rgba(0,0,0,.04); }
                 @media (max-width: 900px) {
                     .wa-bulk-workspace { display: flex; flex-direction: column; overflow-y: auto; }
-                    .wa-bulk-recipients { min-height: 360px; max-height: 65vh; flex-shrink: 0; border-right: 0; border-bottom: 1px solid #e5e7eb; }
+                    .wa-bulk-recipients { min-height: 360px; max-height: 65vh; flex-shrink: 0; border-left: 0; border-top: 1px solid #e5e7eb; }
                     .wa-bulk-template { overflow: visible; flex-shrink: 0; }
                     .wa-bulk-template-content { overflow: visible; flex: none; }
                 }
