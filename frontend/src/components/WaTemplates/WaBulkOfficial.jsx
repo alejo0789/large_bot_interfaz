@@ -110,16 +110,16 @@ const ContactPanel = ({
     const togglePhone = phone => setSelectedPhones(prev => prev.includes(phone) ? prev.filter(p => p !== phone) : [...prev, phone]);
 
     return (
-        <div style={{ display: 'flex', flexDirection: 'column', height: '100%', overflow: 'hidden' }}>
+        <div className="wa-bulk-contact-content">
             {/* Recipient selection: keep every option visible in the narrow panel. */}
             <div style={{ padding: 12, borderBottom: '1px solid #e5e7eb', flexShrink: 0 }}>
                 <div style={{ fontSize: 12, fontWeight: 600, color: '#374151', marginBottom: 8 }}>¿A quién quieres enviar?</div>
-                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, minmax(0, 1fr))', gap: 8 }}>
+                <div className="wa-bulk-selection-modes">
                 {[
-                    ['date', <Calendar size={20} />, 'Por fecha del último mensaje'],
                     ['manual', <User size={14} />, 'Contactos'],
                     ['import', <Plus size={14} />, 'Nuevo/Pegar'],
                     ['tag', <Tag size={14} />, 'Etiqueta'],
+                    ['date', <Calendar size={14} />, 'Por fecha'],
                     ['all', <Users size={14} />, 'Todos']
                 ].map(([mode, icon, label]) => (
                     <button 
@@ -128,7 +128,6 @@ const ContactPanel = ({
                         aria-pressed={selectionMode === mode}
                         onClick={() => setSelectionMode(mode)} 
                         style={{ 
-                            gridColumn: mode === 'date' ? '1 / -1' : undefined,
                             minWidth: 0,
                             padding: '12px 10px',
                             borderRadius: 8,
@@ -140,26 +139,26 @@ const ContactPanel = ({
                             cursor: 'pointer', 
                             display: 'flex', 
                             alignItems: 'center', 
-                            justifyContent: mode === 'date' ? 'flex-start' : 'center',
+                            justifyContent: 'center',
                             gap: 8,
                             textAlign: 'left'
                         }}
                     >
                         {icon}
-                        <span>{label}{mode === 'date' && <span style={{ display: 'block', fontSize: 11, fontWeight: 400, marginTop: 3 }}>Elige desde y hasta qué día enviar</span>}</span>
+                        <span>{label}</span>
                     </button>
                 ))}
                 </div>
             </div>
 
             {selectionMode === 'date' && (
-                <div style={{ padding: 16, fontSize: 13, display: 'flex', flexDirection: 'column', gap: 12 }}>
+                <div style={{ padding: 16, fontSize: 13, display: 'flex', flexDirection: 'column', gap: 12, overflowY: 'auto' }}>
                     <strong>Fecha del último mensaje</strong>
                     <span>Conversaciones activas de esta sede. Incluye ambos días completos, hora de Colombia.</span>
                     <label htmlFor="wa-bulk-start-date">Desde</label>
-                    <input id="wa-bulk-start-date" type="date" value={startDate} max={endDate || undefined} onChange={e => setStartDate(e.target.value)} />
+                    <input id="wa-bulk-start-date" type="date" value={startDate} max={endDate || undefined} onChange={e => setStartDate(e.target.value)} style={{ padding: 12, border: '1px solid #d1d5db', borderRadius: 8, font: 'inherit', minWidth: 0 }} />
                     <label htmlFor="wa-bulk-end-date">Hasta</label>
-                    <input id="wa-bulk-end-date" type="date" value={endDate} min={startDate || undefined} onChange={e => setEndDate(e.target.value)} />
+                    <input id="wa-bulk-end-date" type="date" value={endDate} min={startDate || undefined} onChange={e => setEndDate(e.target.value)} style={{ padding: 12, border: '1px solid #d1d5db', borderRadius: 8, font: 'inherit', minWidth: 0 }} />
                     {(!startDate || !endDate) ? <span>Selecciona ambas fechas.</span>
                         : startDate > endDate ? <span role="alert">La fecha inicial debe ser anterior o igual a la final.</span>
                         : datePreview?.key !== `${startDate}/${endDate}` ? <span>Consultando destinatarios...</span>
@@ -499,10 +498,22 @@ const WaBulkOfficial = ({ conversations, tags }) => {
         }
     };
 
+    const recipientSummary = selectionMode === 'manual'
+        ? `${selectedPhones.length} contactos seleccionados`
+        : selectionMode === 'import'
+            ? `${importedPhones.length} números para enviar`
+            : selectionMode === 'tag'
+                ? (selectedTagId ? `Etiqueta: ${(tags || []).find(t => t.id === selectedTagId)?.name || selectedTagId}` : 'Selecciona una etiqueta')
+                : selectionMode === 'date'
+                    ? (datePreview?.key === `${startDate}/${endDate}` && !datePreview.error
+                        ? `${datePreview.total} conversaciones · ${startDate} al ${endDate}`
+                        : 'Selecciona un rango de fechas válido')
+                    : 'Todos los contactos activos de esta sede';
+
     return (
-        <div style={{ flex: 1, display: 'flex', flexDirection: 'column', background: '#f8fafc', overflow: 'hidden' }}>
+        <div className="wa-bulk-page" style={{ flex: 1, minWidth: 0, minHeight: 0, display: 'flex', flexDirection: 'column', background: '#f8fafc', overflow: 'hidden' }}>
             {/* Top bar */}
-            <div style={{ padding: '18px 24px', background: 'white', borderBottom: '1px solid #e5e7eb', flexShrink: 0, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+            <div style={{ padding: '18px 24px', background: 'white', borderBottom: '1px solid #e5e7eb', flexShrink: 0, display: 'flex', flexWrap: 'wrap', gap: 12, justifyContent: 'space-between', alignItems: 'center' }}>
                 <div>
                     <h1 style={{ margin: 0, fontSize: 20, fontWeight: 800, color: '#111827' }}>
                         <span style={{ color: '#25d366' }}>Envío Masivo</span> Oficial
@@ -516,9 +527,36 @@ const WaBulkOfficial = ({ conversations, tags }) => {
             </div>
 
             {/* Main split layout */}
-            <div style={{ flex: 1, display: 'flex', overflow: 'hidden' }}>
-                {/* LEFT: Template config */}
-                <div style={{ flex: 1, overflowY: 'auto', padding: 24, display: 'flex', flexDirection: 'column', gap: 20, minWidth: 0 }}>
+            <div className="wa-bulk-workspace">
+                <section className="wa-bulk-recipients" aria-label="Destinatarios">
+                    <div className="wa-bulk-section-title">
+                        <Users size={18} color="#059669" /> 1. Destinatarios
+                    </div>
+                    <ContactPanel
+                        tags={tags}
+                        conversations={conversations}
+                        selectionMode={selectionMode}
+                        setSelectionMode={setSelectionMode}
+                        selectedTagId={selectedTagId}
+                        setSelectedTagId={setSelectedTagId}
+                        selectedPhones={selectedPhones}
+                        setSelectedPhones={setSelectedPhones}
+                        searchContact={searchContact}
+                        setSearchContact={setSearchContact}
+                        importedPhones={importedPhones}
+                        setImportedPhones={setImportedPhones}
+                        importInput={importInput}
+                        setImportInput={setImportInput}
+                        startDate={startDate}
+                        setStartDate={setStartDate}
+                        endDate={endDate}
+                        setEndDate={setEndDate}
+                        datePreview={datePreview}
+                    />
+                </section>
+                <section className="wa-bulk-template" aria-label="Plantilla y vista previa">
+                    <div className="wa-bulk-section-title">2. Plantilla y vista previa</div>
+                    <div className="wa-bulk-template-content">
 
                     {/* Result banner */}
                     {result && (
@@ -732,45 +770,45 @@ const WaBulkOfficial = ({ conversations, tags }) => {
                         </>
                     )}
 
-                    {/* 5. Send button */}
+                    </div>
+                </section>
+            </div>
+
+            <div className="wa-bulk-send-bar">
+                <div style={{ minWidth: 0, display: 'flex', flexDirection: 'column', gap: 4, overflowWrap: 'anywhere' }} aria-live="polite">
+                    <strong style={{ fontSize: 14, color: '#111827' }}>Plantilla: {selectedTemplate?.name || 'Sin seleccionar'}</strong>
+                    <span style={{ fontSize: 13, color: '#4b5563' }}>{recipientSummary}</span>
+                </div>
                     <button
                         onClick={handleSend}
                         disabled={!canSend}
-                        style={{ padding: '14px', borderRadius: 10, border: 'none', background: canSend ? 'linear-gradient(135deg,#25d366,#128c7e)' : '#94a3b8', color: 'white', fontSize: 15, fontWeight: 700, cursor: canSend ? 'pointer' : 'not-allowed', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8 }}
+                        style={{ padding: '14px 24px', flexShrink: 0, borderRadius: 10, border: 'none', background: canSend ? 'linear-gradient(135deg,#25d366,#128c7e)' : '#94a3b8', color: 'white', fontSize: 15, fontWeight: 700, cursor: canSend ? 'pointer' : 'not-allowed', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8 }}
                     >
-                        {sending ? <><RotateCw size={18} style={{ animation: 'spin 1s linear infinite' }} /> Enviando...</> : <><Send size={18} /> Enviar Mensajes</>}
+                        {sending ? <><RotateCw size={18} style={{ animation: 'spin 1s linear infinite' }} /> Enviando...</> : <><Send size={18} /> Enviar plantilla</>}
                     </button>
-                </div>
-
-                {/* RIGHT: Contacts panel */}
-                <div style={{ width: 320, borderLeft: '1px solid #e5e7eb', background: 'white', display: 'flex', flexDirection: 'column', overflow: 'hidden', flexShrink: 0 }}>
-                    <div style={{ padding: '14px 16px', borderBottom: '1px solid #e5e7eb', fontWeight: 700, fontSize: 14, color: '#111827', display: 'flex', alignItems: 'center', gap: 6 }}>
-                        <Users size={16} color="#25d366" /> Contactos
-                    </div>
-                    <ContactPanel
-                        tags={tags}
-                        conversations={conversations}
-                        selectionMode={selectionMode}
-                        setSelectionMode={setSelectionMode}
-                        selectedTagId={selectedTagId}
-                        setSelectedTagId={setSelectedTagId}
-                        selectedPhones={selectedPhones}
-                        setSelectedPhones={setSelectedPhones}
-                        searchContact={searchContact}
-                        setSearchContact={setSearchContact}
-                        importedPhones={importedPhones}
-                        setImportedPhones={setImportedPhones}
-                        importInput={importInput}
-                        setImportInput={setImportInput}
-                        startDate={startDate}
-                        setStartDate={setStartDate}
-                        endDate={endDate}
-                        setEndDate={setEndDate}
-                        datePreview={datePreview}
-                    />
-                </div>
             </div>
-            <style>{`@keyframes spin { to { transform: rotate(360deg); } }`}</style>
+            <style>{`
+                .wa-bulk-workspace { flex: 1; min-height: 0; display: grid; grid-template-columns: minmax(0, 55fr) minmax(0, 45fr); overflow: hidden; }
+                .wa-bulk-recipients, .wa-bulk-template { min-width: 0; min-height: 0; display: flex; flex-direction: column; overflow: hidden; }
+                .wa-bulk-recipients { background: white; border-right: 1px solid #e5e7eb; }
+                .wa-bulk-section-title { padding: 16px 20px; font-size: 15px; font-weight: 700; color: #111827; display: flex; align-items: center; gap: 8px; border-bottom: 1px solid #e5e7eb; flex-shrink: 0; }
+                .wa-bulk-contact-content { flex: 1; min-height: 0; display: flex; flex-direction: column; overflow: hidden; }
+                .wa-bulk-selection-modes { display: grid; grid-template-columns: repeat(auto-fit, minmax(115px, 1fr)); gap: 8px; }
+                .wa-bulk-template-content { flex: 1; min-height: 0; overflow-y: auto; padding: 16px; display: flex; flex-direction: column; gap: 16px; }
+                .wa-bulk-template-content > * { flex-shrink: 0; }
+                .wa-bulk-send-bar { flex-shrink: 0; display: flex; align-items: center; justify-content: space-between; gap: 16px; padding: 16px 24px; background: white; border-top: 1px solid #e5e7eb; box-shadow: 0 -4px 12px rgba(0,0,0,.04); }
+                @media (max-width: 900px) {
+                    .wa-bulk-workspace { display: flex; flex-direction: column; overflow-y: auto; }
+                    .wa-bulk-recipients { min-height: 360px; max-height: 65vh; flex-shrink: 0; border-right: 0; border-bottom: 1px solid #e5e7eb; }
+                    .wa-bulk-template { overflow: visible; flex-shrink: 0; }
+                    .wa-bulk-template-content { overflow: visible; flex: none; }
+                }
+                @media (max-width: 520px) {
+                    .wa-bulk-send-bar { align-items: stretch; flex-direction: column; gap: 10px; padding: 12px 16px; }
+                    .wa-bulk-section-title { padding: 14px 16px; }
+                }
+                @keyframes spin { to { transform: rotate(360deg); } }
+            `}</style>
         </div>
     );
 };
