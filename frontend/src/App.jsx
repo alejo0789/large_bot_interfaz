@@ -37,6 +37,7 @@ import WaTemplates from './components/WaTemplates/WaTemplates';
 import WaBulkOfficial from './components/WaTemplates/WaBulkOfficial';
 import BulkTracking from './components/WaTemplates/BulkTracking';
 import ForwardContactsModal from './components/Chat/ForwardContactsModal';
+import TikTokPrototype from './components/TikTok/TikTokPrototype';
 
 // Hooks
 import { useConversations } from './hooks/useConversations';
@@ -2040,6 +2041,12 @@ const BroomIcon = ({ className, style }) => (
 );
 
 const App = () => {
+    // Public, data-free prototype route for demonstrating the planned TikTok flow.
+    // It intentionally bypasses CRM authentication and never calls the backend.
+    if (window.location.pathname.replace(/\/$/, '') === '/prototipo-tiktok') {
+        return <TikTokPrototype />;
+    }
+
     return (
         <AuthProvider>
             <TenantProvider>

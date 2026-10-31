@@ -119,6 +119,9 @@ app.use('/api/admin', adminRoutes);
 // Apply to all subsequent routes
 app.use(tenantMiddleware);
 
+// TikTok account authorization and status
+app.use('/api/tiktok', require('./src/routes/tiktokOAuth'));
+
 // Protected Tenant Routes
 app.use('/api/conversations', jwtAuth, conversationRoutes);
 app.use('/api/tags', jwtAuth, tagRoutes);

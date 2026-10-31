@@ -1,11 +1,14 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { X, Save, Settings, User, Lock, Mail, ShieldAlert, QrCode, Wifi, WifiOff, CheckCircle2, RotateCw, RefreshCw, MessageSquare } from 'lucide-react';
+import { X, Save, Settings, User, Lock, Mail, ShieldAlert, QrCode, Wifi, WifiOff, CheckCircle2, RotateCw, RefreshCw, MessageSquare, Link2, ExternalLink } from 'lucide-react';
 import { useAuth } from '../../hooks/useAuth';
-import apiFetch from '../../utils/api';
+import apiFetch, { API_URL } from '../../utils/api';
+import { useTenant } from '../../hooks/useTenant';
 
 const SettingsModal = ({ isOpen, onClose }) => {
     const { user, token, login, updateProfile } = useAuth();
+    const { currentTenant } = useTenant();
     const [activeTab, setActiveTab] = useState('general');
+    const canManageTikTok = ['SUPER_ADMIN', 'SEDE_ADMIN'].includes(user?.role);
 
     const [defaultAiEnabled, setDefaultAiEnabled] = useState(true);
     const [applyToExisting, setApplyToExisting] = useState(false);
@@ -25,6 +28,13 @@ const SettingsModal = ({ isOpen, onClose }) => {
     const [waQr, setWaQr] = useState(null); // base64 string
     const [waRestarting, setWaRestarting] = useState(false);
     const waPollRef = useRef(null);
+    const tiktokPopupRef = useRef(null);
+    const tiktokPopupPollRef = useRef(null);
+    const [tiktokStatus, setTiktokStatus] = useState(null);
+    const [tiktokLoading, setTiktokLoading] = useState(false);
+    const [tiktokConnecting, setTiktokConnecting] = useState(false);
+    const [tiktokError, setTiktokError] = useState('');
+    const [tiktokSuccess, setTiktokSuccess] = useState('');
 
     // Load settings when modal opens
     useEffect(() => {
@@ -65,6 +75,86 @@ const SettingsModal = ({ isOpen, onClose }) => {
             }
         };
     }, [isOpen, activeTab]);
+
+    const checkTikTokStatus = async () => {
+        setTiktokLoading(true);
+        setTiktokError('');
+        try {
+            const response = await apiFetch('/api/tiktok/oauth/status');
+            const data = await response.json();
+            if (!response.ok) throw new Error(data.error || 'No se pudo consultar la conexión de TikTok.');
+            setTiktokStatus(data);
+        } catch (error) {
+            setTiktokError(error.message || 'Error consultando la conexión de TikTok.');
+        } finally {
+            setTiktokLoading(false);
+        }
+    };
+
+    useEffect(() => {
+        if (isOpen && activeTab === 'tiktok' && canManageTikTok) checkTikTokStatus();
+    }, [isOpen, activeTab, canManageTikTok, currentTenant?.slug]);
+
+    useEffect(() => {
+        const handleTikTokCallback = (event) => {
+            let backendOrigin;
+            try { backendOrigin = new URL(API_URL).origin; } catch (_) { return; }
+            if (event.origin !== backendOrigin || event.data?.type !== 'tiktok-oauth-callback') return;
+
+            if (tiktokPopupPollRef.current) {
+                clearInterval(tiktokPopupPollRef.current);
+                tiktokPopupPollRef.current = null;
+            }
+            setTiktokConnecting(false);
+            tiktokPopupRef.current = null;
+
+            if (event.data.success) {
+                setTiktokSuccess('Cuenta TikTok autorizada para esta sede.');
+                setTiktokError('');
+                checkTikTokStatus();
+            } else {
+                setTiktokError('TikTok no completó la autorización. Puedes intentarlo de nuevo.');
+                setTiktokSuccess('');
+            }
+        };
+
+        window.addEventListener('message', handleTikTokCallback);
+        return () => window.removeEventListener('message', handleTikTokCallback);
+    }, []);
+
+    const handleConnectTikTok = async () => {
+        setTiktokError('');
+        setTiktokSuccess('');
+        const popup = window.open('about:blank', 'large-tiktok-authorization', 'popup=yes,width=620,height=760');
+        if (!popup) {
+            setTiktokError('El navegador bloqueó la ventana. Permite ventanas emergentes e inténtalo de nuevo.');
+            return;
+        }
+
+        tiktokPopupRef.current = popup;
+        setTiktokConnecting(true);
+        try {
+            const response = await apiFetch('/api/tiktok/oauth/start', { method: 'POST' });
+            const data = await response.json();
+            if (!response.ok || !data.authorizationUrl) throw new Error(data.error || 'No se pudo iniciar la autorización.');
+
+            popup.location.href = data.authorizationUrl;
+            tiktokPopupPollRef.current = setInterval(() => {
+                if (popup.closed) {
+                    clearInterval(tiktokPopupPollRef.current);
+                    tiktokPopupPollRef.current = null;
+                    tiktokPopupRef.current = null;
+                    setTiktokConnecting(false);
+                    checkTikTokStatus();
+                }
+            }, 700);
+        } catch (error) {
+            popup.close();
+            tiktokPopupRef.current = null;
+            setTiktokConnecting(false);
+            setTiktokError(error.message || 'No se pudo iniciar la autorización de TikTok.');
+        }
+    };
 
     const fetchSettings = async () => {
         setIsLoading(true);
@@ -263,6 +353,20 @@ const SettingsModal = ({ isOpen, onClose }) => {
                             <MessageSquare className="w-4 h-4" />
                             Conexión WhatsApp
                         </button>
+                        {canManageTikTok && (
+                            <button
+                                onClick={() => setActiveTab('tiktok')}
+                                style={{
+                                    padding: '8px 12px', background: 'none', border: 'none', cursor: 'pointer',
+                                    fontWeight: activeTab === 'tiktok' ? 600 : 500,
+                                    color: activeTab === 'tiktok' ? 'var(--color-primary)' : 'var(--color-gray-500)',
+                                    borderBottom: activeTab === 'tiktok' ? '2px solid var(--color-primary)' : '2px solid transparent',
+                                    display: 'flex', alignItems: 'center', gap: '6px', whiteSpace: 'nowrap'
+                                }}
+                            >
+                                <Link2 className="w-4 h-4" /> TikTok
+                            </button>
+                        )}
                         <button
                             onClick={() => setActiveTab('profile')}
                             style={{
@@ -539,6 +643,62 @@ const SettingsModal = ({ isOpen, onClose }) => {
                         </div>
                     )}
 
+                    {activeTab === 'tiktok' && canManageTikTok && (
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+                            <div>
+                                <h3 style={{ fontSize: '1rem', fontWeight: 650, margin: '0 0 6px' }}>Conectar TikTok Business</h3>
+                                <p style={{ color: 'var(--color-gray-500)', fontSize: '0.82rem', lineHeight: 1.55, margin: 0 }}>
+                                    Autoriza la cuenta oficial de esta sede para recibir y responder mensajes desde el CRM.
+                                </p>
+                            </div>
+
+                            <div style={{ padding: '15px', borderRadius: '10px', border: `1px solid ${tiktokStatus?.connected ? '#a7f3d0' : 'var(--color-gray-200)'}`, background: tiktokStatus?.connected ? '#f0fdf4' : 'var(--color-gray-50)' }}>
+                                {tiktokLoading ? (
+                                    <div style={{ display: 'flex', alignItems: 'center', gap: '9px', color: 'var(--color-gray-500)', fontSize: '0.85rem' }}>
+                                        <RotateCw className="w-4 h-4 animate-spin" /> Consultando conexión...
+                                    </div>
+                                ) : (
+                                    <>
+                                        <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '7px' }}>
+                                            <span style={{ width: '8px', height: '8px', borderRadius: '50%', background: tiktokStatus?.connected ? '#10b981' : '#94a3b8' }} />
+                                            <strong style={{ fontSize: '0.9rem', color: tiktokStatus?.connected ? '#047857' : '#475569' }}>
+                                                {tiktokStatus?.connected ? 'TikTok conectado' : 'TikTok no conectado'}
+                                            </strong>
+                                        </div>
+                                        {tiktokStatus?.connected ? (
+                                            <div style={{ fontSize: '0.78rem', color: '#475569', lineHeight: 1.6 }}>
+                                                Cuenta autorizada para <b>{currentTenant?.name || currentTenant?.slug || 'esta sede'}</b>.
+                                                {tiktokStatus.open_id && <div style={{ color: '#64748b', marginTop: '3px' }}>ID de cuenta: {String(tiktokStatus.open_id).slice(0, 8)}…</div>}
+                                            </div>
+                                        ) : (
+                                            <div style={{ fontSize: '0.78rem', color: '#64748b', lineHeight: 1.55 }}>
+                                                Se abrirá TikTok para que el titular inicie sesión y apruebe los permisos solicitados.
+                                            </div>
+                                        )}
+                                    </>
+                                )}
+                            </div>
+
+                            {tiktokError && <div role="alert" style={{ padding: '10px 12px', borderRadius: '8px', background: '#fff1f2', border: '1px solid #fecdd3', color: '#be123c', fontSize: '0.8rem' }}>{tiktokError}</div>}
+                            {tiktokSuccess && <div role="status" style={{ padding: '10px 12px', borderRadius: '8px', background: '#ecfdf5', border: '1px solid #a7f3d0', color: '#047857', fontSize: '0.8rem', display: 'flex', alignItems: 'center', gap: '7px' }}><CheckCircle2 size={16} />{tiktokSuccess}</div>}
+
+                            <button
+                                className="btn btn-primary"
+                                onClick={handleConnectTikTok}
+                                disabled={tiktokConnecting || tiktokLoading}
+                                style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px', minHeight: '42px' }}
+                            >
+                                {tiktokConnecting ? <RotateCw className="w-4 h-4 animate-spin" /> : tiktokStatus?.connected ? <RefreshCw className="w-4 h-4" /> : <ExternalLink className="w-4 h-4" />}
+                                {tiktokConnecting ? 'Esperando autorización de TikTok...' : tiktokStatus?.connected ? 'Volver a autorizar cuenta' : 'Conectar cuenta TikTok'}
+                            </button>
+
+                            <div style={{ padding: '12px', background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: '8px', color: '#64748b', fontSize: '0.74rem', lineHeight: 1.55 }}>
+                                <b style={{ color: '#334155' }}>Permisos solicitados</b><br />
+                                Leer mensajes directos, leer el tipo de cuenta y enviar o gestionar respuestas. La aprobación ocurre en TikTok; el CRM nunca solicita tu contraseña de TikTok.
+                            </div>
+                        </div>
+                    )}
+
                     {activeTab === 'profile' && (
                         <div style={{ marginBottom: '20px', display: 'flex', flexDirection: 'column', gap: '16px' }}>
                             <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '8px' }}>
@@ -619,7 +779,7 @@ const SettingsModal = ({ isOpen, onClose }) => {
                     <button className="btn btn-secondary" onClick={onClose}>
                         Cerrar
                     </button>
-                    {activeTab !== 'whatsapp' && (
+                    {activeTab !== 'whatsapp' && activeTab !== 'tiktok' && (
                         <button
                             className="btn btn-primary"
                             onClick={handleSave}

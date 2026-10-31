@@ -22,6 +22,7 @@ const tenantMiddleware = async (req, res, next) => {
             // Allow health check, auth, uploads and global knowledge base requests to bypass tenant check
             const isPublicRoute =
                 req.path.startsWith('/api/auth') ||
+                req.path === '/api/tiktok/oauth/callback' ||
                 req.path.startsWith('/auth') ||
                 req.path.startsWith('/uploads') ||
                 req.path === '/health' ||

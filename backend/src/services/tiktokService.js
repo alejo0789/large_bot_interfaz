@@ -1,8 +1,6 @@
 const axios = require('axios');
-const fs = require('fs');
-const path = require('path');
-
-const TOKEN_FILE = path.join(__dirname, '../../tiktok_token.json');
+const { tenantContext } = require('../utils/tenantContext');
+const tiktokOAuthService = require('./tiktokOAuthService');
 
 class TikTokService {
     constructor() {
@@ -10,35 +8,25 @@ class TikTokService {
     }
 
     /**
-     * Obtiene el access_token y business_id guardados
-     */
-    getTokenData() {
-        if (fs.existsSync(TOKEN_FILE)) {
-            try {
-                return JSON.parse(fs.readFileSync(TOKEN_FILE, 'utf-8'));
-            } catch (e) {
-                console.error('Error leyendo tiktok_token.json:', e);
-            }
-        }
-        return {
-            access_token: process.env.TIKTOK_ACCESS_TOKEN || '986fcdabe72bc5529f54c417fe202d90904abb2a',
-            advertiser_ids: ['7690267379779272756']
-        };
-    }
-
-    /**
      * Enviar mensaje de texto a una conversación de TikTok
      * @param {string} conversationId - ID de la conversación de TikTok
      * @param {string} text - Contenido del mensaje
-     * @param {string} [customToken] - Token opcional si se maneja por sede
      */
-    async sendMessage(conversationId, text, customToken = null) {
-        const tokenData = this.getTokenData();
-        const accessToken = customToken || tokenData.access_token;
-        const businessId = tokenData.advertiser_ids?.[0] || '7690267379779272756';
+    async sendMessage(conversationId, text) {
+        const tenant = tenantContext.getStore()?.tenant;
+        if (!tenant?.id) {
+            return { success: false, error: 'TikTok message send requires a tenant context' };
+        }
 
-        if (!accessToken) {
-            throw new Error('TikTok Access Token no configurado');
+        let connection;
+        try {
+            connection = await tiktokOAuthService.getAccessToken(tenant.id);
+        } catch (error) {
+            console.error('TikTok access token unavailable:', error.message);
+            return { success: false, error: 'TikTok authorization is unavailable or expired' };
+        }
+        if (!connection?.accessToken || !connection?.openId) {
+            return { success: false, error: 'TikTok is not connected for this workspace' };
         }
 
         const cleanConvId = conversationId.replace(/^tiktok_/, '');
@@ -46,7 +34,7 @@ class TikTokService {
         console.log(`📤 [TikTok] Enviando mensaje a conv ${cleanConvId}...`);
 
         const payload = {
-            business_id: String(businessId),
+            business_id: String(connection.openId),
             recipient_type: 'CONVERSATION',
             recipient: {
                 conversation_id: String(cleanConvId)
@@ -61,7 +49,7 @@ class TikTokService {
             const response = await axios.post(`${this.baseUrl}/business/message/send/`, payload, {
                 headers: {
                     'Content-Type': 'application/json',
-                    'Access-Token': accessToken
+                    'Access-Token': connection.accessToken
                 }
             });
 
