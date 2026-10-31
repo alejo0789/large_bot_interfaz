@@ -83,7 +83,13 @@ app.use(cors({
 }));
 
 // JSON parsing
-app.use(express.json({ limit: '10mb' }));
+app.use(express.json({
+    limit: '10mb',
+    verify: (req, res, buffer) => {
+        // TikTok signs the exact request bytes, so keep them before JSON parsing.
+        req.rawBody = Buffer.from(buffer);
+    }
+}));
 
 // 1. Static files (uploads) - MUST BE FIRST to avoid tenant middleware interference
 app.use('/uploads', express.static(config.uploadDir, {

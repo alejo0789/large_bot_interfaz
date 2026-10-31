@@ -23,6 +23,7 @@ const tenantMiddleware = async (req, res, next) => {
             const isPublicRoute =
                 req.path.startsWith('/api/auth') ||
                 req.path === '/api/tiktok/oauth/callback' ||
+                req.path === '/webhook/tiktok' ||
                 req.path.startsWith('/auth') ||
                 req.path.startsWith('/uploads') ||
                 req.path === '/health' ||
