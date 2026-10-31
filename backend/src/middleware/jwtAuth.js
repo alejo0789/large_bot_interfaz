@@ -1,45 +1,28 @@
 const authService = require('../services/authService');
 
 /**
- * Middleware to verify JWT token
+ * Verify a user JWT or allow API-key-only access for trusted integrations.
  */
 const jwtAuth = (req, res, next) => {
-    // Prefer user authentication when both a JWT and SYSTEM_API_KEY are sent.
-    // The CRM may send both; API-key bypass must not skip attaching req.user.
+    // The CRM may send both credentials. Prefer the JWT so req.user is attached
+    // and user-level authorization checks can run correctly.
     const authHeader = req.headers.authorization;
     if (authHeader && authHeader.startsWith('Bearer ')) {
         const decoded = authService.verifyToken(authHeader.substring(7));
         if (!decoded) {
-            return res.status(401).json({ error: 'SesiÃ³n expirada o token invÃ¡lido' });
+            return res.status(401).json({ error: 'Sesion expirada o token invalido' });
         }
         req.user = decoded;
         return next();
     }
 
-    // 1. Allow bypass if a valid SYSTEM_API_KEY is provided (for n8n/integrations)
-    const providedApiKey = req.headers['x-api-key'] || req.headers['system_api_key'] || req.headers['system-api-key'] || req.query.api_key;
+    const providedApiKey = req.headers['x-api-key'] || req.headers.system_api_key || req.headers['system-api-key'] || req.query.api_key;
     const systemApiKey = process.env.SYSTEM_API_KEY;
-
     if (systemApiKey && providedApiKey === systemApiKey) {
         return next();
     }
 
-    // 2. Otherwise, require a valid JWT token
-    const authHeader = req.headers.authorization;
-    if (!authHeader || !authHeader.startsWith('Bearer ')) {
-        return res.status(401).json({ error: 'Token no proporcionado o inválido' });
-    }
-
-    const token = authHeader.substring(7);
-    const decoded = authService.verifyToken(token);
-
-    if (!decoded) {
-        return res.status(401).json({ error: 'Sesión expirada o token inválido' });
-    }
-
-    // Attach user info to request
-    req.user = decoded;
-    next();
+    return res.status(401).json({ error: 'Token no proporcionado o invalido' });
 };
 
 module.exports = jwtAuth;
