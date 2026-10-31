@@ -88,12 +88,16 @@ class MultiTenantManager {
         const pool = new Pool({
             connectionString: connectionString,
             ssl: useSsl,
-            min: 2,
+            // Do not pin idle sessions to external PostgreSQL poolers such as Neon.
+            // They may close idle sockets; keeping a minimum would preserve stale clients.
+            min: 0,
             max: 20,
             idleTimeoutMillis: 30000,
             connectionTimeoutMillis: 10000,
             query_timeout: 15000,
             statement_timeout: 15000, // aborta las query muy lentas o pegadas a nivel de pg
+            keepAlive: true,
+            keepAliveInitialDelayMillis: 10000,
             allowExitOnIdle: true
         });
 
