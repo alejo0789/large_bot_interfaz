@@ -16,6 +16,9 @@ function normalizePhone(phone) {
     if (phoneStr.startsWith('tiktok_')) {
         return phoneStr;
     }
+    if (phoneStr.startsWith('instagram_')) {
+        return phoneStr;
+    }
 
     // Meta puede identificar usuarios sin número con IDs como
     // CO.963886769507161. Conservar el ID completo para usarlo con `recipient`.

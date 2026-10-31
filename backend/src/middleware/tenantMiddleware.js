@@ -24,6 +24,8 @@ const tenantMiddleware = async (req, res, next) => {
                 req.path.startsWith('/api/auth') ||
                 req.path === '/api/tiktok/oauth/callback' ||
                 req.path === '/webhook/tiktok' ||
+                req.path === '/api/instagram/oauth/callback' ||
+                req.path === '/webhook/instagram' ||
                 req.path.startsWith('/auth') ||
                 req.path.startsWith('/uploads') ||
                 req.path === '/health' ||

@@ -9,6 +9,7 @@ const SettingsModal = ({ isOpen, onClose }) => {
     const { currentTenant } = useTenant();
     const [activeTab, setActiveTab] = useState('general');
     const canManageTikTok = ['SUPER_ADMIN', 'SEDE_ADMIN', 'LOCAL_ADMIN'].includes(user?.role);
+    const canManageInstagram = canManageTikTok;
 
     const [defaultAiEnabled, setDefaultAiEnabled] = useState(true);
     const [applyToExisting, setApplyToExisting] = useState(false);
@@ -35,6 +36,12 @@ const SettingsModal = ({ isOpen, onClose }) => {
     const [tiktokConnecting, setTiktokConnecting] = useState(false);
     const [tiktokError, setTiktokError] = useState('');
     const [tiktokSuccess, setTiktokSuccess] = useState('');
+    const instagramPopupPollRef = useRef(null);
+    const [instagramStatus, setInstagramStatus] = useState(null);
+    const [instagramLoading, setInstagramLoading] = useState(false);
+    const [instagramConnecting, setInstagramConnecting] = useState(false);
+    const [instagramError, setInstagramError] = useState('');
+    const [instagramSuccess, setInstagramSuccess] = useState('');
 
     // Load settings when modal opens
     useEffect(() => {
@@ -153,6 +160,72 @@ const SettingsModal = ({ isOpen, onClose }) => {
             tiktokPopupRef.current = null;
             setTiktokConnecting(false);
             setTiktokError(error.message || 'No se pudo iniciar la autorización de TikTok.');
+        }
+    };
+
+    const checkInstagramStatus = async () => {
+        setInstagramLoading(true);
+        setInstagramError('');
+        try {
+            const response = await apiFetch('/api/instagram/oauth/status');
+            const data = await response.json();
+            if (!response.ok) throw new Error(data.error || 'No se pudo consultar la conexión de Instagram.');
+            setInstagramStatus(data);
+        } catch (error) {
+            setInstagramError(error.message || 'Error consultando Instagram.');
+        } finally {
+            setInstagramLoading(false);
+        }
+    };
+
+    useEffect(() => {
+        if (isOpen && activeTab === 'instagram' && canManageInstagram) checkInstagramStatus();
+    }, [isOpen, activeTab, canManageInstagram, currentTenant?.slug]);
+
+    useEffect(() => {
+        const handleInstagramCallback = (event) => {
+            let backendOrigin;
+            try { backendOrigin = new URL(API_URL).origin; } catch (_) { return; }
+            if (event.origin !== backendOrigin || event.data?.type !== 'instagram-oauth-callback') return;
+            if (instagramPopupPollRef.current) clearInterval(instagramPopupPollRef.current);
+            instagramPopupPollRef.current = null;
+            setInstagramConnecting(false);
+            if (event.data.success) {
+                setInstagramSuccess('Cuenta Instagram autorizada para esta sede.');
+                setInstagramError('');
+                checkInstagramStatus();
+            } else {
+                setInstagramError('Meta no completó la autorización. Revisa los permisos y vuelve a intentarlo.');
+                setInstagramSuccess('');
+            }
+        };
+        window.addEventListener('message', handleInstagramCallback);
+        return () => window.removeEventListener('message', handleInstagramCallback);
+    }, []);
+
+    const handleConnectInstagram = async () => {
+        setInstagramError('');
+        setInstagramSuccess('');
+        const popup = window.open('about:blank', 'large-instagram-authorization', 'popup=yes,width=620,height=760');
+        if (!popup) { setInstagramError('El navegador bloqueó la ventana emergente.'); return; }
+        setInstagramConnecting(true);
+        try {
+            const response = await apiFetch('/api/instagram/oauth/start', { method: 'POST' });
+            const data = await response.json();
+            if (!response.ok || !data.authorizationUrl) throw new Error(data.error || 'No se pudo iniciar la autorización.');
+            popup.location.href = data.authorizationUrl;
+            instagramPopupPollRef.current = setInterval(() => {
+                if (popup.closed) {
+                    clearInterval(instagramPopupPollRef.current);
+                    instagramPopupPollRef.current = null;
+                    setInstagramConnecting(false);
+                    checkInstagramStatus();
+                }
+            }, 700);
+        } catch (error) {
+            popup.close();
+            setInstagramConnecting(false);
+            setInstagramError(error.message || 'No se pudo iniciar la autorización de Instagram.');
         }
     };
 
@@ -365,6 +438,14 @@ const SettingsModal = ({ isOpen, onClose }) => {
                                 }}
                             >
                                 <Link2 className="w-4 h-4" /> TikTok
+                            </button>
+                        )}
+                        {canManageInstagram && (
+                            <button
+                                onClick={() => setActiveTab('instagram')}
+                                style={{ padding: '8px 12px', background: 'none', border: 'none', cursor: 'pointer', fontWeight: activeTab === 'instagram' ? 600 : 500, color: activeTab === 'instagram' ? 'var(--color-primary)' : 'var(--color-gray-500)', borderBottom: activeTab === 'instagram' ? '2px solid var(--color-primary)' : '2px solid transparent', display: 'flex', alignItems: 'center', gap: '6px', whiteSpace: 'nowrap' }}
+                            >
+                                <Link2 className="w-4 h-4" /> Instagram
                             </button>
                         )}
                         <button
@@ -699,6 +780,33 @@ const SettingsModal = ({ isOpen, onClose }) => {
                         </div>
                     )}
 
+                    {activeTab === 'instagram' && canManageInstagram && (
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+                            <div>
+                                <h3 style={{ fontSize: '1rem', fontWeight: 650, margin: '0 0 6px' }}>Conectar Instagram</h3>
+                                <p style={{ color: 'var(--color-gray-500)', fontSize: '0.82rem', lineHeight: 1.55, margin: 0 }}>Vincula una cuenta profesional de Instagram a una página de Facebook para recibir y responder mensajes desde esta sede.</p>
+                            </div>
+                            <div style={{ padding: '15px', borderRadius: '10px', border: `1px solid ${instagramStatus?.connected ? '#a7f3d0' : 'var(--color-gray-200)'}`, background: instagramStatus?.connected ? '#f0fdf4' : 'var(--color-gray-50)' }}>
+                                {instagramLoading ? <div style={{ display: 'flex', alignItems: 'center', gap: '9px', color: 'var(--color-gray-500)', fontSize: '0.85rem' }}><RotateCw className="w-4 h-4 animate-spin" /> Consultando conexión...</div> : <>
+                                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '7px' }}>
+                                        <span style={{ width: '8px', height: '8px', borderRadius: '50%', background: instagramStatus?.connected ? '#10b981' : '#94a3b8' }} />
+                                        <strong style={{ fontSize: '0.9rem', color: instagramStatus?.connected ? '#047857' : '#475569' }}>{instagramStatus?.connected ? 'Instagram conectado' : 'Instagram no conectado'}</strong>
+                                    </div>
+                                    {instagramStatus?.connected && <div style={{ fontSize: '0.78rem', color: '#475569', lineHeight: 1.6 }}>Cuenta <b>@{instagramStatus.instagram_username || instagramStatus.instagram_user_id}</b> · Página: {instagramStatus.page_name || instagramStatus.page_id}</div>}
+                                </>}
+                            </div>
+                            {instagramError && <div role="alert" style={{ padding: '10px 12px', borderRadius: '8px', background: '#fff1f2', border: '1px solid #fecdd3', color: '#be123c', fontSize: '0.8rem' }}>{instagramError}</div>}
+                            {instagramSuccess && <div role="status" style={{ padding: '10px 12px', borderRadius: '8px', background: '#ecfdf5', border: '1px solid #a7f3d0', color: '#047857', fontSize: '0.8rem', display: 'flex', alignItems: 'center', gap: '7px' }}><CheckCircle2 size={16} />{instagramSuccess}</div>}
+                            <button className="btn btn-primary" onClick={handleConnectInstagram} disabled={instagramConnecting || instagramLoading} style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px', minHeight: '42px' }}>
+                                {instagramConnecting ? <RotateCw className="w-4 h-4 animate-spin" /> : instagramStatus?.connected ? <RefreshCw className="w-4 h-4" /> : <ExternalLink className="w-4 h-4" />}
+                                {instagramConnecting ? 'Esperando autorización de Meta...' : instagramStatus?.connected ? 'Volver a autorizar' : 'Conectar cuenta Instagram'}
+                            </button>
+                            <div style={{ padding: '12px', background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: '8px', color: '#64748b', fontSize: '0.74rem', lineHeight: 1.55 }}>
+                                La cuenta debe ser profesional y estar vinculada a una página de Facebook. Los permisos de mensajería deben estar habilitados en la configuración de inicio de sesión de Meta y aprobados para el modo de uso requerido.
+                            </div>
+                        </div>
+                    )}
+
                     {activeTab === 'profile' && (
                         <div style={{ marginBottom: '20px', display: 'flex', flexDirection: 'column', gap: '16px' }}>
                             <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '8px' }}>
@@ -779,7 +887,7 @@ const SettingsModal = ({ isOpen, onClose }) => {
                     <button className="btn btn-secondary" onClick={onClose}>
                         Cerrar
                     </button>
-                    {activeTab !== 'whatsapp' && activeTab !== 'tiktok' && (
+                    {activeTab !== 'whatsapp' && activeTab !== 'tiktok' && activeTab !== 'instagram' && (
                         <button
                             className="btn btn-primary"
                             onClick={handleSave}

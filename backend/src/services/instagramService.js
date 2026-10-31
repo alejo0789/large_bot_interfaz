@@ -1,0 +1,198 @@
+const crypto = require('crypto');
+const axios = require('axios');
+const { dbManager } = require('../config/database');
+
+const GRAPH_VERSION = process.env.META_GRAPH_API_VERSION || process.env.WHATSAPP_GRAPH_API_VERSION || 'v22.0';
+const GRAPH_BASE = `https://graph.facebook.com/${GRAPH_VERSION}`;
+
+function required(name) {
+    if (!process.env[name]) throw new Error(`Missing ${name} configuration`);
+    return process.env[name];
+}
+
+function encryptionKey() {
+    const raw = required('META_TOKEN_ENCRYPTION_KEY');
+    const key = /^[a-f\d]{64}$/i.test(raw) ? Buffer.from(raw, 'hex') : Buffer.from(raw, 'base64');
+    if (key.length !== 32) throw new Error('META_TOKEN_ENCRYPTION_KEY must be 32 bytes encoded as hex or base64');
+    return key;
+}
+
+function encrypt(value) {
+    const iv = crypto.randomBytes(12);
+    const cipher = crypto.createCipheriv('aes-256-gcm', encryptionKey(), iv);
+    const ciphertext = Buffer.concat([cipher.update(String(value), 'utf8'), cipher.final()]);
+    return ['v1', iv.toString('base64url'), cipher.getAuthTag().toString('base64url'), ciphertext.toString('base64url')].join('.');
+}
+
+function decrypt(value) {
+    const [version, iv, tag, data] = String(value).split('.');
+    if (version !== 'v1' || !iv || !tag || !data) throw new Error('Stored Instagram credential has invalid format');
+    const decipher = crypto.createDecipheriv('aes-256-gcm', encryptionKey(), Buffer.from(iv, 'base64url'));
+    decipher.setAuthTag(Buffer.from(tag, 'base64url'));
+    return Buffer.concat([decipher.update(Buffer.from(data, 'base64url')), decipher.final()]).toString('utf8');
+}
+
+async function ensureTables() {
+    await dbManager.masterPool.query(`
+        CREATE TABLE IF NOT EXISTS instagram_oauth_states (
+            state_hash TEXT PRIMARY KEY, tenant_id TEXT NOT NULL, tenant_slug TEXT NOT NULL,
+            user_id TEXT NOT NULL, expires_at TIMESTAMPTZ NOT NULL, created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+        );
+        CREATE INDEX IF NOT EXISTS idx_instagram_oauth_states_expiry ON instagram_oauth_states (expires_at);
+        CREATE TABLE IF NOT EXISTS instagram_connections (
+            tenant_id TEXT PRIMARY KEY, tenant_slug TEXT NOT NULL, page_id TEXT NOT NULL,
+            page_name TEXT, instagram_user_id TEXT NOT NULL, instagram_username TEXT,
+            access_token_encrypted TEXT NOT NULL, scopes TEXT[] NOT NULL DEFAULT '{}',
+            token_expires_at TIMESTAMPTZ, connected_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+            updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+        );
+    `);
+}
+
+function callbackUrl() {
+    const value = required('INSTAGRAM_REDIRECT_URI');
+    const parsed = new URL(value);
+    if (parsed.protocol !== 'https:' && parsed.hostname !== 'localhost') throw new Error('INSTAGRAM_REDIRECT_URI must use HTTPS');
+    return value;
+}
+
+function authorizationUrl(state) {
+    const parsed = new URL(required('INSTAGRAM_LOGIN_URL'));
+    if (parsed.protocol !== 'https:' || !['facebook.com', 'www.facebook.com'].includes(parsed.hostname)) {
+        throw new Error('INSTAGRAM_LOGIN_URL must be the Facebook Login URL generated in Meta Developers');
+    }
+    if (parsed.searchParams.get('client_id') !== required('META_APP_ID')) throw new Error('The client_id in INSTAGRAM_LOGIN_URL must match META_APP_ID');
+    if (parsed.searchParams.get('redirect_uri') !== callbackUrl()) throw new Error('The redirect_uri in INSTAGRAM_LOGIN_URL must exactly match INSTAGRAM_REDIRECT_URI');
+    parsed.searchParams.set('state', state);
+    return parsed.toString();
+}
+
+const hashState = (value) => crypto.createHash('sha256').update(value).digest('hex');
+
+async function createAuthorizationUrl({ tenant, user }) {
+    await ensureTables();
+    encryptionKey();
+    const state = crypto.randomBytes(32).toString('base64url');
+    const url = authorizationUrl(state);
+    await dbManager.masterPool.query(
+        'INSERT INTO instagram_oauth_states (state_hash, tenant_id, tenant_slug, user_id, expires_at) VALUES ($1,$2,$3,$4,NOW() + INTERVAL \'10 minutes\')',
+        [hashState(state), String(tenant.id), tenant.slug, String(user.id)]
+    );
+    return url;
+}
+
+async function consumeState(state) {
+    if (typeof state !== 'string' || state.length > 256) return null;
+    const { rows } = await dbManager.masterPool.query(
+        'DELETE FROM instagram_oauth_states WHERE state_hash = $1 AND expires_at > NOW() RETURNING tenant_id, tenant_slug, user_id',
+        [hashState(state)]
+    );
+    return rows[0] || null;
+}
+
+async function graphGet(path, params) {
+    const { data } = await axios.get(`${GRAPH_BASE}/${path}`, { params, timeout: 20000 });
+    if (data.error) throw new Error(data.error.message || 'Meta Graph API request failed');
+    return data;
+}
+
+async function completeAuthorization({ state, code }) {
+    await ensureTables();
+    encryptionKey();
+    const stateRecord = await consumeState(state);
+    if (!stateRecord) throw new Error('Invalid or expired authorization state. Start again from CRM.');
+
+    const tokenResponse = await axios.get(`${GRAPH_BASE}/oauth/access_token`, {
+        params: {
+            client_id: required('META_APP_ID'), client_secret: required('META_APP_SECRET'),
+            redirect_uri: callbackUrl(), code
+        }, timeout: 20000
+    });
+    const shortToken = tokenResponse.data?.access_token;
+    if (!shortToken) throw new Error('Meta did not return an access token');
+
+    let accessToken = shortToken;
+    let expiresIn = Number(tokenResponse.data.expires_in) || 3600;
+    try {
+        const longToken = await graphGet('oauth/access_token', {
+            grant_type: 'fb_exchange_token', client_id: required('META_APP_ID'),
+            client_secret: required('META_APP_SECRET'), fb_exchange_token: shortToken
+        });
+        if (longToken.access_token) {
+            accessToken = longToken.access_token;
+            expiresIn = Number(longToken.expires_in) || 5184000;
+        }
+    } catch (error) {
+        console.warn('[Instagram OAuth] Could not exchange long-lived user token:', error.message);
+    }
+
+    const pages = await graphGet('me/accounts', {
+        fields: 'id,name,access_token,tasks,instagram_business_account{id,username,name}',
+        limit: 100, access_token: accessToken
+    });
+    const linkedPage = (pages.data || []).find((page) => page.instagram_business_account?.id && page.access_token);
+    if (!linkedPage) throw new Error('No linked professional Instagram account was found. Link it to a Facebook Page and grant Page access.');
+
+    const ig = linkedPage.instagram_business_account;
+    const scopes = ['pages_show_list', 'instagram_basic', 'instagram_manage_messages'];
+    await dbManager.masterPool.query(`
+        INSERT INTO instagram_connections (
+            tenant_id, tenant_slug, page_id, page_name, instagram_user_id, instagram_username,
+            access_token_encrypted, scopes, token_expires_at, connected_at, updated_at
+        ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,NOW() + ($9 * INTERVAL '1 second'),NOW(),NOW())
+        ON CONFLICT (tenant_id) DO UPDATE SET tenant_slug=EXCLUDED.tenant_slug,
+            page_id=EXCLUDED.page_id, page_name=EXCLUDED.page_name,
+            instagram_user_id=EXCLUDED.instagram_user_id, instagram_username=EXCLUDED.instagram_username,
+            access_token_encrypted=EXCLUDED.access_token_encrypted, scopes=EXCLUDED.scopes,
+            token_expires_at=EXCLUDED.token_expires_at, connected_at=NOW(), updated_at=NOW()
+    `, [String(stateRecord.tenant_id), stateRecord.tenant_slug, linkedPage.id, linkedPage.name || null,
+        String(ig.id), ig.username || ig.name || null, encrypt(linkedPage.access_token), scopes, expiresIn]);
+    return { tenantSlug: stateRecord.tenant_slug, instagramUserId: String(ig.id), username: ig.username || null };
+}
+
+async function getConnectionStatus(tenantId) {
+    await ensureTables();
+    const { rows } = await dbManager.masterPool.query(`
+        SELECT page_id, page_name, instagram_user_id, instagram_username, scopes, token_expires_at, connected_at
+        FROM instagram_connections WHERE tenant_id = $1
+    `, [String(tenantId)]);
+    return rows[0] ? { connected: true, ...rows[0] } : { connected: false };
+}
+
+async function getConnectionByInstagramId(id) {
+    await ensureTables();
+    const { rows } = await dbManager.masterPool.query('SELECT * FROM instagram_connections WHERE instagram_user_id=$1 OR page_id=$1 LIMIT 1', [String(id)]);
+    if (!rows[0]) return null;
+    return { ...rows[0], accessToken: decrypt(rows[0].access_token_encrypted) };
+}
+
+async function getConnectionForTenant(tenantId) {
+    await ensureTables();
+    const { rows } = await dbManager.masterPool.query('SELECT * FROM instagram_connections WHERE tenant_id=$1', [String(tenantId)]);
+    if (!rows[0]) throw new Error('No Instagram account is connected to this workspace.');
+    return { ...rows[0], accessToken: decrypt(rows[0].access_token_encrypted) };
+}
+
+async function sendMessage(phone, text) {
+    const match = /^instagram_(.+)$/.exec(String(phone));
+    if (!match || !text) throw new Error('Instagram conversation or message is invalid.');
+    const { tenantContext } = require('../utils/tenantContext');
+    const tenant = tenantContext.getStore()?.tenant;
+    if (!tenant?.id) throw new Error('Workspace context is missing.');
+    const connection = await getConnectionForTenant(tenant.id);
+    const { data } = await axios.post(`${GRAPH_BASE}/${connection.instagram_user_id}/messages`, {
+        recipient: { id: match[1] }, message: { text }
+    }, { params: { access_token: connection.accessToken }, timeout: 20000 });
+    if (data.error) throw new Error(data.error.message || 'Instagram message could not be sent');
+    return { success: true, messageId: data.message_id || null, recipientId: data.recipient_id || match[1], data };
+}
+
+function verifyWebhookSignature(rawBody, signature) {
+    if (!rawBody || !signature || !process.env.META_APP_SECRET) return false;
+    const expected = `sha256=${crypto.createHmac('sha256', process.env.META_APP_SECRET).update(rawBody).digest('hex')}`;
+    const a = Buffer.from(expected);
+    const b = Buffer.from(String(signature));
+    return a.length === b.length && crypto.timingSafeEqual(a, b);
+}
+
+module.exports = { createAuthorizationUrl, completeAuthorization, getConnectionStatus, getConnectionByInstagramId, sendMessage, verifyWebhookSignature };

@@ -127,6 +127,9 @@ app.use(tenantMiddleware);
 
 // TikTok account authorization and status
 app.use('/api/tiktok', require('./src/routes/tiktokOAuth'));
+const instagramRoutes = require('./src/routes/instagram');
+app.use('/api/instagram', instagramRoutes.router);
+app.use('/webhook/instagram', instagramRoutes.webhookRouter);
 
 // Protected Tenant Routes
 app.use('/api/conversations', jwtAuth, conversationRoutes);

@@ -13,6 +13,7 @@ const conversationService = require('../services/conversationService');
 const n8nService = require('../services/n8nService');
 const evolutionService = require('../services/whatsappFactory');
 const tiktokService = require('../services/tiktokService');
+const instagramService = require('../services/instagramService');
 const { normalizePhone, getPureDigits } = require('../utils/phoneUtils');
 const { config } = require('../config/app');
 
@@ -119,7 +120,7 @@ router.post('/send-message', requireApiKey, asyncHandler(async (req, res) => {
     console.log(`📤 Processed phone for sending: ${normalizedPhone} (was: ${phone})`);
 
     // Ensure conversation exists to avoid FK error
-    await conversationService.upsert(normalizedPhone, name);
+    await conversationService.upsert(normalizedPhone, name, normalizedPhone.startsWith('instagram_') ? 'instagram' : undefined);
 
     // Fetch quoted message data if reply_to is present
     let replyToData = null;
@@ -167,6 +168,9 @@ router.post('/send-message', requireApiKey, asyncHandler(async (req, res) => {
     if (normalizedPhone.startsWith('tiktok_')) {
         const ttResult = await tiktokService.sendMessage(normalizedPhone, message);
         sendResult = { sent: ttResult.success, platform: 'tiktok', ...ttResult };
+    } else if (normalizedPhone.startsWith('instagram_')) {
+        const igResult = await instagramService.sendMessage(normalizedPhone, message);
+        sendResult = { sent: igResult.success, platform: 'instagram', ...igResult };
     } else if (isOfficialProvider || hasEvolutionUrl) {
         // Factory auto-routes to the correct provider
         const result = await evolutionService.sendText(normalizedPhone, message, replyToData?.id || null);
@@ -190,6 +194,8 @@ router.post('/send-message', requireApiKey, asyncHandler(async (req, res) => {
         let whatsappId = null;
         if (sendResult.platform === 'tiktok') {
             whatsappId = sendResult.messageId || `tt_${Date.now()}`;
+        } else if (sendResult.platform === 'instagram') {
+            whatsappId = sendResult.messageId || `ig_${Date.now()}`;
         } else if (sendResult.platform === 'evolution' && sendResult.data) {
             if (sendResult.data.key && sendResult.data.key.id) {
                 whatsappId = sendResult.data.key.id;
