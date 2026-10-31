@@ -4,6 +4,18 @@ const authService = require('../services/authService');
  * Middleware to verify JWT token
  */
 const jwtAuth = (req, res, next) => {
+    // Prefer user authentication when both a JWT and SYSTEM_API_KEY are sent.
+    // The CRM may send both; API-key bypass must not skip attaching req.user.
+    const authHeader = req.headers.authorization;
+    if (authHeader && authHeader.startsWith('Bearer ')) {
+        const decoded = authService.verifyToken(authHeader.substring(7));
+        if (!decoded) {
+            return res.status(401).json({ error: 'SesiÃ³n expirada o token invÃ¡lido' });
+        }
+        req.user = decoded;
+        return next();
+    }
+
     // 1. Allow bypass if a valid SYSTEM_API_KEY is provided (for n8n/integrations)
     const providedApiKey = req.headers['x-api-key'] || req.headers['system_api_key'] || req.headers['system-api-key'] || req.query.api_key;
     const systemApiKey = process.env.SYSTEM_API_KEY;

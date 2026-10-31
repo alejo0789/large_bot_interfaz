@@ -15,7 +15,7 @@ const callbackHtml = (success, message) => {
 
 router.post('/oauth/start', jwtAuth, async (req, res) => {
     try {
-        if (!['SUPER_ADMIN', 'SEDE_ADMIN'].includes(req.user?.role)) {
+        if (!['SUPER_ADMIN', 'SEDE_ADMIN', 'LOCAL_ADMIN'].includes(req.user?.role)) {
             return res.status(403).json({ error: 'Only workspace administrators can connect TikTok.' });
         }
         if (!req.tenant?.id || !req.tenant?.slug) {

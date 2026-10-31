@@ -8,7 +8,7 @@ const SettingsModal = ({ isOpen, onClose }) => {
     const { user, token, login, updateProfile } = useAuth();
     const { currentTenant } = useTenant();
     const [activeTab, setActiveTab] = useState('general');
-    const canManageTikTok = ['SUPER_ADMIN', 'SEDE_ADMIN'].includes(user?.role);
+    const canManageTikTok = ['SUPER_ADMIN', 'SEDE_ADMIN', 'LOCAL_ADMIN'].includes(user?.role);
 
     const [defaultAiEnabled, setDefaultAiEnabled] = useState(true);
     const [applyToExisting, setApplyToExisting] = useState(false);
