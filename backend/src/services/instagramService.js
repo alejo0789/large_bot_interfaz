@@ -48,6 +48,7 @@ async function ensureTables() {
         );
         ALTER TABLE instagram_connections ALTER COLUMN page_id DROP NOT NULL;
         ALTER TABLE instagram_connections ADD COLUMN IF NOT EXISTS instagram_webhook_id TEXT;
+        ALTER TABLE instagram_connections ADD COLUMN IF NOT EXISTS instagram_webhook_ids TEXT[] NOT NULL DEFAULT '{}';
     `);
 }
 
@@ -187,8 +188,9 @@ async function completeAuthorization({ state, code }) {
                 fields: 'id,username,ig_id,legacy_instagram_user_id', access_token: accessToken
             });
             if (profile.id) {
-                const webhookId = profile.legacy_instagram_user_id || profile.ig_id;
-                instagramAccount = { ...profile, webhookId: webhookId ? String(webhookId) : null };
+                const webhookIds = [profile.id, profile.ig_id, profile.user_id, profile.legacy_instagram_user_id]
+                    .filter(Boolean).map(String);
+                instagramAccount = { ...profile, webhookIds: [...new Set(webhookIds)], webhookId: String(profile.legacy_instagram_user_id || profile.ig_id || profile.id) };
                 break;
             }
         } catch (error) {
@@ -221,6 +223,7 @@ async function completeAuthorization({ state, code }) {
                         businessAccounts.set(String(instagramId), {
                             ...account,
                             id: String(instagramId),
+                            webhookIds: [String(instagramId)],
                             username: edge === 'client_instagram_assets'
                                 ? account.ig_username || null
                                 : account.username || null
@@ -254,8 +257,10 @@ async function completeAuthorization({ state, code }) {
             const profile = await graphGet(instagramAccount.id, {
                 fields: 'id,username,ig_id,legacy_instagram_user_id', access_token: accessToken
             });
-            const webhookId = profile.legacy_instagram_user_id || profile.ig_id;
-            instagramAccount.webhookId = webhookId ? String(webhookId) : null;
+            const webhookIds = [profile.id, profile.ig_id, profile.user_id, profile.legacy_instagram_user_id]
+                .filter(Boolean).map(String);
+            instagramAccount.webhookIds = [...new Set([...(instagramAccount.webhookIds || []), ...webhookIds])];
+            instagramAccount.webhookId = String(profile.legacy_instagram_user_id || profile.ig_id || profile.id || instagramAccount.webhookId);
             instagramAccount.username = instagramAccount.username || profile.username || null;
         } catch (error) {
             discoveryErrors.push(`Instagram webhook ID lookup: ${error.message}`);
@@ -266,14 +271,18 @@ async function completeAuthorization({ state, code }) {
         const profileIds = await graphGet(instagramAccount.id, {
             fields: 'user_id', access_token: accessToken
         });
-        if (profileIds.user_id) instagramAccount.webhookId = String(profileIds.user_id);
+        if (profileIds.user_id) {
+            instagramAccount.webhookIds = [...new Set([...(instagramAccount.webhookIds || []), String(profileIds.user_id)])];
+            instagramAccount.webhookId = String(profileIds.user_id);
+        }
     } catch (error) {
         console.info('[Instagram OAuth] Instagram API user_id is unavailable for this token; using the profile ID alias if present.');
     }
     console.info('[Instagram OAuth] Resolved account IDs:', JSON.stringify({
         username: instagramAccount.username || instagramAccount.name || null,
         graph_id: String(instagramAccount.id),
-        webhook_ig_id: instagramAccount.webhookId || null
+        webhook_ig_id: instagramAccount.webhookId || null,
+        webhook_ids: instagramAccount.webhookIds || [String(instagramAccount.id)]
     }));
 
     const scopes = tokenResponse.data.granted_scopes
@@ -281,25 +290,26 @@ async function completeAuthorization({ state, code }) {
         : ['instagram_basic', 'instagram_manage_messages'];
     await dbManager.masterPool.query(`
         INSERT INTO instagram_connections (
-            tenant_id, tenant_slug, page_id, page_name, instagram_user_id, instagram_webhook_id, instagram_username,
+            tenant_id, tenant_slug, page_id, page_name, instagram_user_id, instagram_webhook_id, instagram_webhook_ids, instagram_username,
             access_token_encrypted, scopes, token_expires_at, connected_at, updated_at
-        ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,NOW() + ($10 * INTERVAL '1 second'),NOW(),NOW())
+        ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,NOW() + ($11 * INTERVAL '1 second'),NOW(),NOW())
         ON CONFLICT (tenant_id) DO UPDATE SET tenant_slug=EXCLUDED.tenant_slug,
             page_id=EXCLUDED.page_id, page_name=EXCLUDED.page_name,
             instagram_user_id=EXCLUDED.instagram_user_id, instagram_webhook_id=EXCLUDED.instagram_webhook_id,
+            instagram_webhook_ids=EXCLUDED.instagram_webhook_ids,
             instagram_username=EXCLUDED.instagram_username,
             access_token_encrypted=EXCLUDED.access_token_encrypted, scopes=EXCLUDED.scopes,
             token_expires_at=EXCLUDED.token_expires_at, connected_at=NOW(), updated_at=NOW()
     `, [String(stateRecord.tenant_id), stateRecord.tenant_slug, linkedPage?.id || null, linkedPage?.name || null,
-        String(instagramAccount.id), instagramAccount.webhookId, instagramAccount.username || instagramAccount.name || null,
-        encrypt(linkedPage?.access_token || accessToken), scopes, expiresIn]);
+        String(instagramAccount.id), instagramAccount.webhookId, instagramAccount.webhookIds || [String(instagramAccount.id)],
+        instagramAccount.username || instagramAccount.name || null, encrypt(linkedPage?.access_token || accessToken), scopes, expiresIn]);
     return { tenantSlug: stateRecord.tenant_slug, instagramUserId: String(instagramAccount.id), username: instagramAccount.username || null };
 }
 
 async function getConnectionStatus(tenantId) {
     await ensureTables();
     const { rows } = await dbManager.masterPool.query(`
-        SELECT page_id, page_name, instagram_user_id, instagram_webhook_id, instagram_username, scopes, token_expires_at, connected_at
+        SELECT page_id, page_name, instagram_user_id, instagram_webhook_id, instagram_webhook_ids, instagram_username, scopes, token_expires_at, connected_at
         FROM instagram_connections WHERE tenant_id = $1
     `, [String(tenantId)]);
     return rows[0] ? { connected: true, ...rows[0] } : { connected: false };
@@ -307,7 +317,11 @@ async function getConnectionStatus(tenantId) {
 
 async function getConnectionByInstagramId(id) {
     await ensureTables();
-    const { rows } = await dbManager.masterPool.query('SELECT * FROM instagram_connections WHERE instagram_user_id=$1 OR instagram_webhook_id=$1 OR page_id=$1 LIMIT 1', [String(id)]);
+    const { rows } = await dbManager.masterPool.query(`
+        SELECT * FROM instagram_connections
+        WHERE instagram_user_id=$1 OR instagram_webhook_id=$1 OR instagram_webhook_ids @> ARRAY[$1]::text[] OR page_id=$1
+        LIMIT 1
+    `, [String(id)]);
     if (!rows[0]) return null;
     return { ...rows[0], accessToken: decrypt(rows[0].access_token_encrypted) };
 }
