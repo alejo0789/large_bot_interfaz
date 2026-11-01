@@ -92,9 +92,20 @@ async function consumeState(state) {
 }
 
 async function graphGet(path, params) {
-    const { data } = await axios.get(`${GRAPH_BASE}/${path}`, { params, timeout: 20000 });
-    if (data.error) throw new Error(data.error.message || 'Meta Graph API request failed');
-    return data;
+    try {
+        const { data } = await axios.get(`${GRAPH_BASE}/${path}`, { params, timeout: 20000 });
+        if (data.error) {
+            const error = data.error;
+            throw new Error(`${error.message || 'Meta Graph API request failed'}${error.code ? ` (Meta ${error.code}${error.error_subcode ? `/${error.error_subcode}` : ''})` : ''}`);
+        }
+        return data;
+    } catch (error) {
+        if (error.response?.data?.error) {
+            const metaError = error.response.data.error;
+            throw new Error(`${metaError.message || error.message}${metaError.code ? ` (Meta ${metaError.code}${metaError.error_subcode ? `/${metaError.error_subcode}` : ''})` : ''}`);
+        }
+        throw error;
+    }
 }
 
 async function completeAuthorization({ state, code }) {
@@ -122,6 +133,12 @@ async function completeAuthorization({ state, code }) {
     for (const scope of tokenResponse.data.granular_scopes || []) {
         if (scope.scope && !String(scope.scope).startsWith('instagram_')) continue;
         for (const id of scope.target_ids || []) candidates.add(String(id));
+    }
+    try {
+        const me = await graphGet('me', { fields: 'id,name', access_token: accessToken });
+        console.info('[Instagram OAuth] Unified Login token subject:', JSON.stringify({ id: me.id, name: me.name || null }));
+    } catch (error) {
+        console.warn('[Instagram OAuth] Could not inspect token subject:', error.message);
     }
     try {
         const debug = await graphGet('debug_token', {
