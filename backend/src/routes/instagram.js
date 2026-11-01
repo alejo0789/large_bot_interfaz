@@ -80,9 +80,26 @@ webhookRouter.post('/', async (req, res) => {
         const entries = body.entry || [];
         console.info(`[Instagram Webhook] Received object=${body.object} entries=${entries.length}.`);
         for (const entry of entries) {
-            const connection = await instagramService.getConnectionByInstagramId(entry.id);
+            let accountId = String(entry.id || '');
+            let connection = await instagramService.getConnectionByInstagramId(accountId);
+            // Some Meta Instagram webhook variants send an entry ID that differs
+            // from the account ID on the recipient object. Resolve by the
+            // business account recipient ID before discarding the event.
+            const events = entry.messaging || [];
             if (!connection) {
-                console.warn(`[Instagram Webhook] No workspace connection matches entry.id=${String(entry.id || 'missing')} object=${body.object}.`);
+                const recipientIds = [...new Set(events.map((event) => event.recipient?.id).filter(Boolean).map(String))];
+                for (const recipientId of recipientIds) {
+                    connection = await instagramService.getConnectionByInstagramId(recipientId);
+                    if (connection) {
+                        accountId = recipientId;
+                        console.info(`[Instagram Webhook] Resolved connection using messaging recipient.id=${recipientId} (entry.id=${String(entry.id || 'missing')}).`);
+                        break;
+                    }
+                }
+            }
+            if (!connection) {
+                const recipientIds = [...new Set(events.map((event) => event.recipient?.id).filter(Boolean).map(String))];
+                console.warn(`[Instagram Webhook] No workspace connection matches entry.id=${String(entry.id || 'missing')} or recipient.id values=${recipientIds.join(',') || 'none'} object=${body.object}.`);
                 continue;
             }
             const tenant = await tenantService.getTenantById(connection.tenant_id);
@@ -92,13 +109,12 @@ webhookRouter.post('/', async (req, res) => {
             }
             const db = await dbManager.getPool(tenant.id, tenant.db_url);
             await tenantContext.run({ tenant, db }, async () => {
-                const events = entry.messaging || [];
-                console.info(`[Instagram Webhook] Matched workspace=${tenant.slug} entry.id=${entry.id} messaging_events=${events.length}.`);
+                console.info(`[Instagram Webhook] Matched workspace=${tenant.slug} account.id=${accountId} messaging_events=${events.length}.`);
                 for (const event of events) {
                     const incoming = event.message;
                     const senderId = event.sender?.id;
                     if (!incoming || incoming.is_echo || !senderId) {
-                        console.info(`[Instagram Webhook] Ignored non-incoming event for entry.id=${entry.id}; has_message=${Boolean(incoming)} is_echo=${Boolean(incoming?.is_echo)} has_sender=${Boolean(senderId)}.`);
+                        console.info(`[Instagram Webhook] Ignored non-incoming event for account.id=${accountId}; has_message=${Boolean(incoming)} is_echo=${Boolean(incoming?.is_echo)} has_sender=${Boolean(senderId)}.`);
                         continue;
                     }
                     const phone = normalizePhone(`instagram_${senderId}`);
