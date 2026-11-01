@@ -138,6 +138,7 @@ async function completeAuthorization({ state, code }) {
 
     let instagramAccount = null;
     let linkedPage = null;
+    const discoveryErrors = [];
     for (const id of candidates) {
         try {
             const profile = await graphGet(id, { fields: 'id,username', access_token: accessToken });
@@ -145,7 +146,40 @@ async function completeAuthorization({ state, code }) {
                 instagramAccount = profile;
                 break;
             }
-        } catch (_) { /* Ignore granted IDs that are not readable Instagram assets. */ }
+        } catch (error) {
+            discoveryErrors.push(`asset ${id}: ${error.message}`);
+        }
+    }
+
+    // Unified Login grants access through a business portfolio. Resolve the
+    // portfolio first, then enumerate its Instagram account assets.
+    let multipleInstagramAccounts = false;
+    if (!instagramAccount) {
+        try {
+            const businesses = await graphGet('me/businesses', {
+                fields: 'id,name', limit: 100, access_token: accessToken
+            });
+            const accounts = [];
+            for (const business of businesses.data || []) {
+                try {
+                    const result = await graphGet(`${business.id}/instagram_business_accounts`, {
+                        fields: 'id,username,name', limit: 100, access_token: accessToken
+                    });
+                    for (const account of result.data || []) accounts.push({ ...account, business });
+                } catch (error) {
+                    discoveryErrors.push(`business ${business.id}: ${error.message}`);
+                }
+            }
+            const uniqueAccounts = [...new Map(accounts.map((account) => [String(account.id), account])).values()];
+            if (uniqueAccounts.length === 1) instagramAccount = uniqueAccounts[0];
+            else if (uniqueAccounts.length > 1) multipleInstagramAccounts = true;
+        } catch (error) {
+            discoveryErrors.push(`business portfolios: ${error.message}`);
+        }
+    }
+
+    if (multipleInstagramAccounts && !instagramAccount) {
+        throw new Error('La autorización devolvió varias cuentas profesionales. La configuración Unified Login debe conceder acceso únicamente al Instagram que deseas conectar.');
     }
 
     // Keep compatibility with older Facebook Login connections where Meta grants
@@ -163,7 +197,8 @@ async function completeAuthorization({ state, code }) {
         }
     }
     if (!instagramAccount) {
-        throw new Error('Meta autorizó la app, pero no devolvió un activo de Instagram legible. Revisa que la configuración Unified Login incluya la cuenta profesional y que el usuario otorgue acceso a ese activo.');
+        const details = discoveryErrors.length ? ` Detalle: ${discoveryErrors.join(' | ').slice(0, 900)}` : '';
+        throw new Error(`Meta autorizó la app, pero el backend no pudo resolver el activo de Instagram desde el portafolio. Comprueba que la configuración Unified Login incluya la cuenta y permita listar sus activos empresariales.${details}`);
     }
 
     const scopes = tokenResponse.data.granted_scopes

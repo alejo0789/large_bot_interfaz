@@ -36,6 +36,6 @@ Generate one value for the encryption key and another for the webhook verify tok
 
 ## CRM flow
 
-An administrator opens Ajustes → Instagram → Conectar cuenta Instagram. Meta redirects to the callback, the backend resolves the granted Instagram asset from the Unified Login token and encrypts the token in the master database, and associates it with the current workspace. Incoming text and attachment notices appear in the Instagram channel. Agents can send text replies from the CRM while the Instagram conversation is eligible under Meta's messaging rules.
+An administrator opens Ajustes → Instagram → Conectar cuenta Instagram. Meta redirects to the callback; the backend resolves the granted Instagram account through the Unified Login business portfolio, encrypts its token in the master database, and associates the account with the current workspace. Incoming text and attachment notices appear in the Instagram channel. Agents can send text replies from the CRM while the Instagram conversation is eligible under Meta's messaging rules.
 
 The current webhook stores text and attachment placeholders; it does not download media or start an AI/n8n automation. Manual text replies use the connected Instagram account.
