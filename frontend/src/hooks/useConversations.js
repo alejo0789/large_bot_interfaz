@@ -914,6 +914,10 @@ export const useConversations = (socket) => {
                 const targetConv = currentConversations[index];
                 const updatedConv = {
                     ...targetConv,
+                    contact: targetConv.contact ? {
+                        ...targetConv.contact,
+                        name: data.contact_name || targetConv.contact.name
+                    } : targetConv.contact,
                     lastMessage: data.lastMessage || targetConv.lastMessage,
                     timestamp: timestamp,
                     rawTimestamp: data.timestamp,
