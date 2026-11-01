@@ -69,6 +69,20 @@ router.post('/oauth/inspect-account-ids', jwtAuth, async (req, res) => {
     }
 });
 
+router.post('/oauth/subscribe-webhooks', jwtAuth, async (req, res) => {
+    if (!ADMIN_ROLES.includes(req.user?.role)) return res.status(403).json({ error: 'Solo administradores pueden configurar los webhooks de Instagram.' });
+    if (!req.tenant?.id || !req.tenant?.slug) return res.status(400).json({ error: 'Selecciona una sede.' });
+    if (req.user.role !== 'SUPER_ADMIN' && !req.user.tenants?.includes(req.tenant.slug)) return res.status(403).json({ error: 'No tienes acceso administrativo a esta sede.' });
+    try {
+        const result = await instagramService.subscribeWebhooksForTenant(req.tenant.id);
+        console.info(`[Instagram Webhook] Subscribed workspace=${req.tenant.slug} account.id=${result.accountId} fields=${result.subscribedFields.join(',')}.`);
+        res.json({ success: true, account_id: result.accountId, subscribed_fields: result.subscribedFields, meta: result.result });
+    } catch (error) {
+        console.error('[Instagram Webhook] Account subscription failed:', error.message);
+        res.status(502).json({ error: `Meta no aceptó la suscripción del webhook: ${error.message}` });
+    }
+});
+
 router.get('/oauth/callback', async (req, res) => {
     if (req.query.error || req.query.error_description) return res.status(400).type('html').send(popup(false, 'Meta canceló o rechazó la autorización.'));
     if (typeof req.query.code !== 'string' || typeof req.query.state !== 'string') return res.status(400).type('html').send(popup(false, 'La respuesta de Meta llegó incompleta. Inicia la conexión de nuevo desde el CRM.'));

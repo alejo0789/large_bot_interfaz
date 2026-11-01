@@ -348,6 +348,17 @@ async function inspectAccountIdForTenant(tenantId, id) {
     };
 }
 
+async function subscribeWebhooksForTenant(tenantId) {
+    const connection = await getConnectionForTenant(tenantId);
+    const { data } = await axios.post(
+        `${GRAPH_BASE}/${connection.instagram_user_id}/subscribed_apps`,
+        null,
+        { params: { subscribed_fields: 'messages', access_token: connection.accessToken }, timeout: 20000 }
+    );
+    if (data?.error) throw new Error(data.error.message || 'Meta rechazó la suscripción del webhook de Instagram.');
+    return { accountId: String(connection.instagram_user_id), subscribedFields: ['messages'], result: data };
+}
+
 async function sendMessage(phone, text) {
     const match = /^instagram_(.+)$/.exec(String(phone));
     if (!match || !text) throw new Error('Instagram conversation or message is invalid.');
@@ -370,4 +381,4 @@ function verifyWebhookSignature(rawBody, signature) {
     return a.length === b.length && crypto.timingSafeEqual(a, b);
 }
 
-module.exports = { createAuthorizationUrl, completeAuthorization, getConnectionStatus, getConnectionByInstagramId, inspectAccountIdForTenant, sendMessage, verifyWebhookSignature };
+module.exports = { createAuthorizationUrl, completeAuthorization, getConnectionStatus, getConnectionByInstagramId, inspectAccountIdForTenant, subscribeWebhooksForTenant, sendMessage, verifyWebhookSignature };
