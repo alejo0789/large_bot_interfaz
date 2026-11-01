@@ -79,6 +79,9 @@ webhookRouter.post('/', async (req, res) => {
     try {
         const entries = body.entry || [];
         console.info(`[Instagram Webhook] Received object=${body.object} entries=${entries.length}.`);
+        if (process.env.INSTAGRAM_WEBHOOK_LOG_PAYLOAD === 'true') {
+            console.info('[Instagram Webhook] Full payload:', JSON.stringify(body));
+        }
         for (const entry of entries) {
             const accountId = String(entry.id || '');
             const connection = await instagramService.getConnectionByInstagramId(accountId);
