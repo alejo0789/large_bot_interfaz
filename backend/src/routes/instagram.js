@@ -46,6 +46,43 @@ router.get('/oauth/status', jwtAuth, async (req, res) => {
     }
 });
 
+router.post('/oauth/inspect-account-ids', jwtAuth, async (req, res) => {
+    if (!ADMIN_ROLES.includes(req.user?.role)) return res.status(403).json({ error: 'Solo administradores pueden inspeccionar IDs de Instagram.' });
+    if (!req.tenant?.id || !req.tenant?.slug) return res.status(400).json({ error: 'Selecciona una sede.' });
+    if (req.user.role !== 'SUPER_ADMIN' && !req.user.tenants?.includes(req.tenant.slug)) return res.status(403).json({ error: 'No tienes acceso administrativo a esta sede.' });
+    const ids = [...new Set((Array.isArray(req.body?.ids) ? req.body.ids : []).map(String))];
+    if (!ids.length || ids.length > 5 || ids.some((id) => !/^\d{1,30}$/.test(id))) {
+        return res.status(400).json({ error: 'Envía entre 1 y 5 IDs numéricos de Instagram.' });
+    }
+    try {
+        const results = await Promise.all(ids.map(async (id) => {
+            try {
+                return { queried_id: id, accessible: true, profile: await instagramService.inspectAccountIdForTenant(req.tenant.id, id) };
+            } catch (error) {
+                return { queried_id: id, accessible: false, error: error.message };
+            }
+        }));
+        res.json({ results });
+    } catch (error) {
+        console.error('[Instagram OAuth] Could not inspect account IDs:', error.message);
+        res.status(500).json({ error: 'No se pudieron consultar los IDs de Instagram.' });
+    }
+});
+
+router.post('/oauth/subscribe-webhooks', jwtAuth, async (req, res) => {
+    if (!ADMIN_ROLES.includes(req.user?.role)) return res.status(403).json({ error: 'Solo administradores pueden configurar los webhooks de Instagram.' });
+    if (!req.tenant?.id || !req.tenant?.slug) return res.status(400).json({ error: 'Selecciona una sede.' });
+    if (req.user.role !== 'SUPER_ADMIN' && !req.user.tenants?.includes(req.tenant.slug)) return res.status(403).json({ error: 'No tienes acceso administrativo a esta sede.' });
+    try {
+        const result = await instagramService.subscribeWebhooksForTenant(req.tenant.id);
+        console.info(`[Instagram Webhook] Subscribed workspace=${req.tenant.slug} account.id=${result.accountId} fields=${result.subscribedFields.join(',')}.`);
+        res.json({ success: true, account_id: result.accountId, subscribed_fields: result.subscribedFields, meta: result.result });
+    } catch (error) {
+        console.error('[Instagram Webhook] Account subscription failed:', error.message);
+        res.status(502).json({ error: `Meta no aceptó la suscripción del webhook: ${error.message}` });
+    }
+});
+
 router.get('/oauth/callback', async (req, res) => {
     if (req.query.error || req.query.error_description) return res.status(400).type('html').send(popup(false, 'Meta canceló o rechazó la autorización.'));
     if (typeof req.query.code !== 'string' || typeof req.query.state !== 'string') return res.status(400).type('html').send(popup(false, 'La respuesta de Meta llegó incompleta. Inicia la conexión de nuevo desde el CRM.'));
@@ -67,32 +104,73 @@ webhookRouter.get('/', (req, res) => {
 });
 
 webhookRouter.post('/', async (req, res) => {
-    if (!instagramService.verifyWebhookSignature(req.rawBody, req.get('x-hub-signature-256'))) return res.sendStatus(403);
+    if (!instagramService.verifyWebhookSignature(req.rawBody, req.get('x-hub-signature-256'))) {
+        console.warn('[Instagram Webhook] Rejected request: invalid or missing signature.');
+        return res.sendStatus(403);
+    }
     const body = req.body || {};
-    if (!['instagram', 'page'].includes(body.object)) return res.sendStatus(404);
+    if (!['instagram', 'page'].includes(body.object)) {
+        console.warn(`[Instagram Webhook] Rejected unsupported object: ${String(body.object || 'missing')}.`);
+        return res.sendStatus(404);
+    }
     try {
         const entries = body.entry || [];
+        console.info(`[Instagram Webhook] Received object=${body.object} entries=${entries.length}.`);
+        if (process.env.INSTAGRAM_WEBHOOK_LOG_PAYLOAD === 'true') {
+            console.info('[Instagram Webhook] Full payload:', JSON.stringify(body));
+        }
         for (const entry of entries) {
-            const connection = await instagramService.getConnectionByInstagramId(entry.id);
-            if (!connection) continue;
+            const accountId = String(entry.id || '');
+            const connection = await instagramService.getConnectionByInstagramId(accountId);
+            const events = entry.messaging || [];
+            if (!connection) {
+                console.warn(`[Instagram Webhook] No workspace connection matches entry.id=${String(entry.id || 'missing')} object=${body.object}.`);
+                continue;
+            }
             const tenant = await tenantService.getTenantById(connection.tenant_id);
-            if (!tenant) continue;
+            if (!tenant) {
+                console.warn(`[Instagram Webhook] Connection matched entry.id=${entry.id}, but its workspace was not found.`);
+                continue;
+            }
             const db = await dbManager.getPool(tenant.id, tenant.db_url);
             await tenantContext.run({ tenant, db }, async () => {
-                for (const event of (entry.messaging || [])) {
+                console.info(`[Instagram Webhook] Matched workspace=${tenant.slug} account.id=${accountId} messaging_events=${events.length}.`);
+                for (const event of events) {
                     const incoming = event.message;
                     const senderId = event.sender?.id;
-                    if (!incoming || incoming.is_echo || !senderId) continue;
+                    if (!incoming || incoming.is_echo || !senderId) {
+                        console.info(`[Instagram Webhook] Ignored non-incoming event for account.id=${accountId}; has_message=${Boolean(incoming)} is_echo=${Boolean(incoming?.is_echo)} has_sender=${Boolean(senderId)}.`);
+                        continue;
+                    }
                     const phone = normalizePhone(`instagram_${senderId}`);
                     const providerId = incoming.mid || `ig_${Date.now()}_${senderId}`;
                     const existing = await db.query('SELECT 1 FROM messages WHERE whatsapp_id=$1 LIMIT 1', [providerId]);
-                    if (existing.rows.length) continue;
-                    const profileName = event.sender?.username ? `@${event.sender.username}` : `Instagram ${senderId}`;
+                    if (existing.rows.length) {
+                        console.info(`[Instagram Webhook] Duplicate message ignored for workspace=${tenant.slug}.`);
+                        continue;
+                    }
+                    const existingConversation = await conversationService.getByPhone(phone);
+                    const currentContactName = existingConversation?.contact_name;
+                    const hasRealContactName = currentContactName
+                        && !/^Usuario\s+\d+$/i.test(currentContactName)
+                        && !/^Instagram\s+\d+$/i.test(currentContactName)
+                        && currentContactName !== phone;
+                    let profileName = event.sender?.username ? `@${event.sender.username}` : null;
+                    if (!profileName && !hasRealContactName) {
+                        try {
+                            const profile = await instagramService.getMessageSenderProfile(tenant.id, senderId);
+                            profileName = profile.username ? `@${profile.username}` : profile.name;
+                        } catch (error) {
+                            console.warn(`[Instagram Webhook] Could not resolve sender profile for sender.id=${senderId}: ${error.message}`);
+                        }
+                    }
+                    profileName = profileName || currentContactName || `Instagram ${senderId}`;
                     await conversationService.upsert(phone, profileName, 'instagram');
                     const text = incoming.text || (incoming.attachments?.length ? `[Adjunto de Instagram: ${incoming.attachments.map((a) => a.type || 'archivo').join(', ')}]` : '[Mensaje de Instagram]');
                     await messageService.create({ phone, sender: 'contact', text, whatsappId: providerId, status: 'delivered', timestamp: event.timestamp ? new Date(Number(event.timestamp)) : null, senderName: profileName });
                     await conversationService.updateLastMessage(phone, text, false);
                     await conversationService.incrementUnread(phone);
+                    console.info(`[Instagram Webhook] Stored incoming message for workspace=${tenant.slug}.`);
                     const io = req.app.get('io');
                     if (io) {
                     const data = { whatsapp_id: providerId, phone, message: text, sender: 'user', sender_type: 'user', timestamp: new Date().toISOString(), contact_name: profileName, sender_name: profileName, unread: 1 };

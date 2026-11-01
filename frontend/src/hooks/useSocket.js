@@ -5,8 +5,26 @@ let envSocketUrl = process.env.REACT_APP_SOCKET_URL;
 if (envSocketUrl && envSocketUrl.includes('localhost') && window.location.hostname !== 'localhost') {
     envSocketUrl = envSocketUrl.replace('localhost', window.location.hostname);
 }
-const SOCKET_URL = envSocketUrl ||
-    (process.env.NODE_ENV === 'production' ? window.location.origin : `http://${window.location.hostname}:4000`);
+let envApiUrl = process.env.REACT_APP_API_URL;
+if (envApiUrl && envApiUrl.includes('localhost') && window.location.hostname !== 'localhost') {
+    envApiUrl = envApiUrl.replace('localhost', window.location.hostname);
+}
+const normalizeSocketUrl = (value) => {
+    if (!value || typeof value !== 'string') return null;
+    try {
+        const parsed = new URL(value.trim());
+        if (parsed.protocol === 'wss:') parsed.protocol = 'https:';
+        if (parsed.protocol === 'ws:') parsed.protocol = 'http:';
+        if (!['http:', 'https:'].includes(parsed.protocol) || !parsed.hostname) return null;
+        return parsed.origin;
+    } catch (_) {
+        return null;
+    }
+};
+const SOCKET_URL = normalizeSocketUrl(envSocketUrl) || normalizeSocketUrl(envApiUrl) ||
+    (process.env.NODE_ENV === 'production'
+        ? 'https://largebotinterfaz-production-5b38.up.railway.app'
+        : `http://${window.location.hostname}:4000`);
 
 /**
  * Custom hook for Socket.IO connection management
@@ -23,6 +41,7 @@ export const useSocket = () => {
     useEffect(() => {
         if (!token || !tenantSlug) return;
 
+        console.info('[Socket] Connecting to:', SOCKET_URL);
         const socketInstance = io(SOCKET_URL, {
             transports: ['websocket', 'polling'],
             auth: {

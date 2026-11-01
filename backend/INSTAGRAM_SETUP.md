@@ -1,6 +1,6 @@
 # Instagram Messaging setup
 
-The CRM uses Meta Login for Business, stores the connected Page token encrypted in the master database, and uses the linked professional Instagram account for messaging.
+The CRM uses the app's Instagram API Unified Login configuration. Meta grants an Instagram account asset and a system-user access token; a Facebook Page token is not required for this login configuration. Tokens are encrypted in the master database.
 
 ## Railway backend variables
 
@@ -28,14 +28,14 @@ Generate one value for the encryption key and another for the webhook verify tok
 
 ## Meta Developers configuration
 
-1. Add the callback URI above to the Facebook Login for Business redirect URI allowlist. Keep the supplied login configuration (`config_id`) and enable the Page and Instagram messaging permissions required by the app's product/configuration.
-2. Make sure the Instagram account is Professional (Business or Creator), linked to a Facebook Page, and the authorizing user has the needed Page access.
+1. Keep the existing Unified Login configuration and callback URI. The CRM authorization URL must use its `config_id` and the same `META_APP_ID`.
+2. Make sure the Instagram account is Professional (Business or Creator), is included as an asset in the Unified Login configuration, and the authorizing user grants access to it.
 3. Configure the Instagram messaging webhook callback as `https://largebotinterfaz-production-5b38.up.railway.app/webhook/instagram`, using the exact `INSTAGRAM_WEBHOOK_VERIFY_TOKEN` value. Subscribe the app to Instagram `messages` events (and message attachments if needed).
 4. After webhook verification, add the app to the connected Instagram account's webhook subscriptions if Meta's dashboard/API requires it for the selected login product.
 5. The app may need App Review and Live mode before accounts outside app roles can authorize messaging permissions.
 
 ## CRM flow
 
-An administrator opens Ajustes → Instagram → Conectar cuenta Instagram. Meta redirects to the callback, the backend finds the linked Page and professional Instagram account, encrypts the Page token in the master database, and associates it with the current workspace. Incoming text and attachment notices appear in the Instagram channel. Agents can send text replies from the CRM while the Instagram conversation is eligible under Meta's messaging rules.
+An administrator opens Ajustes → Instagram → Conectar cuenta Instagram. Meta redirects to the callback; the backend resolves the granted Instagram account through the Unified Login business portfolio, encrypts its token in the master database, and associates the account with the current workspace. Incoming text and attachment notices appear in the Instagram channel. Agents can send text replies from the CRM while the Instagram conversation is eligible under Meta's messaging rules.
 
 The current webhook stores text and attachment placeholders; it does not download media or start an AI/n8n automation. Manual text replies use the connected Instagram account.
