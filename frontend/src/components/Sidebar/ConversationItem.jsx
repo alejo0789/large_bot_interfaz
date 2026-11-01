@@ -65,9 +65,14 @@ const ConversationItem = React.memo(({
     // Helper para formatear LIDs largos (IDs internos de WA)
     const formatDisplayName = (name, phone) => {
         let nameToDisplay = name || phone;
+        const isInstagram = conversation.channel === 'instagram' || String(phone || '').startsWith('instagram_');
+        if (isInstagram && (!name || name === phone || /^(usuario|instagram|unknown)(\s|$)/i.test(String(name)))) {
+            const digits = String(phone || '').replace(/\D/g, '');
+            return `Usuario ${digits.slice(-4)}`;
+        }
         
         // Si el nombre contiene @lid o es una cadena numérica muy larga sin +, es un LID
-        const isJid = typeof nameToDisplay === 'string' && (
+        const isJid = !isInstagram && typeof nameToDisplay === 'string' && (
             nameToDisplay.includes('@') || 
             nameToDisplay.includes('-')
         );
@@ -77,7 +82,10 @@ const ConversationItem = React.memo(({
         }
 
         // Si después de todo, el texto a mostrar sigue siendo un ID interno (LID), mostrar un alias
-        if (typeof nameToDisplay === 'string') {
+        if (isInstagram && typeof nameToDisplay === 'string' && /^Instagram\s+\d+$/i.test(nameToDisplay)) {
+            const digits = nameToDisplay.replace(/\D/g, '');
+            nameToDisplay = `Usuario ${digits.slice(-4)}`;
+        } else if (!isInstagram && typeof nameToDisplay === 'string') {
             const digits = nameToDisplay.replace(/\D/g, '');
             // Si tiene más de 12 dígitos y no empieza con + (o es igual al teléfono), es probablemente un LID
             if (digits.length > 12 && (!nameToDisplay.startsWith('+') || nameToDisplay === phone)) {
