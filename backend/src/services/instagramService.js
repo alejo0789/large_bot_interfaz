@@ -130,15 +130,10 @@ async function completeAuthorization({ state, code }) {
     // instagram permission target_ids identify the granted Instagram assets.
     const candidates = new Set();
     const discoveryErrors = [];
+    let systemUserId = tokenResponse.data.user_id ? String(tokenResponse.data.user_id) : null;
     for (const scope of tokenResponse.data.granular_scopes || []) {
         if (scope.scope && !String(scope.scope).startsWith('instagram_')) continue;
         for (const id of scope.target_ids || []) candidates.add(String(id));
-    }
-    try {
-        const me = await graphGet('me', { fields: 'id,name', access_token: accessToken });
-        console.info('[Instagram OAuth] Unified Login token subject:', JSON.stringify({ id: me.id, name: me.name || null }));
-    } catch (error) {
-        console.warn('[Instagram OAuth] Could not inspect token subject:', error.message);
     }
     try {
         const debug = await graphGet('debug_token', {
@@ -149,9 +144,11 @@ async function completeAuthorization({ state, code }) {
             type: debug.data?.type || null,
             user_id: debug.data?.user_id || null,
             profile_id: debug.data?.profile_id || null,
+            client_business_id: debug.data?.client_business_id || null,
             scopes: debug.data?.scopes || [],
             granular_scopes: (debug.data?.granular_scopes || []).map(({ scope, target_ids }) => ({ scope, target_ids: target_ids || [] }))
         }));
+        if (!systemUserId && debug.data?.user_id) systemUserId = String(debug.data.user_id);
         for (const scope of debug.data?.granular_scopes || []) {
             if (scope.scope && !String(scope.scope).startsWith('instagram_')) continue;
             for (const id of scope.target_ids || []) candidates.add(String(id));
@@ -159,6 +156,26 @@ async function completeAuthorization({ state, code }) {
     } catch (error) {
         discoveryErrors.push(`token grant inspection: ${error.message}`);
         console.warn('[Instagram OAuth] Could not inspect granted Instagram assets:', error.message);
+    }
+
+    // Business Integration System User tokens have a system-user ID, not an
+    // Instagram ID. Resolve the linked business portfolio through the user node.
+    let clientBusinessId = null;
+    try {
+        if (systemUserId) {
+            const subject = await graphGet(systemUserId, {
+                fields: 'id,name,client_business_id', access_token: accessToken
+            });
+            clientBusinessId = subject.client_business_id ? String(subject.client_business_id) : null;
+            console.info('[Instagram OAuth] Unified Login token subject:', JSON.stringify({
+                id: subject.id || systemUserId,
+                name: subject.name || null,
+                client_business_id: clientBusinessId
+            }));
+        }
+    } catch (error) {
+        discoveryErrors.push(`system user business lookup: ${error.message}`);
+        console.warn('[Instagram OAuth] Could not resolve system-user business:', error.message);
     }
 
     let instagramAccount = null;
@@ -172,6 +189,24 @@ async function completeAuthorization({ state, code }) {
             }
         } catch (error) {
             discoveryErrors.push(`asset ${id}: ${error.message}`);
+        }
+    }
+
+    if (!instagramAccount && clientBusinessId) {
+        const businessAccounts = new Map();
+        for (const edge of ['owned_instagram_accounts', 'client_instagram_accounts', 'instagram_business_accounts']) {
+            try {
+                const result = await graphGet(`${clientBusinessId}/${edge}`, {
+                    fields: 'id,username,name', limit: 100, access_token: accessToken
+                });
+                for (const account of result.data || []) businessAccounts.set(String(account.id), account);
+            } catch (error) {
+                discoveryErrors.push(`${edge}: ${error.message}`);
+            }
+        }
+        if (businessAccounts.size === 1) instagramAccount = [...businessAccounts.values()][0];
+        else if (businessAccounts.size > 1) {
+            throw new Error('La autorización devolvió varias cuentas de Instagram. Ajusta la configuración Unified Login para conceder solo la cuenta que deseas conectar.');
         }
     }
 
