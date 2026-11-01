@@ -67,32 +67,54 @@ webhookRouter.get('/', (req, res) => {
 });
 
 webhookRouter.post('/', async (req, res) => {
-    if (!instagramService.verifyWebhookSignature(req.rawBody, req.get('x-hub-signature-256'))) return res.sendStatus(403);
+    if (!instagramService.verifyWebhookSignature(req.rawBody, req.get('x-hub-signature-256'))) {
+        console.warn('[Instagram Webhook] Rejected request: invalid or missing signature.');
+        return res.sendStatus(403);
+    }
     const body = req.body || {};
-    if (!['instagram', 'page'].includes(body.object)) return res.sendStatus(404);
+    if (!['instagram', 'page'].includes(body.object)) {
+        console.warn(`[Instagram Webhook] Rejected unsupported object: ${String(body.object || 'missing')}.`);
+        return res.sendStatus(404);
+    }
     try {
         const entries = body.entry || [];
+        console.info(`[Instagram Webhook] Received object=${body.object} entries=${entries.length}.`);
         for (const entry of entries) {
             const connection = await instagramService.getConnectionByInstagramId(entry.id);
-            if (!connection) continue;
+            if (!connection) {
+                console.warn(`[Instagram Webhook] No workspace connection matches entry.id=${String(entry.id || 'missing')} object=${body.object}.`);
+                continue;
+            }
             const tenant = await tenantService.getTenantById(connection.tenant_id);
-            if (!tenant) continue;
+            if (!tenant) {
+                console.warn(`[Instagram Webhook] Connection matched entry.id=${entry.id}, but its workspace was not found.`);
+                continue;
+            }
             const db = await dbManager.getPool(tenant.id, tenant.db_url);
             await tenantContext.run({ tenant, db }, async () => {
-                for (const event of (entry.messaging || [])) {
+                const events = entry.messaging || [];
+                console.info(`[Instagram Webhook] Matched workspace=${tenant.slug} entry.id=${entry.id} messaging_events=${events.length}.`);
+                for (const event of events) {
                     const incoming = event.message;
                     const senderId = event.sender?.id;
-                    if (!incoming || incoming.is_echo || !senderId) continue;
+                    if (!incoming || incoming.is_echo || !senderId) {
+                        console.info(`[Instagram Webhook] Ignored non-incoming event for entry.id=${entry.id}; has_message=${Boolean(incoming)} is_echo=${Boolean(incoming?.is_echo)} has_sender=${Boolean(senderId)}.`);
+                        continue;
+                    }
                     const phone = normalizePhone(`instagram_${senderId}`);
                     const providerId = incoming.mid || `ig_${Date.now()}_${senderId}`;
                     const existing = await db.query('SELECT 1 FROM messages WHERE whatsapp_id=$1 LIMIT 1', [providerId]);
-                    if (existing.rows.length) continue;
+                    if (existing.rows.length) {
+                        console.info(`[Instagram Webhook] Duplicate message ignored for workspace=${tenant.slug}.`);
+                        continue;
+                    }
                     const profileName = event.sender?.username ? `@${event.sender.username}` : `Instagram ${senderId}`;
                     await conversationService.upsert(phone, profileName, 'instagram');
                     const text = incoming.text || (incoming.attachments?.length ? `[Adjunto de Instagram: ${incoming.attachments.map((a) => a.type || 'archivo').join(', ')}]` : '[Mensaje de Instagram]');
                     await messageService.create({ phone, sender: 'contact', text, whatsappId: providerId, status: 'delivered', timestamp: event.timestamp ? new Date(Number(event.timestamp)) : null, senderName: profileName });
                     await conversationService.updateLastMessage(phone, text, false);
                     await conversationService.incrementUnread(phone);
+                    console.info(`[Instagram Webhook] Stored incoming message for workspace=${tenant.slug}.`);
                     const io = req.app.get('io');
                     if (io) {
                     const data = { whatsapp_id: providerId, phone, message: text, sender: 'user', sender_type: 'user', timestamp: new Date().toISOString(), contact_name: profileName, sender_name: profileName, unread: 1 };
