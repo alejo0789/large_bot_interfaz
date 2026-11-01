@@ -149,7 +149,22 @@ webhookRouter.post('/', async (req, res) => {
                         console.info(`[Instagram Webhook] Duplicate message ignored for workspace=${tenant.slug}.`);
                         continue;
                     }
-                    const profileName = event.sender?.username ? `@${event.sender.username}` : `Instagram ${senderId}`;
+                    const existingConversation = await conversationService.getByPhone(phone);
+                    const currentContactName = existingConversation?.contact_name;
+                    const hasRealContactName = currentContactName
+                        && !/^Usuario\s+\d+$/i.test(currentContactName)
+                        && !/^Instagram\s+\d+$/i.test(currentContactName)
+                        && currentContactName !== phone;
+                    let profileName = event.sender?.username ? `@${event.sender.username}` : null;
+                    if (!profileName && !hasRealContactName) {
+                        try {
+                            const profile = await instagramService.getMessageSenderProfile(tenant.id, senderId);
+                            profileName = profile.username ? `@${profile.username}` : profile.name;
+                        } catch (error) {
+                            console.warn(`[Instagram Webhook] Could not resolve sender profile for sender.id=${senderId}: ${error.message}`);
+                        }
+                    }
+                    profileName = profileName || currentContactName || `Instagram ${senderId}`;
                     await conversationService.upsert(phone, profileName, 'instagram');
                     const text = incoming.text || (incoming.attachments?.length ? `[Adjunto de Instagram: ${incoming.attachments.map((a) => a.type || 'archivo').join(', ')}]` : '[Mensaje de Instagram]');
                     await messageService.create({ phone, sender: 'contact', text, whatsappId: providerId, status: 'delivered', timestamp: event.timestamp ? new Date(Number(event.timestamp)) : null, senderName: profileName });
