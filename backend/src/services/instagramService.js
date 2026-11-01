@@ -126,10 +126,10 @@ async function completeAuthorization({ state, code }) {
     const accessToken = shortToken;
     const expiresIn = Number(tokenResponse.data.expires_in) || null;
 
-    // Unified Login can grant the Instagram account directly as an asset. In this
-    // mode there may be no Page token, so discover the granted asset IDs from the
-    // token's granular scopes instead of requiring /me/accounts.
+    // Unified Login returns a business integration system-user token. Its
+    // instagram permission target_ids identify the granted Instagram assets.
     const candidates = new Set();
+    const discoveryErrors = [];
     for (const scope of tokenResponse.data.granular_scopes || []) {
         if (scope.scope && !String(scope.scope).startsWith('instagram_')) continue;
         for (const id of scope.target_ids || []) candidates.add(String(id));
@@ -145,17 +145,24 @@ async function completeAuthorization({ state, code }) {
             input_token: accessToken,
             access_token: `${required('META_APP_ID')}|${required('META_APP_SECRET')}`
         });
+        console.info('[Instagram OAuth] Safe token grant metadata:', JSON.stringify({
+            type: debug.data?.type || null,
+            user_id: debug.data?.user_id || null,
+            profile_id: debug.data?.profile_id || null,
+            scopes: debug.data?.scopes || [],
+            granular_scopes: (debug.data?.granular_scopes || []).map(({ scope, target_ids }) => ({ scope, target_ids: target_ids || [] }))
+        }));
         for (const scope of debug.data?.granular_scopes || []) {
             if (scope.scope && !String(scope.scope).startsWith('instagram_')) continue;
             for (const id of scope.target_ids || []) candidates.add(String(id));
         }
     } catch (error) {
+        discoveryErrors.push(`token grant inspection: ${error.message}`);
         console.warn('[Instagram OAuth] Could not inspect granted Instagram assets:', error.message);
     }
 
     let instagramAccount = null;
     let linkedPage = null;
-    const discoveryErrors = [];
     for (const id of candidates) {
         try {
             const profile = await graphGet(id, { fields: 'id,username', access_token: accessToken });
@@ -168,54 +175,14 @@ async function completeAuthorization({ state, code }) {
         }
     }
 
-    // Unified Login grants access through a business portfolio. Resolve the
-    // portfolio first, then enumerate its Instagram account assets.
-    let multipleInstagramAccounts = false;
     if (!instagramAccount) {
-        try {
-            const businesses = await graphGet('me/businesses', {
-                fields: 'id,name', limit: 100, access_token: accessToken
-            });
-            const accounts = [];
-            for (const business of businesses.data || []) {
-                try {
-                    const result = await graphGet(`${business.id}/instagram_business_accounts`, {
-                        fields: 'id,username,name', limit: 100, access_token: accessToken
-                    });
-                    for (const account of result.data || []) accounts.push({ ...account, business });
-                } catch (error) {
-                    discoveryErrors.push(`business ${business.id}: ${error.message}`);
-                }
-            }
-            const uniqueAccounts = [...new Map(accounts.map((account) => [String(account.id), account])).values()];
-            if (uniqueAccounts.length === 1) instagramAccount = uniqueAccounts[0];
-            else if (uniqueAccounts.length > 1) multipleInstagramAccounts = true;
-        } catch (error) {
-            discoveryErrors.push(`business portfolios: ${error.message}`);
-        }
-    }
-
-    if (multipleInstagramAccounts && !instagramAccount) {
-        throw new Error('La autorización devolvió varias cuentas profesionales. La configuración Unified Login debe conceder acceso únicamente al Instagram que deseas conectar.');
-    }
-
-    // Keep compatibility with older Facebook Login connections where Meta grants
-    // Page access and exposes the Instagram account through the linked Page.
-    if (!instagramAccount) {
-        try {
-            const pages = await graphGet('me/accounts', {
-                fields: 'id,name,access_token,tasks,instagram_business_account{id,username,name}',
-                limit: 100, access_token: accessToken
-            });
-            linkedPage = (pages.data || []).find((page) => page.instagram_business_account?.id && page.access_token);
-            if (linkedPage) instagramAccount = linkedPage.instagram_business_account;
-        } catch (error) {
-            console.warn('[Instagram OAuth] Page lookup unavailable; Unified Login asset lookup was used:', error.message);
-        }
-    }
-    if (!instagramAccount) {
-        const details = discoveryErrors.length ? ` Detalle: ${discoveryErrors.join(' | ').slice(0, 900)}` : '';
-        throw new Error(`Meta autorizó la app, pero el backend no pudo resolver el activo de Instagram desde el portafolio. Comprueba que la configuración Unified Login incluya la cuenta y permita listar sus activos empresariales.${details}`);
+        const grantedInstagramScopes = (tokenResponse.data.granted_scopes || '').toString();
+        const diagnostics = [
+            `IDs de activos concedidos: ${candidates.size}`,
+            `Permisos concedidos: ${grantedInstagramScopes || 'no incluidos en la respuesta OAuth'}`,
+            discoveryErrors.length ? `Errores consultando activos: ${discoveryErrors.join(' | ').slice(0, 500)}` : ''
+        ].filter(Boolean).join('. ');
+        throw new Error(`Meta autorizó la app, pero no entregó un ID de cuenta de Instagram que el backend pueda usar. ${diagnostics}. Revisa el log seguro "Safe token grant metadata" para confirmar si instagram_basic trae target_ids.`);
     }
 
     const scopes = tokenResponse.data.granted_scopes
