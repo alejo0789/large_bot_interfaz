@@ -33,6 +33,14 @@ const ChatHeader = ({
     // Helper para formatear LIDs largos (IDs internos de WA)
     const formatDisplayName = (name, phone) => {
         let nameToDisplay = name || phone || '';
+        const isInstagram = conversation?.channel === 'instagram' || String(phone || '').startsWith('instagram_');
+        if (isInstagram) {
+            if (!name || name === phone || /^Instagram\s+\d+$/i.test(String(name))) {
+                const digits = String(phone || '').replace(/\D/g, '');
+                return `Usuario ${digits.slice(-4)}`;
+            }
+            return String(name);
+        }
         
         const isJid = typeof nameToDisplay === 'string' && (
             nameToDisplay.includes('@') || 
@@ -58,7 +66,7 @@ const ChatHeader = ({
 
     useEffect(() => {
         setDisplayName(formatDisplayName(conversation?.contact?.name, conversation?.contact?.phone));
-    }, [conversation?.contact?.name, conversation?.contact?.phone]);
+    }, [conversation?.contact?.name, conversation?.contact?.phone, conversation?.channel]);
 
     if (!conversation) return null;
 
