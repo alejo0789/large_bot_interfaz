@@ -183,9 +183,12 @@ async function completeAuthorization({ state, code }) {
     let linkedPage = null;
     for (const id of candidates) {
         try {
-            const profile = await graphGet(id, { fields: 'id,username,ig_id', access_token: accessToken });
+            const profile = await graphGet(id, {
+                fields: 'id,username,ig_id,legacy_instagram_user_id', access_token: accessToken
+            });
             if (profile.id) {
-                instagramAccount = { ...profile, webhookId: profile.ig_id ? String(profile.ig_id) : null };
+                const webhookId = profile.legacy_instagram_user_id || profile.ig_id;
+                instagramAccount = { ...profile, webhookId: webhookId ? String(webhookId) : null };
                 break;
             }
         } catch (error) {
@@ -249,14 +252,23 @@ async function completeAuthorization({ state, code }) {
     if (!instagramAccount.webhookId) {
         try {
             const profile = await graphGet(instagramAccount.id, {
-                fields: 'id,username,ig_id', access_token: accessToken
+                fields: 'id,username,ig_id,legacy_instagram_user_id', access_token: accessToken
             });
-            instagramAccount.webhookId = profile.ig_id ? String(profile.ig_id) : null;
+            const webhookId = profile.legacy_instagram_user_id || profile.ig_id;
+            instagramAccount.webhookId = webhookId ? String(webhookId) : null;
             instagramAccount.username = instagramAccount.username || profile.username || null;
         } catch (error) {
             discoveryErrors.push(`Instagram webhook ID lookup: ${error.message}`);
             console.warn('[Instagram OAuth] Could not resolve Instagram webhook ID:', error.message);
         }
+    }
+    try {
+        const profileIds = await graphGet(instagramAccount.id, {
+            fields: 'user_id', access_token: accessToken
+        });
+        if (profileIds.user_id) instagramAccount.webhookId = String(profileIds.user_id);
+    } catch (error) {
+        console.info('[Instagram OAuth] Instagram API user_id is unavailable for this token; using the profile ID alias if present.');
     }
     console.info('[Instagram OAuth] Resolved account IDs:', JSON.stringify({
         username: instagramAccount.username || instagramAccount.name || null,
