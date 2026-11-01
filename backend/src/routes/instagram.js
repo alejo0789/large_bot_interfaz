@@ -80,26 +80,11 @@ webhookRouter.post('/', async (req, res) => {
         const entries = body.entry || [];
         console.info(`[Instagram Webhook] Received object=${body.object} entries=${entries.length}.`);
         for (const entry of entries) {
-            let accountId = String(entry.id || '');
-            let connection = await instagramService.getConnectionByInstagramId(accountId);
-            // Some Meta Instagram webhook variants send an entry ID that differs
-            // from the account ID on the recipient object. Resolve by the
-            // business account recipient ID before discarding the event.
+            const accountId = String(entry.id || '');
+            const connection = await instagramService.getConnectionByInstagramId(accountId);
             const events = entry.messaging || [];
             if (!connection) {
-                const recipientIds = [...new Set(events.map((event) => event.recipient?.id).filter(Boolean).map(String))];
-                for (const recipientId of recipientIds) {
-                    connection = await instagramService.getConnectionByInstagramId(recipientId);
-                    if (connection) {
-                        accountId = recipientId;
-                        console.info(`[Instagram Webhook] Resolved connection using messaging recipient.id=${recipientId} (entry.id=${String(entry.id || 'missing')}).`);
-                        break;
-                    }
-                }
-            }
-            if (!connection) {
-                const recipientIds = [...new Set(events.map((event) => event.recipient?.id).filter(Boolean).map(String))];
-                console.warn(`[Instagram Webhook] No workspace connection matches entry.id=${String(entry.id || 'missing')} or recipient.id values=${recipientIds.join(',') || 'none'} object=${body.object}.`);
+                console.warn(`[Instagram Webhook] No workspace connection matches entry.id=${String(entry.id || 'missing')} object=${body.object}.`);
                 continue;
             }
             const tenant = await tenantService.getTenantById(connection.tenant_id);

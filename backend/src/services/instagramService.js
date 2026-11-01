@@ -200,15 +200,26 @@ async function completeAuthorization({ state, code }) {
         for (const edge of ['owned_instagram_accounts', 'client_instagram_assets', 'instagram_accounts', 'instagram_business_accounts']) {
             try {
                 const result = await graphGet(`${clientBusinessId}/${edge}`, {
-                    fields: 'id,username,name', limit: 100, access_token: accessToken
+                    fields: edge === 'client_instagram_assets'
+                        ? 'id,ig_user_id,ig_username'
+                        : 'id,username,name',
+                    limit: 100,
+                    access_token: accessToken
                 });
                 for (const account of result.data || []) {
-                    const instagramId = account.instagram_business_account?.id || account.instagram_account?.id || account.id;
+                    // InstagramBusinessAsset.id identifies the asset wrapper;
+                    // its ig_user_id is the actual IG account ID used by
+                    // Instagram webhooks. The other edges return IGUser nodes.
+                    const instagramId = edge === 'client_instagram_assets'
+                        ? account.ig_user_id
+                        : account.id;
                     if (instagramId) {
                         businessAccounts.set(String(instagramId), {
                             ...account,
                             id: String(instagramId),
-                            username: account.username || account.instagram_business_account?.username || account.instagram_account?.username
+                            username: edge === 'client_instagram_assets'
+                                ? account.ig_username || null
+                                : account.username || null
                         });
                     }
                 }
