@@ -40,12 +40,13 @@ async function ensureTables() {
         );
         CREATE INDEX IF NOT EXISTS idx_instagram_oauth_states_expiry ON instagram_oauth_states (expires_at);
         CREATE TABLE IF NOT EXISTS instagram_connections (
-            tenant_id TEXT PRIMARY KEY, tenant_slug TEXT NOT NULL, page_id TEXT NOT NULL,
+            tenant_id TEXT PRIMARY KEY, tenant_slug TEXT NOT NULL, page_id TEXT,
             page_name TEXT, instagram_user_id TEXT NOT NULL, instagram_username TEXT,
             access_token_encrypted TEXT NOT NULL, scopes TEXT[] NOT NULL DEFAULT '{}',
             token_expires_at TIMESTAMPTZ, connected_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
             updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
         );
+        ALTER TABLE instagram_connections ALTER COLUMN page_id DROP NOT NULL;
     `);
 }
 
@@ -111,30 +112,63 @@ async function completeAuthorization({ state, code }) {
     const shortToken = tokenResponse.data?.access_token;
     if (!shortToken) throw new Error('Meta did not return an access token');
 
-    let accessToken = shortToken;
-    let expiresIn = Number(tokenResponse.data.expires_in) || 3600;
+    const accessToken = shortToken;
+    const expiresIn = Number(tokenResponse.data.expires_in) || null;
+
+    // Unified Login can grant the Instagram account directly as an asset. In this
+    // mode there may be no Page token, so discover the granted asset IDs from the
+    // token's granular scopes instead of requiring /me/accounts.
+    const candidates = new Set();
+    for (const scope of tokenResponse.data.granular_scopes || []) {
+        if (scope.scope && !String(scope.scope).startsWith('instagram_')) continue;
+        for (const id of scope.target_ids || []) candidates.add(String(id));
+    }
     try {
-        const longToken = await graphGet('oauth/access_token', {
-            grant_type: 'fb_exchange_token', client_id: required('META_APP_ID'),
-            client_secret: required('META_APP_SECRET'), fb_exchange_token: shortToken
+        const debug = await graphGet('debug_token', {
+            input_token: accessToken,
+            access_token: `${required('META_APP_ID')}|${required('META_APP_SECRET')}`
         });
-        if (longToken.access_token) {
-            accessToken = longToken.access_token;
-            expiresIn = Number(longToken.expires_in) || 5184000;
+        for (const scope of debug.data?.granular_scopes || []) {
+            if (scope.scope && !String(scope.scope).startsWith('instagram_')) continue;
+            for (const id of scope.target_ids || []) candidates.add(String(id));
         }
     } catch (error) {
-        console.warn('[Instagram OAuth] Could not exchange long-lived user token:', error.message);
+        console.warn('[Instagram OAuth] Could not inspect granted Instagram assets:', error.message);
     }
 
-    const pages = await graphGet('me/accounts', {
-        fields: 'id,name,access_token,tasks,instagram_business_account{id,username,name}',
-        limit: 100, access_token: accessToken
-    });
-    const linkedPage = (pages.data || []).find((page) => page.instagram_business_account?.id && page.access_token);
-    if (!linkedPage) throw new Error('No linked professional Instagram account was found. Link it to a Facebook Page and grant Page access.');
+    let instagramAccount = null;
+    let linkedPage = null;
+    for (const id of candidates) {
+        try {
+            const profile = await graphGet(id, { fields: 'id,username', access_token: accessToken });
+            if (profile.id) {
+                instagramAccount = profile;
+                break;
+            }
+        } catch (_) { /* Ignore granted IDs that are not readable Instagram assets. */ }
+    }
 
-    const ig = linkedPage.instagram_business_account;
-    const scopes = ['pages_show_list', 'instagram_basic', 'instagram_manage_messages'];
+    // Keep compatibility with older Facebook Login connections where Meta grants
+    // Page access and exposes the Instagram account through the linked Page.
+    if (!instagramAccount) {
+        try {
+            const pages = await graphGet('me/accounts', {
+                fields: 'id,name,access_token,tasks,instagram_business_account{id,username,name}',
+                limit: 100, access_token: accessToken
+            });
+            linkedPage = (pages.data || []).find((page) => page.instagram_business_account?.id && page.access_token);
+            if (linkedPage) instagramAccount = linkedPage.instagram_business_account;
+        } catch (error) {
+            console.warn('[Instagram OAuth] Page lookup unavailable; Unified Login asset lookup was used:', error.message);
+        }
+    }
+    if (!instagramAccount) {
+        throw new Error('Meta autorizó la app, pero no devolvió un activo de Instagram legible. Revisa que la configuración Unified Login incluya la cuenta profesional y que el usuario otorgue acceso a ese activo.');
+    }
+
+    const scopes = tokenResponse.data.granted_scopes
+        ? String(tokenResponse.data.granted_scopes).split(',')
+        : ['instagram_basic', 'instagram_manage_messages'];
     await dbManager.masterPool.query(`
         INSERT INTO instagram_connections (
             tenant_id, tenant_slug, page_id, page_name, instagram_user_id, instagram_username,
@@ -145,9 +179,10 @@ async function completeAuthorization({ state, code }) {
             instagram_user_id=EXCLUDED.instagram_user_id, instagram_username=EXCLUDED.instagram_username,
             access_token_encrypted=EXCLUDED.access_token_encrypted, scopes=EXCLUDED.scopes,
             token_expires_at=EXCLUDED.token_expires_at, connected_at=NOW(), updated_at=NOW()
-    `, [String(stateRecord.tenant_id), stateRecord.tenant_slug, linkedPage.id, linkedPage.name || null,
-        String(ig.id), ig.username || ig.name || null, encrypt(linkedPage.access_token), scopes, expiresIn]);
-    return { tenantSlug: stateRecord.tenant_slug, instagramUserId: String(ig.id), username: ig.username || null };
+    `, [String(stateRecord.tenant_id), stateRecord.tenant_slug, linkedPage?.id || null, linkedPage?.name || null,
+        String(instagramAccount.id), instagramAccount.username || instagramAccount.name || null,
+        encrypt(linkedPage?.access_token || accessToken), scopes, expiresIn]);
+    return { tenantSlug: stateRecord.tenant_slug, instagramUserId: String(instagramAccount.id), username: instagramAccount.username || null };
 }
 
 async function getConnectionStatus(tenantId) {
