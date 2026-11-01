@@ -333,6 +333,21 @@ async function getConnectionForTenant(tenantId) {
     return { ...rows[0], accessToken: decrypt(rows[0].access_token_encrypted) };
 }
 
+async function inspectAccountIdForTenant(tenantId, id) {
+    const connection = await getConnectionForTenant(tenantId);
+    const profile = await graphGet(String(id), {
+        fields: 'id,username,ig_id,user_id,legacy_instagram_user_id',
+        access_token: connection.accessToken
+    });
+    return {
+        id: profile.id || null,
+        username: profile.username || null,
+        ig_id: profile.ig_id || null,
+        user_id: profile.user_id || null,
+        legacy_instagram_user_id: profile.legacy_instagram_user_id || null
+    };
+}
+
 async function sendMessage(phone, text) {
     const match = /^instagram_(.+)$/.exec(String(phone));
     if (!match || !text) throw new Error('Instagram conversation or message is invalid.');
@@ -355,4 +370,4 @@ function verifyWebhookSignature(rawBody, signature) {
     return a.length === b.length && crypto.timingSafeEqual(a, b);
 }
 
-module.exports = { createAuthorizationUrl, completeAuthorization, getConnectionStatus, getConnectionByInstagramId, sendMessage, verifyWebhookSignature };
+module.exports = { createAuthorizationUrl, completeAuthorization, getConnectionStatus, getConnectionByInstagramId, inspectAccountIdForTenant, sendMessage, verifyWebhookSignature };

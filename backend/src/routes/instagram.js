@@ -46,6 +46,29 @@ router.get('/oauth/status', jwtAuth, async (req, res) => {
     }
 });
 
+router.post('/oauth/inspect-account-ids', jwtAuth, async (req, res) => {
+    if (!ADMIN_ROLES.includes(req.user?.role)) return res.status(403).json({ error: 'Solo administradores pueden inspeccionar IDs de Instagram.' });
+    if (!req.tenant?.id || !req.tenant?.slug) return res.status(400).json({ error: 'Selecciona una sede.' });
+    if (req.user.role !== 'SUPER_ADMIN' && !req.user.tenants?.includes(req.tenant.slug)) return res.status(403).json({ error: 'No tienes acceso administrativo a esta sede.' });
+    const ids = [...new Set((Array.isArray(req.body?.ids) ? req.body.ids : []).map(String))];
+    if (!ids.length || ids.length > 5 || ids.some((id) => !/^\d{1,30}$/.test(id))) {
+        return res.status(400).json({ error: 'Envía entre 1 y 5 IDs numéricos de Instagram.' });
+    }
+    try {
+        const results = await Promise.all(ids.map(async (id) => {
+            try {
+                return { queried_id: id, accessible: true, profile: await instagramService.inspectAccountIdForTenant(req.tenant.id, id) };
+            } catch (error) {
+                return { queried_id: id, accessible: false, error: error.message };
+            }
+        }));
+        res.json({ results });
+    } catch (error) {
+        console.error('[Instagram OAuth] Could not inspect account IDs:', error.message);
+        res.status(500).json({ error: 'No se pudieron consultar los IDs de Instagram.' });
+    }
+});
+
 router.get('/oauth/callback', async (req, res) => {
     if (req.query.error || req.query.error_description) return res.status(400).type('html').send(popup(false, 'Meta canceló o rechazó la autorización.'));
     if (typeof req.query.code !== 'string' || typeof req.query.state !== 'string') return res.status(400).type('html').send(popup(false, 'La respuesta de Meta llegó incompleta. Inicia la conexión de nuevo desde el CRM.'));
