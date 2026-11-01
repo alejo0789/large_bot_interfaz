@@ -194,12 +194,24 @@ async function completeAuthorization({ state, code }) {
 
     if (!instagramAccount && clientBusinessId) {
         const businessAccounts = new Map();
-        for (const edge of ['owned_instagram_accounts', 'client_instagram_accounts', 'instagram_business_accounts']) {
+        // These are Business Graph API edges. `client_instagram_accounts` is
+        // not a valid edge; the Business API names the shared-asset edge
+        // `client_instagram_assets`.
+        for (const edge of ['owned_instagram_accounts', 'client_instagram_assets', 'instagram_accounts', 'instagram_business_accounts']) {
             try {
                 const result = await graphGet(`${clientBusinessId}/${edge}`, {
                     fields: 'id,username,name', limit: 100, access_token: accessToken
                 });
-                for (const account of result.data || []) businessAccounts.set(String(account.id), account);
+                for (const account of result.data || []) {
+                    const instagramId = account.instagram_business_account?.id || account.instagram_account?.id || account.id;
+                    if (instagramId) {
+                        businessAccounts.set(String(instagramId), {
+                            ...account,
+                            id: String(instagramId),
+                            username: account.username || account.instagram_business_account?.username || account.instagram_account?.username
+                        });
+                    }
+                }
             } catch (error) {
                 discoveryErrors.push(`${edge}: ${error.message}`);
             }
