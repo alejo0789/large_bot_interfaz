@@ -353,10 +353,59 @@ async function subscribeWebhooksForTenant(tenantId) {
     const { data } = await axios.post(
         `${GRAPH_BASE}/${connection.instagram_user_id}/subscribed_apps`,
         null,
-        { params: { subscribed_fields: 'messages', access_token: connection.accessToken }, timeout: 20000 }
+        { params: { subscribed_fields: 'messages,comments', access_token: connection.accessToken }, timeout: 20000 }
     );
     if (data?.error) throw new Error(data.error.message || 'Meta rechazó la suscripción del webhook de Instagram.');
-    return { accountId: String(connection.instagram_user_id), subscribedFields: ['messages'], result: data };
+    return { accountId: String(connection.instagram_user_id), subscribedFields: ['messages', 'comments'], result: data };
+}
+
+async function getPostsForTenant(tenantId, { limit = 24, after } = {}) {
+    const connection = await getConnectionForTenant(tenantId);
+    const result = await graphGet(`${connection.instagram_user_id}/media`, {
+        fields: 'id,caption,media_type,media_url,thumbnail_url,permalink,timestamp,comments_count,like_count',
+        limit: Math.min(Math.max(Number(limit) || 24, 1), 50),
+        ...(after ? { after } : {}),
+        access_token: connection.accessToken
+    });
+    return {
+        posts: result.data || [],
+        paging: { after: result.paging?.cursors?.after || null, has_next: Boolean(result.paging?.next) }
+    };
+}
+
+async function getPostCommentsForTenant(tenantId, mediaId, { limit = 50, after } = {}) {
+    const connection = await getConnectionForTenant(tenantId);
+    const result = await graphGet(`${mediaId}/comments`, {
+        fields: 'id,text,username,timestamp,from,like_count',
+        limit: Math.min(Math.max(Number(limit) || 50, 1), 100),
+        ...(after ? { after } : {}),
+        access_token: connection.accessToken
+    });
+    return {
+        comments: result.data || [],
+        paging: { after: result.paging?.cursors?.after || null, has_next: Boolean(result.paging?.next) }
+    };
+}
+
+async function getCommentRepliesForTenant(tenantId, commentId, { limit = 50, after } = {}) {
+    const connection = await getConnectionForTenant(tenantId);
+    const result = await graphGet(`${commentId}/replies`, {
+        fields: 'id,text,username,timestamp,from',
+        limit: Math.min(Math.max(Number(limit) || 50, 1), 100),
+        ...(after ? { after } : {}),
+        access_token: connection.accessToken
+    });
+    return { replies: result.data || [], paging: { after: result.paging?.cursors?.after || null, has_next: Boolean(result.paging?.next) } };
+}
+
+async function replyToCommentForTenant(tenantId, commentId, message) {
+    const connection = await getConnectionForTenant(tenantId);
+    const { data } = await axios.post(`${GRAPH_BASE}/${commentId}/replies`, null, {
+        params: { message, access_token: connection.accessToken },
+        timeout: 20000
+    });
+    if (data?.error) throw new Error(data.error.message || 'Meta rechazó la respuesta al comentario.');
+    return data;
 }
 
 async function getMessageSenderProfile(tenantId, instagramScopedUserId) {
@@ -394,4 +443,4 @@ function verifyWebhookSignature(rawBody, signature) {
     return a.length === b.length && crypto.timingSafeEqual(a, b);
 }
 
-module.exports = { createAuthorizationUrl, completeAuthorization, getConnectionStatus, getConnectionByInstagramId, inspectAccountIdForTenant, subscribeWebhooksForTenant, getMessageSenderProfile, sendMessage, verifyWebhookSignature };
+module.exports = { createAuthorizationUrl, completeAuthorization, getConnectionStatus, getConnectionByInstagramId, inspectAccountIdForTenant, subscribeWebhooksForTenant, getPostsForTenant, getPostCommentsForTenant, getCommentRepliesForTenant, replyToCommentForTenant, getMessageSenderProfile, sendMessage, verifyWebhookSignature };
