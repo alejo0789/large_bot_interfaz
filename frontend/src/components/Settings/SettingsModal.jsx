@@ -34,6 +34,7 @@ const SettingsModal = ({ isOpen, onClose }) => {
     const [tiktokStatus, setTiktokStatus] = useState(null);
     const [tiktokLoading, setTiktokLoading] = useState(false);
     const [tiktokConnecting, setTiktokConnecting] = useState(false);
+    const [tiktokDisconnecting, setTiktokDisconnecting] = useState(false);
     const [tiktokError, setTiktokError] = useState('');
     const [tiktokSuccess, setTiktokSuccess] = useState('');
     const instagramPopupPollRef = useRef(null);
@@ -160,6 +161,29 @@ const SettingsModal = ({ isOpen, onClose }) => {
             tiktokPopupRef.current = null;
             setTiktokConnecting(false);
             setTiktokError(error.message || 'No se pudo iniciar la autorización de TikTok.');
+        }
+    };
+
+    const handleDisconnectTikTok = async () => {
+        const currentlyConnected = Boolean(tiktokStatus?.connected);
+        const confirmed = window.confirm(
+            `${currentlyConnected ? 'Esto desconectará TikTok de esta sede y ' : ''}borrará permanentemente las conversaciones, mensajes e historiales TikTok guardados en el CRM. Para revocar también el permiso en TikTok, el titular deberá quitar la app desde la configuración de su cuenta. ¿Continuar?`
+        );
+        if (!confirmed) return;
+
+        setTiktokDisconnecting(true);
+        setTiktokError('');
+        setTiktokSuccess('');
+        try {
+            const response = await apiFetch('/api/tiktok/oauth/connection', { method: 'DELETE' });
+            const data = await response.json();
+            if (!response.ok) throw new Error(data.error || 'No se pudieron eliminar los datos TikTok.');
+            setTiktokStatus({ connected: false });
+            setTiktokSuccess(`TikTok desconectado. Se eliminaron ${data.deletedMessages} mensajes, ${data.deletedConversations} conversaciones y ${data.deletedChatHistories} historiales.`);
+        } catch (error) {
+            setTiktokError(error.message || 'No se pudo desconectar TikTok.');
+        } finally {
+            setTiktokDisconnecting(false);
         }
     };
 
@@ -773,9 +797,21 @@ const SettingsModal = ({ isOpen, onClose }) => {
                                 {tiktokConnecting ? 'Esperando autorización de TikTok...' : tiktokStatus?.connected ? 'Volver a autorizar cuenta' : 'Conectar cuenta TikTok'}
                             </button>
 
+                            {tiktokStatus && !tiktokLoading && (
+                                <button
+                                    type="button"
+                                    onClick={handleDisconnectTikTok}
+                                    disabled={tiktokDisconnecting || tiktokConnecting}
+                                    style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px', minHeight: '40px', padding: '8px 14px', border: '1px solid #fecaca', borderRadius: '8px', background: '#fff7f7', color: '#b91c1c', cursor: tiktokDisconnecting ? 'wait' : 'pointer', fontSize: '0.82rem', fontWeight: 650 }}
+                                >
+                                    {tiktokDisconnecting ? <RotateCw className="w-4 h-4 animate-spin" /> : <X className="w-4 h-4" />}
+                                    {tiktokDisconnecting ? 'Borrando datos...' : tiktokStatus.connected ? 'Desconectar y borrar datos TikTok' : 'Borrar datos TikTok de esta sede'}
+                                </button>
+                            )}
+
                             <div style={{ padding: '12px', background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: '8px', color: '#64748b', fontSize: '0.74rem', lineHeight: 1.55 }}>
-                                <b style={{ color: '#334155' }}>Permisos solicitados</b><br />
-                                Leer mensajes directos, leer el tipo de cuenta y enviar o gestionar respuestas. La aprobación ocurre en TikTok; el CRM nunca solicita tu contraseña de TikTok.
+                                <b style={{ color: '#334155' }}>Acceso a mensajes</b><br />
+                                Para leer y responder mensajes directos, TikTok debe conceder a esta app el acceso a Business Messaging. La suscripción del webhook por sí sola no concede acceso al buzón.
                             </div>
                         </div>
                     )}

@@ -68,6 +68,19 @@ async function ensureTables() {
             connected_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
             updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
         );
+
+        CREATE TABLE IF NOT EXISTS tiktok_data_deletion_audit (
+            id BIGSERIAL PRIMARY KEY,
+            tenant_id TEXT NOT NULL,
+            tenant_slug TEXT NOT NULL,
+            actor_id TEXT NOT NULL,
+            status TEXT NOT NULL DEFAULT 'started',
+            deleted_messages INTEGER NOT NULL DEFAULT 0,
+            deleted_conversations INTEGER NOT NULL DEFAULT 0,
+            deleted_chat_histories INTEGER NOT NULL DEFAULT 0,
+            requested_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+            completed_at TIMESTAMPTZ
+        );
     `);
 }
 
@@ -247,9 +260,85 @@ async function getConnectionStatus(tenantId) {
     return rows[0] ? { connected: true, ...rows[0] } : { connected: false };
 }
 
+async function disconnectAndDeleteTenantData({ tenantId, tenantSlug, actorId, tenantDb }) {
+    await ensureTables();
+    if (!tenantDb?.connect) throw new Error('Workspace database is unavailable; TikTok data was not deleted.');
+
+    const { rows: auditRows } = await dbManager.masterPool.query(
+        `INSERT INTO tiktok_data_deletion_audit (tenant_id, tenant_slug, actor_id)
+         VALUES ($1, $2, $3) RETURNING id`,
+        [String(tenantId), tenantSlug, String(actorId)]
+    );
+    const auditId = auditRows[0].id;
+    let deletedMessages = 0;
+    let deletedConversations = 0;
+    let deletedChatHistories = 0;
+
+    try {
+        // Delete the credential mapping first so new webhook events cannot be
+        // associated with the workspace while its TikTok data is being purged.
+        await dbManager.masterPool.query('DELETE FROM tiktok_connections WHERE tenant_id = $1', [String(tenantId)]);
+        await dbManager.masterPool.query('DELETE FROM tiktok_oauth_states WHERE tenant_id = $1', [String(tenantId)]);
+
+        const client = await tenantDb.connect();
+        try {
+            await client.query('BEGIN');
+            const messageResult = await client.query(`
+                DELETE FROM messages
+                WHERE conversation_phone IN (
+                    SELECT phone FROM conversations WHERE left(phone, 7) = 'tiktok_'
+                )
+            `);
+            deletedMessages = messageResult.rowCount || 0;
+
+            const tagTable = await client.query("SELECT to_regclass('public.conversation_tags') AS table_name");
+            if (tagTable.rows[0]?.table_name) {
+                await client.query(`
+                    DELETE FROM conversation_tags
+                    WHERE left(conversation_phone, 7) = 'tiktok_'
+                `);
+            }
+
+            const historyTable = await client.query("SELECT to_regclass('public.n8n_chat_histories') AS table_name");
+            if (historyTable.rows[0]?.table_name) {
+                const historyResult = await client.query(`
+                    DELETE FROM n8n_chat_histories WHERE left(session_id, 7) = 'tiktok_'
+                `);
+                deletedChatHistories = historyResult.rowCount || 0;
+            }
+
+            const conversationResult = await client.query(`
+                DELETE FROM conversations WHERE left(phone, 7) = 'tiktok_'
+            `);
+            deletedConversations = conversationResult.rowCount || 0;
+            await client.query('COMMIT');
+        } catch (error) {
+            await client.query('ROLLBACK');
+            throw error;
+        } finally {
+            client.release();
+        }
+
+        await dbManager.masterPool.query(
+            `UPDATE tiktok_data_deletion_audit
+             SET status = 'completed', deleted_messages = $2, deleted_conversations = $3,
+                 deleted_chat_histories = $4, completed_at = NOW()
+             WHERE id = $1`,
+            [auditId, deletedMessages, deletedConversations, deletedChatHistories]
+        );
+        return { deletedMessages, deletedConversations, deletedChatHistories };
+    } catch (error) {
+        await dbManager.masterPool.query(
+            `UPDATE tiktok_data_deletion_audit SET status = 'failed' WHERE id = $1`, [auditId]
+        ).catch(() => {});
+        throw error;
+    }
+}
+
 module.exports = {
     createAuthorizationUrl,
     completeAuthorization,
     getConnectionStatus,
-    getAccessToken: refreshConnection
+    getAccessToken: refreshConnection,
+    disconnectAndDeleteTenantData
 };

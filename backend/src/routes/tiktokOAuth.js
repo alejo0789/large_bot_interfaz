@@ -46,6 +46,32 @@ router.get('/oauth/status', jwtAuth, async (req, res) => {
     }
 });
 
+router.delete('/oauth/connection', jwtAuth, async (req, res) => {
+    try {
+        if (!['SUPER_ADMIN', 'SEDE_ADMIN', 'LOCAL_ADMIN'].includes(req.user?.role)) {
+            return res.status(403).json({ error: 'Only workspace administrators can disconnect TikTok.' });
+        }
+        if (!req.tenant?.id || !req.tenant?.slug || !req.db) {
+            return res.status(400).json({ error: 'Select a workspace before deleting TikTok data.' });
+        }
+        if (req.user.role !== 'SUPER_ADMIN' && !req.user.tenants?.includes(req.tenant.slug)) {
+            return res.status(403).json({ error: 'You are not authorized to manage TikTok for this workspace.' });
+        }
+
+        const deletion = await tiktokOAuthService.disconnectAndDeleteTenantData({
+            tenantId: req.tenant.id,
+            tenantSlug: req.tenant.slug,
+            actorId: req.user.id,
+            tenantDb: req.db
+        });
+        console.info(`[TikTok Privacy] Workspace disconnected and data deleted: workspace=${req.tenant.slug}, messages=${deletion.deletedMessages}, conversations=${deletion.deletedConversations}, histories=${deletion.deletedChatHistories}.`);
+        return res.json({ success: true, ...deletion });
+    } catch (error) {
+        console.error('[TikTok Privacy] Disconnect/data deletion failed:', error.message);
+        return res.status(500).json({ error: 'No se pudo completar el borrado de datos TikTok. La acción quedó registrada para revisión.' });
+    }
+});
+
 // TikTok redirects here after the account owner grants or denies authorization.
 // This route is public by design; the one-time state value binds it to the tenant
 // and administrator that initiated the flow.
