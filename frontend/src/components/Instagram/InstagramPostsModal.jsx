@@ -151,7 +151,7 @@ const InstagramPostsModal = ({ isOpen, onClose, socket }) => {
                             <strong style={{ color: '#1f2937', fontSize: 13 }}>Publicaciones</strong>
                             <span style={{ color: '#64748b', fontSize: 11 }}>{posts.length}</span>
                         </div>
-                        <div style={{ overflowY: 'auto', display: 'grid', gridTemplateColumns: 'repeat(2, minmax(0, 1fr))', gap: 8 }}>
+                        <div style={{ overflowY: 'auto', display: 'grid', gridTemplateColumns: 'repeat(2, minmax(0, 1fr))', columnGap: 10, rowGap: 16, padding: '2px 3px 14px' }}>
                             {posts.map((post) => (
                                 <button key={post.id} type="button" onClick={() => setSelectedPost(post)} style={{ position: 'relative', border: selectedPost?.id === post.id ? '2px solid #c13584' : '1px solid #e5e7eb', borderRadius: 9, overflow: 'hidden', padding: 0, aspectRatio: '1', background: '#f1f5f9', cursor: 'pointer' }} title={post.caption || 'Abrir publicación'}>
                                     {thumbnail(post) ? <img src={thumbnail(post)} alt="Publicación de Instagram" style={{ width: '100%', height: '100%', objectFit: 'cover' }} /> : <div style={{ height: '100%', display: 'grid', placeItems: 'center', color: '#94a3b8' }}><ImageIcon size={26} /></div>}
