@@ -789,7 +789,7 @@ const AdminPanel = ({ isMobile, onNavigateTab }) => {
                             <div style={{ flex: 1, minWidth: '200px' }}>
                                 <div style={{ fontWeight: 600, fontSize: '14px', color: '#374151', marginBottom: '8px' }}>Limpieza de Volumen (Archivos Antiguos)</div>
                                 <div style={{ fontSize: '12px', color: '#6b7280', marginBottom: '12px' }}>
-                                    Libera espacio en Railway eliminando multimedia. Configura los parámetros:
+                                    Libera espacio en Railway eliminando multimedia antigua. Las imágenes asociadas a plantillas de Meta se conservan automáticamente.
                                 </div>
                                 <div style={{ display: 'flex', gap: '16px', flexWrap: 'wrap' }}>
                                     <label style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '13px', color: '#4b5563' }}>
@@ -850,7 +850,7 @@ const AdminPanel = ({ isMobile, onNavigateTab }) => {
                                 </button>
                                 {cleanupResult && (
                                     <div style={{ fontSize: '12px', background: '#f0f9ff', padding: '6px 10px', borderRadius: '8px', border: '1px solid #bae6fd', color: '#0369a1' }}>
-                                        <strong>Última:</strong> {cleanupResult.deletedFiles} borrados ({cleanupResult.recoveredMB} MB)
+                                        <strong>Última:</strong> {cleanupResult.deletedFiles} borrados ({cleanupResult.recoveredMB} MB), {cleanupResult.protectedTemplateFiles || 0} imágenes de plantillas protegidas
                                     </div>
                                 )}
                             </div>

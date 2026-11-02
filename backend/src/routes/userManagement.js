@@ -730,6 +730,7 @@ router.post('/cleanup-media', asyncHandler(async (req, res) => {
     const fs = require('fs');
     const path = require('path');
     const { config } = require('../config/app');
+    const { dbManager } = require('../config/database');
 
     // Extract options from body or use defaults
     const { daysToKeep = 30, types = ['image', 'audio', 'video', 'document'] } = req.body;
@@ -741,9 +742,51 @@ router.post('/cleanup-media', asyncHandler(async (req, res) => {
     const THRESHOLD_MS = parseInt(daysToKeep) * 24 * 60 * 60 * 1000;
     const NOW = Date.now();
     const TARGET_DIR = config.uploadDir;
-
     if (!fs.existsSync(TARGET_DIR)) {
         return res.status(404).json({ success: false, error: 'Directorio de uploads no encontrado' });
+    }
+
+    // Preserve local uploads referenced by Meta template headers. These files
+    // are stored in tenant folders and tracked in each tenant database.
+    const protectedTemplateFiles = new Set();
+    const { rows: tenants } = await dbManager.masterPool.query(
+        "SELECT id, db_url FROM tenants WHERE db_url IS NOT NULL AND btrim(db_url) <> ''"
+    );
+    for (const tenant of tenants) {
+        const tenantDb = await dbManager.getPool(String(tenant.id), tenant.db_url);
+        let mediaRows;
+        try {
+            const result = await tenantDb.query('SELECT media_url FROM official_templates_media WHERE media_url IS NOT NULL');
+            mediaRows = result.rows;
+        } catch (error) {
+            // The table is created on demand; its absence means no local
+            // template media is registered. Other DB errors stop cleanup.
+            if (error.code === '42P01') continue;
+            throw new AppError('No se pudieron verificar las imágenes de plantillas de una sede; se canceló la limpieza por seguridad.', 503);
+        }
+
+        for (const row of mediaRows) {
+            if (typeof row.media_url !== 'string') continue;
+            let pathname;
+            try {
+                pathname = new URL(row.media_url, 'https://local.invalid').pathname;
+            } catch (_) {
+                continue;
+            }
+            const uploadsMarker = '/uploads/';
+            const markerIndex = pathname.indexOf(uploadsMarker);
+            if (markerIndex < 0) continue;
+            let relativePath;
+            try {
+                relativePath = decodeURIComponent(pathname.slice(markerIndex + uploadsMarker.length));
+            } catch (_) {
+                continue;
+            }
+            const filePath = path.resolve(TARGET_DIR, relativePath);
+            const relativeToRoot = path.relative(TARGET_DIR, filePath);
+            if (!relativeToRoot || relativeToRoot.startsWith('..') || path.isAbsolute(relativeToRoot)) continue;
+            protectedTemplateFiles.add(filePath);
+        }
     }
 
     // Helper to map type to extensions
@@ -765,6 +808,7 @@ router.post('/cleanup-media', asyncHandler(async (req, res) => {
     let deletedFilesCount = 0;
     let deletedBytesCount = 0;
     let scannedFilesCount = 0;
+    let protectedTemplateFilesCount = 0;
 
     function cleanupDir(dirPath) {
         const items = fs.readdirSync(dirPath);
@@ -792,6 +836,10 @@ router.post('/cleanup-media', asyncHandler(async (req, res) => {
                 const ageMs = NOW - stats.mtimeMs;
                 
                 if (ageMs > THRESHOLD_MS) {
+                    if (protectedTemplateFiles.has(path.resolve(fullPath))) {
+                        protectedTemplateFilesCount++;
+                        return;
+                    }
                     const ext = path.extname(item).toLowerCase();
                     // Si seleccionaron tipos y la extensión no coincide con los elegidos, la omitimos
                     // Si allowedExts está vacío (no pasaron nada o pasaron un tipo raro), borramos todo (legacy fallback)
@@ -822,7 +870,8 @@ router.post('/cleanup-media', asyncHandler(async (req, res) => {
             stats: {
                 scannedFiles: scannedFilesCount,
                 deletedFiles: deletedFilesCount,
-                recoveredMB: totalMB
+                recoveredMB: totalMB,
+                protectedTemplateFiles: protectedTemplateFilesCount
             }
         });
     } catch (err) {
