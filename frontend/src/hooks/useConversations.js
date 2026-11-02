@@ -882,6 +882,13 @@ export const useConversations = (socket) => {
             console.log('📋 Conversation list update received:', data);
             const cleanPhone = String(data.phone).replace(/\D/g, '');
 
+            if (data.contact_name) {
+                setSelectedConversation(prev => {
+                    if (!prev?.contact || String(prev.contact.phone).replace(/\D/g, '') !== cleanPhone) return prev;
+                    return { ...prev, contact: { ...prev.contact, name: data.contact_name } };
+                });
+            }
+
             setConversations(prev => {
                 const currentConversations = [...prev];
                 const index = currentConversations.findIndex(conv =>
