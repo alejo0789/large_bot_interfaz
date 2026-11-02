@@ -16,6 +16,7 @@ import SedeSelector from './components/Navigation/SedeSelector';
 import ConversationList from './components/Sidebar/ConversationList';
 import TagFilter from './components/Sidebar/TagFilter';
 import ChannelSelector from './components/Sidebar/ChannelSelector';
+import InstagramPostsModal from './components/Instagram/InstagramPostsModal';
 import ChatHeader from './components/Chat/ChatHeader';
 import MessageList from './components/Chat/MessageList';
 import MessageInput from './components/Chat/MessageInput';
@@ -116,6 +117,7 @@ const AuthenticatedApp = () => {
     const [showBulkMessage, setShowBulkMessage] = useState(false);
     const [showN8NTest, setShowN8NTest] = useState(false);
     const [showSettings, setShowSettings] = useState(false);
+    const [showInstagramPosts, setShowInstagramPosts] = useState(false);
     const [verifyingMessageIds, setVerifyingMessageIds] = useState({});
     const [verificationResult, setVerificationResult] = useState(null);
     const [showScheduleModal, setShowScheduleModal] = useState(false);
@@ -1305,6 +1307,7 @@ const AuthenticatedApp = () => {
                         <ChannelSelector
                             selectedChannel={selectedChannel}
                             onSelectChannel={setSelectedChannel}
+                            onOpenInstagramPosts={() => setShowInstagramPosts(true)}
                         />
                     </div>
 
@@ -1699,6 +1702,12 @@ const AuthenticatedApp = () => {
             <SettingsModal
                 isOpen={showSettings}
                 onClose={() => setShowSettings(false)}
+            />
+
+            <InstagramPostsModal
+                isOpen={showInstagramPosts}
+                onClose={() => setShowInstagramPosts(false)}
+                socket={socket}
             />
 
             <Celebration 

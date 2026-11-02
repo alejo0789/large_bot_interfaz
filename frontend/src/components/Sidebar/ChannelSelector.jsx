@@ -1,5 +1,5 @@
 import React from 'react';
-import { MessageSquare, MessageCircle, Instagram } from 'lucide-react';
+import { MessageSquare, MessageCircle, Instagram, Image as ImageIcon } from 'lucide-react';
 
 const TikTokIcon = ({ className, style }) => (
     <svg 
@@ -12,7 +12,7 @@ const TikTokIcon = ({ className, style }) => (
     </svg>
 );
 
-const ChannelSelector = ({ selectedChannel, onSelectChannel }) => {
+const ChannelSelector = ({ selectedChannel, onSelectChannel, onOpenInstagramPosts }) => {
     const channels = [
         { id: 'all', name: 'Todos', icon: <MessageSquare className="w-4 h-4" />, color: '#11ab9c' },
         { id: 'whatsapp_evolution', name: 'WhatsApp', icon: <MessageCircle className="w-4 h-4" />, color: '#25d366' },
@@ -24,12 +24,10 @@ const ChannelSelector = ({ selectedChannel, onSelectChannel }) => {
     return (
         <div style={{
             display: 'flex',
-            gap: '8px',
-            overflowX: 'auto',
+            flexDirection: 'column',
+            gap: '6px',
             padding: '4px 4px 12px 4px',
-            scrollbarWidth: 'none',
-            msOverflowStyle: 'none',
-        }} className="channel-selector-scrollbar-hide">
+        }}>
             <style>{`
                 .channel-selector-scrollbar-hide::-webkit-scrollbar {
                     display: none;
@@ -40,8 +38,12 @@ const ChannelSelector = ({ selectedChannel, onSelectChannel }) => {
                     display: 'flex',
                     gap: '8px',
                     width: '100%',
-                    paddingBottom: '2px'
+                    paddingBottom: '2px',
+                    overflowX: 'auto',
+                    scrollbarWidth: 'none',
+                    msOverflowStyle: 'none'
                 }}
+                className="channel-selector-scrollbar-hide"
             >
                 {channels.map(ch => {
                     const isSelected = selectedChannel === ch.id;
@@ -91,6 +93,30 @@ const ChannelSelector = ({ selectedChannel, onSelectChannel }) => {
                     );
                 })}
             </div>
+            {selectedChannel === 'instagram' && (
+                <button
+                    type="button"
+                    onClick={onOpenInstagramPosts}
+                    style={{
+                        display: 'inline-flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        gap: 7,
+                        alignSelf: 'flex-start',
+                        padding: '7px 13px',
+                        border: '1px solid #f3c4d4',
+                        borderRadius: 18,
+                        background: '#fff7fa',
+                        color: '#c13565',
+                        fontSize: 11,
+                        fontWeight: 700,
+                        cursor: 'pointer'
+                    }}
+                >
+                    <ImageIcon className="w-4 h-4" />
+                    Posts
+                </button>
+            )}
         </div>
     );
 };

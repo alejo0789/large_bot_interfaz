@@ -83,6 +83,61 @@ router.post('/oauth/subscribe-webhooks', jwtAuth, async (req, res) => {
     }
 });
 
+router.get('/posts', jwtAuth, async (req, res) => {
+    if (!req.tenant?.id) return res.status(400).json({ error: 'Selecciona una sede.' });
+    try {
+        res.json(await instagramService.getPostsForTenant(req.tenant.id, {
+            limit: req.query.limit,
+            after: req.query.after
+        }));
+    } catch (error) {
+        console.error('[Instagram Posts] Could not load posts:', error.message);
+        res.status(502).json({ error: `No se pudieron cargar las publicaciones: ${error.message}` });
+    }
+});
+
+router.get('/posts/:mediaId/comments', jwtAuth, async (req, res) => {
+    if (!req.tenant?.id) return res.status(400).json({ error: 'Selecciona una sede.' });
+    if (!/^[A-Za-z0-9_-]{1,128}$/.test(req.params.mediaId)) return res.status(400).json({ error: 'ID de publicación inválido.' });
+    try {
+        res.json(await instagramService.getPostCommentsForTenant(req.tenant.id, req.params.mediaId, {
+            limit: req.query.limit,
+            after: req.query.after
+        }));
+    } catch (error) {
+        console.error(`[Instagram Posts] Could not load comments for media ${req.params.mediaId}:`, error.message);
+        res.status(502).json({ error: `No se pudieron cargar los comentarios: ${error.message}` });
+    }
+});
+
+router.get('/comments/:commentId/replies', jwtAuth, async (req, res) => {
+    if (!req.tenant?.id) return res.status(400).json({ error: 'Selecciona una sede.' });
+    if (!/^[A-Za-z0-9_-]{1,128}$/.test(req.params.commentId)) return res.status(400).json({ error: 'ID de comentario inválido.' });
+    try {
+        res.json(await instagramService.getCommentRepliesForTenant(req.tenant.id, req.params.commentId, {
+            limit: req.query.limit,
+            after: req.query.after
+        }));
+    } catch (error) {
+        console.error(`[Instagram Posts] Could not load replies for comment ${req.params.commentId}:`, error.message);
+        res.status(502).json({ error: `No se pudieron cargar las respuestas: ${error.message}` });
+    }
+});
+
+router.post('/comments/:commentId/replies', jwtAuth, async (req, res) => {
+    if (!req.tenant?.id) return res.status(400).json({ error: 'Selecciona una sede.' });
+    if (!/^[A-Za-z0-9_-]{1,128}$/.test(req.params.commentId)) return res.status(400).json({ error: 'ID de comentario inválido.' });
+    const message = typeof req.body?.message === 'string' ? req.body.message.trim() : '';
+    if (!message || message.length > 1000) return res.status(400).json({ error: 'La respuesta debe tener entre 1 y 1000 caracteres.' });
+    try {
+        const result = await instagramService.replyToCommentForTenant(req.tenant.id, req.params.commentId, message);
+        res.json({ success: true, ...result });
+    } catch (error) {
+        console.error(`[Instagram Posts] Could not reply to comment ${req.params.commentId}:`, error.message);
+        res.status(502).json({ error: `No se pudo responder el comentario: ${error.message}` });
+    }
+});
+
 router.get('/oauth/callback', async (req, res) => {
     if (req.query.error || req.query.error_description) return res.status(400).type('html').send(popup(false, 'Meta canceló o rechazó la autorización.'));
     if (typeof req.query.code !== 'string' || typeof req.query.state !== 'string') return res.status(400).type('html').send(popup(false, 'La respuesta de Meta llegó incompleta. Inicia la conexión de nuevo desde el CRM.'));
@@ -135,6 +190,22 @@ webhookRouter.post('/', async (req, res) => {
             const db = await dbManager.getPool(tenant.id, tenant.db_url);
             await tenantContext.run({ tenant, db }, async () => {
                 console.info(`[Instagram Webhook] Matched workspace=${tenant.slug} account.id=${accountId} messaging_events=${events.length}.`);
+                const io = req.app.get('io');
+                for (const change of entry.changes || []) {
+                    if (!['comments', 'live_comments'].includes(change.field)) continue;
+                    const value = change.value || {};
+                    if (io) {
+                        io.to(`tenant:${tenant.slug}`).emit('instagram-comment-updated', {
+                            field: change.field,
+                            media_id: value.media?.id || value.media_id || null,
+                            comment_id: value.id || value.comment_id || null,
+                            text: value.text || null,
+                            username: value.from?.username || value.username || null,
+                            verb: value.verb || 'add',
+                            timestamp: value.created_time || entry.time || Date.now()
+                        });
+                    }
+                }
                 for (const event of events) {
                     const incoming = event.message;
                     const senderId = event.sender?.id;
@@ -171,7 +242,6 @@ webhookRouter.post('/', async (req, res) => {
                     await conversationService.updateLastMessage(phone, text, false);
                     await conversationService.incrementUnread(phone);
                     console.info(`[Instagram Webhook] Stored incoming message for workspace=${tenant.slug}.`);
-                    const io = req.app.get('io');
                     if (io) {
                     const data = { whatsapp_id: providerId, phone, message: text, sender: 'user', sender_type: 'user', timestamp: new Date().toISOString(), contact_name: profileName, sender_name: profileName, unread: 1 };
                         io.to(`tenant:${tenant.slug}:conversation:${getPureDigits(phone)}`).emit('new-message', data);
