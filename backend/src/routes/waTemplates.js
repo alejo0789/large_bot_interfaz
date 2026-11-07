@@ -14,6 +14,7 @@ const fetch = (...args) => import('node-fetch').then(({ default: f }) => f(...ar
 
 const messageService = require('../services/messageService');
 const conversationService = require('../services/conversationService');
+const instagramService = require('../services/instagramService');
 
 const GRAPH_VERSION = process.env.WHATSAPP_GRAPH_API_VERSION || 'v22.0';
 
@@ -332,6 +333,75 @@ router.post('/bulk-send', asyncHandler(async (req, res) => {
 
         await Promise.all(batch.map(async (contact) => {
             const rawPhone = String(contact.phone || '').trim();
+            if (rawPhone.startsWith('instagram_')) {
+                try {
+                    const instagramPhone = normalizePhone(rawPhone);
+                    const varEntries = Object.entries(variables);
+                    let textRepresentation = templateText || `📋 [Plantilla: ${templateName}]`;
+                    for (const [key, value] of varEntries) {
+                        const isNameVar = ['nombre', 'name', 'contacto'].includes(key.toLowerCase());
+                        const replacement = (isNameVar && contact.name) ? contact.name : value;
+                        textRepresentation = textRepresentation.replace(new RegExp(`\\{\\{${key}\\}\\}`, 'g'), replacement || `{{${key}}}`);
+                    }
+
+                    const textResult = await instagramService.sendMessage(instagramPhone, textRepresentation);
+                    let imageSent = false;
+                    let imageMessageId = null;
+                    if (headerImageUrl) {
+                        try {
+                            const imageResult = await instagramService.sendImage(instagramPhone, headerImageUrl);
+                            imageSent = Boolean(imageResult.success);
+                            imageMessageId = imageResult.messageId || null;
+                        } catch (imageError) {
+                            console.warn(`[WA Template → Instagram] Text sent; image skipped for ${instagramPhone}: ${imageError.message}`);
+                        }
+                    }
+
+                    sent++;
+                    successPhones.push({ phone: instagramPhone, name: contact.name || '' });
+                    const contactName = contact.name || 'Contacto de Instagram';
+                    await conversationService.upsert(instagramPhone, contactName, 'instagram');
+                    const savedMsg = await messageService.create({
+                        phone: instagramPhone,
+                        sender: 'agent',
+                        text: textRepresentation,
+                        status: 'sent',
+                        whatsappId: textResult.messageId || imageMessageId,
+                        timestamp: new Date().toISOString(),
+                        mediaType: imageSent ? 'image' : null,
+                        mediaUrl: imageSent ? headerImageUrl : null
+                    });
+                    await conversationService.updateLastMessage(instagramPhone, textRepresentation, true);
+                    const io = req.app?.get('io');
+                    if (io && tenantSlug) {
+                        io.to(`tenant:${tenantSlug}:conversations:list`).emit('conversation-updated', {
+                            phone: instagramPhone,
+                            lastMessage: textRepresentation,
+                            timestamp: new Date().toISOString(),
+                            contact_name: contactName,
+                            unread: 0,
+                            sender_type: 'agent'
+                        });
+                        io.to(`tenant:${tenantSlug}:conversation:${instagramPhone}`).emit('new-message', {
+                            id: savedMsg.id,
+                            phone: instagramPhone,
+                            contact_name: contactName,
+                            message: textRepresentation,
+                            whatsapp_id: textResult.messageId || imageMessageId,
+                            sender_type: 'agent',
+                            sender_name: 'Sistema',
+                            unread: 0,
+                            timestamp: new Date().toISOString(),
+                            media_type: imageSent ? 'image' : null,
+                            media_url: imageSent ? headerImageUrl : null
+                        });
+                    }
+                } catch (err) {
+                    failed++;
+                    errors.push({ phone: rawPhone, error: err.message });
+                }
+                return;
+            }
             const isMetaUserId = /^[A-Za-z]{2}\.[0-9]+$/.test(rawPhone);
             const phoneDigits = rawPhone.replace(/\D/g, '');
             const isPhoneNumber = /^[+\d\s().-]+$/.test(rawPhone)

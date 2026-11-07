@@ -435,6 +435,21 @@ async function sendMessage(phone, text) {
     return { success: true, messageId: data.message_id || null, recipientId: data.recipient_id || match[1], data };
 }
 
+async function sendImage(phone, imageUrl) {
+    const match = /^instagram_(.+)$/.exec(String(phone));
+    if (!match || !imageUrl) throw new Error('Instagram conversation or image is invalid.');
+    const { tenantContext } = require('../utils/tenantContext');
+    const tenant = tenantContext.getStore()?.tenant;
+    if (!tenant?.id) throw new Error('Workspace context is missing.');
+    const connection = await getConnectionForTenant(tenant.id);
+    const { data } = await axios.post(`${GRAPH_BASE}/${connection.instagram_user_id}/messages`, {
+        recipient: { id: match[1] },
+        message: { attachment: { type: 'image', payload: { url: imageUrl, is_reusable: false } } }
+    }, { params: { access_token: connection.accessToken }, timeout: 20000 });
+    if (data.error) throw new Error(data.error.message || 'Instagram image could not be sent');
+    return { success: true, messageId: data.message_id || null, recipientId: data.recipient_id || match[1], data };
+}
+
 function verifyWebhookSignature(rawBody, signature) {
     if (!rawBody || !signature || !process.env.META_APP_SECRET) return false;
     const expected = `sha256=${crypto.createHmac('sha256', process.env.META_APP_SECRET).update(rawBody).digest('hex')}`;
@@ -443,4 +458,4 @@ function verifyWebhookSignature(rawBody, signature) {
     return a.length === b.length && crypto.timingSafeEqual(a, b);
 }
 
-module.exports = { createAuthorizationUrl, completeAuthorization, getConnectionStatus, getConnectionByInstagramId, inspectAccountIdForTenant, subscribeWebhooksForTenant, getPostsForTenant, getPostCommentsForTenant, getCommentRepliesForTenant, replyToCommentForTenant, getMessageSenderProfile, sendMessage, verifyWebhookSignature };
+module.exports = { createAuthorizationUrl, completeAuthorization, getConnectionStatus, getConnectionByInstagramId, inspectAccountIdForTenant, subscribeWebhooksForTenant, getPostsForTenant, getPostCommentsForTenant, getCommentRepliesForTenant, replyToCommentForTenant, getMessageSenderProfile, sendMessage, sendImage, verifyWebhookSignature };
