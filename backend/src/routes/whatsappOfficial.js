@@ -286,7 +286,7 @@ router.post('/', async (req, res) => {
             const shouldActivateAI = conversation.ai_enabled !== false;
 
             // ── Save message to database ──
-            await messageService.create({
+            const savedMessage = await messageService.create({
                 phone: dbPhone,
                 sender: 'user',
                 text: messageText,
@@ -309,7 +309,7 @@ router.post('/', async (req, res) => {
             } catch (_) {}
 
             // ── Update conversation counters ──
-            await conversationService.updateLastMessage(dbPhone, messageText);
+            await conversationService.updateLastMessage(dbPhone, messageText, false, savedMessage.timestamp);
             await conversationService.incrementUnread(dbPhone);
 
             // ── Forward to n8n for AI processing if enabled ──

@@ -3,6 +3,7 @@
  * Handles incoming messages from Evolution API
  */
 const express = require('express');
+const { parseMessageTimestamp } = require('../utils/messageTimestamp');
 const router = express.Router();
 const messageService = require('../services/messageService');
 const conversationService = require('../services/conversationService');
@@ -558,6 +559,7 @@ router.post('/', async (req, res) => {
                 mediaType: mediaType,
                 mediaUrl: mediaUrl,
                 senderName: cleanSenderName,
+                timestamp: parseMessageTimestamp(msg.messageTimestamp)?.toISOString() || null,
                 replyToId: replyToData?.id,
                 replyToText: replyToData?.text,
                 replyToSender: replyToData?.sender
@@ -573,7 +575,7 @@ router.post('/', async (req, res) => {
                 mediaType === 'video' ? '🎥 Video' :
                     mediaType === 'audio' ? '🎵 Audio' : '📎 Archivo'
         );
-        await conversationService.updateLastMessage(phone, previewText, isFromAgent);
+        await conversationService.updateLastMessage(phone, previewText, isFromAgent, dbMessage.timestamp);
 
         if (!isFromAgent) {
             await conversationService.incrementUnread(phone);
@@ -593,7 +595,7 @@ router.post('/', async (req, res) => {
             sender_name: cleanSenderName,
             agent_name: isFromAgent ? ((!looksLikeLid(msg.pushName) ? msg.pushName : null) || 'Agente') : null,
             unread: isFromAgent ? 0 : 1,
-            timestamp: new Date().toISOString(),
+            timestamp: dbMessage.timestamp,
             conversation_state: currentState,
             ai_enabled: shouldActivateAI,
             media_type: mediaType,
@@ -954,20 +956,20 @@ async function processBatchMessages(messages) {
 
 
             // Save message
-            await messageService.create({
+            const savedMessage = await messageService.create({
                 phone: phone,
                 sender: senderType,
                 text: text || (msg.message?.imageMessage ? '📷 Imagen' : '📎 Archivo'),
                 whatsappId: msg.key.id,
                 senderName: msg.pushName || (isFromAgent ? 'Tú' : 'Cliente'),
-                timestamp: msg.messageTimestamp ? new Date(msg.messageTimestamp * 1000).toISOString() : null,
+                timestamp: parseMessageTimestamp(msg.messageTimestamp)?.toISOString() || null,
                 replyToId: batchReplyToData?.id,
                 replyToText: batchReplyToData?.text,
                 replyToSender: batchReplyToData?.sender
             });
 
             // Update last message (only if it's the newest)
-            await conversationService.updateLastMessage(phone, text || 'Archivo', isFromAgent);
+            await conversationService.updateLastMessage(phone, text || 'Archivo', isFromAgent, savedMessage.timestamp);
         } catch (err) {
             // Silently fail individual messages in batch
         }

@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import apiFetch from '../utils/api';
+import { formatTime } from '../utils/dateUtils';
 
 const sortConversations = (conversations) => {
     if (!conversations || conversations.length <= 1) return conversations;
@@ -378,10 +379,7 @@ export const useConversations = (socket) => {
             text: message,
             sender: 'agent', // Always 'agent' so it appears on the right
             agent_name: agentName, // Display name
-            timestamp: new Date().toLocaleTimeString('es-CO', {
-                hour: '2-digit',
-                minute: '2-digit'
-            }),
+            timestamp: formatTime(new Date()),
             rawTimestamp: new Date().toISOString(),
             status: 'sending',
             replyTo: options.replyToFull || (replyTo ? { id: replyTo } : null)
@@ -485,10 +483,7 @@ export const useConversations = (socket) => {
             text: caption || '',
             media_url: localBlobUrl,
             media_type,
-            timestamp: new Date().toLocaleTimeString('es-CO', {
-                hour: '2-digit',
-                minute: '2-digit'
-            }),
+            timestamp: formatTime(new Date()),
             rawTimestamp: new Date().toISOString(),  // needed for socket duplicate detection
             reactions: [],        // explicitly empty array to prevent map errors
             _isOptimistic: true,  // flag to identify and replace later
@@ -571,10 +566,7 @@ export const useConversations = (socket) => {
                                 media_type === 'video' ? '🎥 Video' :
                                     media_type === 'audio' ? '🎵 Audio' : `📎 ${file.name}`
                         ),
-                        timestamp: new Date().toLocaleTimeString('es-CO', {
-                            hour: '2-digit',
-                            minute: '2-digit'
-                        }),
+                        timestamp: formatTime(new Date()),
                         rawTimestamp: new Date().toISOString(),
                         // Clear SLA tracking when agent sends a file
                         leadTime: null,
@@ -721,10 +713,7 @@ export const useConversations = (socket) => {
                 id: messageData.whatsapp_id || messageData.id || Date.now(),
                 text: messageData.message || messageData.text,
                 sender: senderType,
-                timestamp: new Date(messageData.timestamp).toLocaleTimeString('es-CO', {
-                    hour: '2-digit',
-                    minute: '2-digit'
-                }),
+                timestamp: formatTime(messageData.timestamp),
                 rawTimestamp: messageData.timestamp || new Date().toISOString(),
                 status: 'delivered',
                 // Media support
@@ -840,12 +829,13 @@ export const useConversations = (socket) => {
                 if (index !== -1) {
                     const targetConv = prev[index];
                     if (!targetConv || !targetConv.contact) return prev;
+                    const isOlder = new Date(formattedMessage.rawTimestamp) < new Date(targetConv.rawTimestamp);
  
                     const updatedConv = {
                         ...targetConv,
-                        lastMessage: formattedMessage.text || targetConv.lastMessage,
-                        timestamp: formattedMessage.timestamp,
-                        rawTimestamp: formattedMessage.rawTimestamp,
+                        lastMessage: isOlder ? targetConv.lastMessage : (formattedMessage.text || targetConv.lastMessage),
+                        timestamp: isOlder ? targetConv.timestamp : formattedMessage.timestamp,
+                        rawTimestamp: isOlder ? targetConv.rawTimestamp : formattedMessage.rawTimestamp,
                         unread: (selectedId === cleanIncomingPhone || isAgent)
                             ? 0
                             : (targetConv.unread || 0) + 1
@@ -895,10 +885,7 @@ export const useConversations = (socket) => {
                     conv && conv.contact && String(conv.contact.phone).replace(/\D/g, '') === cleanPhone
                 );
 
-                const timestamp = new Date(data.timestamp).toLocaleTimeString('es-CO', {
-                    hour: '2-digit',
-                    minute: '2-digit'
-                });
+                const timestamp = formatTime(data.timestamp);
 
                 if (index === -1) {
                     // New conversation!
@@ -919,15 +906,16 @@ export const useConversations = (socket) => {
 
                 // Update existing
                 const targetConv = currentConversations[index];
+                const isOlder = new Date(data.timestamp) < new Date(targetConv.rawTimestamp);
                 const updatedConv = {
                     ...targetConv,
                     contact: targetConv.contact ? {
                         ...targetConv.contact,
                         name: data.contact_name || targetConv.contact.name
                     } : targetConv.contact,
-                    lastMessage: data.lastMessage || targetConv.lastMessage,
-                    timestamp: timestamp,
-                    rawTimestamp: data.timestamp,
+                    lastMessage: isOlder ? targetConv.lastMessage : (data.lastMessage || targetConv.lastMessage),
+                    timestamp: isOlder ? targetConv.timestamp : timestamp,
+                    rawTimestamp: isOlder ? targetConv.rawTimestamp : data.timestamp,
                     unread: (selectedId === cleanPhone) ? 0 : (data.unread !== undefined ? data.unread : (data.unreadCount ?? targetConv.unread))
                 };
 

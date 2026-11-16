@@ -8,6 +8,7 @@ const { dbManager } = require('../config/database');
 const { tenantContext } = require('../utils/tenantContext');
 const { normalizePhone, getPureDigits } = require('../utils/phoneUtils');
 const { config } = require('../config/app');
+const { getIncomingMessageParts } = require('../utils/instagramMessages');
 
 const router = express.Router();
 const webhookRouter = express.Router();
@@ -215,8 +216,13 @@ webhookRouter.post('/', async (req, res) => {
                     }
                     const phone = normalizePhone(`instagram_${senderId}`);
                     const providerId = incoming.mid || `ig_${Date.now()}_${senderId}`;
-                    const existing = await db.query('SELECT 1 FROM messages WHERE whatsapp_id=$1 LIMIT 1', [providerId]);
-                    if (existing.rows.length) {
+                    const parts = getIncomingMessageParts(incoming, providerId);
+                    const pendingParts = [];
+                    for (const part of parts) {
+                        const existing = await db.query('SELECT 1 FROM messages WHERE whatsapp_id=$1 LIMIT 1', [part.whatsappId]);
+                        if (!existing.rows.length) pendingParts.push(part);
+                    }
+                    if (!pendingParts.length) {
                         console.info(`[Instagram Webhook] Duplicate message ignored for workspace=${tenant.slug}.`);
                         continue;
                     }
@@ -237,15 +243,30 @@ webhookRouter.post('/', async (req, res) => {
                     }
                     profileName = profileName || currentContactName || `Instagram ${senderId}`;
                     await conversationService.upsert(phone, profileName, 'instagram');
-                    const text = incoming.text || (incoming.attachments?.length ? `[Adjunto de Instagram: ${incoming.attachments.map((a) => a.type || 'archivo').join(', ')}]` : '[Mensaje de Instagram]');
-                    await messageService.create({ phone, sender: 'contact', text, whatsappId: providerId, status: 'delivered', timestamp: event.timestamp ? new Date(Number(event.timestamp)) : null, senderName: profileName });
-                    await conversationService.updateLastMessage(phone, text, false);
+                    for (const part of pendingParts) {
+                        const savedMessage = await messageService.create({
+                            phone, sender: 'contact', ...part, status: 'delivered',
+                            timestamp: event.timestamp ? new Date(Number(event.timestamp)) : null,
+                            senderName: profileName
+                        });
+                        if (io) {
+                            const data = {
+                                id: savedMessage.id, whatsapp_id: part.whatsappId, phone,
+                                message: part.text, media_type: part.mediaType, media_url: part.mediaUrl,
+                                sender: 'user', sender_type: 'user', status: 'delivered',
+                                timestamp: savedMessage.timestamp, contact_name: profileName,
+                                sender_name: profileName, unread: 1
+                            };
+                            io.to(`tenant:${tenant.slug}:conversation:${getPureDigits(phone)}`).emit('new-message', data);
+                        }
+                    }
+                    const lastPart = parts[parts.length - 1];
+                    const text = lastPart.text || `[Adjunto de Instagram: ${lastPart.mediaType || 'archivo'}]`;
+                    await conversationService.updateLastMessage(phone, text, false, event.timestamp ? new Date(Number(event.timestamp)).toISOString() : null);
                     await conversationService.incrementUnread(phone);
                     console.info(`[Instagram Webhook] Stored incoming message for workspace=${tenant.slug}.`);
                     if (io) {
-                    const data = { whatsapp_id: providerId, phone, message: text, sender: 'user', sender_type: 'user', timestamp: new Date().toISOString(), contact_name: profileName, sender_name: profileName, unread: 1 };
-                        io.to(`tenant:${tenant.slug}:conversation:${getPureDigits(phone)}`).emit('new-message', data);
-                        io.to(`tenant:${tenant.slug}:conversations:list`).emit('conversation-updated', { phone, lastMessage: text, timestamp: data.timestamp, contact_name: profileName, unread: 1, sender_type: 'contact' });
+                        io.to(`tenant:${tenant.slug}:conversations:list`).emit('conversation-updated', { phone, lastMessage: text, timestamp: event.timestamp ? new Date(Number(event.timestamp)).toISOString() : new Date().toISOString(), contact_name: profileName, unread: 1, sender_type: 'contact' });
                     }
                 }
             });

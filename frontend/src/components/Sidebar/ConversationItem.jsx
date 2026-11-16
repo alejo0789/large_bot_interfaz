@@ -2,7 +2,7 @@ import React, { useState, useRef, useEffect } from 'react';
 import { createPortal } from 'react-dom';
 import { User, Bot, UserCheck, Tag, MoreVertical, Edit2, Trash2, Pin, CheckSquare, MessageCircle, Instagram } from 'lucide-react';
 import EditContactModal from './EditContactModal';
-import { getShortDate } from '../../utils/dateUtils';
+import { getShortDate, formatTime } from '../../utils/dateUtils';
 import apiFetch from '../../utils/api';
 
 const TikTokIcon = ({ className, style }) => (
@@ -548,7 +548,7 @@ const ConversationItem = React.memo(({
                                 fontWeight: hasUnread ? 600 : undefined,
                                 lineHeight: '1.2'
                             }}>
-                                {timestamp}
+                                {rawTimestamp ? formatTime(rawTimestamp) : timestamp}
                             </span>
                             {shortDate && (
                                 <span style={{

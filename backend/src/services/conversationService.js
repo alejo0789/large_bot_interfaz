@@ -156,12 +156,12 @@ class ConversationService {
                 ? new Date(conv.last_message_timestamp).toLocaleTimeString('es-CO', {
                     hour: '2-digit',
                     minute: '2-digit',
-                    timeZone: 'America/Bogota'
+                    timeZone: 'America/Bogota', hour12: false
                 })
                 : new Date(conv.created_at).toLocaleTimeString('es-CO', {
                     hour: '2-digit',
                     minute: '2-digit',
-                    timeZone: 'America/Bogota'
+                    timeZone: 'America/Bogota', hour12: false
                 }),
             rawTimestamp: conv.last_message_timestamp || conv.created_at,
             unread: conv.unread_count || 0,
@@ -277,17 +277,18 @@ class ConversationService {
     /**
      * Update last message
      */
-    async updateLastMessage(phone, message, isFromMe = false) {
+    async updateLastMessage(phone, message, isFromMe = false, timestamp = null) {
         await pool.query(`
             UPDATE conversations 
             SET 
                 last_message_text = $1,
-                last_message_timestamp = NOW(),
+                last_message_timestamp = COALESCE($4::timestamptz, NOW()),
                 last_message_from_me = $2,
                 lead_time = CASE WHEN $2 = true THEN NULL ELSE lead_time END,
                 updated_at = NOW()
             WHERE phone = $3
-        `, [message, isFromMe, phone]);
+              AND (last_message_timestamp IS NULL OR last_message_timestamp <= COALESCE($4::timestamptz, NOW()))
+        `, [message, isFromMe, phone, timestamp]);
     }
 
     /**
