@@ -4,6 +4,7 @@
  * OPTIMIZED FOR HIGH VOLUME with pagination
  */
 const { pool } = require('../config/database');
+const { parseMessageTimestamp } = require('../utils/messageTimestamp');
 
 // Default pagination settings
 const DEFAULT_MESSAGE_LIMIT = 50;
@@ -78,32 +79,8 @@ class MessageService {
         }
 
         const messages = rows.map(msg => {
-            // Parse timestamp - PostgreSQL returns Date object or string like "2025-12-14 23:28:07.035675+00"
-            let msgTimestamp = null;
-
-            if (msg.timestamp) {
-                // If it's already a Date object from pg driver
-                if (msg.timestamp instanceof Date) {
-                    msgTimestamp = msg.timestamp;
-                }
-                // If it's a string, parse it
-                else if (typeof msg.timestamp === 'string') {
-                    // Replace space with T for ISO format compatibility
-                    const isoString = msg.timestamp.replace(' ', 'T');
-                    msgTimestamp = new Date(isoString);
-                }
-                // If it's a number (unix timestamp)
-                else if (typeof msg.timestamp === 'number') {
-                    msgTimestamp = new Date(msg.timestamp);
-                }
-            }
-
-            const isValidDate = msgTimestamp && !isNaN(msgTimestamp.getTime());
-
-            // Debug log for first message
-            if (rows.indexOf(msg) === 0) {
-                console.log(`📅 Timestamp debug - raw: ${msg.timestamp}, parsed: ${msgTimestamp?.toISOString()}, valid: ${isValidDate}`);
-            }
+            const msgTimestamp = parseMessageTimestamp(msg.timestamp);
+            const isValidDate = Boolean(msgTimestamp);
 
             return {
                 id: msg.whatsapp_id || msg.id,
@@ -111,7 +88,7 @@ class MessageService {
                 sender: msg.sender,
                 // Display time (HH:MM format)
                 timestamp: isValidDate
-                    ? msgTimestamp.toLocaleTimeString('es-CO', { hour: '2-digit', minute: '2-digit', timeZone: 'America/Bogota' })
+                    ? msgTimestamp.toLocaleTimeString('es-CO', { hour: '2-digit', minute: '2-digit', timeZone: 'America/Bogota', hour12: false })
                     : '',
                 // Raw timestamp in ISO format for grouping
                 rawTimestamp: isValidDate ? msgTimestamp.toISOString() : null,
@@ -134,8 +111,8 @@ class MessageService {
 
         // Get cursors for next/prev pagination
         const hasMore = rows.length === safeLimit;
-        const oldestTimestamp = rows.length > 0 ? rows[rows.length - 1].timestamp : null;
-        const newestTimestamp = rows.length > 0 ? rows[0].timestamp : null;
+        const oldestTimestamp = rows.length > 0 ? parseMessageTimestamp(rows[rows.length - 1].timestamp) : null;
+        const newestTimestamp = rows.length > 0 ? parseMessageTimestamp(rows[0].timestamp) : null;
 
         return {
             data: messages,
@@ -183,6 +160,11 @@ class MessageService {
      * Create a new message
      */
     async create({ phone, sender, text, whatsappId, mediaType, mediaUrl, status = 'delivered', timestamp = null, agentId, agentName, senderName, replyToId, replyToText, replyToSender, tempId }) {
+        if (timestamp !== null && timestamp !== undefined && timestamp !== '') {
+            const parsedTimestamp = parseMessageTimestamp(timestamp);
+            if (!parsedTimestamp) throw new Error('Invalid message timestamp');
+            timestamp = parsedTimestamp.toISOString();
+        }
         // Verify if agent exists before inserting to avoid FK error
         let verifiedAgentId = null;
         if (agentId) {

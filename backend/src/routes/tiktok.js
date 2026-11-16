@@ -161,7 +161,7 @@ router.post('/', async (req, res) => {
                 timestamp,
                 senderName: contactName
             });
-            await conversationService.updateLastMessage(phone, text, false);
+            await conversationService.updateLastMessage(phone, text, false, savedMessage.timestamp);
             await conversationService.incrementUnread(phone);
 
             emitIncomingMessage(tenant.slug, phone, {

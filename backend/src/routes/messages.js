@@ -228,7 +228,7 @@ router.post('/send-message', requireApiKey, asyncHandler(async (req, res) => {
         message,
         sender: 'agent', // Added for consistency
         sender_type: 'agent',
-        timestamp: new Date().toISOString(),
+        timestamp: savedMessage.timestamp,
         agent_id: finalAgentId,
         agent_name: finalAgentName,
         sender_name: finalAgentName,
@@ -373,7 +373,7 @@ router.post('/send-file', requireApiKey, upload.single('file'), restoreTenantCon
         media_url: fileUrl,
         sender: 'agent', // Added for consistency
         sender_type: 'agent',
-        timestamp: new Date().toISOString(),
+        timestamp: savedMessage.timestamp,
         agent_id,
         agent_name,
         sender_name: agent_name,
@@ -683,7 +683,7 @@ router.post('/bulk-send', requireApiKey, asyncHandler(async (req, res) => {
                             media_type: m.mediaType,
                             media_url: m.mediaUrl,
                             sender_type: 'agent',
-                            timestamp: new Date().toISOString(),
+                            timestamp: saved.timestamp,
                             agent_id: finalAgentId,
                             agent_name: finalAgentName,
                             sender_name: finalAgentName,
@@ -694,7 +694,7 @@ router.post('/bulk-send', requireApiKey, asyncHandler(async (req, res) => {
                         io.to(`tenant:${tenantSlug}`).emit('conversation-updated', {
                             phone: normalizedPhone,
                             lastMessage: lastMsgText,
-                            timestamp: new Date().toISOString(),
+                            timestamp: savedMessages[savedMessages.length - 1].timestamp,
                             unread: 0,
                             sender_type: 'agent'
                         });

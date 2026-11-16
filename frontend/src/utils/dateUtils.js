@@ -1,93 +1,64 @@
-/**
- * Date formatting utilities for the chat platform
- */
+/** Dates are stored as instants and always displayed in Colombia's time zone. */
+export const CHAT_TIME_ZONE = 'America/Bogota';
 
-/**
- * Format a timestamp to a time string (HH:MM)
- * @param {string|number|Date} timestamp - The timestamp to format
- * @returns {string} Formatted time string
- */
+export const parseTimestamp = (value) => {
+    if (value === null || value === undefined || value === '') return null;
+    if (typeof value === 'string') {
+        value = value.trim();
+        if (/^\d+(\.\d+)?$/.test(value)) value = Number(value);
+        else {
+            if (!/^\d{4}-\d{2}-\d{2}[ T]\d{2}:\d{2}/.test(value)) return null;
+            value = value.replace(' ', 'T');
+            // Legacy API timestamps without an offset are UTC, never browser-local.
+            if (!/(Z|[+-]\d{2}(:?\d{2})?)$/i.test(value)) value += 'Z';
+            value = value.replace(/([+-]\d{2})$/, '$1:00');
+        }
+    }
+    if (typeof value === 'number') value = value < 1e12 ? value * 1000 : value;
+    if (!(value instanceof Date) && typeof value !== 'string' && typeof value !== 'number') return null;
+    const date = new Date(value);
+    return Number.isNaN(date.getTime()) ? null : date;
+};
+
 export const formatTime = (timestamp) => {
-    if (!timestamp) return '';
-
-    try {
-        // If already formatted as HH:MM, return as-is
-        if (typeof timestamp === 'string' && timestamp.match(/^\d{1,2}:\d{2}$/)) {
-            return timestamp;
-        }
-
-        const date = new Date(timestamp);
-        if (isNaN(date.getTime())) return '';
-
-        return date.toLocaleTimeString('es-CO', {
-            hour: '2-digit',
-            minute: '2-digit',
-            hour12: false
-        });
-    } catch (error) {
-        console.error('Error formatting time:', error);
-        return '';
-    }
+    const date = parseTimestamp(timestamp);
+    return date ? date.toLocaleTimeString('es-CO', {
+        timeZone: CHAT_TIME_ZONE, hour: '2-digit', minute: '2-digit', hour12: false
+    }) : '';
 };
 
-/**
- * Format a timestamp to a date string for grouping
- * @param {string|number|Date} timestamp - The timestamp to format
- * @returns {string} Formatted date string (Hoy, Ayer, or date)
- */
-export const formatDateGroup = (timestamp) => {
-    if (!timestamp) return 'Sin fecha';
-
-    try {
-        const date = new Date(timestamp);
-        if (isNaN(date.getTime())) return 'Sin fecha';
-
-        const today = new Date();
-        const yesterday = new Date(today);
-        yesterday.setDate(yesterday.getDate() - 1);
-
-        // Reset time for comparison
-        const dateOnly = new Date(date.getFullYear(), date.getMonth(), date.getDate());
-        const todayOnly = new Date(today.getFullYear(), today.getMonth(), today.getDate());
-        const yesterdayOnly = new Date(yesterday.getFullYear(), yesterday.getMonth(), yesterday.getDate());
-
-        if (dateOnly.getTime() === todayOnly.getTime()) {
-            return 'Hoy';
-        }
-
-        if (dateOnly.getTime() === yesterdayOnly.getTime()) {
-            return 'Ayer';
-        }
-
-        // For other dates, show full date
-        return date.toLocaleDateString('es-CO', {
-            weekday: 'long',
-            day: 'numeric',
-            month: 'long',
-            year: date.getFullYear() !== today.getFullYear() ? 'numeric' : undefined
-        });
-    } catch (error) {
-        console.error('Error formatting date group:', error);
-        return 'Sin fecha';
-    }
-};
-
-/**
- * Get the date key for grouping messages (YYYY-MM-DD)
- * @param {string|number|Date} timestamp - The timestamp
- * @returns {string} Date key in YYYY-MM-DD format
- */
 export const getDateKey = (timestamp) => {
-    if (!timestamp) return 'unknown';
+    const date = parseTimestamp(timestamp);
+    if (!date) return 'unknown';
+    const parts = new Intl.DateTimeFormat('en-US', {
+        timeZone: CHAT_TIME_ZONE, year: 'numeric', month: '2-digit', day: '2-digit'
+    }).formatToParts(date);
+    const part = type => parts.find(item => item.type === type).value;
+    return part('year') + '-' + part('month') + '-' + part('day');
+};
 
-    try {
-        const date = new Date(timestamp);
-        if (isNaN(date.getTime())) return 'unknown';
+const relativeDay = (timestamp) => {
+    const key = getDateKey(timestamp);
+    if (key === 'unknown') return null;
+    const today = getDateKey(new Date());
+    // Subtract a calendar day from Colombia's date, independently of the device zone.
+    const yesterday = new Date(today + 'T12:00:00Z');
+    yesterday.setUTCDate(yesterday.getUTCDate() - 1);
+    if (key === today) return 'today';
+    if (key === getDateKey(yesterday)) return 'yesterday';
+    return 'other';
+};
 
-        return date.toISOString().split('T')[0];
-    } catch (error) {
-        return 'unknown';
-    }
+export const formatDateGroup = (timestamp) => {
+    const date = parseTimestamp(timestamp);
+    if (!date) return 'Sin fecha';
+    const day = relativeDay(date);
+    if (day === 'today') return 'Hoy';
+    if (day === 'yesterday') return 'Ayer';
+    return date.toLocaleDateString('es-CO', {
+        timeZone: CHAT_TIME_ZONE, weekday: 'long', day: 'numeric', month: 'long',
+        year: getDateKey(date).slice(0, 4) !== getDateKey(new Date()).slice(0, 4) ? 'numeric' : undefined
+    });
 };
 
 /**
@@ -133,8 +104,8 @@ export const getRelativeTime = (timestamp) => {
     if (!timestamp) return '';
 
     try {
-        const date = new Date(timestamp);
-        if (isNaN(date.getTime())) return '';
+        const date = parseTimestamp(timestamp);
+        if (!date) return '';
 
         const now = new Date();
         const diffMs = now - date;
@@ -159,34 +130,12 @@ export const getRelativeTime = (timestamp) => {
  * @returns {string} Short date string
  */
 export const getShortDate = (timestamp) => {
-    if (!timestamp) return '';
-
-    try {
-        const date = new Date(timestamp);
-        if (isNaN(date.getTime())) return '';
-
-        const today = new Date();
-        const yesterday = new Date(today);
-        yesterday.setDate(yesterday.getDate() - 1);
-
-        const dateOnly = new Date(date.getFullYear(), date.getMonth(), date.getDate());
-        const todayOnly = new Date(today.getFullYear(), today.getMonth(), today.getDate());
-        const yesterdayOnly = new Date(yesterday.getFullYear(), yesterday.getMonth(), yesterday.getDate());
-
-        if (dateOnly.getTime() === todayOnly.getTime()) {
-            return ''; // Hoy, no mostramos fecha extra
-        }
-
-        if (dateOnly.getTime() === yesterdayOnly.getTime()) {
-            return 'Ayer';
-        }
-
-        return date.toLocaleDateString('es-CO', {
-            day: '2-digit',
-            month: '2-digit',
-            year: '2-digit'
-        });
-    } catch (error) {
-        return '';
-    }
+    const date = parseTimestamp(timestamp);
+    if (!date) return '';
+    const day = relativeDay(date);
+    if (day === 'today') return '';
+    if (day === 'yesterday') return 'Ayer';
+    return date.toLocaleDateString('es-CO', {
+        timeZone: CHAT_TIME_ZONE, day: '2-digit', month: '2-digit', year: '2-digit'
+    });
 };

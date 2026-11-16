@@ -304,7 +304,7 @@ router.post('/receive-message', asyncHandler(async (req, res) => {
     }
 
     // Save message
-    await messageService.create({
+    const savedMessage = await messageService.create({
         phone: dbPhone,
         sender: sender_type,
         text: message,
@@ -315,7 +315,7 @@ router.post('/receive-message', asyncHandler(async (req, res) => {
     });
 
     // Update conversation
-    await conversationService.updateLastMessage(dbPhone, message);
+    await conversationService.updateLastMessage(dbPhone, message, isBot || isAgent, savedMessage.timestamp);
 
     if (!isBot && !isAgent) {
         await conversationService.incrementUnread(dbPhone);
@@ -405,7 +405,7 @@ router.post('/receive-message', asyncHandler(async (req, res) => {
         media_url,
         sender_name: isBot ? 'Inteligencia Artificial' : (isAgent ? 'Agente' : (contact_name || `Usuario ${dbPhone.slice(-4)}`)),
         unread: (isBot || isAgent) ? 0 : 1,
-        timestamp: timestamp || new Date().toISOString(),
+        timestamp: savedMessage.timestamp,
         conversation_state: currentState,
         ai_enabled: shouldActivateAI,
         isNew: isNewConversation

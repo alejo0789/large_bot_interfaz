@@ -2,6 +2,7 @@ import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { createPortal } from 'react-dom';
 import { CheckCheck, Check, Clock, Download, FileText, Image as ImageIcon, Mic, Forward, Reply, Trash2, Smile, MoreHorizontal, ChevronDown, Copy, Edit2, Calendar } from 'lucide-react';
 import EmojiPicker from 'emoji-picker-react';
+import { formatTime } from '../../utils/dateUtils';
 
 /**
  * Message bubble component with media support, reactions, and actions
@@ -654,7 +655,7 @@ const MessageBubble = React.memo(({ message, onForward, onReact, onDelete, onRep
                                     Editado
                                 </span>
                             )}
-                            <span className="message-time">{timestamp}</span>
+                            <span className="message-time">{message.rawTimestamp ? formatTime(message.rawTimestamp) : timestamp}</span>
                             {isOutgoing && (
                                 <span className="message-status">
                                     {getStatusIcon()}
@@ -1058,6 +1059,8 @@ const MessageBubble = React.memo(({ message, onForward, onReact, onDelete, onRep
         prevProps.isForwardSelectionMode === nextProps.isForwardSelectionMode &&
         prevProps.isSelectedForForward === nextProps.isSelectedForForward &&
         pm.id === nm.id &&
+        pm.timestamp === nm.timestamp &&
+        pm.rawTimestamp === nm.rawTimestamp &&
         pm.status === nm.status &&
         pm.text === nm.text &&
         pm.media_url === nm.media_url &&
